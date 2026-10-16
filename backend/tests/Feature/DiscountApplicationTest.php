@@ -96,7 +96,10 @@ class DiscountApplicationTest extends TestCase
         $this->assertSame('APPROVED', $profile->account_status);
         $this->assertSame('registration-id.png', $profile->id_image_url);
         $this->assertSame($type === 'STUDENT' ? '2027-10-01' : null, $profile->student_discount_expires_at?->toDateString());
-        $this->assertDatabaseHas('announcements', ['user_id' => $profile->id, 'type' => 'DISCOUNT_APPLICATION_DONE']);
+        $this->assertDatabaseHas('announcements', [
+            'user_id' => $profile->id, 'type' => 'DISCOUNT_APPLICATION_DONE',
+            'title' => ['STUDENT' => 'Student', 'SENIOR' => 'Senior Citizen', 'PWD' => 'PWD'][$type].' discount approved',
+        ]);
         Sanctum::actingAs($this->commuter->fresh());
         $this->getJson(self::URL)->assertOk()->assertJsonPath('data.status', 'APPROVED')->assertJsonPath('data.can_submit', false)
             ->assertJsonMissingPath('data.application.document_url')->assertJsonMissingPath('data.application.document_path');
@@ -174,6 +177,7 @@ class DiscountApplicationTest extends TestCase
     {
         $first = $this->submit('SENIOR');
         $this->review($first, 'REJECTED', 'Document does not match the commuter.')->assertOk();
+        $this->assertDatabaseHas('announcements', ['user_id' => $this->commuter->id, 'type' => 'DISCOUNT_APPLICATION_DONE', 'title' => 'Senior Citizen discount rejected']);
         $profile = $this->commuter->fresh()->commuterProfile;
         $this->assertSame('REGULAR', $profile->commuter_type);
         $this->assertSame('REGULAR', $profile->applied_type);
@@ -191,7 +195,7 @@ class DiscountApplicationTest extends TestCase
         $application = $this->submit('PWD');
         $firstSubmittedAt = $application->first_submitted_at->toIso8601String();
         $this->review($application, 'NEEDS_CORRECTION', 'Unreadable card.')->assertOk()->assertJsonPath('data.correction_due_at', null);
-        $this->assertDatabaseHas('announcements', ['user_id' => $this->commuter->id, 'type' => 'DISCOUNT_APPLICATION_DONE']);
+        $this->assertDatabaseHas('announcements', ['user_id' => $this->commuter->id, 'type' => 'DISCOUNT_APPLICATION_DONE', 'title' => 'PWD discount needs correction']);
         $this->assertStringNotContainsString('seven days', Announcement::where('type', 'DISCOUNT_APPLICATION_DONE')->value('message'));
 
         Carbon::setTestNow(now()->addDays(90));
@@ -296,6 +300,7 @@ class DiscountApplicationTest extends TestCase
         $this->assertDatabaseCount('discount_applications', 2);
         $renewal = DiscountApplication::where('request_type', 'RENEWAL')->firstOrFail();
         $this->review($renewal, 'APPROVED')->assertOk();
+        $this->assertDatabaseHas('announcements', ['user_id' => $this->commuter->id, 'type' => 'STUDENT_RENEWAL_DONE', 'title' => 'Student status renewed']);
         $this->assertSame('2028-10-01', $this->commuter->fresh()->commuterProfile->student_discount_expires_at->toDateString());
     }
 

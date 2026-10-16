@@ -8,25 +8,10 @@ import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
 import type { PickupSchedule } from '@/lib/shared/services/lost-found.service';
 
 /** Same text the backend falls back to (LostItemService::DEFAULT_PICKUP_REMINDER). */
-const DEFAULT_REMINDER = 'Bring a valid ID and the proof of ownership you submitted.';
-/** Pickups usually happen at the same office, so the last one is offered again. */
-const LAST_LOCATION_KEY = 'chatco:lost-found:last-pickup-location';
-
-function readLastLocation(): string {
-  try {
-    return window.localStorage.getItem(LAST_LOCATION_KEY) ?? '';
-  } catch {
-    return '';
-  }
-}
-
-function rememberLocation(location: string) {
-  try {
-    window.localStorage.setItem(LAST_LOCATION_KEY, location);
-  } catch {
-    // Storage blocked (private mode etc.) — the field just starts empty next time.
-  }
-}
+const DEFAULT_REMINDER = 'Bring a valid ID and the proof of ownership you submitted. Please note that approval does not guarantee release: staff will check your ID, proof and answers at pickup, and may still decline the claim if they do not match the item. If you do not come by the end of the pickup date, this approval is automatically cancelled and you will need to claim the item again.';
+/** Where pickups normally happen. Pre-filled on every approval and editable
+ * for the occasional handover somewhere else. */
+const DEFAULT_LOCATION = "CHATCO Office in Calumpit, Bulacan, near the Pampanga Arch and Jed's Island Resort";
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const todayISO = () => {
@@ -48,7 +33,7 @@ interface ApproveClaimModalProps {
  * the commuter's Claims tab and their approval notification.
  */
 export function ApproveClaimModal({ isOpen, claimantName, onClose, onConfirm }: ApproveClaimModalProps) {
-  const [location, setLocation] = useState(readLastLocation);
+  const [location, setLocation] = useState(DEFAULT_LOCATION);
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
   const [reminder, setReminder] = useState(DEFAULT_REMINDER);
@@ -77,7 +62,7 @@ export function ApproveClaimModal({ isOpen, claimantName, onClose, onConfirm }: 
     setIsSubmitting(true);
     try {
       await onConfirm({ location: trimmedLocation, pickupAt: `${date}T${time}`, reminder: reminder.trim() });
-      rememberLocation(trimmedLocation);
+      setLocation(DEFAULT_LOCATION);
       setDate('');
       setTime('');
       setReminder(DEFAULT_REMINDER);
@@ -149,13 +134,13 @@ export function ApproveClaimModal({ isOpen, claimantName, onClose, onConfirm }: 
           <label htmlFor="pickup-reminder" className="mb-1.5 block text-xs font-semibold text-slate-300">Reminder for the claimant</label>
           <textarea
             id="pickup-reminder"
-            rows={3}
+            rows={7}
             maxLength={500}
             value={reminder}
             onChange={(e) => setReminder(e.target.value)}
             className="w-full resize-none rounded-lg border border-white/10 bg-[#0E1628] px-3 py-2 text-sm leading-6 text-white outline-none transition-colors placeholder:text-slate-500 focus:border-[#62A0EA]"
           />
-          <p className="mt-1 text-[10px] text-slate-500">Leave blank to use the standard ID reminder.</p>
+          <p className="mt-1 text-[10px] text-slate-500">Leave blank to use the standard reminder.</p>
         </div>
 
         {error && (

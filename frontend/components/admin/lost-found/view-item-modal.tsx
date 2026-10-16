@@ -3,24 +3,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
-import { Badge } from '@/components/admin/ui/badge';
-import {
-  BadgeCheck,
-  BusFront,
-  CalendarDays,
-  Clock3,
-  FileText,
-  Hash,
-  IdCard,
-  ImagePlus,
-  PackageSearch,
-  Pencil,
-  RotateCcw,
-  Tag,
-  Trash2,
-  Upload,
-  UserRound,
-} from 'lucide-react';
+import { Check, Copy, ImagePlus, PackageSearch, Pencil, RotateCcw, X } from 'lucide-react';
 import { itemCategories, type LostFoundItem } from '@/app/(admin)/lost-found/data/lost-found-data';
 
 const MAX_PHOTOS = 3;
@@ -36,52 +19,47 @@ interface ViewItemModalProps {
   isActing?: boolean;
 }
 
-const getBadgeVariant = (status: LostFoundItem['status']): 'success' | 'warning' | 'danger' | 'info' => {
+/** Status as coloured text (no badge), same colour mapping the grid uses. */
+const getStatusTextClass = (status: LostFoundItem['status']): string => {
   switch (status) {
     case 'Released':
     case 'Returned':
     case 'Closed':
-      return 'success';
+      return 'text-emerald-300';
     case 'Claimed':
-      return 'info';
+      return 'text-[#8CB9F0]';
     case 'Expired':
     case 'Rejected':
-      return 'danger';
+      return 'text-red-300';
     default:
-      return 'warning';
+      return 'text-amber-300';
   }
 };
 
 const categoryLabels = Object.fromEntries(itemCategories.map((category) => [category.value, category.label]));
 
-function DetailField({
-  icon,
-  label,
-  value,
-  mono = false,
-  tone = 'default',
-}: {
-  icon: ReactNode;
-  label: string;
-  value: ReactNode;
-  mono?: boolean;
-  tone?: 'default' | 'accent' | 'danger';
-}) {
-  const toneClasses = {
-    default: 'border-white/8 bg-white/[0.035]',
-    accent: 'border-[#62A0EA]/25 bg-[#62A0EA]/10',
-    danger: 'border-red-400/25 bg-red-500/10',
-  };
+function GroupLabel({ children }: { children: ReactNode }) {
+  return <h3 className="mb-4 text-[11px] font-semibold uppercase tracking-wider text-slate-500">{children}</h3>;
+}
 
+/** Label over value; a missing value keeps its fallback copy but drops to muted. */
+function Fact({ label, value, fallback }: { label: string; value: string | null | undefined; fallback: string }) {
   return (
-    <div className={`flex min-w-0 items-start gap-3 rounded-lg border p-3 ${toneClasses[tone]}`}>
-      <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-black/20 text-[#62A0EA]">
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</p>
-        <p className={`mt-0.5 break-words text-sm font-semibold text-slate-100 ${mono ? 'font-mono' : ''}`}>{value}</p>
-      </div>
+    <div className="min-w-0">
+      <dt className="text-xs font-semibold text-slate-500">{label}</dt>
+      <dd className={`mt-1 break-words text-sm ${value ? 'font-semibold text-slate-100' : 'text-slate-500'}`}>
+        {value || fallback}
+      </dd>
+    </div>
+  );
+}
+
+/** One ledger row in the Record group: fixed label column, value beside it. */
+function RecordRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-baseline gap-4 border-b border-white/[0.06] py-3 last:border-b-0">
+      <dt className="text-xs font-semibold text-slate-500">{label}</dt>
+      <dd className="min-w-0 break-words text-sm text-slate-100">{children}</dd>
     </div>
   );
 }
@@ -96,19 +74,29 @@ export function ViewItemModal({
   onDeletePhoto,
   isActing,
 }: ViewItemModalProps) {
-  const [selectedIndex, setSelectedIndex] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+  const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
+  const [isReactivating, setIsReactivating] = useState(false);
+  const [isIdCopied, setIsIdCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    setSelectedIndex(0);
+    setIsIdCopied(false);
+    setDeletingPhotoId(null);
   }, [item?.id]);
+
+  useEffect(() => () => {
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+  }, []);
 
   if (!item) return null;
 
   const photos = item.photos;
-  const activePhoto = photos[selectedIndex] ?? photos[0] ?? null;
+  const photoCount = photos.length;
   const categoryLabel = categoryLabels[item.category] ?? item.category;
+  const isExpired = item.status === 'Expired';
+  const isPhotoBusy = isUploading || deletingPhotoId !== null;
 
   const formattedDate = new Date(item.datePosted).toLocaleDateString('en-PH', {
     year: 'numeric',
@@ -117,11 +105,14 @@ export function ViewItemModal({
     hour: '2-digit',
     minute: '2-digit',
   });
+  const formattedExpiry = item.expiredAt
+    ? new Date(item.expiredAt).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
+    : '-';
 
   const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
-    if (!file) return;
+    if (!file || isPhotoBusy) return;
 
     setIsUploading(true);
     try {
@@ -132,152 +123,219 @@ export function ViewItemModal({
   };
 
   const handleDeletePhoto = async (photoId: string) => {
-    setSelectedIndex(0);
-    await onDeletePhoto(item.id, photoId);
+    if (isPhotoBusy) return;
+    setDeletingPhotoId(photoId);
+    try {
+      await onDeletePhoto(item.id, photoId);
+    } finally {
+      setDeletingPhotoId(null);
+    }
   };
 
+  const handleReactivate = async () => {
+    if (isActing || isReactivating) return;
+    setIsReactivating(true);
+    try {
+      await onReactivate(item.id);
+    } finally {
+      setIsReactivating(false);
+    }
+  };
+
+  // Clipboard access can be refused (non-secure origin, denied permission);
+  // the ID stays selectable as text either way, so a failure is silent.
+  const handleCopyId = async () => {
+    try {
+      await navigator.clipboard.writeText(item.id);
+      setIsIdCopied(true);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setIsIdCopied(false), 1500);
+    } catch {
+      setIsIdCopied(false);
+    }
+  };
+
+  // One upload control, in the first empty slot only, so photos stay in
+  // order (slot 1 is the thumbnail) — same rule as the Report Item modal.
+  const addPhotoSlot = (large: boolean) => (
+    <button
+      type="button"
+      onClick={() => fileInputRef.current?.click()}
+      disabled={isPhotoBusy}
+      className={`flex h-full w-full flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-white/15 bg-white/[0.03] px-2 text-center text-slate-400 transition-colors hover:border-[#62A0EA] hover:text-[#8CB9F0] focus:outline-none focus-visible:border-[#62A0EA] disabled:cursor-not-allowed disabled:opacity-50 ${large ? 'lg:px-6' : ''}`}
+    >
+      {isUploading ? (
+        <span className="h-5 w-5 rounded-full border-2 border-current border-t-transparent animate-spin" aria-hidden="true" />
+      ) : (
+        <ImagePlus className={large ? 'h-5 w-5 lg:h-6 lg:w-6' : 'h-5 w-5'} aria-hidden="true" />
+      )}
+      {isUploading ? (
+        <span className="text-[11px] font-semibold">Uploading...</span>
+      ) : large ? (
+        <>
+          <span className="text-[11px] font-semibold lg:hidden">Main photo</span>
+          <span className="hidden text-sm font-semibold lg:inline">Add the main photo</span>
+          <span className="hidden text-xs text-slate-500 lg:inline">Becomes the item thumbnail</span>
+        </>
+      ) : (
+        <span className="text-[11px] font-semibold">Add photo</span>
+      )}
+    </button>
+  );
+
+  const photoSlot = (index: number, large: boolean) => {
+    const photo = photos[index];
+    if (photo) {
+      const isDeleting = deletingPhotoId === photo.id;
+      return (
+        <div className="group/photo relative h-full w-full overflow-hidden rounded-lg border border-white/10 bg-[#0B1628]">
+          {/* Opens the full-size photo, so the smaller slots can still be inspected. */}
+          <a href={photo.url} target="_blank" rel="noopener noreferrer" className="block h-full w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA]" aria-label={`Open photo ${index + 1} full size`}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={photo.url}
+              alt={index === 0 ? item.itemName : `${item.itemName}, photo ${index + 1}`}
+              className={`h-full w-full object-cover transition-opacity ${isDeleting ? 'opacity-40' : ''}`}
+            />
+          </a>
+          {index === 0 && (
+            <span className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/65 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white">Thumbnail</span>
+          )}
+          <button
+            type="button"
+            onClick={() => void handleDeletePhoto(photo.id)}
+            disabled={isPhotoBusy}
+            className="absolute right-1.5 top-1.5 inline-flex h-7 w-7 items-center justify-center rounded-md bg-black/60 text-white/85 transition-colors hover:bg-red-500 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-black/60"
+            aria-label={`Remove photo ${index + 1}`}
+            title="Remove photo"
+          >
+            {isDeleting ? (
+              <span className="h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" aria-hidden="true" />
+            ) : (
+              <X className="h-3.5 w-3.5" />
+            )}
+          </button>
+          {large && <span className="sr-only">Main photo</span>}
+        </div>
+      );
+    }
+    if (index === photoCount && photoCount < MAX_PHOTOS) return addPhotoSlot(large);
+    return <div aria-hidden="true" className="h-full w-full rounded-lg border border-dashed border-white/[0.06]" />;
+  };
+
+  const secondaryButton = 'inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-white/10 px-5 text-sm font-semibold text-slate-300 transition-colors hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-50';
+  const primaryButton = 'inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] px-5 text-sm font-bold text-white transition-colors hover:bg-[#4A8BD4] disabled:cursor-not-allowed disabled:opacity-50';
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-6xl" rounded="rounded-xl">
-      <div className="space-y-5">
-        <div className="flex flex-col gap-3 pr-10 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <Badge variant={getBadgeVariant(item.status)}>{item.status}</Badge>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-slate-300">
-                <Tag className="h-3.5 w-3.5 text-[#62A0EA]" />
-                {categoryLabel}
-              </span>
-            </div>
-            <h2 className="truncate text-xl font-bold leading-tight text-white sm:text-2xl">{item.itemName}</h2>
-          </div>
+    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-5xl" rounded="rounded-xl">
+      <header className="pr-10">
+        <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#8CB9F0]">
+          <PackageSearch className="h-3.5 w-3.5" aria-hidden="true" />
+          Lost item
+          <span className="text-slate-600" aria-hidden="true">/</span>
+          <span className="text-slate-400">{categoryLabel}</span>
+        </p>
+        <h2 className="break-words text-xl font-bold leading-tight text-white sm:text-2xl">{item.itemName}</h2>
+        <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <span className={`text-sm font-semibold ${getStatusTextClass(item.status)}`}>{item.status}</span>
+          <span className="text-xs text-slate-500">Posted {formattedDate}</span>
+        </div>
+      </header>
 
-          <div className="flex flex-shrink-0 items-center gap-2">
-            {item.status === 'Expired' && (
-              <button
-                onClick={() => void onReactivate(item.id)}
-                disabled={isActing}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 text-xs font-bold text-emerald-200 transition-colors hover:bg-emerald-400/15 disabled:opacity-50"
-              >
-                <RotateCcw className="h-4 w-4" />
-                Reactivate
-              </button>
+      {/* Photos lead on the left, the record reads down the wider column
+          beside them. One column on small screens. */}
+      <div className="mt-6 grid gap-8 border-t border-white/10 pt-6 lg:grid-cols-[18rem_minmax(0,1fr)] lg:gap-10">
+        <section aria-labelledby="view-photos-label">
+          <div className="mb-4 flex items-baseline justify-between gap-3">
+            <h3 id="view-photos-label" className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Photos</h3>
+            <span className="text-xs font-semibold tabular-nums text-slate-500">{photoCount}/{MAX_PHOTOS}</span>
+          </div>
+          {/* Desktop: the main photo spans the column with two below it.
+              Smaller screens: three equal squares in one row. */}
+          <div className="grid grid-cols-3 gap-3 lg:grid-cols-2">
+            <div className="aspect-square lg:col-span-2">{photoSlot(0, true)}</div>
+            <div className="aspect-square">{photoSlot(1, false)}</div>
+            <div className="aspect-square">{photoSlot(2, false)}</div>
+          </div>
+          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelected} />
+          <p className="mt-3 text-xs leading-5 text-slate-500">Select a photo to open it full size. The first photo is the thumbnail.</p>
+        </section>
+
+        <div className="min-w-0">
+          <section>
+            <GroupLabel>Description</GroupLabel>
+            {item.description ? (
+              <p className="max-w-[65ch] whitespace-pre-line break-words text-base leading-7 text-slate-200">{item.description}</p>
+            ) : (
+              <p className="text-sm text-slate-500">No description provided.</p>
             )}
-            <button
-              onClick={() => onEdit(item)}
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#62A0EA]/30 bg-[#62A0EA]/12 px-3 py-2 text-xs font-bold text-[#9CC7F5] transition-colors hover:bg-[#62A0EA]/20"
-            >
-              <Pencil className="h-4 w-4" />
-              Edit
-            </button>
-          </div>
-        </div>
-
-        <div className="flex min-w-0 items-start gap-3 rounded-lg border border-white/8 bg-white/[0.035] p-3">
-          <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-black/20 text-[#62A0EA]">
-            <FileText className="h-4 w-4" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Description</p>
-            <p className="mt-0.5 break-words text-sm leading-6 text-slate-100">{item.description || 'No description provided.'}</p>
-          </div>
-        </div>
-
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
-          <section className="min-w-0">
-            <div className="relative aspect-[4/3] overflow-hidden rounded-xl border border-white/10 bg-[#0B1628]">
-              {activePhoto ? (
-                <img src={activePhoto.url} alt={item.itemName} className="h-full w-full object-cover" />
-              ) : (
-                <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-slate-600">
-                  <PackageSearch className="h-16 w-16" />
-                  <span className="text-xs font-semibold uppercase tracking-wider">No photo uploaded yet</span>
-                </div>
-              )}
-
-              <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/75 via-black/35 to-transparent px-4 pb-4 pt-10">
-                <span className="text-xs font-semibold text-white">{photos.length}/{MAX_PHOTOS} photos</span>
-                {activePhoto && (
-                  <button
-                    type="button"
-                    onClick={() => void handleDeletePhoto(activePhoto.id)}
-                    disabled={isActing}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-red-400/30 bg-red-500/15 px-2.5 py-1.5 text-xs font-semibold text-red-200 transition-colors hover:bg-red-500/25 disabled:opacity-50"
-                    title="Remove selected photo"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Remove
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="mt-3 grid grid-cols-4 gap-2">
-              {photos.map((photo, index) => (
-                <div key={photo.id} className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedIndex(index)}
-                    className={`aspect-square w-full overflow-hidden rounded-lg border transition-colors ${
-                      index === selectedIndex
-                        ? 'border-[#62A0EA] ring-2 ring-[#62A0EA]/20'
-                        : 'border-white/10 hover:border-[#62A0EA]/45'
-                    }`}
-                  >
-                    <img src={photo.url} alt={`Photo ${index + 1}`} className="h-full w-full object-cover" />
-                  </button>
-                  {index === 0 && (
-                    <span className="pointer-events-none absolute bottom-1 left-1 rounded bg-black/60 px-1 py-0.5 text-[8px] font-semibold uppercase tracking-wider text-white">Thumb</span>
-                  )}
-                </div>
-              ))}
-              {photos.length < MAX_PHOTOS && (
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploading}
-                  className="flex aspect-square flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-white/15 bg-white/[0.03] text-slate-500 transition-colors hover:border-[#62A0EA] hover:text-[#62A0EA] disabled:opacity-50"
-                >
-                  {isUploading ? <Upload size={18} className="animate-pulse" /> : <ImagePlus size={18} />}
-                  <span className="text-[9px] font-medium">{isUploading ? 'Uploading...' : 'Add'}</span>
-                </button>
-              )}
-              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelected} />
-            </div>
           </section>
 
-          <section className="min-w-0 space-y-4">
-            <div>
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">Item Details</h3>
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <DetailField icon={<IdCard className="h-4 w-4" />} label="Plate Number" value={item.plateNumber || 'Plate unavailable'} />
-                <DetailField icon={<Clock3 className="h-4 w-4" />} label="Estimated Time Lost" value={item.estimatedTimeLost || 'Time unavailable'} />
-                <DetailField icon={<BusFront className="h-4 w-4" />} label="Driver" value={item.driverName || 'Driver unavailable'} />
-                <DetailField icon={<UserRound className="h-4 w-4" />} label="Conductor" value={item.conductorName || 'Conductor unavailable'} />
-                <DetailField icon={<FileText className="h-4 w-4" />} label="Reported By" value={item.reporterName || 'Reporter unavailable'} />
-                <DetailField icon={<CalendarDays className="h-4 w-4" />} label="Date Posted" value={formattedDate} />
-              </div>
-            </div>
+          <section className="mt-7 border-t border-white/10 pt-6">
+            <GroupLabel>Found on</GroupLabel>
+            <dl className="grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2">
+              <Fact label="Plate Number" value={item.plateNumber} fallback="Plate unavailable" />
+              <Fact label="Estimated Time Lost" value={item.estimatedTimeLost} fallback="Time unavailable" />
+              <Fact label="Driver" value={item.driverName} fallback="Driver unavailable" />
+              <Fact label="Conductor" value={item.conductorName} fallback="Conductor unavailable" />
+            </dl>
+          </section>
 
-            {(item.claimedBy || item.status === 'Expired') && (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {item.claimedBy && (
-                  <DetailField icon={<BadgeCheck className="h-4 w-4" />} label="Claimed By" value={item.claimedBy} tone="accent" />
-                )}
-
-                {item.status === 'Expired' && (
-                  <DetailField
-                    icon={<Clock3 className="h-4 w-4" />}
-                    label="Expired"
-                    value={item.expiredAt ? new Date(item.expiredAt).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' }) : '-'}
-                    tone="danger"
-                  />
-                )}
-              </div>
-            )}
-
-            <DetailField icon={<Hash className="h-4 w-4" />} label="Item ID" value={item.id} mono />
+          <section className="mt-7 border-t border-white/10 pt-6">
+            <GroupLabel>Record</GroupLabel>
+            <dl className="-my-3">
+              <RecordRow label="Reported By">
+                {item.reporterName ? <span className="font-semibold">{item.reporterName}</span> : <span className="text-slate-500">Reporter unavailable</span>}
+              </RecordRow>
+              <RecordRow label="Date Posted">{formattedDate}</RecordRow>
+              {item.claimedBy && (
+                <RecordRow label="Claimed By">
+                  <span className="font-semibold text-[#8CB9F0]">{item.claimedBy}</span>
+                </RecordRow>
+              )}
+              {isExpired && (
+                <RecordRow label="Expired">
+                  <span className="font-semibold text-red-300">{formattedExpiry}</span>
+                </RecordRow>
+              )}
+              <RecordRow label="Item ID">
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="min-w-0 break-all font-mono text-xs text-slate-300">{item.id}</span>
+                  <button
+                    type="button"
+                    onClick={() => void handleCopyId()}
+                    className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-white/5 hover:text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
+                    aria-label={isIdCopied ? 'Item ID copied' : 'Copy item ID'}
+                    title={isIdCopied ? 'Copied' : 'Copy item ID'}
+                  >
+                    {isIdCopied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                  </button>
+                </span>
+              </RecordRow>
+            </dl>
           </section>
         </div>
+      </div>
+
+      {/* Pinned to the bottom of the modal's scroll area so the actions stay
+          reachable on short screens. Reactivate leads only while expired;
+          otherwise Edit is the one action. */}
+      <div className="sticky -bottom-4 z-10 -mx-4 -mb-4 mt-8 flex flex-col-reverse gap-2 border-t border-white/10 bg-[#1A2540] px-4 py-4 sm:-bottom-6 sm:-mx-6 sm:-mb-6 sm:flex-row sm:justify-end sm:px-6">
+        <button type="button" onClick={onClose} className={secondaryButton}>Close</button>
+        <button type="button" onClick={() => onEdit(item)} className={isExpired ? secondaryButton : primaryButton}>
+          <Pencil className="h-4 w-4" />
+          Edit Item
+        </button>
+        {isExpired && (
+          <button type="button" onClick={() => void handleReactivate()} disabled={isActing || isReactivating} className={primaryButton}>
+            {isReactivating ? (
+              <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" aria-hidden="true" />
+            ) : (
+              <RotateCcw className="h-4 w-4" />
+            )}
+            {isReactivating ? 'Reactivating...' : 'Reactivate'}
+          </button>
+        )}
       </div>
     </Modal>
   );

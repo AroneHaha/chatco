@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\UserRole;
 use App\Exceptions\AccountSuspendedException;
+use App\Exceptions\MaintenanceException;
 use App\Exceptions\RegistrationPendingException;
 use App\Models\CommuterProfile;
 use App\Models\ConductorProfile;
@@ -133,6 +134,12 @@ class AuthService
         // A legacy conductor client that omits device_id may still log in when
         // no device owns the shift, but it cannot displace an identified owner.
         // Current Web and Mobile clients always send a stable device_id.
+        // Check before issuing/revoking tokens or handing an active shift to a device.
+        $maintenanceMessage = app(MaintenanceStatus::class)->messageFor($user->role);
+        if ($maintenanceMessage !== null) {
+            throw new MaintenanceException($maintenanceMessage);
+        }
+
         $loginResult = DB::transaction(function () use ($user, $deviceId, $deviceType) {
             $lockedUser = User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
             $handoff = null;
@@ -410,7 +417,7 @@ class AuthService
                 $applicantName = trim($profile->first_name.' '.$profile->surname);
                 DB::afterCommit(fn () => $this->announcementService->notifyAdmins(
                     'NEW_REGISTRATION',
-                    'New registration request',
+                    "New registration: {$applicantName}",
                     "{$applicantName} signed up and is awaiting verification.",
                     $user->id,
                 ));

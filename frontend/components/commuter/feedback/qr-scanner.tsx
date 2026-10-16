@@ -151,13 +151,13 @@ export function QrScanner({ onToken, onCancel, variant = 'page' }: QrScannerProp
   const body = (
     <>
       {/* Mode toggle */}
-      <div className="flex gap-2 mb-4 bg-[#071A2E] p-1 rounded-lg border border-white/10">
+      <div className="flex gap-2 mb-4 bg-[#071A2E] p-1 rounded-lg border border-white/10 light:bg-gray-100 light:border-gray-200">
         <button
           onClick={() => handleSwitchMode('camera')}
           className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-semibold transition-colors ${
             mode === 'camera'
               ? 'bg-[#1A5FB4] text-white shadow'
-              : 'text-white/50 hover:text-white'
+              : 'text-white/50 hover:text-white light:text-gray-500 light:hover:text-gray-900'
           }`}
         >
           <Camera size={14} />
@@ -168,7 +168,7 @@ export function QrScanner({ onToken, onCancel, variant = 'page' }: QrScannerProp
           className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-semibold transition-colors ${
             mode === 'manual'
               ? 'bg-[#1A5FB4] text-white shadow'
-              : 'text-white/50 hover:text-white'
+              : 'text-white/50 hover:text-white light:text-gray-500 light:hover:text-gray-900'
           }`}
         >
           <Keyboard size={14} />
@@ -179,7 +179,7 @@ export function QrScanner({ onToken, onCancel, variant = 'page' }: QrScannerProp
       {/* Camera viewfinder OR manual entry */}
       {mode === 'camera' ? (
         <div className="space-y-3">
-          <div className="relative w-full aspect-square bg-[#071A2E] rounded-2xl overflow-hidden border border-white/10">
+          <div className="relative w-full aspect-square bg-[#071A2E] rounded-2xl overflow-hidden border border-white/10 light:bg-gray-100 light:border-gray-200">
             {/* html5-qrcode mounts the video element here */}
             <div id={containerId} className="w-full h-full" />
 
@@ -196,10 +196,10 @@ export function QrScanner({ onToken, onCancel, variant = 'page' }: QrScannerProp
 
             {/* Loading overlay while the camera is starting */}
             {isStarting && !cameraError && (
-              <div className="absolute inset-0 flex items-center justify-center bg-[#050F1A]/80">
+              <div className="absolute inset-0 flex items-center justify-center bg-[#050F1A]/80 light:bg-white/80">
                 <div className="flex flex-col items-center gap-3">
-                  <div className="w-8 h-8 border-2 border-[#62A0EA] border-t-transparent rounded-full animate-spin" />
-                  <p className="text-white/60 text-xs">Starting camera…</p>
+                  <div className="w-8 h-8 border-2 border-[#62A0EA] border-t-transparent light:border-[#1A5FB4] light:border-t-transparent rounded-full animate-spin" />
+                  <p className="text-white/60 text-xs light:text-gray-500">Starting camera…</p>
                 </div>
               </div>
             )}
@@ -209,13 +209,13 @@ export function QrScanner({ onToken, onCancel, variant = 'page' }: QrScannerProp
             <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 flex items-start gap-2">
               <AlertTriangle
                 size={16}
-                className="text-amber-400 flex-shrink-0 mt-0.5"
+                className="text-amber-400 flex-shrink-0 mt-0.5 light:text-amber-600"
               />
               <div className="flex-1 min-w-0">
-                <p className="text-amber-300 text-xs">{cameraError}</p>
+                <p className="text-amber-300 text-xs light:text-amber-800">{cameraError}</p>
                 <button
                   onClick={() => handleSwitchMode('manual')}
-                  className="text-amber-400 text-xs font-semibold mt-1 hover:underline"
+                  className="text-amber-400 text-xs font-semibold light:text-amber-700 mt-1 hover:underline"
                 >
                   Enter QR code manually →
                 </button>
@@ -223,7 +223,7 @@ export function QrScanner({ onToken, onCancel, variant = 'page' }: QrScannerProp
             </div>
           )}
 
-          <p className="text-center text-white/30 text-[11px]">
+          <p className="text-center text-white/30 text-[11px] light:text-gray-500">
             The QR is printed inside the jeepney unit, near the conductor.
           </p>
         </div>
@@ -232,7 +232,7 @@ export function QrScanner({ onToken, onCancel, variant = 'page' }: QrScannerProp
           <div>
             <label
               htmlFor="manual-token"
-              className="block text-xs font-medium text-white/60 mb-2"
+              className="block text-xs font-medium text-white/60 mb-2 light:text-gray-600"
             >
               Paste QR token
             </label>
@@ -242,12 +242,12 @@ export function QrScanner({ onToken, onCancel, variant = 'page' }: QrScannerProp
               onChange={(e) => setManualValue(e.target.value)}
               placeholder="Paste the token from the QR here…"
               rows={4}
-              className="w-full bg-[#071A2E] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#62A0EA] transition-colors resize-none font-mono text-xs"
+              className="w-full bg-[#071A2E] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#62A0EA] light:bg-white light:border-gray-200 light:text-gray-900 light:placeholder:text-gray-400 light:focus:border-[#1A5FB4] transition-colors resize-none font-mono text-xs"
               autoFocus
             />
-            <p className="text-white/30 text-[11px] mt-1">
+            <p className="text-white/30 text-[11px] mt-1 light:text-gray-500">
               The token is a long string like{' '}
-              <code className="text-white/40">eyJ2IjoxLCJ…</code>
+              <code className="text-white/40 light:text-gray-600">eyJ2IjoxLCJ…</code>
             </p>
           </div>
           <button
@@ -265,24 +265,24 @@ export function QrScanner({ onToken, onCancel, variant = 'page' }: QrScannerProp
 
   if (variant === 'modal') {
     return (
-      <div className="flex max-h-[88vh] w-full flex-col overflow-hidden bg-[#050F1A]">
+      <div className="flex max-h-[88vh] w-full flex-col overflow-hidden bg-[#050F1A] light:bg-white">
         {/* Header — icon badge + title + border-b, matching the other
             commuter scan modal (GCash payment claim). */}
-        <div className="flex items-center justify-between gap-4 border-b border-white/10 p-5">
+        <div className="flex items-center justify-between gap-4 border-b border-white/10 p-5 light:border-gray-200">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 rounded-xl bg-[#1A5FB4]/15 border border-[#1A5FB4]/25 flex items-center justify-center flex-shrink-0">
-              <Camera size={18} className="text-[#62A0EA]" />
+              <Camera size={18} className="text-[#62A0EA] light:text-[#1A5FB4]" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-white font-bold text-lg leading-tight">Scan Feedback QR</h2>
-              <p className="text-white/40 text-xs mt-0.5 truncate">
+              <h2 className="text-white font-bold text-lg light:text-gray-900 leading-tight">Scan Feedback QR</h2>
+              <p className="text-white/40 text-xs mt-0.5 light:text-gray-500 truncate">
                 Point your camera at the QR inside the jeepney
               </p>
             </div>
           </div>
           <button
             onClick={onCancel}
-            className="text-white/40 hover:text-white transition-colors flex-shrink-0"
+            className="text-white/40 hover:text-white transition-colors light:text-gray-400 light:hover:text-gray-900 flex-shrink-0"
             aria-label="Cancel scan"
           >
             <X size={20} />
@@ -298,19 +298,19 @@ export function QrScanner({ onToken, onCancel, variant = 'page' }: QrScannerProp
     // Scrolls rather than centre-clips: on short viewports the square
     // viewfinder plus header and toggle exceed the height. pb-24 clears the
     // commuter layout's absolutely-positioned mobile tab bar.
-    <div className="h-full w-full bg-[#050F1A] flex flex-col items-center overflow-y-auto p-6 pb-24 lg:pb-6">
+    <div className="h-full w-full bg-[#050F1A] light:bg-[#F8FAFC] flex flex-col items-center overflow-y-auto p-6 pb-24 lg:pb-6">
       <div className="w-full max-w-sm my-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-white font-bold text-lg">Scan Feedback QR</h2>
-            <p className="text-white/40 text-xs mt-0.5">
+            <h2 className="text-white font-bold text-lg light:text-gray-900">Scan Feedback QR</h2>
+            <p className="text-white/40 text-xs mt-0.5 light:text-gray-500">
               Point your camera at the QR inside the jeepney
             </p>
           </div>
           <button
             onClick={onCancel}
-            className="text-white/40 hover:text-white transition-colors p-2 -mr-2"
+            className="text-white/40 hover:text-white transition-colors light:text-gray-400 light:hover:text-gray-900 p-2 -mr-2"
             aria-label="Cancel scan"
           >
             <X size={20} />

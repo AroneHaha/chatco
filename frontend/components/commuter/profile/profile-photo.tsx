@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { Camera } from "lucide-react";
 import { ApiError } from "@/lib/api/client";
 import { uploadProfilePhoto } from "@/lib/commuter/services/profile.service";
 import type { CommuterProfile } from "@/types";
 
-export default function ProfilePhoto({ profile, onUploaded, className }: {
+export default function ProfilePhoto({ profile, onUploaded, className, helpId }: {
   profile: CommuterProfile;
   onUploaded: (profile: CommuterProfile) => void;
   className: string;
+  helpId?: string;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const busy = useRef(false);
@@ -43,17 +45,18 @@ export default function ProfilePhoto({ profile, onUploaded, className }: {
   };
 
   return <div className="flex shrink-0 flex-col items-center gap-2">
-    <div className={`${className} overflow-hidden`}>
+    <button type="button" className={`${className} disabled:opacity-50`} aria-label="Change profile photo" aria-describedby={helpId} disabled={uploading} onClick={() => input.current?.click()}>
       {profile.profileImageUrl && failedUrl !== profile.profileImageUrl ? (
         // Dynamic public R2 URLs are served directly, without an image-proxy allowlist.
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={profile.profileImageUrl} alt="Your profile photo" className="h-full w-full object-cover" onError={() => setFailedUrl(profile.profileImageUrl ?? null)} />
+        <img src={profile.profileImageUrl} alt="Your profile photo" className="h-full w-full rounded-2xl object-cover" onError={() => setFailedUrl(profile.profileImageUrl ?? null)} />
       ) : <span aria-label="Profile initials">{profile.firstName[0]}{profile.surname[0]}</span>}
-    </div>
-    <input ref={input} type="file" accept="image/jpeg,image/png,image/webp" aria-label="Choose profile photo" className="sr-only" disabled={uploading} onChange={choose} />
-    <button type="button" className="min-h-10 rounded-lg px-2 text-xs font-medium text-[#99C1F1] disabled:opacity-50" disabled={uploading} onClick={() => input.current?.click()}>
-      {uploading ? "Uploading…" : "Change photo"}
+      <span aria-hidden="true" className="absolute -bottom-1.5 -right-1.5 flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#071A2E] bg-[#99C1F1] text-[#071A2E] light:border-white light:bg-[#1A5FB4] light:text-white"><Camera size={15} /></span>
     </button>
-    {error && <p role="alert" className="max-w-28 text-center text-xs text-red-300">{error}</p>}
+    <input ref={input} type="file" accept="image/jpeg,image/png,image/webp" aria-label="Choose profile photo" className="sr-only" disabled={uploading} onChange={choose} />
+    <span role="status" className="mt-1 text-[11px] font-medium text-[#B6D3F6] light:text-[#1A5FB4]">
+      {uploading ? "Uploading…" : "Change photo"}
+    </span>
+    {error && <p role="alert" className="max-w-28 text-center text-xs text-red-300 light:text-red-600">{error}</p>}
   </div>;
 }

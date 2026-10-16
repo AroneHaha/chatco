@@ -161,6 +161,18 @@ test('successful login issues the existing session and redirects every role to i
   }
 });
 
+test('maintenance login keeps its notice and issues no session cookie', async () => {
+  const { POST } = load('app/api/auth/login/route.ts', { fetch: async () => json({
+    success: false, code: 'MAINTENANCE', message: 'Commuter service is being updated.', data: null,
+  }, 503) });
+  const response = await POST(new Request('http://localhost:3000/api/auth/login', {
+    method: 'POST', body: JSON.stringify({ email: 'user@test.invalid', password: 'password123' }),
+  }));
+  assert.equal(response.status, 503);
+  assert.equal(response.cookies.getAll().length, 0);
+  assert.deepEqual(await response.json(), { code: 'MAINTENANCE', message: 'Commuter service is being updated.' });
+});
+
 test('client guards mount no protected content while loading or for another role', () => {
   for (const requiredRole of Object.keys(dashboards)) {
     for (const userRole of [null, ...Object.keys(dashboards)]) {

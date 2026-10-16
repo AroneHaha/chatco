@@ -182,22 +182,22 @@ export default function ReceiptScanModal({ onClose }: ReceiptScanModalProps) {
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div className="bg-[#071A2E] w-full max-w-sm rounded-2xl border border-white/10 shadow-2xl flex flex-col overflow-hidden">
+      <div className="bg-[#071A2E] w-full max-w-sm rounded-2xl border border-white/10 light:bg-white light:border-gray-200 shadow-2xl flex flex-col overflow-hidden">
 
         {/* --- HEADER --- */}
-        <div className="p-5 border-b border-white/10 flex items-start justify-between gap-3">
+        <div className="p-5 border-b border-white/10 light:border-gray-200 flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="text-white font-bold text-lg leading-tight">Scan Receipt</h2>
-            <p className="text-white/40 text-xs mt-1">
+            <h2 className="text-white font-bold text-lg leading-tight light:text-gray-900">Scan Receipt</h2>
+            <p className="text-white/40 text-xs mt-1 light:text-gray-500">
               Scan the QR on your paper receipt to count that cash ride.
             </p>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center flex-shrink-0 transition-colors"
+            className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 light:bg-white light:hover:bg-gray-100 light:border-gray-200 flex items-center justify-center flex-shrink-0 transition-colors"
             aria-label="Close"
           >
-            <svg className="w-4 h-4 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-4 h-4 text-white/60 light:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
             </svg>
           </button>
@@ -210,14 +210,14 @@ export default function ReceiptScanModal({ onClose }: ReceiptScanModalProps) {
             <>
               <div
                 id={scannerContainerId}
-                className="w-full aspect-square rounded-xl overflow-hidden bg-black border border-white/10"
+                className="w-full aspect-square rounded-xl overflow-hidden bg-black border border-white/10 light:border-gray-200"
               />
               <button
                 onClick={() => {
                   void stopScanner();
                   setShowManualEntry(true);
                 }}
-                className="w-full mt-4 text-xs font-semibold text-[#62A0EA] hover:text-white transition-colors"
+                className="w-full mt-4 text-xs font-semibold text-[#62A0EA] hover:text-white light:text-[#1A5FB4] light:hover:text-[#164A8F] transition-colors"
               >
                 Enter the code manually instead
               </button>
@@ -228,13 +228,13 @@ export default function ReceiptScanModal({ onClose }: ReceiptScanModalProps) {
             <>
               {cameraFailed && (
                 <div className="mb-4 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
-                  <p className="text-[11px] text-amber-300/90 leading-relaxed">
+                  <p className="text-[11px] text-amber-300/90 light:text-amber-800 leading-relaxed">
                     We couldn&apos;t open the camera. Check the camera permission
                     for this site, or type the code printed on your receipt.
                   </p>
                 </div>
               )}
-              <label htmlFor="receipt-token" className="block text-xs font-semibold text-white/60 mb-2">
+              <label htmlFor="receipt-token" className="block text-xs font-semibold text-white/60 mb-2 light:text-gray-600">
                 Receipt code
               </label>
               <input
@@ -242,7 +242,7 @@ export default function ReceiptScanModal({ onClose }: ReceiptScanModalProps) {
                 value={manualToken}
                 onChange={(e) => setManualToken(e.target.value)}
                 placeholder="Printed under the QR code"
-                className="w-full bg-[#050F1A] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-[#1A5FB4]"
+                className="w-full bg-[#050F1A] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/25 light:bg-white light:border-gray-200 light:text-gray-900 light:placeholder:text-gray-400 focus:outline-none focus:border-[#1A5FB4]"
               />
               <button
                 onClick={() => void submitToken(manualToken)}
@@ -253,7 +253,7 @@ export default function ReceiptScanModal({ onClose }: ReceiptScanModalProps) {
               </button>
               <button
                 onClick={() => { setCameraFailed(false); setShowManualEntry(false); }}
-                className="w-full mt-3 text-xs font-semibold text-white/40 hover:text-white/70 transition-colors"
+                className="w-full mt-3 text-xs font-semibold text-white/40 hover:text-white/70 light:text-gray-500 light:hover:text-gray-700 transition-colors"
               >
                 {cameraFailed ? "Try the camera again" : "Use the camera instead"}
               </button>
@@ -262,44 +262,44 @@ export default function ReceiptScanModal({ onClose }: ReceiptScanModalProps) {
 
           {step === "verifying" && (
             <div className="py-12 flex flex-col items-center">
-              <div className="w-10 h-10 rounded-full border-2 border-white/20 border-t-[#62A0EA] animate-spin" />
-              <p className="text-sm text-white/50 mt-4">Checking your receipt…</p>
+              <div className="w-10 h-10 rounded-full border-2 border-white/20 border-t-[#62A0EA] light:border-gray-200 light:border-t-[#1A5FB4] animate-spin" />
+              <p className="text-sm text-white/50 mt-4 light:text-gray-500">Checking your receipt…</p>
             </div>
           )}
 
           {step === "success" && result && (
             <div className="py-6 flex flex-col items-center text-center">
               <div className="w-16 h-16 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
-                <svg className="w-8 h-8 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <svg className="w-8 h-8 text-emerald-400 light:text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                 </svg>
               </div>
-              <h3 className="text-white font-bold text-lg mt-4">
+              <h3 className="text-white font-bold text-lg mt-4 light:text-gray-900">
                 {result.alreadyClaimed ? "Already Claimed" : "Ride Counted!"}
               </h3>
-              <p className="text-white/50 text-xs mt-1.5 leading-relaxed">
+              <p className="text-white/50 text-xs mt-1.5 leading-relaxed light:text-gray-500">
                 {result.alreadyClaimed
                   ? "You have already claimed this receipt."
                   : "This cash ride now counts toward your next free ride."}
               </p>
 
-              <div className="w-full mt-5 bg-[#050F1A] border border-white/10 rounded-xl p-4 space-y-2 text-left">
+              <div className="w-full mt-5 bg-[#050F1A] border border-white/10 rounded-xl p-4 light:bg-gray-50 light:border-gray-200 space-y-2 text-left">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] text-white/40">Fare</span>
-                  <span className="text-sm font-bold text-white">{formatPeso(result.amount)}</span>
+                  <span className="text-[11px] text-white/40 light:text-gray-500">Fare</span>
+                  <span className="text-sm font-bold text-white light:text-gray-900">{formatPeso(result.amount)}</span>
                 </div>
                 {(result.pickupName || result.dropoffName) && (
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-[11px] text-white/40 flex-shrink-0">Route</span>
-                    <span className="text-[11px] text-white/70 truncate">
+                    <span className="text-[11px] text-white/40 light:text-gray-500 flex-shrink-0">Route</span>
+                    <span className="text-[11px] text-white/70 light:text-gray-700 truncate">
                       {result.pickupName ?? "—"} → {result.dropoffName ?? "—"}
                     </span>
                   </div>
                 )}
                 {result.unitNumber && (
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-white/40">Unit</span>
-                    <span className="text-[11px] text-white/70">{result.unitNumber}</span>
+                    <span className="text-[11px] text-white/40 light:text-gray-500">Unit</span>
+                    <span className="text-[11px] text-white/70 light:text-gray-700">{result.unitNumber}</span>
                   </div>
                 )}
               </div>
@@ -316,18 +316,18 @@ export default function ReceiptScanModal({ onClose }: ReceiptScanModalProps) {
           {step === "expired" && (
             <div className="py-6 flex flex-col items-center text-center">
               <div className="w-16 h-16 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center">
-                <svg className="w-8 h-8 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-8 h-8 text-amber-400 light:text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                 </svg>
               </div>
-              <h3 className="text-white font-bold text-lg mt-4">Receipt Expired</h3>
-              <p className="text-white/50 text-xs mt-1.5 leading-relaxed">
+              <h3 className="text-white font-bold text-lg mt-4 light:text-gray-900">Receipt Expired</h3>
+              <p className="text-white/50 text-xs mt-1.5 leading-relaxed light:text-gray-500">
                 Receipt QR codes stay claimable for a limited time after the
                 ride, and this one is past it. It can no longer be counted.
               </p>
               <button
                 onClick={onClose}
-                className="w-full mt-5 bg-white/5 hover:bg-white/10 text-white/70 text-sm font-semibold py-3 rounded-xl border border-white/10 transition-colors"
+                className="w-full mt-5 bg-white/5 hover:bg-white/10 text-white/70 text-sm font-semibold py-3 rounded-xl border border-white/10 light:bg-white light:hover:bg-gray-100 light:text-gray-700 light:border-gray-200 transition-colors"
               >
                 Close
               </button>
@@ -337,16 +337,16 @@ export default function ReceiptScanModal({ onClose }: ReceiptScanModalProps) {
           {step === "failed" && (
             <div className="py-6 flex flex-col items-center text-center">
               <div className="w-16 h-16 rounded-full bg-red-500/15 border border-red-500/30 flex items-center justify-center">
-                <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <svg className="w-8 h-8 text-red-400 light:text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
                 </svg>
               </div>
-              <h3 className="text-white font-bold text-lg mt-4">Couldn&apos;t Claim</h3>
-              <p className="text-white/50 text-xs mt-1.5 leading-relaxed">{error}</p>
+              <h3 className="text-white font-bold text-lg mt-4 light:text-gray-900">Couldn&apos;t Claim</h3>
+              <p className="text-white/50 text-xs mt-1.5 leading-relaxed light:text-gray-500">{error}</p>
               <div className="w-full flex gap-3 mt-5">
                 <button
                   onClick={onClose}
-                  className="flex-1 bg-white/5 hover:bg-white/10 text-white/70 text-sm font-semibold py-3 rounded-xl border border-white/10 transition-colors"
+                  className="flex-1 bg-white/5 hover:bg-white/10 text-white/70 text-sm font-semibold py-3 rounded-xl border border-white/10 light:bg-white light:hover:bg-gray-100 light:text-gray-700 light:border-gray-200 transition-colors"
                 >
                   Close
                 </button>

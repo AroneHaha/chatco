@@ -1,22 +1,25 @@
 // components/admin/lost-found/claims-list-modal.tsx
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
-import { Badge } from '@/components/admin/ui/badge';
 import { ApproveClaimModal } from '@/components/admin/lost-found/approve-claim-modal';
+import ProofPhotoPicker from '@/components/commuter/lost-and-found/proof-photo-picker';
 import type { PickupSchedule } from '@/lib/shared/services/lost-found.service';
 import {
-  CalendarDays,
+  CalendarX2,
   CheckCircle2,
+  ChevronDown,
+  ClipboardList,
   Clock3,
-  Mail,
-  MapPin,
-  Phone,
+  ExternalLink,
+  ImageIcon,
+  PackageCheck,
   RotateCcw,
   UserPlus,
-  UserRound,
+  X,
   XCircle,
+  type LucideIcon,
 } from 'lucide-react';
 import type { Claim, ClaimStatus } from '@/app/(admin)/lost-found/data/lost-found-data';
 
@@ -37,21 +40,29 @@ interface ClaimsListModalProps {
     contact?: string;
     email?: string;
     proof: string;
+    /** Proof photos picked at the desk. Not uploaded yet: the parent's
+     * recordManualClaim() ignores them until the walk-in photo upload
+     * endpoint exists. */
+    images?: File[];
   }) => Promise<void>;
 }
 
-function getBadgeVariant(status: ClaimStatus): 'success' | 'warning' | 'danger' | 'info' {
-  switch (status) {
+/** Status as coloured text + icon (no badge). Unknown values fall back to
+ * neutral slate, never to a success colour. */
+function getClaimStatusMeta(claim: Claim): { label: string; className: string; icon: LucideIcon } {
+  if (claim.noShowAt) return { label: 'Did not proceed', className: 'text-slate-300', icon: CalendarX2 };
+  switch (claim.status) {
+    case 'Pending':
+      return { label: 'Pending review', className: 'text-amber-300', icon: Clock3 };
     case 'Approved':
+      return { label: 'Approved', className: 'text-emerald-300', icon: CheckCircle2 };
     case 'Released':
     case 'Returned':
-      return 'success';
-    case 'Pending':
-      return 'warning';
+      return { label: claim.status, className: 'text-[#8CB9F0]', icon: PackageCheck };
     case 'Rejected':
-      return 'danger';
+      return { label: 'Rejected', className: 'text-red-300', icon: XCircle };
     default:
-      return 'info';
+      return { label: claim.status, className: 'text-slate-300', icon: Clock3 };
   }
 }
 
@@ -110,14 +121,69 @@ function getActionIcon(action: ClaimAction) {
   }
 }
 
+// One solid action per claim; Reject stays secondary so it never competes
+// with the move the desk usually makes.
+const actionButtonClasses: Record<ClaimAction, string> = {
+  Approve: 'bg-emerald-500 text-white hover:bg-emerald-600',
+  Release: 'bg-[#62A0EA] text-white hover:bg-[#4A8BD4]',
+  Reject: 'border border-red-400/30 text-red-300 hover:bg-red-500/10 hover:text-red-200',
+};
+
+// Every decision goes through a confirmation; this is what each one says.
+// Release closes the item outright, so its copy asks for the handover checks.
+const confirmationCopy: Record<ClaimAction, { title: string; lead: string; effect: string; confirm: string; button: string }> = {
+  Approve: {
+    title: 'Approve this claim?',
+    lead: 'Approve the claim submitted by ',
+    effect: 'This approves the claimant and rejects the other pending claims. Release the item separately after handing it over.',
+    confirm: 'Confirm approve',
+    button: 'bg-emerald-500 hover:bg-emerald-600',
+  },
+  Release: {
+    title: 'Release this item?',
+    lead: 'Hand the item over to ',
+    effect: "Only confirm once you've checked their valid ID and proof and the item is in their hands. This closes the claim and the item, moves it to History and notifies the claimant. It can't be undone.",
+    confirm: 'Confirm release',
+    button: 'bg-[#62A0EA] hover:bg-[#4A8BD4]',
+  },
+  Reject: {
+    title: 'Reject this claim?',
+    lead: 'Reject the claim submitted by ',
+    effect: 'This marks the claim as rejected. This claimant will not be authorized to collect the item.',
+    confirm: 'Confirm reject',
+    button: 'bg-red-600 hover:bg-red-700',
+  },
+};
+
+function SectionLabel({ children }: { children: ReactNode }) {
+  return <h4 className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">{children}</h4>;
+}
+
+function Fact({ label, value }: { label: string; value: string | null | undefined }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs font-semibold text-slate-500">{label}</dt>
+      <dd className={`mt-1 break-words text-sm ${value ? 'font-semibold text-slate-100' : 'text-slate-500'}`}>{value || 'N/A'}</dd>
+    </div>
+  );
+}
+
 export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByName, onClaimAction, onRecordManualClaim }: ClaimsListModalProps) {
   const [pendingAction, setPendingAction] = useState<{ claimId: string; action: ClaimAction } | null>(null);
   const [showManualForm, setShowManualForm] = useState(false);
   const [manualForm, setManualForm] = useState({ name: '', contact: '', email: '', proof: '' });
   const [manualError, setManualError] = useState<string | null>(null);
+  const [manualPhotos, setManualPhotos] = useState<File[]>([]);
+  // Set when neither a phone nor an email was given, so both fields show it.
+  const [isContactMissing, setIsContactMissing] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const [isSavingManual, setIsSavingManual] = useState(false);
   // Account claimant awaiting the pickup-schedule step before approval.
   const [approveTarget, setApproveTarget] = useState<Claim | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<{ claim: Claim; action: ClaimAction } | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const actionInFlight = useRef(false);
+  const cancelActionRef = useRef<HTMLButtonElement>(null);
   const orderedClaims = [...claims].sort((a, b) => {
     if (isAcceptedStatus(a.status) !== isAcceptedStatus(b.status)) {
       return isAcceptedStatus(a.status) ? -1 : 1;
@@ -126,25 +192,87 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
     if (a.status !== 'Pending' && b.status === 'Pending') return 1;
     return new Date(b.claimDate).getTime() - new Date(a.claimDate).getTime();
   });
+  const pendingCount = claims.filter((claim) => claim.status === 'Pending').length;
+
+  // Which claim rows are open. Each time the modal opens on an item (or its
+  // first claim arrives), the top claim starts open: with the pending/accepted
+  // ordering above, that's the one the desk acts on next. Reset during render
+  // rather than in an effect, so the first paint already has it open.
+  const [expandedClaimIds, setExpandedClaimIds] = useState<Set<string>>(new Set());
+  const expansionKey = isOpen && orderedClaims.length > 0 ? itemId : null;
+  const [expandedFor, setExpandedFor] = useState<string | null>(null);
+  if (expansionKey !== expandedFor) {
+    setExpandedFor(expansionKey);
+    setExpandedClaimIds(new Set(expansionKey ? [orderedClaims[0].id] : []));
+  }
+  // The walk-in draft belongs to one item. The modal stays mounted between
+  // items, so without this a half-filled form for one item could be saved
+  // against the next item the desk opens.
+  const formKey = isOpen ? itemId : null;
+  const [formFor, setFormFor] = useState<string | null>(null);
+  if (formKey !== formFor) {
+    setFormFor(formKey);
+    setShowManualForm(false);
+    setManualForm({ name: '', contact: '', email: '', proof: '' });
+    setManualPhotos([]);
+    setManualError(null);
+    setIsContactMissing(false);
+    setApproveTarget(null);
+    setConfirmTarget(null);
+    setActionError(null);
+  }
+
+  useEffect(() => {
+    if (showManualForm) nameInputRef.current?.focus({ preventScroll: true });
+  }, [showManualForm]);
+
+  useEffect(() => {
+    if (confirmTarget) cancelActionRef.current?.focus({ preventScroll: true });
+  }, [confirmTarget]);
+
+  const toggleClaim = (claimId: string) => {
+    setExpandedClaimIds((current) => {
+      const next = new Set(current);
+      if (next.has(claimId)) next.delete(claimId);
+      else next.add(claimId);
+      return next;
+    });
+  };
 
   const handleAction = async (claimId: string, action: ClaimAction) => {
-    // Account claimants only learn the pickup details through the app, so
-    // approving them goes through the schedule step first. Walk-ins are
-    // already at the desk and approve directly.
+    if (actionInFlight.current) return;
+    setActionError(null);
+    // Account approvals already have a pickup-schedule confirmation step.
     const target = claims.find((claim) => claim.id === claimId);
+    if (!target) return;
     if (action === 'Approve' && target?.linkedAccount) {
       setApproveTarget(target);
       return;
     }
+    setConfirmTarget({ claim: target, action });
+  };
+
+  const submitAction = async (claimId: string, action: ClaimAction) => {
+    if (actionInFlight.current) return;
+    actionInFlight.current = true;
+    setActionError(null);
     setPendingAction({ claimId, action });
     try {
       await onClaimAction(itemId, action, claimId);
+      setConfirmTarget(null);
       onClose();
-    } catch {
-      // Parent surfaces the error; keep the modal open for retry.
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Unable to process this claim. Please try again.');
     } finally {
+      actionInFlight.current = false;
       setPendingAction(null);
     }
+  };
+
+  const closeConfirmation = () => {
+    if (actionInFlight.current) return;
+    setConfirmTarget(null);
+    setActionError(null);
   };
 
   const handleConfirmApproval = async (pickup: PickupSchedule) => {
@@ -158,9 +286,11 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
   const handleManualSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!manualForm.contact.trim() && !manualForm.email.trim()) {
-      setManualError('Enter a phone number or email address.');
+      setIsContactMissing(true);
+      setManualError(null);
       return;
     }
+    setIsContactMissing(false);
     setManualError(null);
     setIsSavingManual(true);
     try {
@@ -169,8 +299,10 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
         contact: manualForm.contact.trim() || undefined,
         email: manualForm.email.trim() || undefined,
         proof: manualForm.proof.trim(),
+        images: manualPhotos,
       });
       setManualForm({ name: '', contact: '', email: '', proof: '' });
+      setManualPhotos([]);
       setShowManualForm(false);
     } catch (error) {
       setManualError(error instanceof Error ? error.message : 'Unable to record claimant.');
@@ -179,211 +311,360 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
     }
   };
 
+  // Same field treatment as the other admin forms: #1E2D45 hairline, the
+  // darkest admin tone for the well, a soft Sky Blue ring on focus.
+  const inputClasses = 'block h-10 w-full rounded-md border border-[#1E2D45] bg-[#0B1120] px-3 text-sm text-white outline-none transition-colors placeholder:text-slate-600 focus:border-[#62A0EA]/50 focus:ring-1 focus:ring-[#62A0EA]/30 disabled:cursor-not-allowed disabled:opacity-60';
+  const invalidInputClasses = 'border-red-500/50 bg-red-500/5 focus:border-red-400/60 focus:ring-red-400/30';
+  const labelClasses = 'mb-1.5 block text-xs font-semibold text-slate-300';
+  const closeManualForm = () => {
+    setShowManualForm(false);
+    setManualError(null);
+    setIsContactMissing(false);
+  };
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-3xl" height="h-[min(760px,88vh)]">
-      <div className="mb-5 flex flex-col gap-3 pr-8 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[#62A0EA]/20 bg-[#1A5FB4]/15 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#8CB9F0]">
-            <UserRound className="h-3.5 w-3.5" />
+    <Modal isOpen={isOpen} onClose={() => { if (!actionInFlight.current && !confirmTarget && !approveTarget) onClose(); }} maxWidth="max-w-3xl" rounded="rounded-xl" height="h-[min(760px,88vh)]">
+      <header className="flex flex-col gap-4 pr-10 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#8CB9F0]">
+            <ClipboardList className="h-3.5 w-3.5" aria-hidden="true" />
             Claim desk
-          </div>
-          <h2 className="text-lg font-bold text-white sm:text-xl">Claims for Item</h2>
-          <p className="mt-1 text-xs text-slate-500">{claims.length} claim records</p>
+          </p>
+          <h2 className="text-xl font-bold leading-tight text-white sm:text-2xl">Claims for Item</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            {claims.length} claim {claims.length === 1 ? 'record' : 'records'}
+            {pendingCount > 0 && <span className="text-amber-300"> &middot; {pendingCount} awaiting review</span>}
+          </p>
         </div>
+        {/* Toggles the form below: solid Sky Blue like the other admin "add"
+            actions while closed, the quieter pressed state while open. */}
         <button
           type="button"
-          onClick={() => setShowManualForm((current) => !current)}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#FF6D3A] px-3 py-2.5 text-xs font-bold text-white transition-colors hover:bg-[#e55a2b]"
+          onClick={() => (showManualForm ? closeManualForm() : setShowManualForm(true))}
+          aria-expanded={showManualForm}
+          aria-controls="walkin-form-panel"
+          disabled={isSavingManual}
+          className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] active:scale-[0.98] disabled:opacity-50 ${
+            showManualForm
+              ? 'border border-[#62A0EA]/40 bg-[#62A0EA]/10 text-[#8CB9F0] hover:bg-[#62A0EA]/15'
+              : 'bg-[#62A0EA] text-white hover:bg-[#4A8BD4]'
+          }`}
         >
-          <UserPlus className="h-4 w-4" />
-          Walk-in claimant
+          {showManualForm ? <X className="h-4 w-4" aria-hidden="true" /> : <UserPlus className="h-4 w-4" aria-hidden="true" />}
+          {showManualForm ? 'Close form' : 'Walk-in claimant'}
         </button>
+      </header>
+
+      {actionError && !confirmTarget && <p role="alert" className="mt-4 text-sm text-red-300">{actionError}</p>}
+
+      {/* Opens in place with the same slide as the claim rows; `inert` keeps
+          the closed form out of the tab order. */}
+      <div
+        id="walkin-form-panel"
+        inert={!showManualForm}
+        className={`grid transition-[grid-template-rows,margin] duration-300 ease-out motion-reduce:transition-none ${showManualForm ? 'mt-6 grid-rows-[1fr]' : 'mt-0 grid-rows-[0fr]'}`}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <form onSubmit={handleManualSubmit} className="overflow-hidden rounded-xl border border-[#1E2D45] bg-[#0E1628]">
+            <div className="flex items-start gap-3 border-b border-[#1E2D45] bg-[#131C2E] px-4 py-3.5 sm:px-5">
+              <UserPlus className="mt-0.5 h-4 w-4 shrink-0 text-[#62A0EA]" aria-hidden="true" />
+              <div className="min-w-0">
+                <h3 className="text-sm font-bold text-white">Record a claimant without an account</h3>
+                <p className="mt-0.5 text-xs leading-5 text-slate-500">Add contact details and proof before approving a handover.</p>
+              </div>
+            </div>
+
+            <div className="space-y-5 px-4 py-4 sm:px-5">
+              <div>
+                <label htmlFor="walkin-name" className={labelClasses}>Full name<span className="ml-0.5 text-red-400">*</span></label>
+                <input ref={nameInputRef} id="walkin-name" required maxLength={100} autoComplete="off" value={manualForm.name} onChange={(e) => setManualForm({ ...manualForm, name: e.target.value })} disabled={isSavingManual} className={inputClasses} />
+              </div>
+
+              <fieldset aria-describedby="walkin-contact-help">
+                <legend className="sr-only">Contact details</legend>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="walkin-phone" className={labelClasses}>Phone number</label>
+                    <input
+                      id="walkin-phone"
+                      type="tel"
+                      inputMode="tel"
+                      maxLength={20}
+                      autoComplete="off"
+                      value={manualForm.contact}
+                      onChange={(e) => { setManualForm({ ...manualForm, contact: e.target.value }); setIsContactMissing(false); }}
+                      disabled={isSavingManual}
+                      aria-invalid={isContactMissing}
+                      className={`${inputClasses} ${isContactMissing ? invalidInputClasses : ''}`}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="walkin-email" className={labelClasses}>Email address</label>
+                    <input
+                      id="walkin-email"
+                      type="email"
+                      maxLength={255}
+                      autoComplete="off"
+                      value={manualForm.email}
+                      onChange={(e) => { setManualForm({ ...manualForm, email: e.target.value }); setIsContactMissing(false); }}
+                      disabled={isSavingManual}
+                      aria-invalid={isContactMissing}
+                      className={`${inputClasses} ${isContactMissing ? invalidInputClasses : ''}`}
+                    />
+                  </div>
+                </div>
+                <p id="walkin-contact-help" role={isContactMissing ? 'alert' : undefined} className={`mt-2 text-xs ${isContactMissing ? 'font-medium text-red-300' : 'text-slate-500'}`}>
+                  {isContactMissing ? 'Enter a phone number or email address.' : 'A phone number or an email address is required.'}
+                </p>
+              </fieldset>
+
+              <div>
+                <div className="mb-1.5 flex items-baseline justify-between gap-3">
+                  <label htmlFor="walkin-proof" className="block text-xs font-semibold text-slate-300">Proof of ownership<span className="ml-0.5 text-red-400">*</span></label>
+                  <span className="text-[11px] tabular-nums text-slate-500" aria-hidden="true">{manualForm.proof.length}/500</span>
+                </div>
+                <textarea
+                  id="walkin-proof"
+                  required
+                  minLength={10}
+                  maxLength={500}
+                  rows={4}
+                  value={manualForm.proof}
+                  onChange={(e) => setManualForm({ ...manualForm, proof: e.target.value })}
+                  disabled={isSavingManual}
+                  aria-describedby="walkin-proof-help"
+                  placeholder="What the claimant described or showed to prove it's theirs"
+                  className={`${inputClasses} h-auto resize-none py-2.5 leading-6`}
+                />
+                <p id="walkin-proof-help" className="mt-2 text-xs text-slate-500">At least 10 characters.</p>
+              </div>
+
+              {/* Same picker and limits as the commuter claim form. */}
+              <ProofPhotoPicker
+                variant="admin"
+                files={manualPhotos}
+                onChange={setManualPhotos}
+                disabled={isSavingManual}
+                helperText="Up to 3 photos, such as the claimant's ID, a receipt, or the item with its owner. JPG, PNG, or WEBP, 5 MB each."
+              />
+            </div>
+
+            <footer className="flex flex-col-reverse gap-3 border-t border-[#1E2D45] px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+              {manualError
+                ? <p role="alert" className="text-xs font-medium text-red-300">{manualError}</p>
+                : <span className="hidden sm:block" />}
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={closeManualForm} disabled={isSavingManual} className="inline-flex h-9 items-center rounded-lg border border-[#1E2D45] px-4 text-xs font-semibold text-slate-300 transition-colors hover:bg-[#1A2540] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] disabled:opacity-50">Cancel</button>
+                <button type="submit" disabled={isSavingManual} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#62A0EA] px-4 text-xs font-bold text-white transition-colors hover:bg-[#4A8BD4] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1628] active:scale-[0.98] disabled:opacity-50">
+                  {isSavingManual && <span className="h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" aria-hidden="true" />}
+                  {isSavingManual ? 'Saving...' : 'Save claimant'}
+                </button>
+              </div>
+            </footer>
+          </form>
+        </div>
       </div>
 
-      {showManualForm && (
-        <form onSubmit={handleManualSubmit} className="mb-4 space-y-3 rounded-xl border border-[#62A0EA]/25 bg-[#1A5FB4]/10 p-4">
-          <div>
-            <h3 className="text-sm font-semibold text-white">Record claimant without an account</h3>
-            <p className="mt-1 text-xs text-slate-500">Add contact details and proof before approving a handover.</p>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <input required maxLength={100} value={manualForm.name} onChange={(e) => setManualForm({ ...manualForm, name: e.target.value })} placeholder="Full name *" className="rounded-lg border border-white/10 bg-[#0E1628] px-3 py-2 text-sm text-white outline-none focus:border-[#62A0EA]" />
-            <input maxLength={20} value={manualForm.contact} onChange={(e) => setManualForm({ ...manualForm, contact: e.target.value })} placeholder="Phone number" className="rounded-lg border border-white/10 bg-[#0E1628] px-3 py-2 text-sm text-white outline-none focus:border-[#62A0EA]" />
-            <input type="email" maxLength={255} value={manualForm.email} onChange={(e) => setManualForm({ ...manualForm, email: e.target.value })} placeholder="Email address" className="rounded-lg border border-white/10 bg-[#0E1628] px-3 py-2 text-sm text-white outline-none focus:border-[#62A0EA]" />
-            <input required minLength={10} maxLength={500} value={manualForm.proof} onChange={(e) => setManualForm({ ...manualForm, proof: e.target.value })} placeholder="Proof of ownership *" className="rounded-lg border border-white/10 bg-[#0E1628] px-3 py-2 text-sm text-white outline-none focus:border-[#62A0EA]" />
-          </div>
-          {manualError && <p className="text-xs text-red-400">{manualError}</p>}
-          <div className="flex justify-end gap-2">
-            <button type="button" onClick={() => setShowManualForm(false)} className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-white/5">Cancel</button>
-            <button disabled={isSavingManual} className="rounded-lg bg-[#62A0EA] px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">{isSavingManual ? 'Saving...' : 'Save claimant'}</button>
-          </div>
-        </form>
-      )}
+      {/* One expandable row per claim: the summary line is enough to scan the
+          desk, and the full record (contacts, proof and its photos, history,
+          actions) opens underneath on demand. */}
+      <div className="mt-6">
+        {orderedClaims.length > 0 ? (
+          <ul className="divide-y divide-[#1E2D45] overflow-hidden rounded-xl border border-[#1E2D45] bg-[#0E1628]">
+            {orderedClaims.map((claim) => {
+              const actions = availableActions(claim.status);
+              const isAccepted = isAcceptedStatus(claim.status);
+              const timeline = getProcessTimeline(claim, releasedByName);
+              const status = getClaimStatusMeta(claim);
+              const StatusIcon = status.icon;
+              const account = claim.linkedAccount;
+              const photos = claim.proofPhotos ?? [];
+              const isExpanded = expandedClaimIds.has(claim.id);
+              const panelId = `claim-panel-${claim.id}`;
 
-      <div className="space-y-3 overflow-y-auto pr-1">
-        {orderedClaims.length > 0 ? orderedClaims.map((claim) => {
-          const actions = availableActions(claim.status);
-          const isAccepted = isAcceptedStatus(claim.status);
-          const timeline = getProcessTimeline(claim, releasedByName);
-          return (
-            <article key={claim.id} className={`rounded-xl border p-4 ${
-              isAccepted ? 'border-emerald-500/25 bg-emerald-500/10' : 'border-white/10 bg-[#0E1628]'
-            }`}>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5">
-                      <UserRound className="h-5 w-5 text-slate-300" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-white">{claim.claimantName}</p>
-                      <p className="text-xs text-slate-500">
-                        {claim.linkedAccount ? `Account: @${claim.linkedAccount.username}` : 'Walk-in claimant'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                {claim.noShowAt
-                  ? <Badge variant="neutral">Did not proceed</Badge>
-                  : <Badge variant={getBadgeVariant(claim.status)}>{claim.status}</Badge>}
-              </div>
-
-              {isAccepted && (
-                <div className="mt-3 w-fit max-w-full rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2">
-                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-200/70">Accepted claimant</p>
-                  <p className="truncate text-sm font-semibold text-emerald-100">{claim.claimantName}</p>
-                  {claim.linkedAccount ? (
-                    <p className="mt-1 truncate text-xs text-emerald-100/70">
-                      {claim.linkedAccount.name} | @{claim.linkedAccount.username} | {claim.linkedAccount.accountStatus}
-                    </p>
-                  ) : (
-                    <p className="mt-1 text-xs text-emerald-100/70">Walk-in claimant without linked account</p>
-                  )}
-                </div>
-              )}
-
-              {claim.pickupLocation && (
-                <div className="mt-3 rounded-lg border border-white/5 bg-white/[0.04] p-3">
-                  <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                    <MapPin className="h-3.5 w-3.5" />
-                    Pickup schedule
-                  </div>
-                  <p className="text-xs font-semibold text-slate-200">
-                    {claim.pickupLocation}
-                    {claim.pickupAt && <span className="font-medium text-slate-400"> &middot; {formatClaimDate(claim.pickupAt)}</span>}
-                  </p>
-                  {claim.pickupReminder && <p className="mt-1 text-xs leading-5 text-slate-400">{claim.pickupReminder}</p>}
-                </div>
-              )}
-
-              <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                <div className="rounded-lg border border-white/5 bg-white/[0.04] p-3">
-                  <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                    <CalendarDays className="h-3.5 w-3.5" />
-                    Submitted
-                  </div>
-                  <p className="text-xs font-medium text-slate-300">{formatClaimDate(claim.claimDate)}</p>
-                </div>
-                <div className="rounded-lg border border-white/5 bg-white/[0.04] p-3">
-                  <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                    <Phone className="h-3.5 w-3.5" />
-                    Phone
-                  </div>
-                  <p className="truncate text-xs font-medium text-slate-300">{claim.claimantContact || 'N/A'}</p>
-                </div>
-                <div className="rounded-lg border border-white/5 bg-white/[0.04] p-3">
-                  <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                    <Mail className="h-3.5 w-3.5" />
-                    Email
-                  </div>
-                  <p className="truncate text-xs font-medium text-slate-300">{claim.claimantEmail || 'N/A'}</p>
-                </div>
-              </div>
-
-              <div className="mt-3 rounded-lg border border-white/5 bg-white/[0.04] p-3">
-                <div className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                  <Clock3 className="h-3.5 w-3.5" />
-                  Process timeline
-                </div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {timeline.map((step) => (
-                    <div key={`${claim.id}-${step.label}`} className="flex items-start justify-between gap-3 rounded-md bg-black/15 px-2.5 py-2">
-                      <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{step.label}</span>
-                      <span className="text-right">
-                        <span className={`block text-xs font-semibold ${step.tone}`}>{step.date ? formatClaimDate(step.date) : '-'}</span>
-                        {step.by && <span className="block text-[10px] text-slate-500">by {step.by}</span>}
+              return (
+                <li key={claim.id} className={isAccepted ? 'shadow-[inset_3px_0_0_0_rgba(16,185,129,0.6)]' : undefined}>
+                  <h3>
+                    <button
+                      type="button"
+                      onClick={() => toggleClaim(claim.id)}
+                      aria-expanded={isExpanded}
+                      aria-controls={panelId}
+                      className={`flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA]/60 sm:gap-4 sm:px-5 ${isExpanded ? 'bg-[#131C2E]' : 'hover:bg-[#131C2E]/70'}`}
+                    >
+                      <ChevronDown
+                        className={`h-4 w-4 shrink-0 text-slate-500 transition-transform duration-300 ease-out motion-reduce:transition-none ${isExpanded ? 'rotate-180 text-slate-300' : ''}`}
+                        aria-hidden="true"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-bold leading-tight text-white sm:text-base">{claim.claimantName}</span>
+                        <span className="mt-1 block truncate text-xs text-slate-500">
+                          {account
+                            ? `${account.name} · @${account.username}`
+                            : 'Walk-in claimant, no app account'}
+                        </span>
                       </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+                      <span className="hidden shrink-0 flex-col items-end gap-1 text-right text-xs text-slate-400 sm:flex">
+                        <span className="tabular-nums">{formatClaimDate(claim.claimDate)}</span>
+                        <span className={`inline-flex items-center gap-1 ${photos.length > 0 ? 'text-slate-300' : 'text-slate-600'}`}>
+                          <ImageIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                          {photos.length > 0 ? `${photos.length} proof photo${photos.length === 1 ? '' : 's'}` : 'No photos'}
+                        </span>
+                      </span>
+                      <span className={`flex shrink-0 items-center gap-1.5 text-xs font-semibold sm:w-36 sm:justify-end sm:text-sm ${status.className}`}>
+                        <StatusIcon className="h-4 w-4" aria-hidden="true" />
+                        {status.label}
+                      </span>
+                    </button>
+                  </h3>
 
-              {claim.proof && (
-                <div className="mt-3 rounded-lg border border-white/5 bg-white/[0.04] p-3">
-                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Proof of ownership</p>
-                  <p className="text-xs leading-5 text-slate-300">{claim.proof}</p>
-                  {claim.proofPhotos && claim.proofPhotos.length > 0 && (
-                    <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
-                      {claim.proofPhotos.map((photo, index) => (
-                        <a
-                          key={photo.id}
-                          href={photo.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="aspect-square overflow-hidden rounded-md border border-white/10 transition-colors hover:border-[#62A0EA]/45"
-                          title="Open full size"
-                        >
-                          <img src={photo.url} alt={`Proof photo ${index + 1}`} className="h-full w-full object-cover" />
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+                  {/* grid-rows 0fr -> 1fr animates the open/close without
+                      measuring heights; `inert` keeps the collapsed panel's
+                      buttons and links out of the tab order. */}
+                  <div
+                    id={panelId}
+                    role="region"
+                    aria-label={`Claim by ${claim.claimantName}`}
+                    inert={!isExpanded}
+                    className={`grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none ${isExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+                  >
+                    <div className="min-h-0 overflow-hidden">
+                      <div className="border-t border-[#1E2D45] bg-[#0B1120]/40">
+                        <div className="px-4 py-4 sm:px-5">
+                          <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-3">
+                            <Fact label="Submitted" value={formatClaimDate(claim.claimDate)} />
+                            <Fact label="Phone" value={claim.claimantContact} />
+                            <Fact label="Email" value={claim.claimantEmail} />
+                          </dl>
+                        </div>
 
-              {actions.length > 0 && (
-                <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-white/10 pt-3">
-                  {actions.map((action) => {
-                    const isPending = pendingAction?.claimId === claim.id && pendingAction.action === action;
-                    return (
-                      <button
-                        key={action}
-                        onClick={() => handleAction(claim.id, action)}
-                        disabled={pendingAction !== null}
-                        className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-white transition-colors disabled:opacity-50 ${
-                          action === 'Approve'
-                            ? 'bg-emerald-500 hover:bg-emerald-600'
-                            : action === 'Release'
-                              ? 'bg-[#1A5FB4] hover:bg-[#164c92]'
-                              : 'bg-red-500 hover:bg-red-600'
-                        }`}
-                      >
-                        {isPending ? (
-                          <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                        ) : getActionIcon(action)}
-                        {action}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </article>
-          );
-        }) : (
-          <div className="flex flex-col items-center justify-center rounded-xl border border-white/10 bg-[#0E1628] px-4 py-10 text-center">
-            <UserRound className="mb-3 h-8 w-8 text-slate-600" />
-            <p className="text-sm font-semibold text-slate-300">No claims found</p>
-            <p className="mt-1 text-xs text-slate-500">Use walk-in claimant if the owner is at the office without an app account.</p>
+                        {claim.pickupLocation && (
+                          <div className="border-t border-[#1E2D45] px-4 py-4 sm:px-5">
+                            <SectionLabel>Pickup schedule</SectionLabel>
+                            <p className="text-sm font-semibold text-slate-100">
+                              {claim.pickupLocation}
+                              {claim.pickupAt && <span className="font-normal text-slate-400"> &middot; {formatClaimDate(claim.pickupAt)}</span>}
+                            </p>
+                            {claim.pickupReminder && <p className="mt-1 text-xs leading-5 text-slate-400">{claim.pickupReminder}</p>}
+                          </div>
+                        )}
+
+                        <div className="border-t border-[#1E2D45] px-4 py-4 sm:px-5">
+                          <SectionLabel>Proof of ownership</SectionLabel>
+                          {claim.proof
+                            ? <p className="max-w-[65ch] whitespace-pre-line break-words text-sm leading-6 text-slate-200">{claim.proof}</p>
+                            : <p className="text-sm text-slate-500">No written proof.</p>}
+
+                          <p className="mb-2 mt-4 flex items-center gap-1.5 text-xs font-semibold text-slate-400">
+                            <ImageIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                            Proof photos {photos.length > 0 && <span className="tabular-nums text-slate-500">({photos.length})</span>}
+                          </p>
+                          {photos.length > 0 ? (
+                            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                              {photos.map((photo, index) => (
+                                <a
+                                  key={photo.id}
+                                  href={photo.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title="Open full size"
+                                  aria-label={`Open proof photo ${index + 1} of ${photos.length} full size`}
+                                  className="group/photo relative aspect-square overflow-hidden rounded-lg border border-[#1E2D45] bg-[#131C2E] transition-colors hover:border-[#62A0EA]/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={photo.url} alt={`Proof photo ${index + 1}`} loading="lazy" className="h-full w-full object-cover transition-transform duration-300 ease-out group-hover/photo:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover/photo:scale-100" />
+                                  <span className="pointer-events-none absolute bottom-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-md bg-[#0B1120]/80 text-white opacity-0 transition-opacity group-hover/photo:opacity-100 group-focus-visible/photo:opacity-100">
+                                    <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                                  </span>
+                                </a>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="rounded-lg border border-dashed border-[#1E2D45] px-3 py-4 text-center text-xs text-slate-500">No photos attached to this claim.</p>
+                          )}
+                        </div>
+
+                        {timeline.length > 0 && (
+                          <div className="border-t border-[#1E2D45] px-4 py-4 sm:px-5">
+                            <SectionLabel>History</SectionLabel>
+                            <dl className="divide-y divide-[#1E2D45]">
+                              {timeline.map((step) => (
+                                <div key={`${claim.id}-${step.label}`} className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-4 gap-y-0.5 py-2 first:pt-0 last:pb-0 sm:grid-cols-[7.5rem_minmax(0,1fr)_auto]">
+                                  <dt className={`text-xs font-semibold ${step.tone}`}>{step.label}</dt>
+                                  <dd className="text-xs tabular-nums text-slate-300">{step.date ? formatClaimDate(step.date) : '-'}</dd>
+                                  <dd className="col-start-2 text-xs text-slate-500 sm:col-start-auto sm:text-right">{step.by ? `by ${step.by}` : ''}</dd>
+                                </div>
+                              ))}
+                            </dl>
+                          </div>
+                        )}
+
+                        {actions.length > 0 && (
+                          <footer className="flex flex-wrap justify-end gap-2 border-t border-[#1E2D45] px-4 py-3 sm:px-5">
+                            {[...actions].reverse().map((action) => {
+                              const isPending = pendingAction?.claimId === claim.id && pendingAction.action === action;
+                              return (
+                                <button
+                                  key={action}
+                                  type="button"
+                                  onClick={() => handleAction(claim.id, action)}
+                                  disabled={pendingAction !== null}
+                                  className={`inline-flex h-9 items-center gap-2 rounded-lg px-4 text-xs font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] disabled:cursor-not-allowed disabled:opacity-50 ${actionButtonClasses[action]}`}
+                                >
+                                  {isPending ? (
+                                    <span className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin" aria-hidden="true" />
+                                  ) : getActionIcon(action)}
+                                  {action}
+                                </button>
+                              );
+                            })}
+                          </footer>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <div className="rounded-xl border border-dashed border-white/10 px-4 py-12 text-center">
+            <p className="text-sm font-semibold text-slate-300">No claims yet</p>
+            <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-slate-500">If the owner is at the office without an app account, record them with Walk-in claimant.</p>
           </div>
         )}
       </div>
 
       <ApproveClaimModal
-        isOpen={approveTarget !== null}
+        key={approveTarget?.id ?? 'closed'}
+        isOpen={isOpen && approveTarget !== null}
         claimantName={approveTarget?.claimantName ?? ''}
         onClose={() => setApproveTarget(null)}
         onConfirm={handleConfirmApproval}
       />
+
+      <Modal isOpen={isOpen && confirmTarget !== null} onClose={closeConfirmation} maxWidth="max-w-md">
+        {confirmTarget && <div className="space-y-5" onKeyDown={event => {
+          if (event.key === 'Escape') { event.stopPropagation(); closeConfirmation(); }
+        }}>
+          <div className="pr-8">
+            <h2 className="text-lg font-bold text-white">{confirmationCopy[confirmTarget.action].title}</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-300">
+              {confirmationCopy[confirmTarget.action].lead}
+              <span className="font-semibold text-white">{confirmTarget.claim.claimantName}</span>?
+            </p>
+            <p className="mt-2 text-xs leading-5 text-slate-400">{confirmationCopy[confirmTarget.action].effect}</p>
+          </div>
+          {actionError && <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{actionError}</p>}
+          <div className="flex justify-end gap-2 border-t border-white/10 pt-4">
+            <button ref={cancelActionRef} type="button" onClick={closeConfirmation} disabled={pendingAction !== null} className="min-h-10 rounded-lg border border-white/10 px-4 text-sm font-semibold text-slate-300 hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#62A0EA] disabled:opacity-50">Cancel</button>
+            <button type="button" onClick={() => void submitAction(confirmTarget.claim.id, confirmTarget.action)} disabled={pendingAction !== null} className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#62A0EA] disabled:opacity-50 ${confirmationCopy[confirmTarget.action].button}`}>
+              {pendingAction ? <span aria-hidden="true" className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> : getActionIcon(confirmTarget.action)}
+              {pendingAction ? 'Processing...' : confirmationCopy[confirmTarget.action].confirm}
+            </button>
+          </div>
+        </div>}
+      </Modal>
     </Modal>
   );
 }

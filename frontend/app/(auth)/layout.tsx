@@ -15,29 +15,33 @@ import FAQChatBubble from "@/components/landing/FAQChatBubble";
 import SmoothScroll from "@/components/landing/SmoothScroll";
 import Reveal from "@/components/landing/Reveal";
 
-export default function Home() {
+// Keep the landing page mounted while the parallel auth slot opens and closes.
+export default function LandingLayout({ children }: { children: React.ReactNode }) {
   return (
-    <main className="font-sans overflow-x-clip">
-      {/* Lenis + GSAP smooth-scroll layer (landing only; respects reduced motion) */}
-      <SmoothScroll />
-      <Navbar />
-      <Hero />
-      <TrustBar />
-      <HowItWorks />
-      <CommuterFeatures />
-      <Manifesto />
-      <Reveal>
-        <SafetySupport />
-      </Reveal>
-      <HeatmapShowcase />
-      <About />
-      <DownloadApp />
-      <Contact />
-      <Reveal>
-        <FinalCTA />
-      </Reveal>
-      <Footer />
-      <FAQChatBubble />
-    </main>
+    <>
+      <main className="font-sans overflow-x-clip">
+        {/* Lenis + GSAP smooth-scroll layer (landing only; respects reduced motion) */}
+        <SmoothScroll />
+        <Navbar />
+        <Hero />
+        <TrustBar />
+        <HowItWorks />
+        <CommuterFeatures />
+        <Manifesto />
+        <Reveal>
+          <SafetySupport />
+        </Reveal>
+        <HeatmapShowcase />
+        <About />
+        <DownloadApp />
+        <Contact />
+        <Reveal>
+          <FinalCTA />
+        </Reveal>
+        <Footer />
+        <FAQChatBubble />
+      </main>
+      {children}
+    </>
   );
 }

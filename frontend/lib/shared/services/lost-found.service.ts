@@ -431,10 +431,12 @@ function classifyError(err: ApiError, fallback: string): LostFoundOperationError
 }
 
 /** Build a query string from an optional params object, skipping empties. */
-function buildQuery(params: Record<string, string | number | undefined | null>): string {
+function buildQuery(params: Record<string, string | number | string[] | undefined | null>): string {
   const sp = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
-    if (v !== undefined && v !== null && v !== "") sp.set(k, String(v));
+    // Arrays go out as repeated `key[]=` entries (Laravel array input).
+    if (Array.isArray(v)) v.forEach((entry) => sp.append(`${k}[]`, entry));
+    else if (v !== undefined && v !== null && v !== "") sp.set(k, String(v));
   }
   const s = sp.toString();
   return s ? `?${s}` : "";
@@ -455,6 +457,11 @@ export async function list(params: {
   category?: string;
   search?: string;
   date?: string;
+  /** Inclusive posted-date window ('YYYY-MM-DD'); either end may be omitted. */
+  dateFrom?: string;
+  dateTo?: string;
+  /** Any of these categories; empty/omitted means every category. */
+  categories?: string[];
   range?: LostFoundTimeRange;
   page?: number;
   perPage?: number;
@@ -464,8 +471,11 @@ export async function list(params: {
   const qs = buildQuery({
     status: params.status,
     category: params.category === "ALL" ? undefined : params.category,
+    categories: params.categories,
     search: params.search,
     date: params.date,
+    date_from: params.dateFrom,
+    date_to: params.dateTo,
     range: params.range,
     page: params.page,
     per_page: params.perPage,
@@ -624,10 +634,13 @@ export async function myWatchlist(params: {
   search?: string;
   range?: LostFoundTimeRange;
   category?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  categories?: string[];
   /** Cancels this request if a newer one supersedes it (e.g. rapid filter changes). */
   signal?: AbortSignal;
 } = {}): Promise<LostFoundPage> {
-  const qs = buildQuery({ page: params.page, per_page: params.perPage, date: params.date, search: params.search, range: params.range, category: params.category });
+  const qs = buildQuery({ page: params.page, per_page: params.perPage, date: params.date, date_from: params.dateFrom, date_to: params.dateTo, search: params.search, range: params.range, category: params.category, categories: params.categories });
   try {
     const response = await api.get<ApiResponseEnvelope<PaginatedEnvelope<RawWatchlistEntry>>>(
       `/api/commuter/watchlist${qs}`,
@@ -666,10 +679,13 @@ export async function myClaims(params: {
   search?: string;
   range?: LostFoundTimeRange;
   category?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  categories?: string[];
   /** Cancels this request if a newer one supersedes it (e.g. rapid filter changes). */
   signal?: AbortSignal;
 } = {}): Promise<MyClaimsPage> {
-  const qs = buildQuery({ page: params.page, per_page: params.perPage, status: params.status, date: params.date, search: params.search, range: params.range, category: params.category });
+  const qs = buildQuery({ page: params.page, per_page: params.perPage, status: params.status, date: params.date, date_from: params.dateFrom, date_to: params.dateTo, search: params.search, range: params.range, category: params.category, categories: params.categories });
   try {
     const response = await api.get<ApiResponseEnvelope<PaginatedEnvelope<RawClaim>>>(
       `/api/commuter/claims${qs}`,
@@ -768,20 +784,37 @@ export async function report(params: {
  * @throws {LostFoundOperationError} 404/422 (bad type, >5MB, or already at 3 photos)/401/403/5xx
  */
 export async function addPhoto(itemId: string, file: File): Promise<LostFoundItem> {
+  return uploadItemPhoto(`/api/admin/lost-items/${itemId}/photos`, file, "Unable to add this photo.");
+}
+
+/**
+ * Admin swaps one photo's file in place. The photo keeps its id and
+ * position, so replacing the thumbnail keeps it the thumbnail (a delete +
+ * add would append the new file and promote the next photo instead).
+ *
+ * @throws {LostFoundOperationError} 404 (item/photo)/422 (bad type, >5MB)/401/403/5xx
+ */
+export async function replacePhoto(itemId: string, photoId: string, file: File): Promise<LostFoundItem> {
+  return uploadItemPhoto(
+    `/api/admin/lost-items/${itemId}/photos/${photoId}`,
+    file,
+    "Unable to replace this photo."
+  );
+}
+
+/** Shared multipart POST for the add/replace photo endpoints (see addPhoto). */
+async function uploadItemPhoto(url: string, file: File, fallbackMessage: string): Promise<LostFoundItem> {
   const formData = new FormData();
   formData.append("image", file);
   try {
-    const res = await fetch(`/api/admin/lost-items/${itemId}/photos`, {
+    const res = await fetch(url, {
       method: "POST",
       body: formData,
       credentials: "include",
     });
     const body = await res.json().catch(() => null);
     if (!res.ok) {
-      throw classifyError(
-        new ApiError(res.status, res.statusText, body),
-        "Unable to add this photo."
-      );
+      throw classifyError(new ApiError(res.status, res.statusText, body), fallbackMessage);
     }
     const envelope = body as ApiResponseEnvelope<RawLostItem>;
     return mapItem(envelope.data);
@@ -878,6 +911,42 @@ export async function reactivate(itemId: string): Promise<LostFoundItem> {
   } catch (err) {
     if (err instanceof ApiError) {
       throw classifyError(err, "Unable to reactivate this item.");
+    }
+    throw new LostFoundOperationError(
+      "network",
+      err instanceof Error ? err.message : "Unable to reach the backend service."
+    );
+  }
+}
+
+/** Server cap on ids per bulk reactivate request (LostItemService::MAX_BULK_REACTIVATE). */
+export const MAX_BULK_REACTIVATE = 100;
+
+/**
+ * Bulk reactivate(): EXPIRED → AVAILABLE for many items in one request and
+ * one transaction. Ids that are no longer EXPIRED (or no longer exist) come
+ * back in `skipped` rather than failing the batch. Larger selections are
+ * sent in sequential chunks of MAX_BULK_REACTIVATE.
+ *
+ * @throws {LostFoundOperationError} 422/401/403/5xx (ids from chunks that
+ *   already succeeded stay reactivated)
+ */
+export async function reactivateMany(itemIds: string[]): Promise<{ reactivated: string[]; skipped: string[] }> {
+  const reactivated: string[] = [];
+  const skipped: string[] = [];
+  try {
+    for (let start = 0; start < itemIds.length; start += MAX_BULK_REACTIVATE) {
+      const response = await api.patch<ApiResponseEnvelope<{ reactivated?: string[]; skipped?: string[] }>>(
+        `/api/admin/lost-items/reactivate`,
+        { item_ids: itemIds.slice(start, start + MAX_BULK_REACTIVATE) }
+      );
+      reactivated.push(...(response.data?.reactivated ?? []));
+      skipped.push(...(response.data?.skipped ?? []));
+    }
+    return { reactivated, skipped };
+  } catch (err) {
+    if (err instanceof ApiError) {
+      throw classifyError(err, "Unable to reactivate the selected items.");
     }
     throw new LostFoundOperationError(
       "network",

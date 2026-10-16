@@ -254,11 +254,11 @@ export default function CommuterHome() {
   const desktopStatus = (
     <>
           {gpsStatus === "loading" && (
-            <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center gap-3">
+            <div className="bg-white/5 border border-white/10 light:bg-gray-50 light:border-gray-200 rounded-xl p-4 flex items-center gap-3">
               <div className="w-5 h-5 rounded-full border-2 border-[#62A0EA] border-t-transparent animate-spin flex-shrink-0" />
               <div>
-                <span className="text-sm text-white/60">Locating you...</span>
-                <p className="text-[10px] text-white/30 mt-0.5">Waiting for GPS signal</p>
+                <span className="text-sm text-white/60 light:text-gray-600">Locating you...</span>
+                <p className="text-[10px] text-white/30 light:text-gray-400 mt-0.5">Waiting for GPS signal</p>
               </div>
             </div>
           )}
@@ -266,24 +266,24 @@ export default function CommuterHome() {
           {gpsStatus === "denied" && (
             <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
               <div className="flex items-center gap-2">
-                <svg className="w-5 h-5 text-red-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-5 h-5 text-red-400 light:text-red-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
                 </svg>
-                <span className="text-sm font-semibold text-red-400">Location access denied</span>
+                <span className="text-sm font-semibold text-red-400 light:text-red-600">Location access denied</span>
               </div>
-              <p className="text-xs text-white/40 mt-1.5">Enable location permission to see ETA and hail vehicles.</p>
+              <p className="text-xs text-white/40 light:text-gray-500 mt-1.5">Enable location permission to see ETA and hail vehicles.</p>
             </div>
           )}
 
           {gpsStatus === "unavailable" && (
             <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4">
               <div className="flex items-center gap-2">
-                <svg className="w-5 h-5 text-yellow-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-5 h-5 text-yellow-400 light:text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
                 </svg>
-                <span className="text-sm font-semibold text-yellow-400">Location unavailable</span>
+                <span className="text-sm font-semibold text-yellow-400 light:text-amber-600">Location unavailable</span>
               </div>
-              <p className="text-xs text-white/40 mt-1.5">GPS is not available on this device.</p>
+              <p className="text-xs text-white/40 light:text-gray-500 mt-1.5">GPS is not available on this device.</p>
             </div>
           )}
 
@@ -292,16 +292,16 @@ export default function CommuterHome() {
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Live Tracking</span>
+                  <span className="text-xs font-bold text-emerald-400 light:text-emerald-600 uppercase tracking-wider">Live Tracking</span>
                 </div>
-                <span className="text-2xl font-extrabold text-white">~{nearestVehicle.estimatedArrivalMinutes} min</span>
+                <span className="text-2xl font-extrabold text-white light:text-gray-900">~{nearestVehicle.estimatedArrivalMinutes} min</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-xs text-white/40">{nearestVehicle.plateNumber}</span>
-                <span className="text-xs text-white/50">{(nearestVehicle.distanceInMeters / 1000).toFixed(1)} km away</span>
+                <span className="text-xs text-white/40 light:text-gray-500">{nearestVehicle.plateNumber}</span>
+                <span className="text-xs text-white/50 light:text-gray-500">{(nearestVehicle.distanceInMeters / 1000).toFixed(1)} km away</span>
               </div>
               {nearbyVehicles.length > 1 && (
-                <p className="text-[10px] text-emerald-400/60 mt-2">+{nearbyVehicles.length - 1} more vehicle{nearbyVehicles.length > 2 ? "s" : ""} in range</p>
+                <p className="text-[10px] text-emerald-400/60 light:text-emerald-700/70 mt-2">+{nearbyVehicles.length - 1} more vehicle{nearbyVehicles.length > 2 ? "s" : ""} in range</p>
               )}
             </div>
           )}
@@ -309,12 +309,12 @@ export default function CommuterHome() {
           {gpsStatus === "available" && !canHail && (
             <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4">
               <div className="flex items-center gap-2">
-                <svg className="w-5 h-5 text-yellow-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-5 h-5 text-yellow-400 light:text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
                 </svg>
-                <span className="text-sm font-semibold text-yellow-400">You are outside the conductor service radius</span>
+                <span className="text-sm font-semibold text-yellow-400 light:text-amber-600">You are outside the conductor service radius</span>
               </div>
-              <p className="text-xs text-white/40 mt-1.5">Move within 1km of a conductor unit to see ETA and hail. Vehicle locations are still visible on the map.</p>
+              <p className="text-xs text-white/40 light:text-gray-500 mt-1.5">Move within 1km of a conductor unit to see ETA and hail. Vehicle locations are still visible on the map.</p>
             </div>
           )}
 
@@ -323,7 +323,7 @@ export default function CommuterHome() {
 
   const desktopHailError = hailError ? (
 <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 mb-3">
-              <p className="text-xs font-semibold text-red-400">{hailError}</p>
+              <p className="text-xs font-semibold text-red-400 light:text-red-600">{hailError}</p>
             </div>
   ) : null;
 
@@ -341,15 +341,15 @@ export default function CommuterHome() {
       {/* --- MOBILE UI (Hidden on Desktop) --- */}
       {/* ========================================== */}
       <div className="lg:hidden absolute top-0 inset-x-0 z-20 p-4 flex items-center justify-between pointer-events-none">
-        <div className="pointer-events-auto bg-black/40 backdrop-blur-md rounded-2xl px-4 py-3 border border-white/10">
-          <h1 className="text-white font-bold text-base">
+        <div className="pointer-events-auto bg-black/40 backdrop-blur-md rounded-2xl px-4 py-3 border border-white/10 light:bg-white/90 light:border-gray-200">
+          <h1 className="text-white light:text-gray-900 font-bold text-base">
             Good morning, {displayName}!
           </h1>
-          <span className="text-[10px] font-semibold text-[#62A0EA] bg-[#62A0EA]/10 px-2 py-0.5 rounded-full mt-1 inline-block">
+          <span className="text-[10px] font-semibold text-[#62A0EA] bg-[#62A0EA]/10 light:text-[#1A5FB4] light:bg-[#1A5FB4]/10 px-2 py-0.5 rounded-full mt-1 inline-block">
             {commuterType === "REGULAR" ? "Regular" : commuterType === "STUDENT" ? "Student" : commuterType === "SENIOR_CITIZEN" ? "Senior Citizen" : commuterType === "PWD" ? "PWD" : commuterType}
           </span>
         </div>
-        <div className="pointer-events-auto w-10 h-10 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold shadow-lg border-2 border-white/20">
+        <div className="pointer-events-auto w-10 h-10 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold shadow-lg border-2 border-white/20 light:border-[#DAEEFF]">
           {displayName[0]}
         </div>
       </div>
@@ -364,7 +364,7 @@ export default function CommuterHome() {
             ? undefined
             : "translateY(calc(100% - 128px - env(safe-area-inset-bottom, 0px)))",
         }}
-        className="lg:hidden absolute bottom-0 inset-x-0 z-20 bg-[#071A2E] rounded-t-3xl border-t border-white/10 transition-transform duration-300 ease-in-out"
+        className="lg:hidden absolute bottom-0 inset-x-0 z-20 bg-[#071A2E] rounded-t-3xl border-t border-white/10 light:bg-white light:border-gray-200 transition-transform duration-300 ease-in-out"
       >
         <div className="absolute -top-23 right-4 z-30">
           <button
@@ -399,9 +399,9 @@ export default function CommuterHome() {
           className="h-16 flex flex-col items-center justify-center cursor-pointer flex-shrink-0"
           onClick={() => setShowSheet(!showSheet)}
         >
-          <div className={`w-10 h-1 rounded-full transition-colors duration-300 ${showSheet ? "bg-white/30" : "bg-white/60"}`} />
+          <div className={`w-10 h-1 rounded-full transition-colors duration-300 ${showSheet ? "bg-white/30 light:bg-gray-300" : "bg-white/60 light:bg-gray-400"}`} />
           {!showSheet && (
-            <div className="flex items-center gap-1.5 mt-2 text-white/50">
+            <div className="flex items-center gap-1.5 mt-2 text-white/50 light:text-gray-500">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
               </svg>
@@ -412,33 +412,33 @@ export default function CommuterHome() {
         <div className="px-5 pb-24 overflow-y-auto max-h-[60vh]">
           {/* --- ETA / STATUS SECTION (Mobile) --- */}
           {gpsStatus === "loading" && (
-            <div className="bg-white/5 border border-white/10 rounded-xl p-3 mb-3 flex items-center gap-2.5">
+            <div className="bg-white/5 border border-white/10 light:bg-gray-50 light:border-gray-200 rounded-xl p-3 mb-3 flex items-center gap-2.5">
               <div className="w-4 h-4 rounded-full border-2 border-[#62A0EA] border-t-transparent animate-spin flex-shrink-0" />
-              <span className="text-xs text-white/50">Locating you...</span>
+              <span className="text-xs text-white/50 light:text-gray-500">Locating you...</span>
             </div>
           )}
 
           {gpsStatus === "denied" && (
             <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 mb-3">
               <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-red-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-4 h-4 text-red-400 light:text-red-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
                 </svg>
-                <span className="text-xs font-semibold text-red-400">Location access denied</span>
+                <span className="text-xs font-semibold text-red-400 light:text-red-600">Location access denied</span>
               </div>
-              <p className="text-[10px] text-white/40 mt-1">Enable location to see ETA and hail vehicles.</p>
+              <p className="text-[10px] text-white/40 light:text-gray-500 mt-1">Enable location to see ETA and hail vehicles.</p>
             </div>
           )}
 
           {gpsStatus === "unavailable" && (
             <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 mb-3">
               <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-yellow-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-4 h-4 text-yellow-400 light:text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
                 </svg>
-                <span className="text-xs font-semibold text-yellow-400">Location unavailable</span>
+                <span className="text-xs font-semibold text-yellow-400 light:text-amber-600">Location unavailable</span>
               </div>
-              <p className="text-[10px] text-white/40 mt-1">GPS is not available on this device.</p>
+              <p className="text-[10px] text-white/40 light:text-gray-500 mt-1">GPS is not available on this device.</p>
             </div>
           )}
 
@@ -447,13 +447,13 @@ export default function CommuterHome() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Live</span>
+                  <span className="text-[10px] font-bold text-emerald-400 light:text-emerald-600 uppercase tracking-wider">Live</span>
                 </div>
-                <span className="text-lg font-extrabold text-white">~{nearestVehicle.estimatedArrivalMinutes} min</span>
+                <span className="text-lg font-extrabold text-white light:text-gray-900">~{nearestVehicle.estimatedArrivalMinutes} min</span>
               </div>
               <div className="flex items-center justify-between mt-1.5">
-                <span className="text-[10px] text-white/40">{nearestVehicle.plateNumber}</span>
-                <span className="text-[10px] text-white/50">{(nearestVehicle.distanceInMeters / 1000).toFixed(1)} km away</span>
+                <span className="text-[10px] text-white/40 light:text-gray-500">{nearestVehicle.plateNumber}</span>
+                <span className="text-[10px] text-white/50 light:text-gray-500">{(nearestVehicle.distanceInMeters / 1000).toFixed(1)} km away</span>
               </div>
             </div>
           )}
@@ -461,18 +461,18 @@ export default function CommuterHome() {
           {gpsStatus === "available" && !canHail && (
             <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 mb-3">
               <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-yellow-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-4 h-4 text-yellow-400 light:text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
                 </svg>
-                <span className="text-xs font-semibold text-yellow-400">Outside service radius</span>
+                <span className="text-xs font-semibold text-yellow-400 light:text-amber-600">Outside service radius</span>
               </div>
-              <p className="text-[10px] text-white/40 mt-1">Move within 1km of a conductor unit to hail.</p>
+              <p className="text-[10px] text-white/40 light:text-gray-500 mt-1">Move within 1km of a conductor unit to hail.</p>
             </div>
           )}
 
           {hailError && (
             <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 mb-3">
-              <p className="text-xs font-semibold text-red-400">{hailError}</p>
+              <p className="text-xs font-semibold text-red-400 light:text-red-600">{hailError}</p>
             </div>
           )}
 
@@ -523,11 +523,11 @@ export default function CommuterHome() {
           {/* Quick Actions Grid */}
           <div className="grid grid-cols-2 gap-3 mt-4">
             {quickActions.map((action) => (
-              <button key={action.label} onClick={action.action} onBlur={action.isSos ? resetSosTap : undefined} title={action.isSos ? "Double-click or double-tap to open SOS confirmation" : undefined} className={`flex items-center justify-center gap-2 py-2.5 rounded-xl transition-colors ${action.isSos ? "touch-manipulation bg-red-500/10 hover:bg-red-500/20 border border-red-500/20" : "bg-white/5 hover:bg-white/10 border border-white/10"}`}>
-                <svg className={`w-4 h-4 ${action.isSos ? "text-red-400" : "text-blue-300"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <button key={action.label} onClick={action.action} onBlur={action.isSos ? resetSosTap : undefined} title={action.isSos ? "Double-click or double-tap to open SOS confirmation" : undefined} className={`flex items-center justify-center gap-2 py-2.5 rounded-xl transition-colors ${action.isSos ? "touch-manipulation bg-red-500/10 hover:bg-red-500/20 border border-red-500/20" : "bg-white/5 hover:bg-white/10 border border-white/10 light:bg-gray-50 light:hover:bg-gray-100 light:border-gray-200"}`}>
+                <svg className={`w-4 h-4 ${action.isSos ? "text-red-400 light:text-red-600" : "text-blue-300 light:text-[#1A5FB4]"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d={action.iconPath} />
                 </svg>
-                <span className={`text-xs font-semibold ${action.isSos ? "text-red-400" : "text-white/70"}`}>
+                <span className={`text-xs font-semibold ${action.isSos ? "text-red-400 light:text-red-600" : "text-white/70 light:text-gray-700"}`}>
                   {action.isSos && sosTapHint ? "Tap SOS again" : action.label}
                 </span>
               </button>
@@ -539,17 +539,17 @@ export default function CommuterHome() {
       {/* ========================================== */}
       {/* --- DESKTOP UI (Hidden on Mobile) --- */}
       {/* ========================================== */}
-      <div className="hidden lg:flex xl:hidden absolute right-4 top-4 bottom-4 w-80 z-20 bg-[#071A2E]/95 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl flex-col overflow-hidden">
-        <div className="p-6 border-b border-white/10 flex items-center justify-between">
+      <div className="hidden lg:flex xl:hidden absolute right-4 top-4 bottom-4 w-80 z-20 bg-[#071A2E]/95 backdrop-blur-xl rounded-2xl border border-white/10 light:bg-white/95 light:border-gray-200 shadow-2xl flex-col overflow-hidden">
+        <div className="p-6 border-b border-white/10 light:border-gray-200 flex items-center justify-between">
           <div>
-            <h1 className="text-white font-bold text-lg">
+            <h1 className="text-white light:text-gray-900 font-bold text-lg">
               Good morning, {displayName}!
             </h1>
-            <span className="text-xs font-semibold text-[#62A0EA] bg-[#62A0EA]/10 px-2 py-0.5 rounded-full mt-1 inline-block">
+            <span className="text-xs font-semibold text-[#62A0EA] bg-[#62A0EA]/10 light:text-[#1A5FB4] light:bg-[#1A5FB4]/10 px-2 py-0.5 rounded-full mt-1 inline-block">
               {commuterType === "REGULAR" ? "Regular" : commuterType === "STUDENT" ? "Student" : commuterType === "SENIOR_CITIZEN" ? "Senior Citizen" : commuterType === "PWD" ? "PWD" : commuterType}
             </span>
           </div>
-          <div className="w-11 h-11 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold shadow-lg border-2 border-white/20 text-base">
+          <div className="w-11 h-11 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold shadow-lg border-2 border-white/20 light:border-[#DAEEFF] text-base">
             {displayName[0]}
           </div>
         </div>
@@ -602,14 +602,14 @@ export default function CommuterHome() {
           {desktopStatus}
           {/* Quick Actions */}
           <div>
-            <h3 className="text-xs font-semibold text-white/30 uppercase tracking-wider mb-2">Quick Actions</h3>
+            <h3 className="text-xs font-semibold text-white/30 light:text-gray-400 uppercase tracking-wider mb-2">Quick Actions</h3>
             <div className="grid grid-cols-2 gap-3">
               {quickActions.map((action) => (
-                <button key={action.label} onClick={action.action} onBlur={action.isSos ? resetSosTap : undefined} title={action.isSos ? "Double-click or double-tap to open SOS confirmation" : undefined} className={`flex items-center justify-center gap-2 py-2.5 rounded-xl transition-colors ${action.isSos ? "touch-manipulation bg-red-500/10 hover:bg-red-500/20 border border-red-500/20" : "bg-white/5 hover:bg-white/10 border border-white/10"}`}>
-                  <svg className={`w-4 h-4 ${action.isSos ? "text-red-400" : "text-blue-300"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <button key={action.label} onClick={action.action} onBlur={action.isSos ? resetSosTap : undefined} title={action.isSos ? "Double-click or double-tap to open SOS confirmation" : undefined} className={`flex items-center justify-center gap-2 py-2.5 rounded-xl transition-colors ${action.isSos ? "touch-manipulation bg-red-500/10 hover:bg-red-500/20 border border-red-500/20" : "bg-white/5 hover:bg-white/10 border border-white/10 light:bg-gray-50 light:hover:bg-gray-100 light:border-gray-200"}`}>
+                  <svg className={`w-4 h-4 ${action.isSos ? "text-red-400 light:text-red-600" : "text-blue-300 light:text-[#1A5FB4]"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d={action.iconPath} />
                   </svg>
-                  <span className={`text-xs font-semibold ${action.isSos ? "text-red-400" : "text-white/70"}`}>
+                  <span className={`text-xs font-semibold ${action.isSos ? "text-red-400 light:text-red-600" : "text-white/70 light:text-gray-700"}`}>
                     {action.isSos && sosTapHint ? "Tap SOS again" : action.label}
                   </span>
                 </button>
@@ -617,7 +617,7 @@ export default function CommuterHome() {
             </div>
           </div>
         </div>
-        <div className="p-6 border-t border-white/10">
+        <div className="p-6 border-t border-white/10 light:border-gray-200">
           {desktopHailError}
           <button
             onClick={handleHailToggle}
@@ -627,7 +627,7 @@ export default function CommuterHome() {
                 ? "bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/40"
                 : canHail
                   ? "bg-[#FF6D3A] hover:bg-[#e55a2b] shadow-lg shadow-[#FF6D3A]/40 text-white"
-                  : "bg-gray-600 text-gray-300 cursor-not-allowed shadow-none"
+                  : "bg-gray-600 text-gray-300 light:bg-gray-200 light:text-gray-500 cursor-not-allowed shadow-none"
             } ${hailPending ? "opacity-70" : ""}`}
           >
             {hailPending ? (
@@ -668,15 +668,15 @@ export default function CommuterHome() {
           disappear when there is nothing to show. The panel still serves
           1024–1279px. */}
       <div className="hidden xl:flex absolute top-4 left-1/2 -translate-x-1/2 z-20 flex-col items-center gap-3 max-w-[calc(100%-2rem)] pointer-events-none">
-        <div className="pointer-events-auto flex items-center divide-x divide-white/10 bg-[#071A2E]/95 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl shadow-black/10">
+        <div className="pointer-events-auto flex items-center divide-x divide-white/10 bg-[#071A2E]/95 backdrop-blur-xl rounded-2xl border border-white/10 light:divide-gray-200 light:bg-white/95 light:border-gray-200 shadow-2xl shadow-black/10">
           {/* Identity */}
           <div className="flex items-center gap-3 px-4 py-3 min-w-0">
-            <div className="w-10 h-10 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold shadow-lg border-2 border-white/20 flex-shrink-0">
+            <div className="w-10 h-10 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold shadow-lg border-2 border-white/20 light:border-[#DAEEFF] flex-shrink-0">
               {displayName[0]}
             </div>
             <div className="min-w-0 max-w-[12rem]">
-              <h1 className="text-white font-bold text-sm leading-tight truncate">Good morning, {displayName}!</h1>
-              <span className="text-[10px] font-semibold text-[#62A0EA] bg-[#62A0EA]/10 px-2 py-0.5 rounded-full mt-1 inline-block">
+              <h1 className="text-white light:text-gray-900 font-bold text-sm leading-tight truncate">Good morning, {displayName}!</h1>
+              <span className="text-[10px] font-semibold text-[#62A0EA] bg-[#62A0EA]/10 light:text-[#1A5FB4] light:bg-[#1A5FB4]/10 px-2 py-0.5 rounded-full mt-1 inline-block">
                 {commuterTypeLabel}
               </span>
             </div>
@@ -703,11 +703,11 @@ export default function CommuterHome() {
             <button
               type="button"
               onClick={() => setShowHistory(true)}
-              className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center transition-colors cursor-pointer"
+              className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 light:bg-gray-50 light:hover:bg-gray-100 light:border-gray-200 flex items-center justify-center transition-colors cursor-pointer"
               title="Payment History"
               aria-label="Payment History"
             >
-              <svg className="w-4 h-4 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <svg className="w-4 h-4 text-white/60 light:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
               </svg>
             </button>
@@ -715,7 +715,7 @@ export default function CommuterHome() {
 
           {/* Quick actions */}
           <div className="flex flex-col justify-center gap-1.5 px-4 py-3">
-            <p className="text-[10px] font-semibold text-white/40 uppercase tracking-wider whitespace-nowrap">Quick Actions</p>
+            <p className="text-[10px] font-semibold text-white/40 light:text-gray-500 uppercase tracking-wider whitespace-nowrap">Quick Actions</p>
             <div className="flex gap-1.5">
               {quickActions.map((action) => (
                 <button
@@ -723,9 +723,9 @@ export default function CommuterHome() {
                   onClick={action.action}
                   onBlur={action.isSos ? resetSosTap : undefined}
                   title={action.isSos ? "Double-click or double-tap to open SOS confirmation" : undefined}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer border ${action.isSos ? "touch-manipulation bg-red-500/10 hover:bg-red-500/20 border-red-500/20 text-red-400" : "bg-white/5 hover:bg-white/10 border-white/10 text-white/70"}`}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer border ${action.isSos ? "touch-manipulation bg-red-500/10 hover:bg-red-500/20 border-red-500/20 text-red-400 light:text-red-600" : "bg-white/5 hover:bg-white/10 border-white/10 light:bg-gray-50 light:hover:bg-gray-100 light:border-gray-200 text-white/70 light:text-gray-700"}`}
                 >
-                  <svg className={`w-3.5 h-3.5 ${action.isSos ? "text-red-400" : "text-blue-300"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <svg className={`w-3.5 h-3.5 ${action.isSos ? "text-red-400 light:text-red-600" : "text-blue-300 light:text-[#1A5FB4]"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d={action.iconPath} />
                   </svg>
                   {action.isSos && sosTapHint ? "Tap SOS again" : action.label}
@@ -744,7 +744,7 @@ export default function CommuterHome() {
                   ? "bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/40"
                   : canHail
                     ? "bg-[#FF6D3A] hover:bg-[#e55a2b] shadow-lg shadow-[#FF6D3A]/40 text-white"
-                    : "bg-gray-600 text-gray-300 shadow-none"
+                    : "bg-gray-600 text-gray-300 light:bg-gray-200 light:text-gray-500 shadow-none"
               } ${hailPending ? "opacity-70" : ""}`}
             >
               {hailPending ? (
@@ -772,7 +772,7 @@ export default function CommuterHome() {
           </div>
         </div>
 
-        <div className="pointer-events-auto empty:hidden w-[26rem] max-w-full space-y-3 p-3 bg-[#071A2E]/95 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl shadow-black/10 [&>*:last-child]:mb-0">
+        <div className="pointer-events-auto empty:hidden w-[26rem] max-w-full space-y-3 p-3 bg-[#071A2E]/95 backdrop-blur-xl rounded-2xl border border-white/10 light:bg-white/95 light:border-gray-200 shadow-2xl shadow-black/10 [&>*:last-child]:mb-0">
           {desktopStatus}
           {desktopHailError}
         </div>

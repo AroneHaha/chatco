@@ -635,4 +635,18 @@ class AnnouncementFlowTest extends TestCase
         $this->assertSame(4, Announcement::where('type', 'REGISTRATION_WAITING')->count());
     }
 
+    public function test_system_titles_naming_a_long_subject_fit_the_title_column(): void
+    {
+        $service = app(\App\Services\AnnouncementService::class);
+        $title = 'Claim approved: "'.str_repeat('x', 200).'"';
+
+        $single = $service->notifyUser($this->commuter->id, 'claim_approved', $title, 'Message');
+        $service->notifyAdmins('NEW_CLAIM', $title, 'Message');
+
+        $this->assertSame(200, mb_strlen($single->fresh()->title));
+        $this->assertStringStartsWith('Claim approved: "xxx', $single->title);
+        $this->assertStringEndsWith('…', $single->title);
+        $this->assertSame(200, mb_strlen(Announcement::where('type', 'NEW_CLAIM')->value('title')));
+        $this->assertSame('Short title', $service->notifyUser($this->commuter->id, 'claim_approved', 'Short title', 'Message')->title);
+    }
 }

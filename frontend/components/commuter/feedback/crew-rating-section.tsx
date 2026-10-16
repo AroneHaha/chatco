@@ -57,10 +57,10 @@ export function CrewRatingSection({
   return (
     <div className="space-y-6">
       {/* ── Stars ─────────────────────────────────────────────── */}
-      <div className="bg-[#071A2E] border border-white/10 rounded-2xl p-6 flex flex-col items-center">
-        <h3 className="text-white/70 text-sm font-semibold">How was your {label}?</h3>
+      <div className="bg-[#071A2E] border border-white/10 rounded-2xl p-6 light:bg-white light:border-gray-200 flex flex-col items-center">
+        <h3 className="text-white/70 text-sm font-semibold light:text-gray-700">How was your {label}?</h3>
         {name && (
-          <p className="text-white/30 text-xs mt-1 text-center truncate max-w-full">{name}</p>
+          <p className="text-white/30 text-xs mt-1 light:text-gray-500 text-center truncate max-w-full">{name}</p>
         )}
 
         {/* Pointer events preview, focus events mirror it for keyboard users. */}
@@ -86,7 +86,7 @@ export function CrewRatingSection({
                 className={`w-9 h-9 sm:w-10 sm:h-10 transition-colors duration-150 ${
                   star <= displayRating
                     ? "text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.4)]"
-                    : "text-white/10"
+                    : "text-white/10 light:text-gray-200"
                 }`}
                 fill="currentColor"
                 viewBox="0 0 24 24"
@@ -101,7 +101,7 @@ export function CrewRatingSection({
         {/* Reserved height stops the card resizing the moment a star is picked. */}
         <p
           className={`text-xs mt-3 font-medium h-4 transition-colors ${
-            displayRating >= 4 ? "text-emerald-400" : displayRating > 0 ? "text-amber-400" : "text-transparent"
+            displayRating >= 4 ? "text-emerald-400 light:text-emerald-600" : displayRating > 0 ? "text-amber-400 light:text-amber-600" : "text-transparent"
           }`}
           aria-live="polite"
         >
@@ -112,9 +112,9 @@ export function CrewRatingSection({
       {/* ── Tags ──────────────────────────────────────────────── */}
       {rating > 0 && (
         <div className="animate-fade-in">
-          <h3 className="text-white/70 text-sm font-semibold mb-3">
+          <h3 className="text-white/70 text-sm font-semibold light:text-gray-700 mb-3">
             {isPositive ? "What went well?" : "What could be improved?"}
-            <span className="text-white/30 font-normal ml-1.5">(pick at least one)</span>
+            <span className="text-white/30 font-normal light:text-gray-400 ml-1.5">(pick at least one)</span>
           </h3>
           <div className="flex flex-wrap gap-2">
             {tags.map((tag) => {
@@ -128,9 +128,9 @@ export function CrewRatingSection({
                   className={`px-4 py-2 rounded-full text-xs font-semibold border transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] ${
                     isSelected
                       ? isPositive
-                        ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400 shadow-lg shadow-emerald-500/10"
-                        : "bg-red-500/20 border-red-500/50 text-red-400 shadow-lg shadow-red-500/10"
-                      : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white/70"
+                        ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400 shadow-lg shadow-emerald-500/10 light:text-emerald-700"
+                        : "bg-red-500/20 border-red-500/50 text-red-400 shadow-lg shadow-red-500/10 light:text-red-700"
+                      : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white/70 light:bg-white light:border-gray-200 light:text-gray-600 light:hover:bg-gray-100 light:hover:text-gray-900"
                   }`}
                 >
                   {tag}
@@ -145,15 +145,15 @@ export function CrewRatingSection({
       {rating > 0 && selectedTags.length > 0 && (
         <div className="space-y-2 animate-fade-in">
           <div className="flex items-baseline justify-between gap-2">
-            <h3 className="text-white/70 text-sm font-semibold">
+            <h3 className="text-white/70 text-sm font-semibold light:text-gray-700">
               Additional comments{" "}
-              <span className="text-white/30 font-normal">(optional)</span>
+              <span className="text-white/30 font-normal light:text-gray-400">(optional)</span>
             </h3>
             {/* Only surfaces near the cap — a counter on an empty box is noise. */}
             {comment.length > COMMENT_MAX_LENGTH * 0.8 && (
               <span
                 className={`text-[11px] font-medium tabular-nums ${
-                  comment.length >= COMMENT_MAX_LENGTH ? "text-red-400" : "text-white/40"
+                  comment.length >= COMMENT_MAX_LENGTH ? "text-red-400 light:text-red-600" : "text-white/40 light:text-gray-500"
                 }`}
               >
                 {comment.length}/{COMMENT_MAX_LENGTH}
@@ -166,7 +166,7 @@ export function CrewRatingSection({
             maxLength={COMMENT_MAX_LENGTH}
             onChange={(e) => onCommentChange(e.target.value)}
             placeholder={commentPlaceholder}
-            className="w-full bg-[#071A2E] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#62A0EA] transition-colors resize-none"
+            className="w-full bg-[#071A2E] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#62A0EA] light:bg-white light:border-gray-200 light:text-gray-900 light:placeholder:text-gray-400 light:focus:border-[#1A5FB4] transition-colors resize-none"
           />
         </div>
       )}

@@ -1,16 +1,19 @@
 // components/admin/lost-found/lost-found-grid.tsx
-import { Badge } from '@/components/admin/ui/badge';
+import { useEffect, useRef, type ReactNode } from 'react';
 import {
+  Archive,
+  Check,
   CheckCircle2,
+  Minus,
   Clock3,
   Eye,
-  FileCheck2,
-  IdCard,
   ListChecks,
   PackageSearch,
   Pencil,
   RotateCcw,
   UserRound,
+  XCircle,
+  type LucideIcon,
 } from 'lucide-react';
 import type { LostFoundItem } from '@/app/(admin)/lost-found/data/lost-found-data';
 
@@ -23,6 +26,45 @@ interface LostFoundGridProps {
   onClose?: (itemId: string) => void;
   onReactivate?: (itemId: string) => void;
   isActing?: boolean;
+  /** Expired tab: show a checkbox on each card for bulk reactivation. */
+  selectable?: boolean;
+  selectedIds?: ReadonlySet<string>;
+  onToggleSelect?: (itemId: string) => void;
+}
+
+/**
+ * Admin checkbox: a real (visually hidden) input for keyboard/screen
+ * readers, drawn as a small square in the admin tones. `indeterminate`
+ * covers the "some on this page selected" state of a select-all box.
+ */
+export function SelectCheckbox({ checked, indeterminate = false, onChange, disabled, label, showLabel = false }: {
+  checked: boolean;
+  indeterminate?: boolean;
+  onChange: () => void;
+  disabled?: boolean;
+  label: string;
+  showLabel?: boolean;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (inputRef.current) inputRef.current.indeterminate = indeterminate && !checked;
+  }, [indeterminate, checked]);
+  const marked = checked || indeterminate;
+
+  return (
+    <label className={`inline-flex items-center gap-2.5 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+      <input ref={inputRef} type="checkbox" checked={checked} onChange={onChange} disabled={disabled} aria-label={showLabel ? undefined : label} className="peer sr-only" />
+      <span
+        aria-hidden="true"
+        className={`flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-[4px] border transition-colors duration-150 peer-focus-visible:ring-2 peer-focus-visible:ring-[#62A0EA] peer-focus-visible:ring-offset-1 peer-focus-visible:ring-offset-[#0B1120] ${
+          marked ? 'border-[#62A0EA] bg-[#62A0EA] text-[#0B1120]' : 'border-slate-500 bg-[#0B1120]/80'
+        }`}
+      >
+        {checked ? <Check className="h-3 w-3" strokeWidth={3.5} /> : indeterminate ? <Minus className="h-3 w-3" strokeWidth={3.5} /> : null}
+      </span>
+      {showLabel && <span className="text-xs font-semibold text-slate-300">{label}</span>}
+    </label>
+  );
 }
 
 function formatPostedDate(dateStr: string): string {
@@ -33,137 +75,166 @@ function formatPostedDate(dateStr: string): string {
   }
 }
 
-function getBadgeVariant(status: LostFoundItem['status']): 'success' | 'warning' | 'danger' | 'info' {
-  switch (status) {
-    case 'Released':
-    case 'Returned':
-    case 'Closed':
-      return 'success';
-    case 'Claimed':
-      return 'info';
-    case 'Expired':
-    case 'Rejected':
-      return 'danger';
-    default:
-      return 'warning';
-  }
+/** Status as coloured text + icon (no pill), same colour meaning as before. */
+const STATUS_STYLES: Record<LostFoundItem['status'], { icon: LucideIcon; text: string }> = {
+  Unmatched: { icon: Clock3, text: 'text-amber-300' },
+  Claimed: { icon: UserRound, text: 'text-[#8CB9F0]' },
+  Released: { icon: CheckCircle2, text: 'text-emerald-300' },
+  Returned: { icon: CheckCircle2, text: 'text-emerald-300' },
+  Closed: { icon: CheckCircle2, text: 'text-emerald-300' },
+  Rejected: { icon: XCircle, text: 'text-red-300' },
+  Expired: { icon: Archive, text: 'text-red-300' },
+};
+const FALLBACK_STATUS = { icon: Clock3, text: 'text-slate-400' };
+
+function DetailField({ label, value, className = '' }: { label: string; value: string; className?: string }) {
+  return (
+    <div className={`min-w-0 ${className}`}>
+      <dt className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</dt>
+      <dd className="mt-0.5 truncate text-xs text-slate-200" title={value}>{value}</dd>
+    </div>
+  );
 }
 
-export function LostFoundGrid({ items, claimSummaries = {}, onViewClaims, onViewDetails, onEdit, onClose, onReactivate, isActing }: LostFoundGridProps) {
+function ActionButton({ onClick, label, className = '', children }: { onClick: () => void; label: string; className?: string; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      className={`relative inline-flex h-10 min-w-0 items-center justify-center gap-1.5 px-1 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA]/60 active:bg-[#1A2540] ${className}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+export function LostFoundGrid({ items, claimSummaries = {}, onViewClaims, onViewDetails, onEdit, onClose, onReactivate, isActing, selectable = false, selectedIds, onToggleSelect }: LostFoundGridProps) {
   return (
     <>
       {items.map((item) => {
         const claimSummary = claimSummaries[item.id] ?? { total: 0, pending: 0, accepted: 0 };
         const hasNewClaims = Boolean(claimSummary.hasNewPending);
         const isClaimed = claimSummary.accepted > 0 || item.status === 'Released' || item.status === 'Closed';
+        const status = STATUS_STYLES[item.status] ?? FALLBACK_STATUS;
+        const StatusIcon = status.icon;
+        const isSelected = selectable && Boolean(selectedIds?.has(item.id));
 
         return (
-        <article key={item.id} className="group flex min-h-full flex-col overflow-hidden rounded-xl border border-white/10 bg-[#071A2E] shadow-lg shadow-black/20 transition-colors hover:border-[#62A0EA]/35">
-          <button type="button" onClick={() => onViewDetails(item.id)} className="relative aspect-[4/3] w-full overflow-hidden bg-[#0A1E33] text-left">
-            {item.imageUrl ? (
-              <img src={item.imageUrl} alt={item.itemName} className="h-full w-full object-cover opacity-85 transition-transform duration-500 group-hover:scale-105 group-hover:opacity-100" />
-            ) : (
-              <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-slate-600">
-                <PackageSearch className="h-11 w-11" />
-                <span className="text-[10px] font-semibold uppercase tracking-wider">No photo yet</span>
+          <article
+            key={item.id}
+            className={`group relative flex min-h-full flex-col overflow-hidden rounded-lg border bg-[#131C2E] transition-colors duration-200 ${
+              isSelected ? 'border-[#62A0EA]/70 ring-1 ring-[#62A0EA]/40' : 'border-[#1E2D45] hover:border-[#62A0EA]/40'
+            }`}
+          >
+            {selectable && onToggleSelect && (
+              // Sibling of the photo button (not inside it), so ticking the
+              // box never opens the details view.
+              <div className="absolute left-2 top-2 z-10 rounded-md bg-[#0B1120]/80 p-1.5 backdrop-blur-sm">
+                <SelectCheckbox
+                  checked={isSelected}
+                  onChange={() => onToggleSelect(item.id)}
+                  disabled={isActing}
+                  label={`Select ${item.itemName}`}
+                />
               </div>
             )}
-            <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 bg-gradient-to-t from-black/75 via-black/25 to-transparent p-3">
-              <span className="rounded-full border border-white/15 bg-black/45 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white backdrop-blur-sm">{item.category}</span>
-              <Badge variant={getBadgeVariant(item.status)}>{item.status}</Badge>
-            </div>
-          </button>
+            <button
+              type="button"
+              onClick={() => onViewDetails(item.id)}
+              aria-label={`View details for ${item.itemName}`}
+              className="relative aspect-4/3 w-full overflow-hidden border-b border-[#1E2D45] bg-[#0E1628] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA]/60"
+            >
+              {item.imageUrl ? (
+                <img
+                  src={item.imageUrl}
+                  alt={item.itemName}
+                  className="h-full w-full object-cover opacity-90 transition-[transform,opacity] duration-500 ease-out group-hover:scale-[1.03] group-hover:opacity-100 motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+                />
+              ) : (
+                <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-slate-600">
+                  <PackageSearch className="h-10 w-10" aria-hidden="true" />
+                  <span className="text-[10px] font-semibold uppercase tracking-wider">No photo yet</span>
+                </div>
+              )}
+            </button>
 
-          <div className="flex flex-1 flex-col p-3 sm:p-4">
-            <div className="mb-3">
-              <button type="button" onClick={() => onViewDetails(item.id)} className="block w-full text-left">
-                <h3 className="line-clamp-2 sm:line-clamp-1 text-sm sm:text-base font-bold leading-tight text-white transition-colors group-hover:text-[#8CB9F0]">{item.itemName}</h3>
-              </button>
-              <p className="mt-1 hidden sm:line-clamp-2 sm:block min-h-8 text-xs leading-4 text-slate-400">{item.description}</p>
-            </div>
-
-            <div className="mb-3 grid grid-cols-1 gap-1.5 rounded-lg border border-white/8 bg-white/[0.04] p-2.5 sm:gap-2 sm:p-3">
-              <div className="flex min-w-0 items-center gap-2 text-xs text-slate-300">
-                <IdCard className="h-3.5 w-3.5 flex-shrink-0 text-[#62A0EA]" />
-                <span className="min-w-0 truncate">{item.plateNumber || 'Plate unavailable'}</span>
-              </div>
-              <div className="hidden min-w-0 items-center gap-2 text-xs text-slate-300 sm:flex">
-                <Clock3 className="h-3.5 w-3.5 flex-shrink-0 text-[#62A0EA]" />
-                <span className="min-w-0 truncate">{item.estimatedTimeLost || 'Time unavailable'}</span>
-              </div>
-              <div className="flex min-w-0 items-center gap-2 text-xs text-slate-500">
-                <UserRound className="h-3.5 w-3.5 flex-shrink-0 text-slate-500" />
-                <span className="min-w-0 truncate">{item.driverName || 'Driver unavailable'}</span>
-              </div>
-              <div className="hidden min-w-0 items-center gap-2 text-xs text-slate-500 sm:flex">
-                <UserRound className="h-3.5 w-3.5 flex-shrink-0 text-slate-500" />
-                <span className="min-w-0 truncate">{item.conductorName || 'Conductor unavailable'}</span>
-              </div>
-            </div>
-
-            <div className="mt-auto grid grid-cols-3 gap-1.5 sm:gap-2">
-              <button onClick={() => onViewDetails(item.id)} aria-label="View details" className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-1 py-2.5 text-xs font-semibold text-slate-300 transition-colors hover:bg-white/10 hover:text-white sm:px-2">
-                <Eye className="h-4 w-4" />
-                <span className="hidden sm:inline">Details</span>
-              </button>
-              <button
-                onClick={() => onViewClaims(item.id)}
-                aria-label={isClaimed ? 'View claimed item' : 'View claims'}
-                className={`relative inline-flex items-center justify-center gap-1.5 rounded-lg border px-1 py-2.5 text-xs font-semibold transition-colors sm:px-2 ${
-                  hasNewClaims
-                    ? 'border-[#FF6D3A]/35 bg-[#FF6D3A]/10 text-white hover:bg-[#FF6D3A]/15'
-                    : isClaimed
-                      ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/15'
-                    : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                {hasNewClaims && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border border-[#071A2E] bg-[#FF6D3A]" />}
-                {isClaimed ? <UserRound className="h-4 w-4" /> : <ListChecks className="h-4 w-4" />}
-                <span className="hidden sm:inline">{isClaimed ? 'Claimed' : 'Claims'}</span>
-                <span className={`ml-0.5 min-w-5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                  hasNewClaims
-                    ? 'bg-[#FF6D3A] text-white'
-                    : isClaimed
-                      ? 'bg-emerald-500/20 text-emerald-200'
-                      : 'bg-white/10 text-slate-400'
-                }`}>
-                  {claimSummary.total}
+            <div className="flex flex-1 flex-col p-3 sm:p-4">
+              {/* Category and status share one quiet line above the title. */}
+              <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <span className="truncate text-[10px] font-semibold uppercase tracking-wider text-slate-500">{item.category}</span>
+                <span className={`inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold ${status.text}`}>
+                  <StatusIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                  {item.status}
                 </span>
+              </div>
+
+              <button type="button" onClick={() => onViewDetails(item.id)} className="mt-1.5 block w-full text-left focus:outline-none focus-visible:underline">
+                <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-white transition-colors group-hover:text-[#8CB9F0] sm:line-clamp-1 sm:text-base">{item.itemName}</h3>
               </button>
-              <button onClick={() => onEdit(item)} aria-label="Edit item" className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-1 py-2.5 text-xs font-semibold text-slate-300 transition-colors hover:bg-white/10 hover:text-white sm:px-2">
-                <Pencil className="h-4 w-4" />
-                <span className="hidden sm:inline">Edit</span>
-              </button>
+              <p className="mt-1 hidden min-h-8 text-xs leading-4 text-slate-400 sm:line-clamp-2">{item.description}</p>
+
+              <dl className="mt-3 grid grid-cols-1 gap-x-3 gap-y-2 border-t border-[#1E2D45] pt-3 sm:grid-cols-2">
+                <DetailField label="Plate" value={item.plateNumber || 'Plate unavailable'} />
+                <DetailField label="Est. time" value={item.estimatedTimeLost || 'Time unavailable'} className="hidden sm:block" />
+                <DetailField label="Driver" value={item.driverName || 'Driver unavailable'} />
+                <DetailField label="Conductor" value={item.conductorName || 'Conductor unavailable'} className="hidden sm:block" />
+              </dl>
+
+              <p className="mt-auto pt-3 text-[10px] text-slate-500">Posted {formatPostedDate(item.datePosted)}</p>
+
+              {onClose && item.status === 'Released' && (
+                <button
+                  type="button"
+                  onClick={() => onClose(item.id)}
+                  disabled={isActing}
+                  className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                  Close after handover
+                </button>
+              )}
+
+              {onReactivate && item.status === 'Expired' && (
+                <button
+                  type="button"
+                  onClick={() => onReactivate(item.id)}
+                  disabled={isActing}
+                  className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                  Reactivate item
+                </button>
+              )}
             </div>
 
-            {onClose && item.status === 'Released' && (
-              <button
-                onClick={() => onClose(item.id)}
-                disabled={isActing}
-                className="mt-2 inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2.5 text-xs font-bold text-emerald-300 transition-colors hover:bg-emerald-500/15 disabled:opacity-50"
+            {/* Flat action strip, divided like a table's row actions rather
+                than three separate boxed buttons. */}
+            <div className="mt-auto grid grid-cols-3 divide-x divide-[#1E2D45] border-t border-[#1E2D45]">
+              <ActionButton onClick={() => onViewDetails(item.id)} label="View details" className="text-slate-300 hover:bg-[#1A2540] hover:text-white">
+                <Eye className="h-4 w-4" aria-hidden="true" />
+                <span className="hidden sm:inline">Details</span>
+              </ActionButton>
+              <ActionButton
+                onClick={() => onViewClaims(item.id)}
+                label={`${isClaimed ? 'View claimed item' : 'View claims'}, ${claimSummary.total} claim${claimSummary.total === 1 ? '' : 's'}${hasNewClaims ? ', new claims' : ''}`}
+                className={hasNewClaims
+                  ? 'text-white hover:bg-[#1A2540]'
+                  : isClaimed
+                    ? 'text-emerald-300 hover:bg-emerald-500/10'
+                    : 'text-slate-300 hover:bg-[#1A2540] hover:text-white'}
               >
-                <CheckCircle2 className="h-4 w-4" />
-                Close after handover
-              </button>
-            )}
-
-            {onReactivate && item.status === 'Expired' && (
-              <button
-                onClick={() => onReactivate(item.id)}
-                disabled={isActing}
-                className="mt-2 inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2.5 text-xs font-bold text-emerald-300 transition-colors hover:bg-emerald-500/15 disabled:opacity-50"
-              >
-                <RotateCcw className="h-4 w-4" />
-                Reactivate item
-              </button>
-            )}
-
-            <p className="mt-3 flex items-center justify-center gap-1.5 text-[10px] text-slate-600">
-              <FileCheck2 className="h-3 w-3" />
-              Posted {formatPostedDate(item.datePosted)}
-            </p>
-          </div>
-        </article>
+                {isClaimed ? <UserRound className="h-4 w-4" aria-hidden="true" /> : <ListChecks className="h-4 w-4" aria-hidden="true" />}
+                <span className="hidden sm:inline">{isClaimed ? 'Claimed' : 'Claims'}</span>
+                <span className={`tabular-nums ${hasNewClaims ? 'text-[#FF6D3A]' : isClaimed ? 'text-emerald-300/70' : 'text-slate-500'}`}>{claimSummary.total}</span>
+                {hasNewClaims && <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[#FF6D3A]" />}
+              </ActionButton>
+              <ActionButton onClick={() => onEdit(item)} label="Edit item" className="text-slate-300 hover:bg-[#1A2540] hover:text-white">
+                <Pencil className="h-4 w-4" aria-hidden="true" />
+                <span className="hidden sm:inline">Edit</span>
+              </ActionButton>
+            </div>
+          </article>
         );
       })}
     </>

@@ -176,7 +176,7 @@ Read-only receipt layout for the printed fare receipt. Admins edit these in Sett
 
 ### POST /conductor/shifts/start
 
-- **Limiter:** conductor-mutation (10/min), plus the `maintenance` middleware
+- **Limiter:** conductor-mutation (10/min). Like every conductor route, it's behind the group's `maintenance` middleware.
 - **Request:** `StartShiftRequest` → `ShiftService::startShift`
 
 **Body (JSON)**
@@ -193,7 +193,7 @@ Read-only receipt layout for the printed fare receipt. Admins edit these in Sett
 
 | Status | Shape | Message |
 |---|---|---|
-| 503 | A | `CHATCO is under maintenance right now. You can't start a shift until maintenance is complete.` (admin setting `maintenance_mode = "true"`) |
+| 503 | A | The admin's maintenance message, with `code: "MAINTENANCE"` (maintenance on for `CONDUCTOR`; applies to every conductor route) |
 | 422 | A | Validation: `Vehicle is required`, `Vehicle not found`, `Driver not found`, `Route not found`, … |
 | 422 | B | `Conductor profile required` |
 | 409 | B | `Already on active shift` |

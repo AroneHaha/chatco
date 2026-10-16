@@ -20,7 +20,7 @@ function load(file, modules = {}, globals = {}) {
 
 test('multipart client keeps the browser boundary; ordinary JSON requests remain JSON', async () => {
   const requests = [];
-  const { api } = load('lib/api/client.ts', {}, { fetch: async (url, options) => {
+  const { api } = load('lib/api/client.ts', { '@/lib/maintenance': { MAINTENANCE_SUSPECTED_EVENT: 'maintenance-suspected' } }, { fetch: async (url, options) => {
     requests.push({ url, ...options }); return Response.json({ success: true });
   } });
   const body = new FormData(); body.set('photo', new File(['image'], 'photo.jpg', { type: 'image/jpeg' }));
@@ -90,6 +90,7 @@ function photoUI(upload = async () => ({ profileImageUrl: 'https://media.example
   const jsx = (type, props) => ({ type, props });
   const { default: Photo } = load('components/commuter/profile/profile-photo.tsx', {
     react, 'react/jsx-runtime': { jsx, jsxs: jsx },
+    'lucide-react': { Camera: 'Camera' },
     '@/lib/api/client': { ApiError: class extends Error {} },
     '@/lib/commuter/services/profile.service': { uploadProfilePhoto: upload },
   });

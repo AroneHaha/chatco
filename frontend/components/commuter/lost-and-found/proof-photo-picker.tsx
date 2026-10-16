@@ -12,9 +12,31 @@ interface ProofPhotoPickerProps {
   files: File[];
   onChange: (files: File[]) => void;
   disabled?: boolean;
+  /** "admin" re-skins it for the admin desk (walk-in claimant form). */
+  variant?: "commuter" | "admin";
+  /** Replaces the default hint shown under the tiles. */
+  helperText?: string;
 }
 
-export default function ProofPhotoPicker({ files, onChange, disabled = false }: ProofPhotoPickerProps) {
+const SKINS = {
+  commuter: {
+    label: "mb-2 block text-sm font-semibold text-white/75 light:text-gray-700",
+    optional: "font-medium text-white/45 light:text-gray-400",
+    tile: "border-white/10 bg-[#0E1628] light:border-gray-200 light:bg-gray-100",
+    empty: "border-white/15 bg-white/[0.03] text-white/45 hover:border-[#62A0EA] hover:text-[#62A0EA] light:border-gray-300 light:bg-white light:text-gray-500 light:hover:border-[#1A5FB4] light:hover:text-[#1A5FB4]",
+    helper: "mt-2 text-[11px] font-medium text-white/55 light:text-gray-500",
+  },
+  admin: {
+    label: "mb-1.5 block text-xs font-semibold text-slate-300",
+    optional: "font-medium text-slate-500",
+    tile: "border-[#1E2D45] bg-[#0B1120]",
+    empty: "border-[#1E2D45] bg-[#0B1120] text-slate-500 hover:border-[#62A0EA]/60 hover:text-[#8CB9F0] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]",
+    helper: "mt-2 text-xs text-slate-500",
+  },
+} as const;
+
+export default function ProofPhotoPicker({ files, onChange, disabled = false, variant = "commuter", helperText }: ProofPhotoPickerProps) {
+  const skin = SKINS[variant];
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,15 +70,15 @@ export default function ProofPhotoPicker({ files, onChange, disabled = false }: 
 
   return (
     <div>
-      <label className="mb-2 block text-sm font-semibold text-white/75">
-        Photos <span className="font-medium text-white/45">(optional)</span>
+      <label className={skin.label}>
+        Photos <span className={skin.optional}>(optional)</span>
       </label>
       <div className="grid grid-cols-3 gap-2">
         {Array.from({ length: MAX_PHOTOS }, (_, index) => {
           const preview = previews[index];
           if (preview) {
             return (
-              <div key={preview} className="relative aspect-square overflow-hidden rounded-lg border border-white/10 bg-[#0E1628]">
+              <div key={preview} className={`relative aspect-square overflow-hidden rounded-lg border ${skin.tile}`}>
                 <img src={preview} alt={`Proof photo ${index + 1}`} className="h-full w-full object-cover" />
                 <button
                   type="button"
@@ -76,7 +98,7 @@ export default function ProofPhotoPicker({ files, onChange, disabled = false }: 
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={disabled}
-              className="flex aspect-square flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-white/15 bg-white/[0.03] text-white/45 transition-colors hover:border-[#62A0EA] hover:text-[#62A0EA] disabled:cursor-not-allowed disabled:opacity-50"
+              className={`flex aspect-square flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${skin.empty}`}
             >
               <ImagePlus className="h-5 w-5" />
               <span className="text-[10px] font-semibold">Add photo</span>
@@ -93,10 +115,10 @@ export default function ProofPhotoPicker({ files, onChange, disabled = false }: 
         onChange={handleFilesSelected}
       />
       {error ? (
-        <p className="mt-2 text-[11px] font-medium text-red-300">{error}</p>
+        <p className="mt-2 text-[11px] font-medium text-red-300 light:text-red-600">{error}</p>
       ) : (
-        <p className="mt-2 text-[11px] font-medium text-white/55">
-          Up to {MAX_PHOTOS} photos, such as a receipt or a picture of you with the item. JPG, PNG, or WEBP, 5 MB each.
+        <p className={skin.helper}>
+          {helperText ?? `Up to ${MAX_PHOTOS} photos, such as a receipt or a picture of you with the item. JPG, PNG, or WEBP, 5 MB each.`}
         </p>
       )}
     </div>

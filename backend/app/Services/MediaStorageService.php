@@ -24,8 +24,7 @@ class MediaStorageService
             default => throw new \InvalidArgumentException('Unsupported profile image role.'),
         };
 
-        return $this->storePublic($file, "{$prefix}/{$ownerId}", config('filesystems.uploads.profile_disk', config('filesystems.uploads.public_media_disk', 'r2_public')),
-            strtolower($role) === 'commuter' ? $file->extension() : null);
+        return $this->storePublic($file, "{$prefix}/{$ownerId}", config('filesystems.uploads.profile_disk', config('filesystems.uploads.public_media_disk', 'r2_public')));
     }
 
     public function storeLostAndFoundImage(UploadedFile $file, string $itemId): string
@@ -51,9 +50,12 @@ class MediaStorageService
     }
 
     /** Store a public object and return its URL for the existing API contract. */
-    private function storePublic(UploadedFile $file, string $directory, ?string $disk = null, ?string $extension = null): string
+    private function storePublic(UploadedFile $file, string $directory, ?string $disk = null): string
     {
-        $extension ??= strtolower($file->getClientOriginalExtension() ?: 'jpg');
+        // From the file's detected content type, never the uploader's file
+        // name: a valid image renamed to e.g. ".html" would otherwise be
+        // stored, and served from the public bucket, as that type.
+        $extension = $this->safeImageExtension($file);
         $filename = Str::uuid().'.'.$extension;
         $disk ??= config('filesystems.uploads.public_media_disk', 'r2_public');
         $path = $file->storeAs($directory, $filename, $disk);
@@ -63,6 +65,15 @@ class MediaStorageService
         }
 
         return Storage::disk($disk)->url($path);
+    }
+
+    /** jpg/png/webp/gif from the sniffed MIME type; anything else stores as jpg. */
+    private function safeImageExtension(UploadedFile $file): string
+    {
+        $guessed = strtolower((string) $file->guessExtension());
+        $guessed = $guessed === 'jpeg' ? 'jpg' : $guessed;
+
+        return in_array($guessed, ['jpg', 'png', 'webp', 'gif'], true) ? $guessed : 'jpg';
     }
 
     /** Best-effort deletion of a public object represented by a stored URL. */
