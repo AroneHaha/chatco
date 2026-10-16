@@ -23,15 +23,15 @@ export default function DashboardHome() {
   // Loading State
   if (isLoading) {
     return (
-      <div className="space-y-6 pb-8">
+      <div className="space-y-4 pb-8">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
           <div className="space-y-2">
-            <div className="h-7 w-40 rounded bg-gray-700 animate-pulse" />
-            <div className="h-4 w-72 rounded bg-gray-700 animate-pulse" />
+            <div className="h-7 w-40 rounded bg-gray-700 admin-light:bg-slate-200 animate-pulse" />
+            <div className="h-4 w-72 rounded bg-gray-700 admin-light:bg-slate-200 animate-pulse" />
           </div>
         </div>
         <SkeletonMetric count={4} />
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <SkeletonDashboardMap />
           <SkeletonDashboardAnalytics />
         </div>
@@ -57,12 +57,12 @@ export default function DashboardHome() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <AlertCircle className="h-12 w-12 text-red-400 mb-4" />
-        <h2 className="text-lg font-semibold text-white mb-2">Failed to load dashboard</h2>
-        <p className="text-sm text-slate-400 mb-4">{error}</p>
+        <AlertCircle className="h-12 w-12 text-red-400 admin-light:text-red-600 mb-4" />
+        <h2 className="text-lg font-semibold text-white admin-light:text-slate-900 mb-2">Failed to load dashboard</h2>
+        <p className="text-sm text-slate-400 admin-light:text-slate-500 mb-4">{error}</p>
         <button
           onClick={() => refetch()}
-          className="px-4 py-2 bg-[#62A0EA] hover:bg-[#99C1F1] text-white rounded-md text-sm font-medium transition-colors"
+          className="px-4 py-2 bg-[#62A0EA] admin-light:bg-[#1A5FB4] hover:bg-[#99C1F1] admin-light:hover:bg-[#164A8F] text-white rounded-md text-sm font-medium transition-colors"
         >
           Try Again
         </button>
@@ -87,21 +87,21 @@ export default function DashboardHome() {
   } = data;
 
   return (
-    <div className="space-y-6 pb-8">
+    <div className="space-y-4 pb-8">
       {/* Header. Only the title pins on phones — the greeting stays in the
           scroll flow so the sticky bar stays one line tall instead of
           eating a third of a small screen. */}
       <StickyPageHeader>
-        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+        <h1 className="text-2xl font-bold text-white admin-light:text-slate-900">Dashboard</h1>
       </StickyPageHeader>
-      <p className="text-sm text-slate-400 -mt-4 md:mt-0">Welcome back. Here&apos;s what&apos;s happening across your network today.</p>
+      <p className="text-sm text-slate-400 admin-light:text-slate-500 -mt-2">Welcome back. Here&apos;s what&apos;s happening across your network today.</p>
 
       <DashboardQuickStats stats={quickStats} />
 
       {/* Main Grid: Map leads (live tracking is the product's core surface),
           Analytics rides alongside as the supporting column — a 2:1 split
           instead of an even 50/50 that undersells the map. */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2">
           <DashboardMapPreview />
         </div>
