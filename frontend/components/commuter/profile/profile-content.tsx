@@ -9,6 +9,7 @@ import { AccountStatus } from "@/app/(commuter)/profile/types";
 import { getCommuterTypeLabel } from "@/types";
 import ChangeEmailDialog from "./change-email-dialog";
 import ProfileThemeToggle from "./profile-theme-toggle";
+import ProfilePhoto from "./profile-photo";
 
 /**
  * The commuter Profile body, shared by both shells — same split as the
@@ -50,6 +51,7 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
     loadError,
     retryLoad,
     applyEmailChange,
+    applyPhotoChange,
     isEditing,
     editData,
     startEditing,
@@ -202,10 +204,7 @@ export default function ProfileContent({ variant = "page" }: { variant?: "page" 
         {/* Header & Avatar */}
         <div className={isPage ? "flex items-center gap-4 rounded-2xl border border-[#62A0EA]/20 bg-gradient-to-br from-[#102E50] to-[#071A2E] p-5 lg:gap-5 lg:rounded-none lg:border-0 lg:bg-none lg:p-0" : "relative isolate flex items-center gap-5 overflow-hidden rounded-2xl border border-[#62A0EA]/25 bg-gradient-to-br from-[#153C66] via-[#0C2743] to-[#071A2E] p-6 shadow-lg shadow-black/10"}>
           {!isPage && <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-16 -z-10 h-56 w-56 rounded-full border border-[#99C1F1]/10 bg-[#62A0EA]/5"><div className="absolute inset-6 rounded-full border border-[#99C1F1]/10" /><div className="absolute inset-12 rounded-full border border-[#99C1F1]/10" /></div>}
-          <div className={isPage ? "flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-[#62A0EA]/30 bg-[#1A5FB4] text-2xl font-bold text-white lg:h-24 lg:w-24 lg:rounded-full lg:border-4 lg:border-white/10 lg:text-3xl lg:shadow-xl" : "flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border border-[#99C1F1]/30 bg-gradient-to-br from-[#337DD2] to-[#1A5FB4] text-2xl font-bold text-white shadow-lg shadow-[#050F1A]/30 ring-4 ring-white/5"}>
-            {profile.firstName[0]}
-            {profile.surname[0]}
-          </div>
+          <ProfilePhoto profile={profile} onUploaded={applyPhotoChange} className={isPage ? "flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-[#62A0EA]/30 bg-[#1A5FB4] text-2xl font-bold text-white lg:h-24 lg:w-24 lg:rounded-full lg:border-4 lg:border-white/10 lg:text-3xl lg:shadow-xl" : "flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border border-[#99C1F1]/30 bg-gradient-to-br from-[#337DD2] to-[#1A5FB4] text-2xl font-bold text-white shadow-lg shadow-[#050F1A]/30 ring-4 ring-white/5"} />
           <div className="min-w-0 flex-1">
             {!isPage && <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#99C1F1]/80">Commuter account</p>}
             <h2 className={isPage ? "break-words text-xl font-bold leading-snug text-white lg:text-2xl" : "break-words text-2xl font-bold leading-snug tracking-tight text-white"}>

@@ -44,7 +44,7 @@ export const API_V1 = "/api/v1";
 
 export interface ProxyOptions {
   method?: string;
-  body?: string | null;
+  body?: string | FormData | null;
   headers?: Record<string, string>;
   /**
    * When true, returns the raw Response object instead of parsing JSON.
@@ -122,7 +122,7 @@ export async function proxyToLaravel(
 
   // Only set Content-Type if there's a body (avoids 411 Length Required
   // on Laravel side for GET/DELETE without body)
-  if (options.body) {
+  if (options.body && !(options.body instanceof FormData)) {
     headers["Content-Type"] = "application/json";
   }
 

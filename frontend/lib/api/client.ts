@@ -131,10 +131,18 @@ class ApiClient {
   ): Promise<T> {
     const url = resolveRequestUrl(this.config.baseUrl, path);
 
-    const headers = {
-      ...this.config.defaultHeaders,
-      ...options.headers,
-    };
+    const headers: Record<string, string> = { ...this.config.defaultHeaders };
+    new Headers(options.headers).forEach((value, name) => {
+      // Header names are case-insensitive; avoid duplicate casing in the object.
+      const previous = Object.keys(headers).find(key => key.toLowerCase() === name);
+      if (previous) delete headers[previous];
+      headers[name] = value;
+    });
+    if (options.body instanceof FormData) {
+      for (const key of Object.keys(headers)) {
+        if (key.toLowerCase() === "content-type") delete headers[key];
+      } // fetch supplies the multipart boundary.
+    }
 
     try {
       const response = await fetch(url, {
@@ -187,6 +195,10 @@ class ApiClient {
       method: "POST",
       body: body ? JSON.stringify(body) : undefined,
     });
+  }
+
+  async postForm<T>(path: string, body: FormData): Promise<T> {
+    return this.request<T>(path, { method: "POST", body });
   }
 
   async put<T>(path: string, body?: unknown): Promise<T> {

@@ -18,12 +18,14 @@ class MediaStorageService
     public function storeProfileImage(UploadedFile $file, string $role, string $ownerId): string
     {
         $prefix = match (strtolower($role)) {
+            'commuter' => 'profiles/commuters',
             'conductor' => 'profiles/conductors',
             'driver' => 'profiles/drivers',
             default => throw new \InvalidArgumentException('Unsupported profile image role.'),
         };
 
-        return $this->storePublic($file, "{$prefix}/{$ownerId}", config('filesystems.uploads.profile_disk', config('filesystems.uploads.public_media_disk', 'r2_public')));
+        return $this->storePublic($file, "{$prefix}/{$ownerId}", config('filesystems.uploads.profile_disk', config('filesystems.uploads.public_media_disk', 'r2_public')),
+            strtolower($role) === 'commuter' ? $file->extension() : null);
     }
 
     public function storeLostAndFoundImage(UploadedFile $file, string $itemId): string
@@ -49,12 +51,16 @@ class MediaStorageService
     }
 
     /** Store a public object and return its URL for the existing API contract. */
-    private function storePublic(UploadedFile $file, string $directory, ?string $disk = null): string
+    private function storePublic(UploadedFile $file, string $directory, ?string $disk = null, ?string $extension = null): string
     {
-        $extension = strtolower($file->getClientOriginalExtension() ?: 'jpg');
+        $extension ??= strtolower($file->getClientOriginalExtension() ?: 'jpg');
         $filename = Str::uuid().'.'.$extension;
         $disk ??= config('filesystems.uploads.public_media_disk', 'r2_public');
         $path = $file->storeAs($directory, $filename, $disk);
+
+        if (! $path) {
+            throw new \RuntimeException('The image could not be stored.');
+        }
 
         return Storage::disk($disk)->url($path);
     }
