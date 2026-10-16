@@ -18,9 +18,13 @@ interface ModalProps {
    * commuter dialogs whose content is still dark-only would otherwise get a
    * white panel under white text. Inert outside the commuter app. */
   themed?: boolean;
+  /** Follow the admin light/dark theme (`admin-light:` variant). Off by default
+   * for the same reason as `themed`; only applies inside an element marked
+   * `data-admin-theme="light"`. */
+  adminThemed?: boolean;
 }
 
-export function Modal({ isOpen, onClose, children, maxWidth = 'max-w-md', rounded = 'rounded-xl', height, themed = false }: ModalProps) {
+export function Modal({ isOpen, onClose, children, maxWidth = 'max-w-md', rounded = 'rounded-xl', height, themed = false, adminThemed = false }: ModalProps) {
   if (!isOpen) return null;
 
   return (
@@ -35,13 +39,13 @@ export function Modal({ isOpen, onClose, children, maxWidth = 'max-w-md', rounde
     // while shrinking the container, and the header got cut off.
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-20 md:pb-4 bg-black/50">
       <div
-        className={`relative bg-[#1A2540] border border-[#2A3A55] ${rounded} shadow-2xl w-full ${maxWidth} ${height ?? ''} ${themed ? 'light:bg-white light:border-gray-200' : ''} max-h-full flex flex-col`}
+        className={`relative bg-[#1A2540] border border-[#2A3A55] ${rounded} shadow-2xl w-full ${maxWidth} ${height ?? ''} ${themed ? 'light:bg-white light:border-gray-200' : ''} ${adminThemed ? 'admin-light:bg-white admin-light:border-[#E2E8F0]' : ''} max-h-full flex flex-col`}
         role="dialog"
         aria-modal="true"
       >
         <button
           onClick={onClose}
-          className={`absolute top-3 right-3 p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-white/8 transition-colors z-20 ${themed ? 'light:text-gray-400 light:hover:text-gray-900 light:hover:bg-gray-100' : ''}`}
+          className={`absolute top-3 right-3 p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-white/8 transition-colors z-20 ${themed ? 'light:text-gray-400 light:hover:text-gray-900 light:hover:bg-gray-100' : ''} ${adminThemed ? 'admin-light:text-slate-400 admin-light:hover:text-slate-900 admin-light:hover:bg-slate-100' : ''}`}
           aria-label="Close modal"
         >
           <X size={20} />

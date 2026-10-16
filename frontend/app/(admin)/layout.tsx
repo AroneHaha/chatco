@@ -10,6 +10,10 @@ import { AdminNotificationsProvider } from '@/contexts/admin-notifications-conte
 import { AdminSidebar } from '@/components/admin/layout/admin-sidebar';
 import { AdminBottomNav } from '@/components/admin/layout/admin-bottom-nav';
 import { NotificationBell } from '@/components/admin/layout/notification-bell';
+import { AdminThemeProvider, isAdminLightReady, useAdminTheme } from '@/contexts/admin-theme-context';
+
+// Page content follows the light theme only once its page is light-styled.
+const MAIN_LIGHT = 'admin-light:bg-[#F1F5F9] admin-light:text-slate-900';
 
 // ─── Inner Layout (uses context) ───
 
@@ -17,6 +21,8 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { logout } = useAuth();
+  const [theme] = useAdminTheme();
+  const pageTheme = isAdminLightReady(pathname) ? theme : undefined;
   const { closeSettingsDrawer } = useSettingsDrawer();
   const [isMobile, setIsMobile] = useState(false);
   const [moreOpenPathname, setMoreOpenPathname] = useState<string | null>(null);
@@ -68,7 +74,7 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
   if (isEmbed) {
     return (
       <div className="admin-shell min-h-screen bg-[#0B1120] text-white">
-        <main className="p-5 lg:p-6 overflow-y-auto h-screen">
+        <main data-admin-theme={pageTheme} className={`p-5 lg:p-6 overflow-y-auto h-screen ${MAIN_LIGHT}`}>
           {children}
         </main>
       </div>
@@ -80,15 +86,17 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
     return (
       <div className="admin-shell flex h-screen bg-[#0B1120]">
         <AdminSidebar onSignOut={() => setIsSignOutOpen(true)} />
-        <main className="flex-1 overflow-y-auto p-6 lg:p-8 text-white">
+        <main data-admin-theme={pageTheme} className={`flex-1 overflow-y-auto p-6 lg:p-8 text-white ${MAIN_LIGHT}`}>
           {children}
         </main>
-        <SignOutModal
-          isOpen={isSignOutOpen}
-          onClose={() => setIsSignOutOpen(false)}
-          onConfirm={handleSignOut}
-          isPending={isSigningOut}
-        />
+        <div data-admin-theme={theme} className="contents">
+          <SignOutModal
+            isOpen={isSignOutOpen}
+            onClose={() => setIsSignOutOpen(false)}
+            onConfirm={handleSignOut}
+            isPending={isSigningOut}
+          />
+        </div>
         <SettingsDrawer />
       </div>
     );
@@ -106,12 +114,12 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
     // leave the bottom nav hanging off-screen.
     <div className="admin-shell h-dvh bg-[#0B1120] text-white flex flex-col overflow-hidden">
       {/* Notification Bell — fixed top-right for mobile */}
-      <div className="fixed top-3 right-3 z-50">
+      <div data-admin-theme={pageTheme} className="fixed top-3 right-3 z-50">
         <NotificationBell />
       </div>
       {/* min-h-0 is required: a flex item defaults to min-height:auto, which
           refuses to shrink below its content and would re-break the scroll. */}
-      <main className="flex-1 min-h-0 p-4 md:p-6 lg:p-8 pb-24 overflow-y-auto">
+      <main data-admin-theme={pageTheme} className={`flex-1 min-h-0 p-4 md:p-6 lg:p-8 pb-24 overflow-y-auto ${MAIN_LIGHT}`}>
         {children}
       </main>
       <AdminBottomNav
@@ -119,7 +127,9 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
         setIsMoreOpen={setIsMoreOpen}
         onSignOut={() => setIsSignOutOpen(true)}
       />
-      <SignOutModal isOpen={isSignOutOpen} onClose={() => setIsSignOutOpen(false)} onConfirm={handleSignOut} />
+      <div data-admin-theme={theme} className="contents">
+        <SignOutModal isOpen={isSignOutOpen} onClose={() => setIsSignOutOpen(false)} onConfirm={handleSignOut} />
+      </div>
       <SettingsDrawer />
     </div>
   );
@@ -130,13 +140,15 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
 export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
     <RequireRole role="ADMIN">
-      <AdminNotificationsProvider>
-        <SettingsDrawerProvider>
-          <Suspense fallback={null}>
-            <AdminLayoutInner>{children}</AdminLayoutInner>
-          </Suspense>
-        </SettingsDrawerProvider>
-      </AdminNotificationsProvider>
+      <AdminThemeProvider>
+        <AdminNotificationsProvider>
+          <SettingsDrawerProvider>
+            <Suspense fallback={null}>
+              <AdminLayoutInner>{children}</AdminLayoutInner>
+            </Suspense>
+          </SettingsDrawerProvider>
+        </AdminNotificationsProvider>
+      </AdminThemeProvider>
     </RequireRole>
   );
 }

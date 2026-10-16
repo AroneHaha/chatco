@@ -4,6 +4,7 @@
 import { createContext, useContext, useState, useCallback, ReactNode, Suspense, lazy, useMemo } from 'react';
 import { usePathname } from 'next/navigation';
 import { SkeletonFareMatrix } from './skeleton/skeleton-fare-matrix';
+import { useAdminTheme } from '@/contexts/admin-theme-context';
 import {
   X, Calculator, PiggyBank, Ticket, Gauge,
   Shield, MessageCircleQuestion, Settings2, Sliders, ArrowLeft, Printer
@@ -24,14 +25,14 @@ const FaqManagementPage = lazy(() => import('@/app/(admin)/settings/faq-manageme
 const AppConfigurationPage = lazy(() => import('@/app/(admin)/settings/app-configuration/page'));
 
 const settingsOptions = [
-  { title: 'Fare Matrix', description: 'Set base fares and per-kilometer rates.', icon: Calculator, href: '/settings/fare-matrix', color: 'text-blue-400', bgColor: 'bg-blue-500/15', component: FareMatrixPage },
-  { title: 'Financial Rules', description: 'Wallet limits, discounts, loyalty.', icon: PiggyBank, href: '/settings/financial-rules', color: 'text-yellow-400', bgColor: 'bg-yellow-500/15', component: FinancialRulesPage },
-  { title: 'Voucher Generator', description: 'Generate bulk promo codes.', icon: Ticket, href: '/settings/voucher-generator', color: 'text-pink-400', bgColor: 'bg-pink-500/15', component: VoucherGeneratorPage },
-  { title: 'Operations Rules', description: 'Speed limits, shifts, expenses.', icon: Gauge, href: '/settings/operations-rules', color: 'text-orange-400', bgColor: 'bg-orange-500/15', component: OperationsRulesPage },
-  { title: 'Safety & Notifications', description: 'Emergency contacts, push templates.', icon: Shield, href: '/settings/safety-notifications', color: 'text-red-400', bgColor: 'bg-red-500/15', component: SafetyNotificationsPage },
-  { title: 'Receipt', description: 'Thermal fare-receipt content and printing.', icon: Printer, href: '/settings/receipt', color: 'text-[#62A0EA]', bgColor: 'bg-[#62A0EA]/15', component: ReceiptPage },
-  { title: 'FAQ Management', description: 'Manage commuter FAQ questions and answers.', icon: MessageCircleQuestion, href: '/settings/faq-management', color: 'text-[#62A0EA]', bgColor: 'bg-[#62A0EA]/15', component: FaqManagementPage },
-  { title: 'App Configuration', description: 'Maintenance mode, registration.', icon: Settings2, href: '/settings/app-configuration', color: 'text-slate-300', bgColor: 'bg-slate-500/15', component: AppConfigurationPage },
+  { title: 'Fare Matrix', description: 'Set base fares and per-kilometer rates.', icon: Calculator, href: '/settings/fare-matrix', color: 'text-blue-400 admin-light:text-blue-700', bgColor: 'bg-blue-500/15', component: FareMatrixPage },
+  { title: 'Financial Rules', description: 'Wallet limits, discounts, loyalty.', icon: PiggyBank, href: '/settings/financial-rules', color: 'text-yellow-400 admin-light:text-yellow-700', bgColor: 'bg-yellow-500/15', component: FinancialRulesPage },
+  { title: 'Voucher Generator', description: 'Generate bulk promo codes.', icon: Ticket, href: '/settings/voucher-generator', color: 'text-pink-400 admin-light:text-pink-700', bgColor: 'bg-pink-500/15', component: VoucherGeneratorPage },
+  { title: 'Operations Rules', description: 'Speed limits, shifts, expenses.', icon: Gauge, href: '/settings/operations-rules', color: 'text-orange-400 admin-light:text-orange-700', bgColor: 'bg-orange-500/15', component: OperationsRulesPage },
+  { title: 'Safety & Notifications', description: 'Emergency contacts, push templates.', icon: Shield, href: '/settings/safety-notifications', color: 'text-red-400 admin-light:text-red-600', bgColor: 'bg-red-500/15', component: SafetyNotificationsPage },
+  { title: 'Receipt', description: 'Thermal fare-receipt content and printing.', icon: Printer, href: '/settings/receipt', color: 'text-[#62A0EA] admin-light:text-[#1A5FB4]', bgColor: 'bg-[#62A0EA]/15 admin-light:bg-[#1A5FB4]/10', component: ReceiptPage },
+  { title: 'FAQ Management', description: 'Manage commuter FAQ questions and answers.', icon: MessageCircleQuestion, href: '/settings/faq-management', color: 'text-[#62A0EA] admin-light:text-[#1A5FB4]', bgColor: 'bg-[#62A0EA]/15 admin-light:bg-[#1A5FB4]/10', component: FaqManagementPage },
+  { title: 'App Configuration', description: 'Maintenance mode, registration.', icon: Settings2, href: '/settings/app-configuration', color: 'text-slate-300 admin-light:text-slate-700', bgColor: 'bg-slate-500/15', component: AppConfigurationPage },
 ];
 
 // ─── Context ───
@@ -76,7 +77,7 @@ export function SettingsNavButton() {
     <button
       type="button"
       onClick={toggleSettingsDrawer}
-      className="inline-flex items-center gap-2 text-sm font-medium text-slate-400 hover:text-slate-100 transition-colors"
+      className="inline-flex items-center gap-2 text-sm font-medium text-slate-400 admin-light:text-slate-500 hover:text-slate-100 admin-light:hover:text-slate-900 transition-colors"
     >
       <ArrowLeft className="w-4 h-4" />
       <span>Settings</span>
@@ -87,7 +88,7 @@ export function SettingsNavButton() {
 // ─── Loading Spinner ───
 function DrawerLoader() {
   return (
-    <div className="flex items-center justify-center h-full bg-[#0B1120]">
+    <div className="flex items-center justify-center h-full bg-[#0B1120] admin-light:bg-[#F1F5F9]">
       <div className="flex flex-col items-center gap-3">
         <div className="w-8 h-8 border-2 border-[#62A0EA]/30 border-t-[#62A0EA] rounded-full animate-spin" />
         <p className="text-xs text-slate-500">Loading…</p>
@@ -104,6 +105,7 @@ function DrawerLoader() {
 // The main page behind the drawer stays completely untouched.
 export function SettingsDrawer() {
   const { isSettingsOpen, closeSettingsDrawer } = useSettingsDrawer();
+  const [theme] = useAdminTheme();
   const pathname = usePathname();
   const [activeHref, setActiveHref] = useState<string | null>(null);
 
@@ -148,38 +150,42 @@ export function SettingsDrawer() {
       />
 
       {/* Drawer Panel — 90% on mobile, 50% on desktop, slides from RIGHT */}
+      {/* Only the menu view follows the admin theme: the settings pages shown
+          in the sub-page view aren't light-styled yet, so they keep the dark
+          drawer around them. */}
       <aside
+        data-admin-theme={activeHref ? undefined : theme}
         className={`
           fixed top-0 right-0 z-50 ${isReceiptView ? 'h-dvh w-full sm:w-[90vw] lg:w-[min(90vw,64rem)]' : 'h-full w-[90vw] sm:w-[80vw] lg:w-1/2'}
-          bg-[#0D1424] border-l border-[#1E2D45] shadow-2xl shadow-black/40
+          bg-[#0D1424] admin-light:bg-white border-l border-[#1E2D45] admin-light:border-[#E2E8F0] shadow-2xl shadow-black/40
           flex flex-col
           transform transition-transform duration-300 ease-out
           ${isSettingsOpen ? 'translate-x-0' : 'translate-x-full'}
         `}
       >
         {/* ── Header ── */}
-        <div className="flex items-center justify-between px-5 h-16 border-b border-[#1E2D45] flex-shrink-0">
+        <div className="flex items-center justify-between px-5 h-16 border-b border-[#1E2D45] admin-light:border-[#E2E8F0] flex-shrink-0">
           <div className="flex items-center gap-2.5">
             {/* Back arrow — only visible in sub-page view */}
             {activeHref && (
               <button
                 onClick={handleBack}
                 aria-label="Back to Settings"
-                className="p-1.5 rounded-lg hover:bg-[#131C2E] text-slate-400 hover:text-white transition-colors active:scale-95"
+                className="p-1.5 rounded-lg hover:bg-[#131C2E] admin-light:hover:bg-[#F1F5F9] text-slate-400 admin-light:text-slate-500 hover:text-white admin-light:hover:text-slate-900 transition-colors active:scale-95"
                 title="Back to Settings menu"
               >
                 <ArrowLeft size={16} />
               </button>
             )}
-            {isReceiptView ? <Printer size={18} className="text-[#62A0EA]" /> : <Sliders size={18} className="text-[#62A0EA]" />}
-            <h2 className="text-xs font-bold text-white uppercase tracking-widest">
+            {isReceiptView ? <Printer size={18} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" /> : <Sliders size={18} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />}
+            <h2 className="text-xs font-bold text-white admin-light:text-slate-900 uppercase tracking-widest">
               {activeOption ? activeOption.title : 'Settings'}
             </h2>
           </div>
           <button
             onClick={handleClose}
             aria-label="Close Settings"
-            className="p-2 rounded-lg hover:bg-[#131C2E] text-slate-400 hover:text-white transition-colors active:scale-95"
+            className="p-2 rounded-lg hover:bg-[#131C2E] admin-light:hover:bg-[#F1F5F9] text-slate-400 admin-light:text-slate-500 hover:text-white admin-light:hover:text-slate-900 transition-colors active:scale-95"
           >
             <X size={18} />
           </button>
@@ -199,15 +205,15 @@ export function SettingsDrawer() {
                     w-full text-left flex items-center gap-3 px-3 py-3 rounded-lg
                     transition-all duration-150 group
                     ${active
-                      ? 'bg-[#62A0EA]/10'
-                      : 'hover:bg-[#131C2E]'}
+                      ? 'bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10'
+                      : 'hover:bg-[#131C2E] admin-light:hover:bg-[#F1F5F9]'}
                   `}
                 >
                   <div className={`p-2 rounded-lg flex-shrink-0 ${item.bgColor}`}>
                     <Icon size={16} className={item.color} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className={`text-sm font-medium ${active ? 'text-[#62A0EA]' : 'text-slate-200 group-hover:text-white'}`}>{item.title}</p>
+                    <p className={`text-sm font-medium ${active ? 'text-[#62A0EA] admin-light:text-[#1A5FB4]' : 'text-slate-200 admin-light:text-slate-700 group-hover:text-white admin-light:group-hover:text-slate-900'}`}>{item.title}</p>
                     <p className="text-[11px] text-slate-500 truncate mt-0.5">{item.description}</p>
                   </div>
                 </button>
@@ -220,7 +226,7 @@ export function SettingsDrawer() {
         {activeHref && ActiveComponent && (
           // pt-6: every settings page's wrapper is pb-only, so without this the
           // page title sat flush against the drawer's header bar.
-          <div key={activeHref} className={`min-h-0 flex-1 bg-[#0B1120] overflow-y-auto ${isReceiptView ? '' : 'pt-6'}`}>
+          <div key={activeHref} className={`min-h-0 flex-1 bg-[#0B1120] admin-light:bg-[#F1F5F9] overflow-y-auto ${isReceiptView ? '' : 'pt-6'}`}>
             <Suspense fallback={activeHref === '/settings/fare-matrix' ? <SkeletonFareMatrix /> : <DrawerLoader />}>
               <ActiveComponent />
             </Suspense>

@@ -1,57 +1,17 @@
 "use client";
 
 import { createContext, useContext, useLayoutEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { createThemeStore, type AppTheme } from "@/lib/theme/theme-store";
 
-export type CommuterTheme = "dark" | "light";
+export type CommuterTheme = AppTheme;
 
-const STORAGE_KEY = "chatco:commuter-theme";
-
-/**
- * Appearance is a per-device preference, so it lives in localStorage rather
- * than on the commuter's account. `current` is the in-memory copy: it keeps
- * the toggle working when storage is blocked (private mode), and every
- * subscriber reads the same value without re-parsing storage.
- */
-let current: CommuterTheme | null = null;
-const listeners = new Set<() => void>();
-
-function readStored(): CommuterTheme {
-  try {
-    return window.localStorage.getItem(STORAGE_KEY) === "light" ? "light" : "dark";
-  } catch {
-    return "dark";
-  }
-}
-
-function getSnapshot(): CommuterTheme {
-  if (current === null) current = readStored();
-  return current;
-}
-
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  // Another tab changing the preference updates this one too.
-  const onStorage = (event: StorageEvent) => {
-    if (event.key !== STORAGE_KEY) return;
-    current = event.newValue === "light" ? "light" : "dark";
-    listener();
-  };
-  window.addEventListener("storage", onStorage);
-  return () => {
-    listeners.delete(listener);
-    window.removeEventListener("storage", onStorage);
-  };
-}
+/** Appearance is a per-device preference, so it lives in localStorage rather
+ * than on the commuter's account. */
+const store = createThemeStore("chatco:commuter-theme");
+const { subscribe, getSnapshot } = store;
 
 export function setCommuterTheme(theme: CommuterTheme) {
-  if (current === theme) return;
-  current = theme;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, theme);
-  } catch {
-    // Storage blocked — the in-memory value still applies for this session.
-  }
-  listeners.forEach(listener => listener());
+  store.set(theme);
 }
 
 const CommuterThemeContext = createContext<CommuterTheme | null>(null);
