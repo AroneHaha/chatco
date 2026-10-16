@@ -38,6 +38,10 @@ const GAP = 4;
 export function RowActionsMenu({ actions, label }: RowActionsMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  // The portal leaves the page's `data-admin-theme` scope, so `admin-light:`
+  // would never match inside it. Copy the scope the trigger sits in (not the
+  // global toggle) so pages not yet light-ready keep a dark menu.
+  const [theme, setTheme] = useState<string | undefined>(undefined);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
@@ -104,7 +108,12 @@ export function RowActionsMenu({ actions, label }: RowActionsMenuProps) {
       <button
         ref={triggerRef}
         type="button"
-        onClick={(event) => { event.stopPropagation(); if (isOpen) close(false); else setIsOpen(true); }}
+        onClick={(event) => {
+          event.stopPropagation();
+          if (isOpen) { close(false); return; }
+          setTheme(event.currentTarget.closest('[data-admin-theme]')?.getAttribute('data-admin-theme') ?? undefined);
+          setIsOpen(true);
+        }}
         onDoubleClick={stop}
         aria-label={label}
         title="Actions"
@@ -122,6 +131,7 @@ export function RowActionsMenu({ actions, label }: RowActionsMenuProps) {
         <div
           ref={menuRef}
           id={menuId}
+          data-admin-theme={theme}
           role="menu"
           aria-label={label}
           onKeyDown={onMenuKeyDown}
@@ -135,7 +145,7 @@ export function RowActionsMenu({ actions, label }: RowActionsMenuProps) {
             // Hidden for the one frame before it has been measured and placed.
             visibility: position ? 'visible' : 'hidden',
           }}
-          className="fixed z-50 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#111A2B] admin-light:bg-[#F8FAFC] p-1 shadow-[0_12px_32px_rgba(0,0,0,0.45)]"
+          className="fixed z-50 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#111A2B] admin-light:bg-[#F8FAFC] p-1 shadow-[0_12px_32px_rgba(0,0,0,0.45)] admin-light:shadow-[0_12px_32px_rgba(15,23,42,0.12)]"
         >
           {actions.map((action) => {
             const isDanger = action.tone === 'danger';
