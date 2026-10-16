@@ -3,22 +3,38 @@
 
 import { useState, useEffect } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
-import { Badge } from '@/components/admin/ui/badge';
+import { PageTabs, type PageTab } from '@/components/admin/ui/page-tabs';
+import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
+import { RemittanceStatusText } from '@/components/admin/remittance/remittance-status-text';
+import { getInitials } from '@/components/admin/layout/admin-identity';
 import {
   fetchRemittances,
   type RemittanceRecord,
 } from '@/app/(admin)/remittance/data/remittance-data';
-import { remittanceStatusVariant } from '@/lib/shared/remittance-status';
+import type { RemittanceStatus } from '@/types';
 import {
-  User, Truck, Calendar, Clock, Banknote,
-  ChevronDown, ChevronUp, MapPin, Hash,
+  Banknote, ReceiptText, MapPin,
   ChevronLeft, ChevronRight, Search, X,
 } from 'lucide-react';
 import { formatPeso } from '@/lib/utils/display';
 
 // ─── Remittance History pagination ─────────────────────────────────────
 const REMIT_PAGE_SIZE = 15;
-type RemitFilter = 'All' | 'Settled' | 'Pending';
+type RemitFilter = 'All' | 'Remitted' | 'Pending';
+type ModalTab = 'remittance' | 'transactions';
+
+// Statuses still waiting on the conductor's cash — the same set the header's
+// pending total counts, so the "Pending" filter and that figure always agree.
+const PENDING_STATUSES: RemittanceStatus[] = ['Pending', 'For Cash Declaration', 'Overdue'];
+// Shifts whose cash was handed over, including those with a discrepancy.
+const REMITTED_STATUSES: RemittanceStatus[] = ['Settled', 'Shortage', 'Overage'];
+
+const REMIT_FILTERS: RemitFilter[] = ['All', 'Remitted', 'Pending'];
+
+const TABS: PageTab<ModalTab>[] = [
+  { id: 'remittance', label: 'Remittance history', icon: Banknote },
+  { id: 'transactions', label: 'Transactions', icon: ReceiptText },
+];
 
 // ─── Helper ────────────────────────────────────────────────────────────
 const fmt = (n: number) =>
@@ -31,12 +47,8 @@ const formatLogTime = (iso: string) => {
   });
 };
 
-const formatClockTime = (iso?: string | null) => {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleTimeString('en-PH', {
-    hour: '2-digit', minute: '2-digit', hour12: true,
-  });
-};
+/** HH:MM straight from the ISO string, as the shift times were shown before. */
+const hhmm = (iso?: string | null) => iso?.split('T')[1]?.slice(0, 5) || '—';
 
 // ─── Real Transaction type (from API) ──────────────────────────────────
 interface ApiTransaction {
@@ -55,6 +67,21 @@ interface ApiTransaction {
   created_at: string;
 }
 
+type PaymentKind = 'cash' | 'gcash' | 'voucher';
+
+const paymentKind = (method: string): PaymentKind => {
+  if (method === 'GCASH' || method === 'GCash_Scanned' || method === 'GCash_Direct') return 'gcash';
+  if (method === 'VOUCHER' || method === 'Voucher') return 'voucher';
+  return 'cash';
+};
+
+// Payment method as coloured text, not a pill.
+const PAYMENT_STYLES: Record<PaymentKind, { label: string; text: string }> = {
+  cash: { label: 'Cash', text: 'text-emerald-400 admin-light:text-emerald-700' },
+  gcash: { label: 'GCash', text: 'text-blue-400 admin-light:text-blue-700' },
+  voucher: { label: 'Voucher', text: 'text-amber-400 admin-light:text-amber-700' },
+};
+
 // The remittances endpoint caps per_page at 100 server-side (see
 // AdminController::remittances()) — this is the "complete history" the
 // modal fetches, independent of whatever page/date filter is active on the
@@ -65,6 +92,14 @@ const CONDUCTOR_HISTORY_PAGE_SIZE = 100;
 // conductor's fetched shifts in one batched call.
 const TRANSACTIONS_BATCH_PAGE_SIZE = 500;
 
+// Ledger columns: shift · driver & time · GCash · Cash · Total · status.
+const LEDGER_COLUMNS = 'md:grid-cols-[minmax(0,1.35fr)_minmax(0,1.35fr)_repeat(3,minmax(0,0.8fr))_minmax(0,1fr)]';
+
+// Shared surface classes.
+const FIELD = 'bg-[#0E1628] admin-light:bg-white border border-[#2A3A55] admin-light:border-[#E2E8F0] rounded-md text-xs text-white admin-light:text-slate-900 focus:outline-none focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4]';
+const PANEL = 'rounded-lg border border-[#2A3A55] admin-light:border-[#E2E8F0] overflow-y-auto scrollbar-themed';
+const PAGE_BUTTON = 'p-1.5 rounded-md border border-[#2A3A55] admin-light:border-[#E2E8F0] text-slate-400 admin-light:text-slate-500 hover:bg-white/5 admin-light:hover:bg-[#F1F5F9] disabled:opacity-30 disabled:cursor-not-allowed transition-colors';
+
 // ─── Props ─────────────────────────────────────────────────────────────
 interface ConductorDetailModalProps {
   isOpen: boolean;
@@ -72,9 +107,38 @@ interface ConductorDetailModalProps {
   record: RemittanceRecord | null;
 }
 
+function Pagination({ page, totalPages, onChange }: { page: number; totalPages: number; onChange: (page: number) => void }) {
+  // Always shown (not just once there are multiple pages) so the modal's
+  // footer stays consistent; prev/next disable when there's nowhere to go.
+  return (
+    <div className="flex items-center justify-between mt-3">
+      <span className="text-xs text-slate-500 tabular-nums">Page {page} of {totalPages}</span>
+      <div className="flex items-center gap-2">
+        <button type="button" aria-label="Previous page" onClick={() => onChange(Math.max(1, page - 1))} disabled={page === 1} className={PAGE_BUTTON}>
+          <ChevronLeft size={16} />
+        </button>
+        <button type="button" aria-label="Next page" onClick={() => onChange(Math.min(totalPages, page + 1))} disabled={page === totalPages} className={PAGE_BUTTON}>
+          <ChevronRight size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PanelMessage({ loading, children }: { loading?: boolean; children: string }) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-3 py-12 text-center">
+      {loading
+        ? <div className="w-7 h-7 border-2 border-[#62A0EA] admin-light:border-[#1A5FB4] border-t-transparent rounded-full animate-spin" />
+        : <Banknote size={28} className="text-slate-600 admin-light:text-slate-400" />}
+      <p className="text-sm text-slate-500">{children}</p>
+    </div>
+  );
+}
+
 // ─── Component ─────────────────────────────────────────────────────────
 export function ConductorDetailModal({ isOpen, onClose, record }: ConductorDetailModalProps) {
-  const [activeTab, setActiveTab] = useState<'remittance' | 'transactions'>('remittance');
+  const [activeTab, setActiveTab] = useState<ModalTab>('remittance');
   const [expandedShift, setExpandedShift] = useState<string | null>(null);
   const [shiftTransactions, setShiftTransactions] = useState<Record<string, ApiTransaction[]>>({});
   const [isLoadingTxns, setIsLoadingTxns] = useState(false);
@@ -170,13 +234,18 @@ export function ConductorDetailModal({ isOpen, onClose, record }: ConductorDetai
   if (!record) return null;
 
   const totalPending = conductorRecords
-    .filter(r => r.remittanceStatus === 'Pending' || r.remittanceStatus === 'For Cash Declaration' || r.remittanceStatus === 'Overdue')
+    .filter(r => PENDING_STATUSES.includes(r.remittanceStatus))
     .reduce((s, r) => s + r.gcashTotal + r.cashTotal, 0);
 
   // ─── Remittance History: filter + paginate ───────────────────────────
+  // The status filter was compared to the raw status before, so "Remitted"
+  // (no record has that status) always came back empty and "Pending" missed
+  // Overdue / For Cash Declaration shifts. It now matches status groups.
   const search = remitSearch.trim().toLowerCase();
   const filteredRecords = conductorRecords.filter(r => {
-    const matchesStatus = remitFilter === 'All' || r.remittanceStatus === remitFilter;
+    const matchesStatus = remitFilter === 'All'
+      || (remitFilter === 'Remitted' && REMITTED_STATUSES.includes(r.remittanceStatus))
+      || (remitFilter === 'Pending' && PENDING_STATUSES.includes(r.remittanceStatus));
     const matchesSearch = !search || r.shiftId.toLowerCase().includes(search);
     const matchesDate = !remitDate || r.date === remitDate;
     return matchesStatus && matchesSearch && matchesDate;
@@ -198,284 +267,250 @@ export function ConductorDetailModal({ isOpen, onClose, record }: ConductorDetai
     safeTxnPage * REMIT_PAGE_SIZE
   );
 
-  const getBadge = (m: string) => {
-    if (m === 'GCASH' || m === 'GCash_Scanned' || m === 'GCash_Direct')
-      return <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400">GCash</span>;
-    if (m === 'VOUCHER' || m === 'Voucher')
-      return <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400">Voucher</span>;
-    return <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">Cash</span>;
-  };
-
   // Per-shift Cash/GCash/Voucher breakdown, shown in the collapsed row so an
   // admin doesn't have to expand every shift just to see the payment mix.
   const countByMethod = (txns: ApiTransaction[]) => {
-    let cash = 0, gcash = 0, voucher = 0;
-    for (const txn of txns) {
-      if (txn.payment_method === 'GCASH' || txn.payment_method === 'GCash_Scanned' || txn.payment_method === 'GCash_Direct') gcash++;
-      else if (txn.payment_method === 'VOUCHER' || txn.payment_method === 'Voucher') voucher++;
-      else cash++;
-    }
-    return { cash, gcash, voucher };
+    const counts: Record<PaymentKind, number> = { cash: 0, gcash: 0, voucher: 0 };
+    for (const txn of txns) counts[paymentKind(txn.payment_method)]++;
+    return counts;
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-4xl" rounded="rounded-xl">
-      <div className="mb-5">
-        <div className="flex items-center gap-4 mb-5">
-          <div className="w-14 h-14 rounded-full bg-[#62A0EA]/15 flex items-center justify-center"><User size={24} className="text-[#62A0EA]" /></div>
-          <div><h2 className="text-xl font-bold text-white">{record.conductorName}</h2><p className="text-sm text-slate-400">Conductor Profile</p></div>
-        </div>
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-          <div className="flex items-center gap-2.5 p-3 bg-[#0E1628] rounded-lg border border-[#1E2D45]"><Truck size={16} className="text-[#62A0EA]" /><div><p className="text-[10px] text-slate-500 uppercase">Vehicle</p><p className="text-sm text-white font-medium">{record.unitNumber}</p></div></div>
-          <div className="flex items-center gap-2.5 p-3 bg-[#0E1628] rounded-lg border border-[#1E2D45]">
-            <Calendar size={16} className="text-sky-400" />
-            <div>
-              <p className="text-[10px] text-slate-500 uppercase">Shifts</p>
-              <p className="text-sm text-white font-medium">
-                {conductorRecords.length}
-                {conductorRecordsTotal > conductorRecords.length && (
-                  <span className="text-slate-500 font-normal"> of {conductorRecordsTotal}</span>
-                )}
-              </p>
-            </div>
+    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-5xl" rounded="rounded-xl" adminThemed>
+      {/* ── Header: who, and what they still owe ── */}
+      <header className="flex flex-col gap-5 pr-8 md:flex-row md:items-center md:justify-between">
+        <div className="flex min-w-0 items-center gap-4">
+          <span aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-[#2A3A55] admin-light:border-[#E2E8F0] bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 text-base font-semibold text-[#99C1F1] admin-light:text-[#1A5FB4]">
+            {getInitials(record.conductorName)}
+          </span>
+          <div className="min-w-0">
+            <h2 className="truncate text-xl font-bold text-white admin-light:text-slate-900">{record.conductorName}</h2>
+            <p className="text-sm text-slate-400 admin-light:text-slate-500">Conductor <span aria-hidden="true">·</span> {record.unitNumber}</p>
           </div>
-          <div className="flex items-center gap-2.5 p-3 bg-[#0E1628] rounded-lg border border-[#1E2D45]"><Clock size={16} className="text-amber-400" /><div><p className="text-[10px] text-slate-500 uppercase">Total Pending</p><p className="text-sm text-orange-400 font-medium">{fmt(totalPending)}</p></div></div>
         </div>
-      </div>
+        <dl className="grid grid-cols-2 divide-x divide-[#2A3A55] admin-light:divide-[#E2E8F0]">
+          <div className="pr-6">
+            <dt className="text-[10px] uppercase tracking-wider text-slate-500">Shifts</dt>
+            <dd className="mt-1 text-xl font-semibold tabular-nums text-white admin-light:text-slate-900">
+              {conductorRecords.length}
+              {conductorRecordsTotal > conductorRecords.length && (
+                <span className="text-sm font-normal text-slate-500"> of {conductorRecordsTotal}</span>
+              )}
+            </dd>
+          </div>
+          <div className="pl-6">
+            <dt className="text-[10px] uppercase tracking-wider text-slate-500">Pending remittance</dt>
+            <dd className={`mt-1 text-xl font-semibold tabular-nums ${totalPending > 0 ? 'text-amber-400 admin-light:text-amber-700' : 'text-white admin-light:text-slate-900'}`}>
+              {fmt(totalPending)}
+            </dd>
+          </div>
+        </dl>
+      </header>
 
-      <div className="flex bg-[#0E1628] rounded-md p-1 border border-[#1E2D45] mb-5">
-        <button onClick={() => setActiveTab('remittance')} className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all text-center ${activeTab==='remittance'?'bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/30':'text-slate-500 hover:text-slate-300'}`}>Remittance History ({conductorRecords.length})</button>
-        <button onClick={() => setActiveTab('transactions')} className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all text-center ${activeTab==='transactions'?'bg-[#62A0EA] text-white shadow-lg shadow-[#62A0EA]/30':'text-slate-500 hover:text-slate-300'}`}>Transactions</button>
-      </div>
+      <PageTabs tabs={TABS} activeId={activeTab} onChange={setActiveTab} className="mt-6 mb-4" />
 
       {activeTab === 'remittance' && (
-        <div>
-          {/* Search + date */}
-          <div className="flex flex-col sm:flex-row gap-2 mb-3">
-            <div className="relative flex-1">
+        <div role="tabpanel">
+          {/* Toolbar: search sized to a shift ID, then date and status. */}
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <div className="relative w-full sm:w-64">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
               <input
                 type="text"
                 value={remitSearch}
                 onChange={(e) => { setRemitSearch(e.target.value); setRemitPage(1); }}
                 placeholder="Search Shift ID…"
-                className="w-full bg-[#0E1628] border border-[#1E2D45] rounded-md pl-9 pr-8 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-[#62A0EA]"
+                aria-label="Search by shift ID"
+                className={`w-full pl-9 pr-8 py-2 placeholder:text-slate-500 ${FIELD}`}
               />
               {remitSearch && (
                 <button
+                  type="button"
+                  aria-label="Clear search"
                   onClick={() => { setRemitSearch(''); setRemitPage(1); }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 admin-light:hover:text-slate-700"
                 >
                   <X size={14} />
                 </button>
               )}
             </div>
-            <div className="relative">
-              <input
-                type="date"
-                value={remitDate}
-                onChange={(e) => { setRemitDate(e.target.value); setRemitPage(1); }}
-                className="bg-[#0E1628] border border-[#1E2D45] rounded-md px-3 py-2 text-xs text-white focus:outline-none focus:border-[#62A0EA] scheme-dark"
-              />
-              {remitDate && (
+            <AdminDatePicker
+              accent="blue"
+              popover
+              ariaLabel="Filter shifts by date"
+              value={remitDate}
+              onChange={(next) => { setRemitDate(next); setRemitPage(1); }}
+              triggerClassName="w-full sm:w-44 py-2"
+              className="w-full sm:w-44"
+            />
+            <div role="group" aria-label="Filter by status" className="inline-flex rounded-md border border-[#2A3A55] admin-light:border-[#E2E8F0] p-0.5">
+              {REMIT_FILTERS.map((f) => (
                 <button
-                  onClick={() => { setRemitDate(''); setRemitPage(1); }}
-                  className="ml-1 text-xs text-slate-500 hover:text-slate-300"
+                  key={f}
+                  type="button"
+                  aria-pressed={remitFilter === f}
+                  onClick={() => applyRemitFilter(f)}
+                  className={`rounded px-3 py-1.5 text-xs font-medium transition-colors ${
+                    remitFilter === f
+                      ? 'bg-[#62A0EA]/15 text-[#99C1F1] admin-light:bg-[#1A5FB4]/10 admin-light:text-[#1A5FB4]'
+                      : 'text-slate-400 hover:text-white admin-light:text-slate-500 admin-light:hover:text-slate-900'
+                  }`}
                 >
-                  Clear
+                  {f}
                 </button>
-              )}
+              ))}
             </div>
+            <span className="ml-auto text-xs text-slate-500 tabular-nums">{filteredRecords.length} shift{filteredRecords.length === 1 ? '' : 's'}</span>
           </div>
 
-          {/* Status filter */}
-          <div className="flex items-center gap-1.5 mb-3">
-            {(['All', 'Remitted', 'Pending'] as RemitFilter[]).map((f) => (
-              <button
-                key={f}
-                onClick={() => applyRemitFilter(f)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  remitFilter === f
-                    ? 'bg-[#62A0EA] text-white'
-                    : 'bg-[#0E1628] text-slate-400 border border-[#1E2D45] hover:text-slate-200'
-                }`}
-              >
-                {f}
-              </button>
-            ))}
-            <span className="ml-auto text-xs text-slate-500">{filteredRecords.length} shift(s)</span>
-          </div>
-
-          {/* Fixed height (not max-height) so the modal doesn't shrink when
-              the last page has fewer than REMIT_PAGE_SIZE rows. */}
-          <div className="space-y-3 h-[42vh] overflow-y-auto">
-          {isLoadingHistory ? (
-            <div className="text-center py-12">
-              <div className="w-8 h-8 border-2 border-[#62A0EA] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-              <p className="text-sm text-slate-400">Loading remittance history...</p>
-            </div>
-          ) : filteredRecords.length === 0 ? (
-            <div className="text-center py-12"><Banknote size={32} className="mx-auto text-slate-600 mb-3" /><p className="text-sm text-slate-500">No records found.</p></div>
-          ) : pagedRecords.map((rec) => (
-            <div key={rec.shiftId} className="bg-[#0E1628] border border-[#1E2D45] rounded-lg p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-[#62A0EA]/15 flex items-center justify-center"><Hash size={16} className="text-[#62A0EA]" /></div>
-                  <div>
-                    <p className="text-sm text-white font-medium">{rec.shiftId}</p>
-                    <p className="text-xs text-slate-500 flex items-center gap-1"><Calendar size={11} />{rec.date}</p>
-                    <p className="text-xs text-slate-500 flex items-center gap-1"><User size={11} />Driver {rec.driverName || '—'}</p>
-                    <p className="text-xs text-slate-500 flex items-center gap-1"><Clock size={11} />Remitted {formatClockTime(rec.remittedAt)}</p>
-                  </div>
+          {/* Ledger. Fixed height (not max-height) so the modal doesn't
+              shrink when the last page has fewer than REMIT_PAGE_SIZE rows. */}
+          <div className={`h-[46vh] ${PANEL}`}>
+            {isLoadingHistory ? (
+              <PanelMessage loading>Loading remittance history…</PanelMessage>
+            ) : filteredRecords.length === 0 ? (
+              <PanelMessage>No records found.</PanelMessage>
+            ) : (
+              <>
+                <div className={`sticky top-0 z-10 hidden gap-4 border-b border-[#2A3A55] admin-light:border-[#E2E8F0] bg-[#1A2540] admin-light:bg-white px-4 py-2 text-[10px] font-medium uppercase tracking-wider text-slate-500 md:grid ${LEDGER_COLUMNS}`}>
+                  <span>Shift</span>
+                  <span>Driver &amp; time</span>
+                  <span className="text-right">GCash</span>
+                  <span className="text-right">Cash</span>
+                  <span className="text-right">Total</span>
+                  <span className="text-right">Status</span>
                 </div>
-                <Badge variant={remittanceStatusVariant(rec.remittanceStatus)}>{rec.remittanceStatus}</Badge>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="bg-[#131C2E] rounded-md p-2.5 border border-[#1E2D45]"><p className="text-[10px] text-slate-500 uppercase">GCash</p><p className="text-sm text-blue-400 font-medium">{fmt(rec.gcashTotal)}</p></div>
-                <div className="bg-[#131C2E] rounded-md p-2.5 border border-[#1E2D45]"><p className="text-[10px] text-slate-500 uppercase">Cash</p><p className="text-sm text-emerald-400 font-medium">{fmt(rec.cashTotal)}</p></div>
-                <div className="bg-[#131C2E] rounded-md p-2.5 border border-[#1E2D45]"><p className="text-[10px] text-slate-500 uppercase">Total</p><p className="text-sm text-[#62A0EA] font-medium">{fmt(rec.gcashTotal + rec.cashTotal)}</p></div>
-              </div>
-              <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#1E2D45]">
-                <p className="text-xs text-slate-500">{rec.totalPassengers} passengers</p>
-                <p className="text-xs text-slate-600 flex items-center gap-1"><Clock size={11} />{rec.timeIn?.split('T')[1]?.slice(0,5)||'—'} → {rec.timeOut?.split('T')[1]?.slice(0,5)||'—'}</p>
-              </div>
-            </div>
-          ))}
+                <ul className="divide-y divide-[#2A3A55] admin-light:divide-[#E2E8F0]">
+                  {pagedRecords.map((rec) => (
+                    <li key={rec.shiftId} className={`grid grid-cols-2 gap-x-4 gap-y-2 px-4 py-3 md:items-center ${LEDGER_COLUMNS}`}>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-white admin-light:text-slate-900" title={rec.shiftId}>{rec.shiftId}</p>
+                        <p className="text-xs text-slate-500 tabular-nums">{rec.date}</p>
+                      </div>
+                      <div className="justify-self-end md:hidden">
+                        <RemittanceStatusText status={rec.remittanceStatus} />
+                      </div>
+                      <div className="col-span-2 min-w-0 md:col-span-1">
+                        <p className="truncate text-xs text-slate-300 admin-light:text-slate-700">{rec.driverName || '—'}</p>
+                        <p className="text-xs text-slate-500 tabular-nums">
+                          {hhmm(rec.timeIn)} → {hhmm(rec.timeOut)}
+                        </p>
+                      </div>
+                      <div className="col-span-2 grid grid-cols-3 gap-4 md:contents">
+                        <div className="md:text-right">
+                          <p className="text-[10px] uppercase text-slate-500 md:hidden">GCash</p>
+                          <p className="text-sm tabular-nums text-blue-400 admin-light:text-blue-700">{fmt(rec.gcashTotal)}</p>
+                        </div>
+                        <div className="md:text-right">
+                          <p className="text-[10px] uppercase text-slate-500 md:hidden">Cash</p>
+                          <p className="text-sm tabular-nums text-emerald-400 admin-light:text-emerald-700">{fmt(rec.cashTotal)}</p>
+                        </div>
+                        <div className="md:text-right">
+                          <p className="text-[10px] uppercase text-slate-500 md:hidden">Total</p>
+                          <p className="text-sm font-semibold tabular-nums text-white admin-light:text-slate-900">{fmt(rec.gcashTotal + rec.cashTotal)}</p>
+                        </div>
+                      </div>
+                      <div className="hidden text-right md:block">
+                        <RemittanceStatusText status={rec.remittanceStatus} />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
           </div>
 
-          {/* Pagination — always shown (not just once there are multiple
-              pages) so the modal's footer stays consistent; prev/next simply
-              disable themselves when there's nowhere to go. */}
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#1E2D45]">
-            <span className="text-xs text-slate-500">Page {safeRemitPage} of {remitTotalPages}</span>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setRemitPage(p => Math.max(1, p - 1))}
-                disabled={safeRemitPage === 1}
-                className="p-1.5 rounded-md bg-[#0E1628] border border-[#1E2D45] hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronLeft size={16} className="text-slate-400" />
-              </button>
-              <button
-                onClick={() => setRemitPage(p => Math.min(remitTotalPages, p + 1))}
-                disabled={safeRemitPage === remitTotalPages}
-                className="p-1.5 rounded-md bg-[#0E1628] border border-[#1E2D45] hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronRight size={16} className="text-slate-400" />
-              </button>
-            </div>
-          </div>
+          <Pagination page={safeRemitPage} totalPages={remitTotalPages} onChange={setRemitPage} />
         </div>
       )}
 
       {activeTab === 'transactions' && (
-        <div>
-          {/* Fixed height (not max-height), same as Remittance History, so
-              the modal doesn't shrink when the last page has fewer rows. */}
-          <div className="space-y-3 h-[50vh] overflow-y-auto">
-          {isLoadingTxns ? (
-            <div className="text-center py-12">
-              <div className="w-8 h-8 border-2 border-[#62A0EA] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-              <p className="text-sm text-slate-400">Loading transactions...</p>
-            </div>
-          ) : conductorRecords.length === 0 ? (
-            <div className="text-center py-12">
-              <Banknote size={32} className="mx-auto text-slate-600 mb-3" />
-              <p className="text-sm text-slate-500">No shift records found.</p>
-            </div>
-          ) : pagedTxnRecords.map((rec) => {
-            const isExp = expandedShift === rec.shiftId;
-            const txns = shiftTransactions[rec.shiftId] || [];
-            const counts = countByMethod(txns);
-            return (
-              <div key={rec.shiftId} className="bg-[#0E1628] border border-[#1E2D45] rounded-lg overflow-hidden">
-                <button onClick={() => setExpandedShift(isExp ? null : rec.shiftId)} className="w-full flex items-center justify-between p-4 text-left hover:bg-[#131C2E]">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-lg bg-[#131C2E] flex items-center justify-center border border-[#1E2D45]"><Calendar size={16} className="text-slate-400" /></div>
-                    <div className="min-w-0">
-                      <p className="text-sm text-white font-medium truncate">{rec.shiftId}</p>
-                      <p className="text-xs text-slate-500">{formatLogTime(rec.timeIn)}{rec.timeOut ? ` → ${rec.timeOut.split('T')[1]?.slice(0,5)||''}` : ' (active)'}</p>
-                      {txns.length > 0 && (
-                        <div className="flex items-center gap-2 mt-1">
-                          {counts.cash > 0 && (
-                            <span className="flex items-center gap-1 text-[10px] text-emerald-400"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />{counts.cash} Cash</span>
-                          )}
-                          {counts.gcash > 0 && (
-                            <span className="flex items-center gap-1 text-[10px] text-blue-400"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" />{counts.gcash} GCash</span>
-                          )}
-                          {counts.voucher > 0 && (
-                            <span className="flex items-center gap-1 text-[10px] text-amber-400"><span className="w-1.5 h-1.5 rounded-full bg-amber-400" />{counts.voucher} Voucher</span>
-                          )}
+        <div role="tabpanel">
+          {/* Same height as the history ledger plus its toolbar, so switching
+              tabs doesn't resize the modal. */}
+          <div className={`h-[calc(46vh+3.25rem)] ${PANEL}`}>
+            {isLoadingTxns ? (
+              <PanelMessage loading>Loading transactions…</PanelMessage>
+            ) : conductorRecords.length === 0 ? (
+              <PanelMessage>No shift records found.</PanelMessage>
+            ) : (
+              <ul className="divide-y divide-[#2A3A55] admin-light:divide-[#E2E8F0]">
+                {pagedTxnRecords.map((rec) => {
+                  const isExp = expandedShift === rec.shiftId;
+                  const txns = shiftTransactions[rec.shiftId] || [];
+                  const counts = countByMethod(txns);
+                  const collected = txns.reduce((sum, txn) => sum + Number(txn.final_amount), 0);
+                  return (
+                    <li key={rec.shiftId}>
+                      <button
+                        type="button"
+                        aria-expanded={isExp}
+                        onClick={() => setExpandedShift(isExp ? null : rec.shiftId)}
+                        className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/3 admin-light:hover:bg-[#F8FAFC]"
+                      >
+                        <ChevronRight size={16} aria-hidden="true" className={`text-slate-500 transition-transform ${isExp ? 'rotate-90' : ''}`} />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-white admin-light:text-slate-900">{rec.shiftId}</p>
+                          <p className="text-xs text-slate-500 tabular-nums">
+                            {formatLogTime(rec.timeIn)}{rec.timeOut ? ` → ${hhmm(rec.timeOut)}` : ' (active)'}
+                          </p>
                         </div>
+                        <div className="text-right">
+                          <p className="text-sm font-semibold tabular-nums text-white admin-light:text-slate-900">{formatPeso(collected)}</p>
+                          <p className="text-[11px] tabular-nums text-slate-500">
+                            {txns.length} fare{txns.length === 1 ? '' : 's'}
+                            {(Object.keys(counts) as PaymentKind[]).filter((kind) => counts[kind] > 0).map((kind) => (
+                              <span key={kind} className={PAYMENT_STYLES[kind].text}> · {counts[kind]} {PAYMENT_STYLES[kind].label}</span>
+                            ))}
+                          </p>
+                        </div>
+                      </button>
+                      {isExp && (
+                        txns.length === 0 ? (
+                          <p className="border-t border-[#2A3A55] admin-light:border-[#E2E8F0] py-4 text-center text-xs text-slate-500">No transactions.</p>
+                        ) : (
+                          <ol className="max-h-64 divide-y divide-[#2A3A55]/60 admin-light:divide-[#E2E8F0] overflow-y-auto border-t border-[#2A3A55] admin-light:border-[#E2E8F0] bg-[#0E1628]/50 admin-light:bg-[#F8FAFC] scrollbar-themed">
+                            {txns.map((txn) => {
+                              const style = PAYMENT_STYLES[paymentKind(txn.payment_method)];
+                              const pax = txn.total_passengers ?? 1;
+                              return (
+                                <li key={txn.transaction_id} className="grid grid-cols-[4.5rem_minmax(0,1fr)_auto] items-start gap-3 py-2.5 pl-11 pr-4">
+                                  <span className={`pt-0.5 text-xs font-semibold ${style.text}`}>{style.label}</span>
+                                  <div className="min-w-0">
+                                    <p className="truncate text-sm text-white admin-light:text-slate-900">
+                                      {txn.payment_method === 'GCASH'
+                                        ? txn.payer_name_snapshot || txn.payer_name || txn.passenger_name || 'GCash Payer'
+                                        : txn.passenger_name || 'Cash Passenger'}
+                                    </p>
+                                    <p className="flex items-center gap-1 truncate text-xs text-slate-500">
+                                      <MapPin size={10} aria-hidden="true" />
+                                      {txn.pickup_name || '—'} → {txn.dropoff_name || '—'}
+                                    </p>
+                                    <p className="truncate text-[10px] text-slate-500">
+                                      {pax} passenger{pax === 1 ? '' : 's'}
+                                      {txn.passenger_breakdown?.length ? ` · ${txn.passenger_breakdown.map((line) => `${line.passenger_type} × ${line.quantity}`).join(', ')}` : ''}
+                                    </p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-sm font-medium tabular-nums text-white admin-light:text-slate-900">{formatPeso(Number(txn.final_amount))}</p>
+                                    <p className="text-[10px] tabular-nums text-slate-500">
+                                      {new Date(txn.created_at).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                                    </p>
+                                  </div>
+                                </li>
+                              );
+                            })}
+                          </ol>
+                        )
                       )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    <span className="text-xs text-slate-500">{txns.length} txn(s)</span>
-                    {isExp ? <ChevronUp size={16} className="text-slate-400"/> : <ChevronDown size={16} className="text-slate-400"/>}
-                  </div>
-                </button>
-                {isExp && (
-                  <div className="border-t border-[#1E2D45] max-h-60 overflow-y-auto">
-                    {txns.length === 0 ? <p className="text-xs text-slate-500 text-center py-4">No transactions.</p> : (
-                      <div className="divide-y divide-[#1A2540]">
-                        {txns.map((txn) => (
-                          <div key={txn.transaction_id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3 hover:bg-[#131C2E]/50 gap-2">
-                            <div className="flex items-center gap-3 min-w-0">
-                              <div className="flex-shrink-0">{getBadge(txn.payment_method)}</div>
-                              <div className="min-w-0">
-                                <p className="text-sm text-white font-medium truncate">
-                                  {txn.payment_method === 'GCASH'
-                                    ? txn.payer_name_snapshot || txn.payer_name || txn.passenger_name || 'GCash Payer'
-                                    : txn.passenger_name || 'Cash Passenger'}
-                                </p>
-                                <p className="text-xs text-slate-500 flex items-center gap-1 truncate">
-                                  <MapPin size={10} />
-                                  {txn.pickup_name || '—'} → {txn.dropoff_name || '—'}
-                                </p>
-                                <p className="text-[10px] text-slate-600 truncate">
-                                  {txn.total_passengers ?? 1} passenger{(txn.total_passengers ?? 1) === 1 ? '' : 's'}
-                                  {txn.passenger_breakdown?.length ? ` · ${txn.passenger_breakdown.map((line) => `${line.passenger_type} × ${line.quantity}`).join(', ')}` : ''}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="sm:text-right flex-shrink-0">
-                              <p className="text-sm text-[#62A0EA] font-medium">{formatPeso(Number(txn.final_amount))}</p>
-                              <p className="text-[10px] text-slate-600">
-                                {new Date(txn.created_at).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', hour12: true })}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
 
-          {/* Pagination — always shown, matching Remittance History. */}
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#1E2D45]">
-            <span className="text-xs text-slate-500">Page {safeTxnPage} of {txnTotalPages}</span>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setTxnPage(p => Math.max(1, p - 1))}
-                disabled={safeTxnPage === 1}
-                className="p-1.5 rounded-md bg-[#0E1628] border border-[#1E2D45] hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronLeft size={16} className="text-slate-400" />
-              </button>
-              <button
-                onClick={() => setTxnPage(p => Math.min(txnTotalPages, p + 1))}
-                disabled={safeTxnPage === txnTotalPages}
-                className="p-1.5 rounded-md bg-[#0E1628] border border-[#1E2D45] hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronRight size={16} className="text-slate-400" />
-              </button>
-            </div>
-          </div>
+          <Pagination page={safeTxnPage} totalPages={txnTotalPages} onChange={setTxnPage} />
         </div>
       )}
     </Modal>
