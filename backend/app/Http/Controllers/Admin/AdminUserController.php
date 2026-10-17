@@ -40,6 +40,8 @@ class AdminUserController extends Controller
             'sort' => $request->query('sort', 'recent'),
             'account_status' => $request->query('account_status'),
             'active_only' => $request->boolean('active_only'),
+            // The signed-in admin manages their own account from Settings, not here.
+            'exclude_id' => $request->user()->id,
         ]);
 
         return $this->successResponse($users, 'Users retrieved');

@@ -897,6 +897,12 @@ class AdminService
         $query = User::query()
             ->with($this->profileEagerLoads());
 
+        // Leave out the requesting admin, in the query itself so the page
+        // totals stay accurate.
+        if (! empty($filters['exclude_id'])) {
+            $query->whereKeyNot($filters['exclude_id']);
+        }
+
         if (! empty($filters['active_only'])) {
             $query->where(function ($activeQuery) {
                 $activeQuery
