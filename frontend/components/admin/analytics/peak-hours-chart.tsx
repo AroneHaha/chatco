@@ -25,7 +25,7 @@ export function PeakHoursChart({ data }: { data: AnalyticsHourlyPoint[] }) {
 
   if (totalRides === 0) {
     return (
-      <div className="py-16 text-center text-slate-600 text-sm">
+      <div className="py-16 text-center text-slate-600 admin-light:text-slate-500 text-sm">
         No rides in this date range.
       </div>
     );
@@ -52,10 +52,10 @@ export function PeakHoursChart({ data }: { data: AnalyticsHourlyPoint[] }) {
               <div
                 className={`w-full rounded-t-sm transition-all ${
                   isHover
-                    ? "bg-[#62A0EA]"
+                    ? "bg-[#62A0EA] admin-light:bg-[#1A5FB4]"
                     : isPeak
                       ? "bg-amber-500/80"
-                      : "bg-[#62A0EA]/40 group-hover:bg-[#62A0EA]/70"
+                      : "bg-[#62A0EA]/40 group-hover:bg-[#62A0EA]/70 admin-light:bg-[#1A5FB4]/35 admin-light:group-hover:bg-[#1A5FB4]/65"
                 }`}
                 // Zero hours keep a 2px stub so the axis reads as continuous
                 // rather than looking like missing data.
@@ -71,27 +71,27 @@ export function PeakHoursChart({ data }: { data: AnalyticsHourlyPoint[] }) {
         {data.map(d => (
           <div key={d.hour} className="flex-1 text-center">
             {d.hour % 3 === 0 && (
-              <span className="text-[9px] text-slate-600">{formatHour(d.hour)}</span>
+              <span className="text-[9px] text-slate-600 admin-light:text-slate-500">{formatHour(d.hour)}</span>
             )}
           </div>
         ))}
       </div>
 
-      <div className="mt-3 h-9 flex items-center justify-between rounded-md bg-[#0E1628] border border-[#1E2D45] px-3 text-xs">
+      <div className="mt-3 h-9 flex items-center justify-between rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] px-3 text-xs">
         {active ? (
           <>
-            <span className="text-slate-300 font-medium">
+            <span className="text-slate-300 admin-light:text-slate-700 font-medium">
               {formatHour(active.hour)}–{formatHour((active.hour + 1) % 24)}
             </span>
             <div className="flex items-center gap-4 font-mono">
-              <span className="text-white font-bold">{active.count} rides</span>
-              <span className="text-emerald-400">{formatPeso(active.revenue)}</span>
+              <span className="text-white admin-light:text-slate-900 font-bold">{active.count} rides</span>
+              <span className="text-emerald-400 admin-light:text-emerald-700">{formatPeso(active.revenue)}</span>
             </div>
           </>
         ) : (
           <>
             <span className="text-slate-500">Busiest hour</span>
-            <span className="font-mono text-amber-400">
+            <span className="font-mono text-amber-400 admin-light:text-amber-700">
               {formatHour(busiest.hour)}–{formatHour((busiest.hour + 1) % 24)} · {busiest.count} rides
             </span>
           </>

@@ -11,6 +11,7 @@
 
 import { MapContainer, TileLayer, CircleMarker, Tooltip } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
+import { useAdminTheme } from "@/contexts/admin-theme-context";
 import type { AnalyticsHeatmapZone } from "@/lib/admin/services/analytics.service";
 
 interface Props {
@@ -26,9 +27,10 @@ const INTENSITY_FILL: Record<string, string> = {
 };
 
 export default function DemandMap({ zones }: Props) {
+  const [theme] = useAdminTheme();
   if (zones.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center text-slate-600 text-xs">
+      <div className="h-full flex items-center justify-center text-slate-600 admin-light:text-slate-500 text-xs">
         No geolocated demand data in this range.
       </div>
     );
@@ -45,13 +47,12 @@ export default function DemandMap({ zones }: Props) {
       center={[centerLat, centerLng]}
       zoom={12}
       scrollWheelZoom={false}
-      className="h-full w-full rounded-md"
-      style={{ background: "#0E1628" }}
+      className="h-full w-full rounded-md bg-[#0E1628] admin-light:bg-white"
     >
       <TileLayer
         className="map-tiles-mono"
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url={`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${process.env.NEXT_PUBLIC_CARTO_API_KEY}`}
+        url={`https://{s}.basemaps.cartocdn.com/${theme === "light" ? "light_all" : "dark_all"}/{z}/{x}/{y}{r}.png?key=${process.env.NEXT_PUBLIC_CARTO_API_KEY}`}
       />
       {zones.map(z => (
         <CircleMarker
