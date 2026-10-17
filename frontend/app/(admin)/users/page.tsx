@@ -8,7 +8,7 @@ import { RegistrationRequestsTable } from '@/components/admin/users/registration
 import { RejectedAccountsTable } from '@/components/admin/users/rejected-accounts-table';
 import { RejectedAccountDetailsModal } from '@/components/admin/users/rejected-account-details-modal';
 import { ReviewRequestModal } from '@/components/admin/users/review-request-modal';
-import { AddRegistrationModal } from '@/components/admin/users/add-registration-modal';
+import { AddRegistrationModal, type OnsiteStudentDetails } from '@/components/admin/users/add-registration-modal';
 import { EditUserModal } from '@/components/admin/users/edit-user-modal';
 import { DeleteUserModal } from '@/components/admin/users/delete-user-modal';
 import { FeedbackModal, type FeedbackModalStaff } from '@/components/admin/users/feedback-modal';
@@ -295,6 +295,7 @@ export default function UsersPage() {
     commuterType: string;
     idImageFile: File | null;
     idImagePreview: string | null;
+    studentDetails: OnsiteStudentDetails | null;
   }): Promise<void> => {
     if (!data.idImageFile) {
       throw new Error('Please upload a valid ID image.');
@@ -323,6 +324,14 @@ export default function UsersPage() {
     formData.append('username', data.username);
     formData.append('applied_type', appliedType);
     formData.append('id_image', data.idImageFile);
+    // Same school fields student renewal sends.
+    if (data.studentDetails) {
+      formData.append('school_name', data.studentDetails.schoolName);
+      formData.append('education_level', data.studentDetails.educationLevel);
+      if (data.studentDetails.educationLevel === 'HIGH_SCHOOL') formData.append('grade_level', data.studentDetails.gradeLevel);
+      formData.append('school_year', data.studentDetails.schoolYear);
+      if (data.studentDetails.enrollmentTerm) formData.append('enrollment_term', data.studentDetails.enrollmentTerm);
+    }
 
     const res = await fetch('/api/admin/registrations', {
       method: 'POST',
@@ -344,10 +353,18 @@ export default function UsersPage() {
       throw new Error(body?.message ?? `Failed to create registration (HTTP ${res.status}).`);
     }
 
-    // Success — close the modal, refetch the pending list, show a banner.
+    // Success — close the modal, refetch the open tab, show a banner.
     handleCloseRegisterModal();
     refetch();
-    setSuccessMessage(body?.message ?? 'Onsite registration created — awaiting verification.');
+    if (body?.data?.email_sent === false) {
+      // The account exists, but the commuter never received the default
+      // password. A code-verified reset also clears the first-time change.
+      setActionError(
+        `The account for ${data.email} was created, but the email with the default password could not be sent. Ask the commuter to use Forgot password on the sign-in screen.`
+      );
+      return;
+    }
+    setSuccessMessage(body?.message ?? 'Onsite registration created. The commuter must set a new password at first sign-in.');
   };
 
   const handleApproveRequest = async () => {

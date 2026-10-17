@@ -255,7 +255,7 @@ The same queue holds new discount applications (`request_type=APPLICATION`), fil
 
 ## Registrations
 
-Commuter self-registration lands here `PENDING`. An admin reviews the uploaded valid ID against the requested discount tier (`applied_type`) and approves or rejects it. Admins can also create a `PENDING` account directly for a commuter who registers onsite (e.g. a terminal kiosk).
+Commuter self-registration lands here `PENDING`. An admin reviews the uploaded valid ID against the requested discount tier (`applied_type`) and approves or rejects it. Admins can also create an `APPROVED` account directly for a commuter who registers onsite (e.g. a terminal kiosk); that account must replace its emailed default password at first sign-in.
 
 ### The rejection cooldown
 
@@ -318,7 +318,7 @@ Adds `rejected_at` (`users.deleted_at`) and `rejected_by_name`/`rejected_by_emai
 
 ### POST /admin/registrations (onsite)
 
-Creates a `PENDING` commuter account on the admin's behalf — mirrors self sign-up but skips email verification and password confirmation.
+Creates an `APPROVED` commuter account on the admin's behalf — mirrors self sign-up but skips email verification and approval review. The account gets a system-generated default password, emailed to the commuter, and `users.must_change_password` is set: every API call is refused with `403 PASSWORD_CHANGE_REQUIRED` until the commuter sets a new password through `POST /auth/set-new-password`.
 
 - **Limiter:** conductor-write (30/min)
 - **Content-Type:** `multipart/form-data` (ID image upload)
@@ -334,14 +334,14 @@ Creates a `PENDING` commuter account on the admin's behalf — mirrors self sign
 | `email` | Required, valid, max 255, unique among **non-deleted** users |
 | `contact_number` | Required, Philippine mobile format |
 | `username` | Required, max 50, unique in `commuter_profiles` |
-| `password` | Required, 8–128 chars — **not** the stronger `StrongPassword` rule self sign-up uses (see [Known quirks](#known-quirks)) |
 | `language_preference` | Optional, max 20 |
 | `applied_type` | Required: `REGULAR`/`STUDENT`/`SENIOR`/`PWD` |
 | `id_image` | Required image (jpeg/jpg/png/webp), max 5 MB |
+| `school_name`, `education_level`, `grade_level`, `school_year`, `enrollment_term` | Student only, same rules as student renewal (`DiscountApplication::studentDetailRules`): school (max 150), `HIGH_SCHOOL`/`COLLEGE`, grade 7–12 for high school, school year (max 20), term required for college. Saved as an `APPROVED` Student application in `discount_applications`, reviewed by the creating admin. Ignored for other types. |
 
 The [cooldown](#the-rejection-cooldown) is enforced here too — a blocked identity can't be re-created through the kiosk flow either. The ID image is uploaded to the private disk **before** the DB transaction opens (so the transaction's row locks don't hold through a slow network upload); if the transaction then fails, the just-uploaded image is deleted so a failed onsite registration never orphans a government ID in storage.
 
-**201 Created:** `{id, email, first_name, surname, username, applied_type, account_status: "PENDING"}`, `message: "Onsite registration created — awaiting verification."`
+**201 Created:** `{id, email, first_name, surname, username, applied_type, account_status: "APPROVED", must_change_password: true, email_sent}`, `message: "Onsite registration created. The commuter must set a new password at first sign-in."`. The default password is never returned. `email_sent: false` means the account exists but the credentials email did not go out.
 
 **Errors:** `422` the cooldown (shape B via `ValidationException`), `422 "The email has already been taken."`, `422` field validation.
 
@@ -639,4 +639,3 @@ Same shape and pagination as [the driver version](#get-admindriversidshift-logs)
 
 5. **Admins can suspend other admins.** Nothing in `suspendUser`/`unsuspendUser` special-cases `role: ADMIN` beyond the existing self-suspend guard — an admin account is suspended exactly like a commuter's (a `UserSuspension` row, all tokens revoked), which also means the [last-admin-protection](#delete-adminusersid) on delete has no equivalent guard against suspending the last remaining admin into a locked-out state.
 
-6. **Onsite registration (`POST /admin/registrations`) uses a weaker password rule than self sign-up.** It validates `password` with plain `min:8|max:128`, not `App\Rules\StrongPassword` (uppercase + digit + symbol required) that `AuthService::register` enforces — see [README](README.md#request-conventions). An admin keying in a simple password at a kiosk is accepted where the same password would be rejected on the public sign-up form.

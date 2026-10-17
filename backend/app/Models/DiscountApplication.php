@@ -5,12 +5,32 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Validation\Rule;
 
 class DiscountApplication extends Model
 {
     use HasUuids;
 
     protected $guarded = ['id'];
+
+    /** Free-text school fields, trimmed before validation. */
+    public const STUDENT_TEXT_FIELDS = ['school_name', 'school_year', 'enrollment_term'];
+
+    /**
+     * The school details a Student discount asks for, shared by renewal,
+     * discount applications and the admin's onsite registration so all three
+     * ask the same questions. Every rule is skipped when $student is false.
+     */
+    public static function studentDetailRules(bool $student): array
+    {
+        return [
+            'school_name' => [Rule::excludeIf(! $student), 'required', 'string', 'max:150'],
+            'education_level' => [Rule::excludeIf(! $student), 'required', Rule::in(['HIGH_SCHOOL', 'COLLEGE'])],
+            'grade_level' => [Rule::excludeIf(! $student), 'exclude_unless:education_level,HIGH_SCHOOL', 'required', 'integer', 'between:7,12'],
+            'school_year' => [Rule::excludeIf(! $student), 'required', 'string', 'max:20'],
+            'enrollment_term' => [Rule::excludeIf(! $student), 'required_if:education_level,COLLEGE', 'nullable', 'string', 'max:50'],
+        ];
+    }
 
     // Status screens and queue pages never need document paths or revision history.
     public const SUMMARY_COLUMNS = [
