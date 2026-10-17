@@ -53,7 +53,10 @@ Route::prefix('auth')->group(function () {
     // mailed to their address before /register will create the account.
     Route::post('/register/send-code', [AuthController::class, 'sendRegistrationCode'])->middleware(['throttle:auth', 'maintenance:COMMUTER']);
     Route::post('/register/verify-code', [AuthController::class, 'verifyRegistrationCode'])->middleware(['throttle:auth', 'maintenance:COMMUTER']);
-    Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
+    Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum')->name('auth.logout');
+    // First-time setup: replaces the system-generated default password. The only
+    // route (besides logout) a must-change account can call; see EnsurePasswordChanged.
+    Route::post('/set-new-password', [AuthController::class, 'setNewPassword'])->middleware(['auth:sanctum', 'throttle:auth'])->name('auth.set-new-password');
     // Password reset — public (no auth required, throttled to prevent abuse).
     // 3-step 6-digit-code flow: request code → verify code → set new password.
     Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:auth');

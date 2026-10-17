@@ -117,6 +117,45 @@ class PasswordChangeService
     }
 
     /**
+     * First-time setup for an account created with a system-generated default
+     * password (users.must_change_password). No current password or emailed
+     * code: the caller already signed in with the default password, and the
+     * account's sessions are all revoked here, so the setup token dies too and
+     * the commuter must sign in again with the new password.
+     *
+     * The row is locked and the flag re-read inside the transaction, so two
+     * concurrent submissions can't both succeed.
+     *
+     * @throws ValidationException when the account is already activated or the
+     *                             new password matches the default one
+     */
+    public function completeFirstTimeSetup(User $user, string $newPassword): void
+    {
+        DB::transaction(function () use ($user, $newPassword) {
+            $locked = User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+
+            if (! $locked->must_change_password) {
+                throw ValidationException::withMessages([
+                    'password' => ['Your password has already been set. Please sign in again.'],
+                ]);
+            }
+
+            if (Hash::check($newPassword, $locked->password)) {
+                throw ValidationException::withMessages([
+                    'password' => ['The new password must be different from your default password.'],
+                ]);
+            }
+
+            // Assigned plain: the 'hashed' cast hashes it on save.
+            $locked->password = $newPassword;
+            $locked->must_change_password = false;
+            $locked->save();
+
+            $locked->tokens()->delete();
+        });
+    }
+
+    /**
      * Revoke every personal access token EXCEPT the one used by the current
      * request, so a password change logs the user out everywhere else while
      * keeping the active session alive. For cookie-based SPA sessions
