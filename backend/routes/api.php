@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminActivityLogController;
+use App\Http\Controllers\Admin\AdminAccountController;
 use App\Http\Controllers\Admin\AdminAnnouncementController;
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\AdminFaqController;
@@ -282,6 +283,7 @@ Route::prefix('vehicles')->middleware(['auth:sanctum', 'maintenance'])->group(fu
 |--------------------------------------------------------------------------
 */
 Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(function () {
+    Route::post('/admins', [AdminAccountController::class, 'store'])->middleware('throttle:conductor-write');
     Route::get('/dashboard', [AdminController::class, 'dashboard']);
     // The signed-in admin's own password: same two-step emailed-code flow
     // as commuters (Settings > Profile & Security).

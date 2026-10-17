@@ -19,6 +19,7 @@ class MediaStorageService
     {
         $prefix = match (strtolower($role)) {
             'commuter' => 'profiles/commuters',
+            'admin' => 'profiles/admins',
             'conductor' => 'profiles/conductors',
             'driver' => 'profiles/drivers',
             default => throw new \InvalidArgumentException('Unsupported profile image role.'),

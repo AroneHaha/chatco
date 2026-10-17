@@ -9,6 +9,7 @@ import { RejectedAccountsTable } from '@/components/admin/users/rejected-account
 import { RejectedAccountDetailsModal } from '@/components/admin/users/rejected-account-details-modal';
 import { ReviewRequestModal } from '@/components/admin/users/review-request-modal';
 import { AddRegistrationModal, type OnsiteStudentDetails } from '@/components/admin/users/add-registration-modal';
+import { RegisterAdminModal } from '@/components/admin/users/register-admin-modal';
 import { EditUserModal } from '@/components/admin/users/edit-user-modal';
 import { DeleteUserModal } from '@/components/admin/users/delete-user-modal';
 import { FeedbackModal, type FeedbackModalStaff } from '@/components/admin/users/feedback-modal';
@@ -88,6 +89,7 @@ export default function UsersPage() {
 
   // Modal States
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+  const [isAdminRegisterModalOpen, setIsAdminRegisterModalOpen] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -541,9 +543,7 @@ export default function UsersPage() {
             ]}
           />
         </div>
-        {/* One "Register" menu for the ways an account gets created here.
-            Onsite opens the existing commuter registration modal unchanged;
-            admin accounts are listed but not built yet. */}
+        {/* One "Register" menu for the account registration flows available here. */}
         <div className="ml-auto shrink-0 -translate-y-1">
           <RowActionsMenu
             label="Register an account"
@@ -560,7 +560,7 @@ export default function UsersPage() {
             }}
             actions={[
               { label: 'Register onsite', hint: 'Commuter at the counter, with valid ID', icon: UserPlus, onSelect: handleOpenRegisterModal },
-              { label: 'Register admin account', hint: 'Not available yet', icon: ShieldUser, onSelect: () => {}, disabled: true },
+              { label: 'Register admin account', hint: 'Create a new admin account', icon: ShieldUser, onSelect: () => setIsAdminRegisterModalOpen(true) },
             ]}
           />
         </div>
@@ -654,6 +654,7 @@ export default function UsersPage() {
 
       {/* Modals */}
       <AddRegistrationModal isOpen={isRegisterModalOpen} onClose={handleCloseRegisterModal} onSave={handleSaveRegistration} />
+      <RegisterAdminModal isOpen={isAdminRegisterModalOpen} onClose={() => setIsAdminRegisterModalOpen(false)} onCreated={() => refetch()} />
 
       <ReviewRequestModal
         key={selectedRequest?.id ?? 'closed-review'}
