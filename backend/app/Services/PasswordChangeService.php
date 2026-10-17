@@ -80,7 +80,13 @@ class PasswordChangeService
      *
      * @throws ValidationException on a bad current/new password or code
      */
-    public function confirm(User $user, string $currentPassword, string $newPassword, string $code): void
+    public function confirm(
+        User $user,
+        string $currentPassword,
+        string $newPassword,
+        string $code,
+        bool $revokeCurrentSession = false,
+    ): void
     {
         $this->assertPasswordChangeIsValid($user, $currentPassword, $newPassword);
 
@@ -98,7 +104,7 @@ class PasswordChangeService
         // unit: a failure part-way can't leave a changed password with the old
         // sessions still signed in. verifyCode() stays outside the transaction
         // so a wrong guess is still counted when it throws.
-        DB::transaction(function () use ($user, $newPassword) {
+        DB::transaction(function () use ($user, $newPassword, $revokeCurrentSession) {
             // Single use under concurrency: only the request that actually
             // deletes the code may change the password.
             if (! $this->emailVerification->consume($user->email, EmailVerificationService::PURPOSE_CHANGE_PASSWORD)) {
@@ -112,7 +118,11 @@ class PasswordChangeService
             $user->password = $newPassword;
             $user->save();
 
-            $this->revokeOtherTokens($user);
+            if ($revokeCurrentSession) {
+                $user->tokens()->delete();
+            } else {
+                $this->revokeOtherTokens($user);
+            }
         });
     }
 

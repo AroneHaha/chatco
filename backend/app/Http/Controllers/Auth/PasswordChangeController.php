@@ -107,6 +107,7 @@ class PasswordChangeController extends Controller
             $validated['current_password'],
             $validated['password'],
             $validated['code'],
+            revokeCurrentSession: $request->user()->isAdmin(),
         );
 
         $this->activityLog->record(

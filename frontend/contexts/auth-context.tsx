@@ -19,7 +19,7 @@ interface AuthContextValue {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<string>;
-  logout: () => Promise<void>;
+  logout: (redirectTo?: string) => Promise<void>;
   refresh: () => Promise<void>;
 }
 
@@ -130,7 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [refresh]
   );
 
-  const logout = useCallback(async () => {
+  const logout = useCallback(async (redirectTo = "/login") => {
     authRequestId.current++;
     // Clear the server cookies before the landing page and login modal reload.
     try {
@@ -154,7 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem("remittance_history");
     }
 
-    window.location.replace("/login");
+    window.location.replace(redirectTo);
   }, []);
 
   useEffect(() => {

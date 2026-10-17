@@ -8,9 +8,9 @@ import { proxyToLaravel } from "@/lib/conductor/server/proxy";
  * Body: `{ current_password, password, password_confirmation, code }`.
  *
  * Phase 2: Laravel re-verifies the passwords plus the emailed code, rotates
- * the password and signs the admin out of every other session (this one
- * stays valid). 422s keep their field errors (current_password / password /
- * code) so the form can point at the right input.
+ * the password and revokes every admin session, including the current one.
+ * 422s keep their field errors (current_password / password / code) so the
+ * form can point at the right input.
  *
  * Backend: PasswordChangeController::confirm
  */

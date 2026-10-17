@@ -2,7 +2,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { AlertCircle, ArrowLeft, Check, CheckCircle2, Eye, EyeOff, KeyRound, Mail } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Camera, Check, CheckCircle2, Eye, EyeOff, ImagePlus, KeyRound, Mail, Trash2, Upload, X } from 'lucide-react';
+import Image from 'next/image';
 import { useAuth } from '@/contexts/auth-context';
 import { getInitials } from '@/components/admin/layout/admin-identity';
 import CodeInput from '@/components/auth/code-input';
@@ -100,17 +101,29 @@ function Section({ title, description, children }: { title: string; description:
 }
 
 export default function ProfileSecurityPage() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [form, setForm] = useState(EMPTY_FORM);
   const [code, setCode] = useState('');
   const [step, setStep] = useState<Step>('passwords');
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<Field, string>>>({});
   const [formError, setFormError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [expiresInMinutes, setExpiresInMinutes] = useState<number | null>(null);
   const [resendIn, setResendIn] = useState(0);
+  const [photoOpen, setPhotoOpen] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [photoNotice, setPhotoNotice] = useState<string | null>(null);
+  const [otpOpen, setOtpOpen] = useState(false);
+  const [passwordChanged, setPasswordChanged] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const inFlight = useRef(false);
+
+  useEffect(() => {
+    return () => {
+      if (photoPreview) URL.revokeObjectURL(photoPreview);
+    };
+  }, [photoPreview]);
 
   // Resend countdown, one tick per second while it's running.
   useEffect(() => {
@@ -126,7 +139,6 @@ export default function ProfileSecurityPage() {
     setForm((prev) => ({ ...prev, [field]: value }));
     setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
     setFormError(null);
-    setNotice(null);
   };
 
   const applyError = (err: unknown) => {
@@ -152,6 +164,7 @@ export default function ProfileSecurityPage() {
       setCode('');
       setFieldErrors({});
       setStep('code');
+      setOtpOpen(true);
     } catch (err) {
       applyError(err);
     } finally {
@@ -188,7 +201,9 @@ export default function ProfileSecurityPage() {
       setCode('');
       setFieldErrors({});
       setStep('passwords');
-      setNotice('Password updated. You’ve been signed out on your other devices; this session stays signed in.');
+      setOtpOpen(false);
+      setPasswordChanged(true);
+      window.setTimeout(() => void logout('/'), 1800);
     } catch (err) {
       applyError(err);
     } finally {
@@ -199,9 +214,34 @@ export default function ProfileSecurityPage() {
 
   const backToPasswords = () => {
     setStep('passwords');
+    setOtpOpen(false);
     setCode('');
     setFieldErrors({});
     setFormError(null);
+  };
+
+  const handlePhotoSelection = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setPhotoError('Choose a JPG, PNG, or WebP image.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setPhotoError('Choose an image smaller than 5 MB.');
+      return;
+    }
+    setPhotoError(null);
+    setPhotoNotice(null);
+    setPhotoPreview(URL.createObjectURL(file));
+    setPhotoOpen(true);
+  };
+
+  const closePhotoPreview = () => {
+    setPhotoOpen(false);
+    setPhotoPreview(null);
+    setPhotoError(null);
   };
 
   return (
@@ -210,15 +250,20 @@ export default function ProfileSecurityPage() {
         <Section title="Profile" description="The administrator account you’re signed in with.">
           {user ? (
             <>
-              <div className="flex min-w-0 items-center gap-4">
-                <span aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#1A2540] admin-light:bg-[#EEF2F7] text-sm font-semibold text-[#62A0EA] admin-light:text-[#1A5FB4]">
+              <div className="flex min-w-0 flex-wrap items-center gap-4">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#1A2540] admin-light:bg-[#EEF2F7] text-base font-semibold text-[#62A0EA] admin-light:text-[#1A5FB4]" aria-label="Current profile picture">
                   {getInitials(name)}
-                </span>
-                <div className="min-w-0">
+                </div>
+                <div className="min-w-0 flex-1">
                   <p className="truncate text-base font-semibold text-white admin-light:text-slate-900" title={name}>{name}</p>
                   <p className="text-xs text-slate-500">Administrator</p>
                 </div>
+                <button type="button" onClick={() => { setPhotoError(null); setPhotoOpen(true); }} className="inline-flex h-9 items-center gap-2 rounded-md border border-[#1E2D45] admin-light:border-[#CBD5E1] px-3 text-xs font-semibold text-slate-200 admin-light:text-slate-700 transition-colors hover:bg-white/5 admin-light:hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4]">
+                  <Camera size={15} aria-hidden="true" /> Change picture
+                </button>
+                <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoSelection} className="sr-only" aria-label="Choose a profile picture" />
               </div>
+              {photoNotice && <p role="status" className="mt-3 text-xs text-slate-500">{photoNotice}</p>}
               <dl className="mt-5 border-t border-[#1E2D45] admin-light:border-[#E2E8F0]">
                 <div className="grid grid-cols-1 gap-1 py-3 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-4">
                   <dt className="text-xs text-slate-500">Sign-in email</dt>
@@ -240,13 +285,7 @@ export default function ProfileSecurityPage() {
           )}
         </Section>
 
-        <Section title="Password" description="Changing it signs you out everywhere else. A code sent to your email confirms it’s you.">
-          {notice && (
-            <div role="status" className="mb-5 flex items-start gap-2 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-3 py-2.5">
-              <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-emerald-400 admin-light:text-emerald-700" aria-hidden="true" />
-              <p className="text-sm text-emerald-300 admin-light:text-emerald-800">{notice}</p>
-            </div>
-          )}
+        <Section title="Password" description="Changing it signs you out of all admin sessions. A code sent to your email confirms it’s you, and you’ll sign in again with the new password.">
           {formError && (
             <div role="alert" className="mb-5 flex items-start gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2.5">
               <AlertCircle size={16} className="mt-0.5 shrink-0 text-red-400 admin-light:text-red-600" aria-hidden="true" />
@@ -321,54 +360,86 @@ export default function ProfileSecurityPage() {
               </div>
             </form>
           ) : (
-            <form onSubmit={handleCodeSubmit} noValidate className="max-w-md">
-              <p className="text-sm leading-6 text-slate-300 admin-light:text-slate-700">
-                Enter the 6-digit code we sent to <span className="font-semibold text-white admin-light:text-slate-900">{user?.email}</span>
-                {expiresInMinutes ? `. It expires in ${expiresInMinutes} minutes.` : '.'}
-              </p>
-              <div className="mt-4">
-                <CodeInput
-                  variant="admin"
-                  value={code}
-                  onChange={(next) => { setCode(next); setFieldErrors({}); setFormError(null); }}
-                  disabled={isSubmitting}
-                  hasError={Boolean(fieldErrors.code)}
-                />
-                <FieldError id="code-error" message={fieldErrors.code} />
-              </div>
-              <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-3">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-[#62A0EA] admin-light:bg-[#1A5FB4] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0B1120] admin-light:focus-visible:ring-offset-[#F1F5F9] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isSubmitting
-                    ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" aria-hidden="true" />
-                    : <KeyRound size={16} aria-hidden="true" />}
-                  {isSubmitting ? 'Updating...' : 'Update password'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void sendCode()}
-                  disabled={isSubmitting || resendIn > 0}
-                  className="text-sm font-medium text-[#8CB9F0] admin-light:text-[#1A5FB4] underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:text-slate-500 disabled:no-underline"
-                >
+            <div className="max-w-md rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] px-4 py-3">
+              <p className="text-sm text-slate-300 admin-light:text-slate-700">A verification code was sent to <span className="font-semibold text-white admin-light:text-slate-900">{user?.email}</span>.</p>
+              <div className="mt-3 flex flex-wrap items-center gap-4">
+                <button type="button" onClick={() => setOtpOpen(true)} className="text-sm font-semibold text-[#8CB9F0] admin-light:text-[#1A5FB4] hover:underline">Enter verification code</button>
+                <button type="button" onClick={() => void sendCode()} disabled={isSubmitting || resendIn > 0} className="text-sm text-slate-400 admin-light:text-slate-600 hover:underline disabled:cursor-not-allowed disabled:opacity-50">
                   {resendIn > 0 ? `Resend code in ${resendIn}s` : 'Resend code'}
                 </button>
-                <button
-                  type="button"
-                  onClick={backToPasswords}
-                  disabled={isSubmitting}
-                  className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-400 admin-light:text-slate-500 hover:text-white admin-light:hover:text-slate-900 disabled:opacity-50 sm:ml-auto"
-                >
-                  <ArrowLeft size={14} aria-hidden="true" />
-                  Change passwords
+                <button type="button" onClick={backToPasswords} disabled={isSubmitting} className="ml-auto inline-flex items-center gap-1 text-sm text-slate-400 admin-light:text-slate-600 hover:text-white admin-light:hover:text-slate-900 disabled:opacity-50">
+                  <ArrowLeft size={14} aria-hidden="true" /> Change passwords
                 </button>
               </div>
-            </form>
+            </div>
           )}
         </Section>
       </div>
+
+      {photoOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/65 p-4 backdrop-blur-sm" role="presentation">
+          <section role="dialog" aria-modal="true" aria-labelledby="profile-photo-title" className="my-auto w-full max-w-lg rounded-lg border border-[#1E2D45] admin-light:border-[#CBD5E1] bg-[#131C2E] admin-light:bg-white p-5 shadow-2xl sm:p-6">
+            <header className="flex items-start justify-between gap-4">
+              <div>
+                <h2 id="profile-photo-title" className="text-base font-semibold text-white admin-light:text-slate-900">Profile picture preview</h2>
+                <p className="mt-1 text-sm leading-5 text-slate-400 admin-light:text-slate-600">Choose an image to preview how it will look on your account.</p>
+              </div>
+              <button type="button" onClick={closePhotoPreview} aria-label="Close profile picture preview" className="rounded-md p-1.5 text-slate-400 hover:bg-white/5 hover:text-white admin-light:hover:bg-slate-100 admin-light:hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4]"><X size={18} aria-hidden="true" /></button>
+            </header>
+            <div className="mt-5 flex min-h-52 items-center justify-center overflow-hidden rounded-md border border-dashed border-[#33445F] admin-light:border-slate-300 bg-[#0E1628] admin-light:bg-slate-50 p-4">
+              {photoPreview
+                ? <Image src={photoPreview} alt="Selected profile picture preview" width={176} height={176} unoptimized className="h-44 w-44 rounded-md object-cover" />
+                : <div className="flex flex-col items-center gap-2 text-center text-slate-500 admin-light:text-slate-500"><ImagePlus size={32} aria-hidden="true" /><p className="text-sm">Select a JPG, PNG, or WebP image (up to 5 MB).</p></div>}
+            </div>
+            {photoError && <p role="alert" className="mt-3 text-sm text-red-400 admin-light:text-red-600">{photoError}</p>}
+            <p className="mt-3 text-xs leading-5 text-slate-500">This is a preview only. The current profile picture will not be changed or saved.</p>
+            <div className="mt-5 flex flex-wrap items-center gap-2">
+              <button type="button" onClick={() => photoInputRef.current?.click()} className="inline-flex h-10 items-center gap-2 rounded-md border border-[#1E2D45] admin-light:border-[#CBD5E1] px-3 text-sm font-medium text-slate-200 admin-light:text-slate-700 hover:bg-white/5 admin-light:hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4]"><Upload size={15} aria-hidden="true" />{photoPreview ? 'Replace image' : 'Choose image'}</button>
+              {photoPreview && <button type="button" onClick={() => { setPhotoPreview(null); setPhotoError(null); }} className="inline-flex h-10 items-center gap-2 rounded-md px-3 text-sm font-medium text-red-300 admin-light:text-red-600 hover:bg-red-500/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"><Trash2 size={15} aria-hidden="true" />Remove preview</button>}
+              <span className="flex-1" />
+              <button type="button" onClick={closePhotoPreview} className="h-10 rounded-md px-4 text-sm font-medium text-slate-300 admin-light:text-slate-700 hover:bg-white/5 admin-light:hover:bg-slate-100">Cancel</button>
+              <button type="button" disabled={!photoPreview} onClick={() => { setPhotoNotice('Preview confirmed. Picture updates are not connected yet, so your current profile picture remains unchanged.'); closePhotoPreview(); }} className="h-10 rounded-md bg-[#62A0EA] admin-light:bg-[#1A5FB4] px-4 text-sm font-semibold text-white hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] disabled:cursor-not-allowed disabled:opacity-50">Confirm preview</button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {otpOpen && step === 'code' && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/65 p-4 backdrop-blur-sm" role="presentation">
+          <section role="dialog" aria-modal="true" aria-labelledby="password-code-title" className="my-auto w-full max-w-md rounded-lg border border-[#1E2D45] admin-light:border-[#CBD5E1] bg-[#131C2E] admin-light:bg-white p-5 shadow-2xl sm:p-6">
+            <header className="flex items-start justify-between gap-4">
+              <div>
+                <h2 id="password-code-title" className="text-base font-semibold text-white admin-light:text-slate-900">Verify your email</h2>
+                <p className="mt-1 text-sm leading-5 text-slate-400 admin-light:text-slate-600">Enter the 6-digit code sent to <span className="font-semibold text-slate-200 admin-light:text-slate-800">{user?.email}</span>{expiresInMinutes ? `. It expires in ${expiresInMinutes} minutes.` : '.'}</p>
+              </div>
+              <button type="button" onClick={backToPasswords} disabled={isSubmitting} aria-label="Cancel password change" className="rounded-md p-1.5 text-slate-400 hover:bg-white/5 hover:text-white admin-light:hover:bg-slate-100 admin-light:hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4] disabled:opacity-50"><X size={18} aria-hidden="true" /></button>
+            </header>
+            {formError && <div role="alert" className="mt-4 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300 admin-light:text-red-700">{formError}</div>}
+            <form onSubmit={handleCodeSubmit} noValidate className="mt-5">
+              <CodeInput variant="admin" value={code} onChange={(next) => { setCode(next); setFieldErrors({}); setFormError(null); }} disabled={isSubmitting} hasError={Boolean(fieldErrors.code)} />
+              <FieldError id="code-error" message={fieldErrors.code} />
+              <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-3">
+                <button type="submit" disabled={isSubmitting} className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-[#62A0EA] admin-light:bg-[#1A5FB4] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4] disabled:cursor-not-allowed disabled:opacity-50">
+                  {isSubmitting ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" aria-hidden="true" /> : <KeyRound size={16} aria-hidden="true" />}
+                  {isSubmitting ? 'Updating...' : 'Verify and change password'}
+                </button>
+                <button type="button" onClick={() => void sendCode()} disabled={isSubmitting || resendIn > 0} className="text-sm font-medium text-[#8CB9F0] admin-light:text-[#1A5FB4] hover:underline disabled:cursor-not-allowed disabled:text-slate-500 disabled:no-underline">{resendIn > 0 ? `Resend code in ${resendIn}s` : 'Resend code'}</button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
+
+      {passwordChanged && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm" role="presentation">
+          <section role="alertdialog" aria-modal="true" aria-labelledby="password-success-title" aria-describedby="password-success-description" className="w-full max-w-sm rounded-lg border border-emerald-500/25 bg-[#131C2E] admin-light:bg-white p-6 text-center shadow-2xl">
+            <CheckCircle2 size={38} className="mx-auto text-emerald-400 admin-light:text-emerald-600" aria-hidden="true" />
+            <h2 id="password-success-title" className="mt-4 text-lg font-semibold text-white admin-light:text-slate-900">Password changed</h2>
+            <p id="password-success-description" className="mt-2 text-sm leading-5 text-slate-400 admin-light:text-slate-600">Your password was updated. You’re being signed out now. Log in again with your new password.</p>
+            <p role="status" className="mt-4 text-xs font-medium text-slate-500">Redirecting to the landing page…</p>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

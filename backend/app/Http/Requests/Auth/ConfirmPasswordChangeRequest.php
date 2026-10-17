@@ -26,7 +26,7 @@ class ConfirmPasswordChangeRequest extends FormRequest
         return [
             'current_password' => ['required', 'string'],
             'password' => ['required', 'confirmed', new StrongPassword],
-            'code' => ['required', 'string'],
+            'code' => ['required', 'string', 'regex:/^\d{6}$/'],
         ];
     }
 
@@ -37,6 +37,7 @@ class ConfirmPasswordChangeRequest extends FormRequest
             'password.required'         => 'A new password is required',
             'password.confirmed'        => 'The new password confirmation does not match',
             'code.required'              => 'Enter the code we emailed you',
+            'code.regex'                 => 'Enter the 6-digit code we emailed you',
         ];
     }
 }
