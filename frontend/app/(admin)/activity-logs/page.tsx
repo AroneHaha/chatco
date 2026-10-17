@@ -7,6 +7,8 @@ import { RequestCancelledError } from '@/lib/api/client';
 import {
   listForAdmin,
   exportForAdmin,
+  ACTIVITY_LOG_CATEGORIES,
+  getActivityLogCategoryLabel,
   type ActivityLog,
   type ActivityChange,
   type ActivityActorRole,
@@ -29,30 +31,6 @@ const DATE_RANGE_OPTIONS: { value: DateRange; label: string }[] = [
   { value: 'last_30_days', label: 'Last 30 Days' },
   { value: 'all', label: 'All Time' },
 ];
-
-/** Category values match the ActivityLog backend taxonomy (App\Enums\ActivityLogCategory). */
-const CATEGORY_OPTIONS: { value: string; label: string }[] = [
-  { value: 'MEMBER', label: 'Member' },
-  { value: 'PERSONNEL', label: 'Personnel' },
-  { value: 'VEHICLE', label: 'Vehicle' },
-  { value: 'ROUTE', label: 'Route' },
-  { value: 'FARE_POINT', label: 'Fare Point' },
-  { value: 'SETTINGS', label: 'Settings' },
-  { value: 'VOUCHER', label: 'Voucher' },
-  { value: 'REMITTANCE_OPTION', label: 'Remittance Option' },
-  { value: 'FAQ', label: 'FAQ' },
-  { value: 'ANNOUNCEMENT', label: 'Announcement' },
-  { value: 'LOST_FOUND', label: 'Lost & Found' },
-  { value: 'SOS', label: 'SOS' },
-  { value: 'SHIFT', label: 'Shift' },
-  { value: 'SHIFT_DEVICE', label: 'Shift Device' },
-  { value: 'REMITTANCE', label: 'Remittance' },
-  { value: 'ACCOUNT', label: 'Admin Account' },
-];
-
-const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
-  CATEGORY_OPTIONS.map((option) => [option.value, option.label])
-);
 
 /** Who did it — matches ActivityLogService::ACTOR_ROLES. */
 const ROLE_OPTIONS: { value: ActivityActorRole; label: string }[] = [
@@ -129,7 +107,7 @@ function formatTimestamp(iso: string): string {
 function CategoryBadge({ category }: { category: string }) {
   return (
     <span className="text-[10px] font-semibold uppercase tracking-wider text-[#62A0EA] admin-light:text-[#1A5FB4]">
-      {CATEGORY_LABELS[category] ?? category}
+      {getActivityLogCategoryLabel(category)}
     </span>
   );
 }
@@ -316,7 +294,7 @@ export default function ActivityLogsPage() {
         headers: ['Timestamp', 'Category', 'Activity', 'Changes', 'By', 'Role'],
         rows: rows.map((row) => [
           formatTimestamp(row.createdAt),
-          CATEGORY_LABELS[row.category] ?? row.category,
+          getActivityLogCategoryLabel(row.category),
           row.description,
           changesToText(row.changes),
           row.by,
@@ -462,7 +440,7 @@ export default function ActivityLogsPage() {
                 className="h-11 w-full rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 text-sm text-slate-200 admin-light:text-slate-700 outline-none transition-colors scheme-dark admin-light:scheme-light focus:border-[#62A0EA]/50 admin-light:focus:border-[#1A5FB4] focus:ring-1 focus:ring-[#62A0EA]/30 admin-light:focus:ring-[#1A5FB4]/30 sm:w-auto"
               >
                 <option value="ALL" className="bg-[#0E1628] admin-light:bg-white">All Categories</option>
-                {CATEGORY_OPTIONS.map((option) => (
+                {ACTIVITY_LOG_CATEGORIES.map((option) => (
                   <option key={option.value} value={option.value} className="bg-[#0E1628] admin-light:bg-white">
                     {option.label}
                   </option>

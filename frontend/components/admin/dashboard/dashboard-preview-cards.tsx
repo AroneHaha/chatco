@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { formatDateTime } from "@/lib/utils/format";
+import { getActivityLogCategoryLabel } from "@/lib/shared/services/activity-log.service";
 import type { VehicleItem, LostFoundItem, UserItem, AnnouncementItem, ActivityLogItem, DashboardActivityFeed } from "@/app/(admin)/admin-dashboard/data/dashboard-data";
 
 function formatCategory(category: string): string {
@@ -105,7 +106,7 @@ export function DashboardPreviewCards({ activeVehicles, recentVehicles, recentLo
                       <p className={`min-w-0 break-words text-sm leading-6 ${index === 0 ? "font-medium text-white admin-light:text-slate-900" : "text-white/85 admin-light:text-slate-800"}`}>{log.description}</p>
                       <div className="min-w-0 text-xs leading-5 sm:border-l sm:border-[#2A3A55] admin-light:sm:border-[#CBD5E1] sm:pl-3 sm:text-right">
                         <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 sm:justify-end">
-                          <span className={`min-w-0 break-words ${index === 0 ? "text-[#62A0EA] admin-light:text-[#1A5FB4]" : "text-white/45 admin-light:text-slate-500"}`}>{formatCategory(log.category)}</span>
+                          <span className={`min-w-0 break-words ${index === 0 ? "text-[#62A0EA] admin-light:text-[#1A5FB4]" : "text-white/45 admin-light:text-slate-500"}`}>{getActivityLogCategoryLabel(log.category)}</span>
                           <time dateTime={log.createdAt} title={`${timestamp.full} (Philippine time)`} className={`whitespace-nowrap tabular-nums ${index === 0 ? "font-medium text-[#62A0EA] admin-light:text-[#1A5FB4]" : "text-white/60 admin-light:text-slate-600"}`}>{timestamp.time}</time>
                         </p>
                         <p className="mt-1 break-words text-white/60 admin-light:text-slate-600">{log.by}</p>

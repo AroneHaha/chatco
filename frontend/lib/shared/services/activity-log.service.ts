@@ -16,6 +16,34 @@
 
 import { api, ApiError, RequestCancelledError } from "@/lib/api/client";
 
+/** Human-readable labels for the stable backend activity category values. */
+export const ACTIVITY_LOG_CATEGORIES = [
+  { value: "MEMBER", label: "Commuter Accounts, Sign-ups & Discounts" },
+  { value: "PERSONNEL", label: "Driver & Conductor Records" },
+  { value: "VEHICLE", label: "Vehicle Records" },
+  { value: "ROUTE", label: "Routes & Detours" },
+  { value: "FARE_POINT", label: "Fare Stops & Ordering" },
+  { value: "SETTINGS", label: "System Configuration" },
+  { value: "VOUCHER", label: "Voucher Distribution" },
+  { value: "REMITTANCE_OPTION", label: "Remittance Options" },
+  { value: "FAQ", label: "FAQs" },
+  { value: "ANNOUNCEMENT", label: "Announcements" },
+  { value: "LOST_FOUND", label: "Lost & Found" },
+  { value: "SOS", label: "Emergency SOS Alerts" },
+  { value: "SHIFT", label: "Automatic Shift Closures" },
+  { value: "SHIFT_DEVICE", label: "Shift Device Recovery" },
+  { value: "REMITTANCE", label: "Cash Remittance Declarations" },
+  { value: "ACCOUNT", label: "Admin Accounts & Access" },
+] as const;
+
+const ACTIVITY_LOG_CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
+  ACTIVITY_LOG_CATEGORIES.map(({ value, label }) => [value, label]),
+);
+
+export function getActivityLogCategoryLabel(category: string): string {
+  return ACTIVITY_LOG_CATEGORY_LABELS[category] ?? category;
+}
+
 // ─── Raw backend shape ──────────────────────────────────────────────
 
 interface RawActivityChange {
