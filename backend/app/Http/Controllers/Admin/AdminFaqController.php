@@ -63,13 +63,31 @@ class AdminFaqController extends Controller
             'display_order' => ['sometimes', 'integer', 'min:0'],
             'is_active' => ['nullable', 'boolean'],
         ]);
+        $snapshot = fn (FaqItem $faq) => [
+            'question' => $faq->question,
+            'answer' => $faq->answer,
+            'category' => $faq->category,
+            'display_order' => $faq->display_order,
+            'is_active' => $faq->is_active ? 'Visible' : 'Hidden',
+        ];
+        $before = $snapshot($faq);
         $faq->update($validated);
 
-        $this->activityLogService->record(
-            ActivityLogCategory::FAQ,
-            "Updated FAQ \"{$faq->question}\"",
-            $request->user(),
-        );
+        $changes = ActivityLogService::diff($before, $snapshot($faq), [
+            'question' => 'Question',
+            'answer' => 'Answer',
+            'category' => 'Category',
+            'display_order' => 'Order',
+            'is_active' => 'Visibility',
+        ]);
+        if ($changes !== []) {
+            $this->activityLogService->record(
+                ActivityLogCategory::FAQ,
+                "Updated FAQ \"{$faq->question}\": ".ActivityLogService::changedFields($changes),
+                $request->user(),
+                $changes,
+            );
+        }
 
         return $this->successResponse($faq, 'FAQ item updated');
     }

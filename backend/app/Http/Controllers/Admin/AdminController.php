@@ -42,6 +42,23 @@ class AdminController extends Controller
     /** Predefined emergency-contact relationship choices — kept in sync with the admin UI's dropdown. */
     private const RELATIONSHIP_OPTIONS = ['Spouse', 'Parent', 'Sibling', 'Relative', 'Guardian', 'Friend', 'Other'];
 
+    /** Editable personnel fields and how the activity log names them. */
+    private const CONDUCTOR_LOG_FIELDS = [
+        'first_name' => 'First name',
+        'middle_name' => 'Middle name',
+        'last_name' => 'Last name',
+        'birthday' => 'Birthday',
+        'contact' => 'Contact number',
+    ];
+
+    private const DRIVER_LOG_FIELDS = self::CONDUCTOR_LOG_FIELDS + [
+        'license_number' => 'License number',
+        'address' => 'Address',
+        'emergency_contact_name' => 'Emergency contact',
+        'emergency_contact_number' => 'Emergency contact number',
+        'emergency_contact_relationship' => 'Emergency contact relationship',
+    ];
+
     public function __construct(
         private AdminService $adminService,
         private LocationService $locationService,
@@ -330,6 +347,7 @@ class AdminController extends Controller
         ]);
 
         $oldPictureUrl = $driver->profile_picture_url;
+        $before = $driver->only(array_keys(self::DRIVER_LOG_FIELDS));
         $newPictureUrl = $oldPictureUrl;
         $hasNewUpload = $request->hasFile('profile_picture');
         if ($hasNewUpload) {
@@ -366,11 +384,15 @@ class AdminController extends Controller
 
         $driver->load(['vehicle']);
 
-        $this->activityLogService->record(
-            ActivityLogCategory::PERSONNEL,
-            "Updated driver {$driver->first_name} {$driver->last_name}",
-            $request->user(),
-        );
+        $changes = $this->personnelChanges($before, $driver, self::DRIVER_LOG_FIELDS, $oldPictureUrl, $newPictureUrl);
+        if ($changes !== []) {
+            $this->activityLogService->record(
+                ActivityLogCategory::PERSONNEL,
+                "Updated driver {$driver->first_name} {$driver->last_name}: ".ActivityLogService::changedFields($changes),
+                $request->user(),
+                $changes,
+            );
+        }
 
         return $this->successResponse($driver, 'Driver updated successfully');
     }
@@ -495,6 +517,14 @@ class AdminController extends Controller
 
         $driver = $driver->fresh();
 
+        // A license is an identity document, so who replaced it is recorded.
+        $sides = implode(' and ', array_keys($uploads));
+        $this->activityLogService->record(
+            ActivityLogCategory::PERSONNEL,
+            "Uploaded the {$sides} license image for driver {$driver->first_name} {$driver->last_name}",
+            $request->user(),
+        );
+
         return $this->successResponse([
             'id' => $driver->id,
             'license_front_image_url' => $driver->license_front_image_url,
@@ -506,7 +536,7 @@ class AdminController extends Controller
      * DELETE /api/v1/admin/drivers/{id}/license-images/{side}
      * Removes one side of a driver's license document.
      */
-    public function destroyDriverLicenseImage(string $id, string $side): JsonResponse
+    public function destroyDriverLicenseImage(Request $request, string $id, string $side): JsonResponse
     {
         abort_unless(in_array($side, ['front', 'back'], true), 404);
 
@@ -521,6 +551,12 @@ class AdminController extends Controller
             // that no longer exists.
             $driver->update([$column => null]);
             Storage::disk(config('filesystems.uploads.private_id_disk', 'r2_private'))->delete($path);
+
+            $this->activityLogService->record(
+                ActivityLogCategory::PERSONNEL,
+                "Removed the {$side} license image for driver {$driver->first_name} {$driver->last_name}",
+                $request->user(),
+            );
         }
 
         return $this->successResponse(null, 'License image removed successfully');
@@ -1005,6 +1041,7 @@ class AdminController extends Controller
         ]);
 
         $oldPictureUrl = $conductor->profile_picture_url;
+        $before = $conductor->only(array_keys(self::CONDUCTOR_LOG_FIELDS));
         $newPictureUrl = $oldPictureUrl;
         $hasNewUpload = $request->hasFile('profile_picture');
         if ($hasNewUpload) {
@@ -1037,11 +1074,15 @@ class AdminController extends Controller
 
         $conductor->load(['vehicle.route', 'vehicle.driver']);
 
-        $this->activityLogService->record(
-            ActivityLogCategory::PERSONNEL,
-            "Updated conductor {$conductor->first_name} {$conductor->last_name}",
-            $request->user(),
-        );
+        $changes = $this->personnelChanges($before, $conductor, self::CONDUCTOR_LOG_FIELDS, $oldPictureUrl, $newPictureUrl);
+        if ($changes !== []) {
+            $this->activityLogService->record(
+                ActivityLogCategory::PERSONNEL,
+                "Updated conductor {$conductor->first_name} {$conductor->last_name}: ".ActivityLogService::changedFields($changes),
+                $request->user(),
+                $changes,
+            );
+        }
 
         return $this->successResponse($conductor, 'Conductor updated successfully');
     }
@@ -1535,6 +1576,25 @@ class AdminController extends Controller
             (float) $request->validated('cash_declared'),
         );
 
+        // The admin's count settles the remittance, so who counted what is
+        // part of the audit trail.
+        $peso = fn ($amount) => '₱'.number_format((float) $amount, 2);
+        $result = match ($remittance->remittance_status) {
+            Remittance::STATUS_SHORTAGE => 'short by '.$peso($remittance->shortage),
+            Remittance::STATUS_OVERAGE => 'over by '.$peso($remittance->overage),
+            default => 'matches the expected cash',
+        };
+        $this->activityLogService->record(
+            ActivityLogCategory::REMITTANCE,
+            "Declared {$peso($remittance->remitted_amount)} cash for unit {$remittance->unit_number} ({$remittance->conductor_name}): {$result}",
+            $request->user(),
+            [
+                ['field' => 'Status', 'from' => 'Pending', 'to' => ucfirst(strtolower($remittance->remittance_status))],
+                ['field' => 'Expected cash', 'from' => null, 'to' => $peso($remittance->cash_total)],
+                ['field' => 'Cash declared', 'from' => null, 'to' => $peso($remittance->remitted_amount)],
+            ],
+        );
+
         return $this->successResponse($remittance->load(['shift', 'vehicle', 'driver']), 'Cash declaration recorded');
     }
 
@@ -1612,5 +1672,22 @@ class AdminController extends Controller
             ->withQueryString();
 
         return $this->successResponse($shiftLogs, 'Shift logs retrieved');
+    }
+
+    /**
+     * Before/after values for a personnel edit, plus the photo, which is
+     * logged as replaced/removed rather than as storage URLs.
+     *
+     * @param  array<string, string>  $fields
+     * @return list<array{field: string, from: ?string, to: ?string}>
+     */
+    private function personnelChanges(array $before, Driver|ConductorProfile $after, array $fields, ?string $oldPhoto, ?string $newPhoto): array
+    {
+        $changes = ActivityLogService::diff($before, $after->only(array_keys($fields)), $fields);
+        if ($oldPhoto !== $newPhoto) {
+            $changes[] = ['field' => 'Photo', 'from' => $oldPhoto ? 'Previous photo' : null, 'to' => $newPhoto ? 'New photo' : null];
+        }
+
+        return $changes;
     }
 }

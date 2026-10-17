@@ -6,6 +6,7 @@ use App\Enums\HailStatus;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Enums\ShiftStatus;
+use App\Models\ActivityLog;
 use App\Models\Announcement;
 use App\Models\Driver;
 use App\Models\Hail;
@@ -256,6 +257,64 @@ class OperationalLifecycleTest extends TestCase
         $this->assertSame('75.00', $remittance->remitted_amount);
         $this->assertSame('25.00', $remittance->shortage);
         $this->assertNotNull($remittance->remitted_at);
+    }
+
+    public function test_cash_declaration_is_recorded_in_the_activity_log(): void
+    {
+        $admin = User::factory()->admin()->create();
+        [$conductor, , , , $shift] = $this->activeShift();
+        $this->fare($shift, PaymentMethod::CASH, PaymentStatus::PAID, 100);
+        app(ShiftCloseoutService::class)->close($shift->shift_id, null, ShiftCloseoutService::REASON_MANUAL, $conductor->id);
+
+        $this->actingAs($admin)
+            ->postJson("/api/v1/admin/remittances/{$shift->shift_id}/cash-declaration", ['cash_declared' => 75])
+            ->assertOk();
+
+        $entry = ActivityLog::where('category', 'REMITTANCE')->sole();
+        $this->assertSame($admin->id, $entry->actor_id);
+        $this->assertSame('ADMIN', $entry->actor_role);
+        $this->assertStringContainsString('Declared ₱75.00 cash', $entry->description);
+        $this->assertStringContainsString('short by ₱25.00', $entry->description);
+        $this->assertContains(['field' => 'Status', 'from' => 'Pending', 'to' => 'Shortage'], $entry->changes);
+
+        // A rejected second declaration logs nothing.
+        $this->actingAs($admin)
+            ->postJson("/api/v1/admin/remittances/{$shift->shift_id}/cash-declaration", ['cash_declared' => 100])
+            ->assertStatus(409);
+        $this->assertSame(1, ActivityLog::where('category', 'REMITTANCE')->count());
+    }
+
+    public function test_automatic_closeout_is_logged_once_as_a_system_event_and_manual_closeout_is_not(): void
+    {
+        [, , , , $staleShift] = $this->activeShift(now()->subHours(13));
+        $this->fare($staleShift, PaymentMethod::CASH, PaymentStatus::PAID, 80);
+        Setting::create(['key' => 'max_shift_hours', 'value' => '12', 'category' => 'operations']);
+
+        $this->artisan('shifts:auto-end-stale')->assertSuccessful();
+        $this->artisan('shifts:auto-end-stale')->assertSuccessful();
+
+        $entry = ActivityLog::where('category', 'SHIFT')->sole();
+        $this->assertNull($entry->actor_id);
+        $this->assertSame('SYSTEM', $entry->actor_role);
+        $this->assertStringContainsString($staleShift->unit_number, $entry->description);
+        $this->assertContains(['field' => 'Remittance', 'from' => null, 'to' => 'Pending (₱80.00 cash expected)'], $entry->changes);
+
+        [$conductor, , , , $manualShift] = $this->activeShift();
+        app(ShiftCloseoutService::class)->close($manualShift->shift_id, 0, ShiftCloseoutService::REASON_MANUAL, $conductor->id);
+        $this->assertSame(1, ActivityLog::where('category', 'SHIFT')->count());
+    }
+
+    public function test_midnight_sweep_entry_says_the_shift_was_still_open_at_midnight(): void
+    {
+        [, , , , $shift] = $this->activeShift(now('Asia/Manila')->startOfDay()->subMinutes(30));
+
+        $this->artisan('shifts:auto-end-stale --all')->assertSuccessful();
+
+        $this->assertStringContainsString(
+            'still open at midnight',
+            ActivityLog::where('category', 'SHIFT')->sole()->description,
+        );
+        $this->assertSame(ShiftStatus::ENDED, $shift->fresh()->status);
     }
 
     public function test_admin_cannot_declare_cash_twice_for_the_same_remittance(): void

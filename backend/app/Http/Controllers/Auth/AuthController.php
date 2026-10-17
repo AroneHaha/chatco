@@ -13,6 +13,7 @@ use App\Models\CommuterProfile;
 use App\Models\User;
 use App\Rules\PhilippineMobileNumber;
 use App\Rules\StrongPassword;
+use App\Services\ActivityLogService;
 use App\Services\AuthService;
 use App\Services\EmailVerificationService;
 use App\Services\RegistrationGuard;
@@ -49,6 +50,7 @@ class AuthController extends Controller
         private AuthService $authService,
         private EmailVerificationService $emailVerification,
         private RegistrationGuard $registrationGuard,
+        private ActivityLogService $activityLog,
     ) {}
 
     public function login(Request $request): JsonResponse
@@ -444,6 +446,12 @@ class AuthController extends Controller
 
             DB::table('password_reset_tokens')->where('email', $email)->delete();
         });
+
+        $this->activityLog->record(
+            ActivityLogService::accountCategory($user),
+            'Reset their password with an email code; signed out of every device',
+            $user,
+        );
 
         return $this->successResponse(null, 'Password reset successfully. You can now log in.');
     }

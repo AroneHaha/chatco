@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ActivityLogCategory;
 use App\Enums\UserRole;
 use App\Exceptions\AccountSuspendedException;
 use App\Exceptions\MaintenanceException;
@@ -34,6 +35,7 @@ class AuthService
         private RegistrationGuard $registrationGuard,
         private EmailVerificationService $emailVerification,
         private AnnouncementService $announcementService,
+        private ActivityLogService $activityLog,
     ) {}
 
     /**
@@ -54,6 +56,11 @@ class AuthService
         $user = $this->resolveLoginUser($login);
 
         if (! $user || ! Hash::check($password, $user->password ?? self::DUMMY_PASSWORD_HASH)) {
+            // Only admin accounts: commuter/conductor attempts would bury the
+            // log, and an unknown login name is attacker-chosen text.
+            if ($user?->isAdmin()) {
+                $this->activityLog->record(ActivityLogCategory::ACCOUNT, 'Failed sign-in attempt (wrong password)', $user);
+            }
             throw ValidationException::withMessages([
                 'login' => ['The provided credentials are incorrect.'],
             ]);
@@ -200,7 +207,7 @@ class AuthService
                 // survive indefinitely (Sanctum tokens never expire).
                 $lockedUser->tokens()->whereIn('name', [$tokenName, 'auth-token'])->delete();
             } else {
-                $lockedUser->tokens()->delete();
+                $endedSessions = $lockedUser->tokens()->delete();
                 $deviceType = null; // force generic token name below
             }
 
@@ -211,8 +218,19 @@ class AuthService
             return [
                 'token' => $lockedUser->createToken($tokenName)->plainTextToken,
                 'handoff' => $handoff,
+                'ended_sessions' => $endedSessions ?? 0,
             ];
         }, 3);
+
+        if ($user->isAdmin()) {
+            // Admins are single-session, so a sign-in elsewhere signs the
+            // previous device out; that's worth knowing when auditing.
+            $this->activityLog->record(
+                ActivityLogCategory::ACCOUNT,
+                $loginResult['ended_sessions'] > 0 ? 'Signed in and ended the session on another device' : 'Signed in',
+                $user,
+            );
+        }
 
         if ($loginResult['handoff'] !== null) {
             Log::notice('Conductor active shift moved to a newly logged-in device.', [
@@ -268,6 +286,10 @@ class AuthService
     public function logout(User $user): void
     {
         $user->currentAccessToken()->delete();
+
+        if ($user->isAdmin()) {
+            $this->activityLog->record(ActivityLogCategory::ACCOUNT, 'Signed out', $user);
+        }
     }
 
     /**
@@ -420,6 +442,11 @@ class AuthService
                     "New registration: {$applicantName}",
                     "{$applicantName} signed up and is awaiting verification.",
                     $user->id,
+                ));
+                DB::afterCommit(fn () => $this->activityLog->record(
+                    ActivityLogCategory::MEMBER,
+                    'Signed up as a '.ucfirst(strtolower($profile->applied_type)).' commuter; awaiting verification',
+                    $user,
                 ));
 
                 return [

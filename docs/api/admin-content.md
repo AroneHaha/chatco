@@ -73,7 +73,7 @@ Creates or updates one key. There's no `POST` — the first save of a brand-new 
 - **`rides_for_free_reward`** — writes inside a locked transaction and **bumps `reward_rule_version`** only when the value actually changed (not on every save of the same number). This is deliberately **non-retroactive**: a voucher or an in-progress ride-count tied to an earlier version keeps being evaluated against the threshold that was active when it started, so lowering the threshold never retroactively grants (or revokes) a reward for rides already in progress. Also clears the 5-minute `settings.reward_rule` cache.
 - **`speed_limit_kmh`** — clears the `overspeed.limit_kmh` cache key, so the new limit takes effect on the very next GPS ping rather than waiting out the normal cache TTL (see [conductor.md](conductor.md#post-conductorlocation), which documents the up-to-60-second propagation delay when the cache *isn't* explicitly busted).
 
-**200 OK:** `{key, value, category}`, `message: "Setting updated successfully"`. Logged as `SETTINGS` ("Updated setting {key} to {value}" — the raw value is written straight into the audit description, so a long template save shows up truncated at 500 characters, see [admin-operations.md](admin-operations.md#activity-logs-audit-trail)).
+**200 OK:** `{key, value, category}`, `message: "Setting updated successfully"`. Logged as `SETTINGS` only when the value actually changes, with a readable label and the old and new values (e.g. "Changed Overspeeding limit (km/h) from 60 to 80"; long values such as templates stay in the entry's `changes`), see [admin-operations.md](admin-operations.md#activity-logs-audit-trail).
 
 ### Category → key map
 

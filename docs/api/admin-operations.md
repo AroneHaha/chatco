@@ -30,6 +30,7 @@ All paths are relative to `/api/v1`. Conventions are in [README.md](README.md). 
   - [GET /admin/feedback](#get-adminfeedback)
 - [Activity logs (audit trail)](#activity-logs-audit-trail)
   - [GET /admin/activity-logs](#get-adminactivity-logs)
+  - [GET /admin/activity-logs/export](#get-adminactivity-logsexport)
 - [Known quirks](#known-quirks)
 
 ---
@@ -323,42 +324,59 @@ Staff performance review — opened from User Management by double-clicking a dr
 
 ### GET /admin/activity-logs
 
-The **admin-action audit trail** — one row per mutating admin action, across every admin controller. This is distinct from [GET /admin/users/{id}/activity](admin-people.md#get-adminusersidactivity), which is a best-effort **per-user** timeline assembled from business tables, not an audit log.
+The **audit trail** — one row per mutating admin action, per commuter change to their own account, and per automatic system event (shift auto-ended, SOS raised, lost items expired…). This is distinct from [GET /admin/users/{id}/activity](admin-people.md#get-adminusersidactivity), which is a best-effort **per-user** timeline assembled from business tables, not an audit log.
 
 - **Limiter:** conductor-read (60/min)
 - **Service:** `ActivityLogService::listForAdmin`
 
-**How rows get written:** `ActivityLogService::record(category, description, actor)` is called directly from the controller layer, right after a mutating action succeeds — not threaded through every service method. It **never throws**: a logging failure is caught and written to the application log instead, so a broken audit write can never roll back or fail the real admin action that triggered it. Every admin controller in this project calls it after create/update/delete/approve/reject/etc. — see the per-endpoint "Logged as `X`" notes throughout these four admin docs for exactly which action produces which category.
+**How rows get written:** `ActivityLogService::record(category, description, actor, changes)` is called right after an action succeeds — mostly from the controller layer, and from the services/commands for system events. It **never throws**: a logging failure is caught and written to the application log instead, so a broken audit write can never roll back or fail the real action that triggered it. See the per-endpoint "Logged as `X`" notes throughout these four admin docs for exactly which action produces which category.
 
-**The 13 categories** (`App\Enums\ActivityLogCategory`):
+- **Actor:** `actor_name` and `actor_role` (`ADMIN`, `COMMUTER`, `CONDUCTOR`, or `SYSTEM` when no person did it) are snapshotted at write time, so a later rename or deletion doesn't rewrite history.
+- **Changes:** edits store `changes`, a list of `{field, from, to}` with readable labels and values (route/driver names instead of ids, `On`/`Off` instead of `true`/`false`). Built by `ActivityLogService::diff()`, which ignores formatting-only differences (`17` vs `17.00`).
+- **No-op saves write nothing:** an update whose values didn't change (including settings pages re-saving every key) produces no entry.
+
+**The 16 categories** (`App\Enums\ActivityLogCategory`):
 
 | Category | Written by |
 |---|---|
-| `MEMBER` | User update/delete/suspend/unsuspend ([admin-people.md](admin-people.md#users)), registration approve/reject/onsite-create |
-| `PERSONNEL` | Driver/conductor create/update/delete/disable/reset-credentials |
+| `MEMBER` | User update/delete/suspend/unsuspend ([admin-people.md](admin-people.md#users)), registration approve/reject/onsite-create, discount application review. Commuter's own actions: sign-up, profile (contact number, language) and photo edits, sign-in email change, password change/reset, discount application submit/resubmit/cancel. System: student discount expired |
+| `PERSONNEL` | Driver/conductor create/update/delete/disable/reset-credentials, driver license image upload/remove; a conductor's own password reset |
 | `VEHICLE` | Vehicle create/update/delete |
 | `ROUTE` | Route create/update/delete/publish |
 | `FARE_POINT` | Fare point create/update/delete/reorder |
-| `SETTINGS` | Any `PUT /admin/settings/{key}` |
+| `SETTINGS` | `PUT /admin/settings/{key}` when the value actually changes |
 | `VOUCHER` | Voucher generate/delete |
 | `REMITTANCE_OPTION` | Remittance option create/update/delete |
 | `FAQ` | FAQ create/update/delete |
 | `ANNOUNCEMENT` | Announcement create/update/archive |
-| `LOST_FOUND` | Lost item create/update/photo add, claim approve/release/reject/manual, reactivate, close |
-| `SOS` | Acknowledge/resolve |
+| `LOST_FOUND` | Lost item create/update/photo add/replace/remove, claim approve/release/reject/manual, reactivate, close. System: items archived after the expiry window, approved claims not collected on their pickup day |
+| `SOS` | Admin acknowledge/resolve; SOS raised or stopped by the commuter/conductor |
+| `SHIFT` | System: a shift ended automatically (max shift duration, or still open at midnight), with its remittance outcome |
 | `SHIFT_DEVICE` | Admin device recovery |
+| `REMITTANCE` | Admin cash declaration on a pending remittance (declared vs expected, shortage/overage) |
+| `ACCOUNT` | An admin's own account: sign-in (noting when it ended a session on another device), failed sign-in, sign-out, password change/reset. Commuter/conductor sign-ins are not logged |
 
 **Query**
 
 | Param | Rules |
 |---|---|
-| `category` | Exact match against one of the 13 above |
-| `search` | Matches the log's description **or** the acting admin's display name — the search box's own placeholder reads "Search activity or admin name…" |
+| `category` | Exact match against one of the 16 above |
+| `search` | Matches the log's description **or** the actor's display name |
+| `actor_role` | `ADMIN`, `COMMUTER`, `CONDUCTOR` or `SYSTEM`; anything else is ignored |
 | `date` | Exact `Y-m-d` — wins over `date_range` if both are somehow sent |
 | `date_range` | `today`, `last_7_days`, `last_30_days`, or `all`/anything unrecognized (no filter) — **a different set than every other admin list's date-range filter** (see [Known quirks](#known-quirks)) |
-| `per_page` | Default 30 |
+| `per_page` | Default 30, clamped to 1–100 |
 
-**200 OK:** a Laravel paginator, newest first, each row `{id, category, description, actor_id, actor_name, created_at}`. `description` is truncated to 500 characters at write time (`Str::limit`). This endpoint is **read-only** — there is no way to delete or edit a log entry through the API.
+**200 OK:** a Laravel paginator, newest first, each row `{id, category, description, changes, actor_id, actor_name, actor_role, created_at}`. `description` is truncated to 500 characters at write time (`Str::limit`); each changed value to 200. `actor_role` is null only on rows written before roles were recorded whose actor has since been deleted. This endpoint is **read-only** — there is no way to delete or edit a log entry through the API.
+
+### GET /admin/activity-logs/export
+
+Every row matching the same filters as the list (`category`, `search`, `actor_role`, `date`, `date_range`), newest first, for the page's PDF/Excel/Word export.
+
+- **Limiter:** conductor-read (60/min)
+- **Service:** `ActivityLogService::exportForAdmin`
+
+**200 OK:** `{data: [rows, same shape as the list], total}`. `data` is capped at `ActivityLogService::EXPORT_LIMIT` (5,000) rows; `total` is the full match count, so a client can tell when the export was cut short.
 
 ---
 

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ActivityLogCategory;
 use App\Enums\UserRole;
 use App\Models\SosAlert;
 use App\Models\User;
@@ -40,6 +41,7 @@ class SosService
 
     public function __construct(
         private AnnouncementService $announcementService,
+        private ActivityLogService $activityLog,
     ) {}
 
     /**
@@ -63,6 +65,7 @@ class SosService
 
         $this->sendSosEmailToAdmin($alert, $commuter);
         $this->notifySosToAdmins($alert);
+        $this->activityLog->record(ActivityLogCategory::SOS, 'Raised an emergency SOS', $commuter);
 
         return $alert;
     }
@@ -89,6 +92,7 @@ class SosService
 
         $this->sendSosEmailToAdmin($alert, $conductor);
         $this->notifySosToAdmins($alert);
+        $this->activityLog->record(ActivityLogCategory::SOS, 'Raised an emergency SOS', $conductor);
 
         return $alert;
     }
@@ -268,6 +272,7 @@ class SosService
                 "{$this->senderName($alert)} stopped their emergency SOS alert.",
                 $alert->id,
             );
+            $this->activityLog->record(ActivityLogCategory::SOS, 'Stopped their emergency SOS', $sender);
 
             return $alert->fresh(['commuter', 'conductor', 'resolver']);
         }, 3);

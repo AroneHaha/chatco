@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Commuter;
 
+use App\Enums\ActivityLogCategory;
 use App\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Commuter\UpdateLocationRequest;
@@ -10,6 +11,7 @@ use App\Models\CommuterLocation;
 use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\Voucher;
+use App\Services\ActivityLogService;
 use App\Services\CommuterService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -20,7 +22,8 @@ class CommuterController extends Controller
     use ApiResponse;
 
     public function __construct(
-        private CommuterService $commuterService
+        private CommuterService $commuterService,
+        private ActivityLogService $activityLog,
     ) {}
 
     /**
@@ -48,6 +51,9 @@ class CommuterController extends Controller
      */
     public function updateProfile(UpdateProfileRequest $request): JsonResponse
     {
+        $fields = ['contact_number' => 'Contact number', 'language_preference' => 'Language'];
+        $before = $request->user()->commuterProfile?->only(array_keys($fields)) ?? [];
+
         $payload = $this->commuterService->updateProfile(
             $request->user(),
             $request->validated(),
@@ -55,6 +61,17 @@ class CommuterController extends Controller
 
         if ($payload === null) {
             return $this->errorResponse('Commuter profile not found', 404);
+        }
+
+        // The commuter's own edit, so admins can see when and what changed.
+        $changes = ActivityLogService::diff($before, $payload['profile'], $fields);
+        if ($changes !== []) {
+            $this->activityLog->record(
+                ActivityLogCategory::MEMBER,
+                'Updated their profile: '.ActivityLogService::changedFields($changes),
+                $request->user(),
+                $changes,
+            );
         }
 
         return $this->successResponse($payload, 'Profile updated');
@@ -69,6 +86,8 @@ class CommuterController extends Controller
         if ($payload === null) {
             return $this->errorResponse('Commuter profile not found', 404);
         }
+
+        $this->activityLog->record(ActivityLogCategory::MEMBER, 'Changed their profile photo', $request->user());
 
         return $this->successResponse($payload, 'Profile photo updated');
     }

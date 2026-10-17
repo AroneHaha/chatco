@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\ChangePasswordRequest;
 use App\Http\Requests\Auth\ConfirmPasswordChangeRequest;
+use App\Services\ActivityLogService;
 use App\Services\EmailVerificationService;
 use App\Services\PasswordChangeService;
 use App\Traits\ApiResponse;
@@ -25,7 +26,8 @@ class PasswordChangeController extends Controller
 
     public function __construct(
         private PasswordChangeService $passwordChange,
-        private EmailVerificationService $emailVerification
+        private EmailVerificationService $emailVerification,
+        private ActivityLogService $activityLog,
     ) {}
 
     /**
@@ -105,6 +107,12 @@ class PasswordChangeController extends Controller
             $validated['current_password'],
             $validated['password'],
             $validated['code'],
+        );
+
+        $this->activityLog->record(
+            ActivityLogService::accountCategory($request->user()),
+            'Changed their password; signed out of other devices',
+            $request->user(),
         );
 
         return $this->successResponse(null, 'Password updated successfully');

@@ -407,10 +407,11 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::get('/feedback', [AdminFeedbackController::class, 'index'])->middleware('throttle:conductor-read');
 
     // ── Activity Logs (audit trail) ─────────────────────────────
-    // Read-only admin audit trail — every admin-mutating action across the
-    // panel writes one row via ActivityLogService::record(). See the 13
+    // Read-only audit trail — admin actions, commuter account changes and
+    // system events, each written via ActivityLogService::record(). See the
     // categories in App\Enums\ActivityLogCategory.
     Route::get('/activity-logs', [AdminActivityLogController::class, 'index'])->middleware('throttle:conductor-read');
+    Route::get('/activity-logs/export', [AdminActivityLogController::class, 'export'])->middleware('throttle:conductor-read');
 });
 
 /*

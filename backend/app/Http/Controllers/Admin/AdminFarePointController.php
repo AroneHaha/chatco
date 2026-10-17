@@ -101,6 +101,7 @@ class AdminFarePointController extends Controller
     {
         $farePoint = FarePoint::findOrFail($id);
         $originalRouteId = $farePoint->route_id;
+        $before = $this->farePointSnapshot($farePoint);
 
         $validated = $request->validated();
         $routeFieldsChanged = collect(['route_id', 'point_number', 'latitude', 'longitude'])
@@ -133,11 +134,25 @@ class AdminFarePointController extends Controller
             );
         }
 
-        $this->activityLogService->record(
-            ActivityLogCategory::FARE_POINT,
-            "Updated fare point {$farePoint->name}",
-            $request->user(),
-        );
+        $changes = ActivityLogService::diff($before, $this->farePointSnapshot($farePoint), [
+            'route' => 'Route',
+            'point_number' => 'Point number',
+            'code' => 'Code',
+            'name' => 'Name',
+            'sub_stops' => 'Sub pickup / drop-off points',
+            'landmarks' => 'Landmarks',
+            'regular_fare' => 'Regular fare',
+            'discounted_fare' => 'Discounted fare',
+            'location' => 'Location',
+        ]);
+        if ($changes !== []) {
+            $this->activityLogService->record(
+                ActivityLogCategory::FARE_POINT,
+                "Updated fare point {$farePoint->name}: ".ActivityLogService::changedFields($changes),
+                $request->user(),
+                $changes,
+            );
+        }
 
         return $this->successResponse(
             $farePoint,
@@ -210,5 +225,25 @@ class AdminFarePointController extends Controller
             $route->farePoints()->orderBy('point_number')->get(),
             'Fare Points reordered. Review and publish the updated route draft.'
         );
+    }
+
+    /** The fare point as admins read it: route by name, one location value. */
+    private function farePointSnapshot(FarePoint $farePoint): array
+    {
+        $farePoint->loadMissing('route:id,name');
+
+        return [
+            'route' => $farePoint->route?->name,
+            'point_number' => $farePoint->point_number,
+            'code' => $farePoint->code,
+            'name' => $farePoint->name,
+            'sub_stops' => $farePoint->sub_stops,
+            'landmarks' => $farePoint->landmarks,
+            'regular_fare' => $farePoint->regular_fare,
+            'discounted_fare' => $farePoint->discounted_fare,
+            'location' => $farePoint->latitude !== null && $farePoint->longitude !== null
+                ? number_format((float) $farePoint->latitude, 6).', '.number_format((float) $farePoint->longitude, 6)
+                : null,
+        ];
     }
 }

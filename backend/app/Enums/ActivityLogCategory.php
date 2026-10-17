@@ -16,5 +16,9 @@ enum ActivityLogCategory: string
     case ANNOUNCEMENT = 'ANNOUNCEMENT';
     case LOST_FOUND = 'LOST_FOUND';
     case SOS = 'SOS';
+    case SHIFT = 'SHIFT';
     case SHIFT_DEVICE = 'SHIFT_DEVICE';
+    case REMITTANCE = 'REMITTANCE';
+    // An admin's own account: sign-in, sign-out, password changes.
+    case ACCOUNT = 'ACCOUNT';
 }
