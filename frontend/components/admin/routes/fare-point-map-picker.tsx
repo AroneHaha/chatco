@@ -56,13 +56,13 @@ export default function FarePointMapPicker({ value, onChange, routeGeometry = []
   }, [routeGeometry, value]);
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#050F1A]">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 px-3 py-2.5">
-        <div className="flex items-center gap-2 text-xs text-white/60">
-          <Crosshair size={14} className="text-[#62A0EA]" />
+    <div className="overflow-hidden rounded-2xl border border-white/10 admin-light:border-[#CBD5E1] bg-[#050F1A] admin-light:bg-[#F8FAFC]">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 admin-light:border-[#CBD5E1] px-3 py-2.5">
+        <div className="flex items-center gap-2 text-xs text-white/60 admin-light:text-slate-600">
+          <Crosshair size={14} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />
           Click the exact stop on the map, then drag the orange marker to adjust.
         </div>
-        <div className="flex items-center gap-1.5 text-[10px] text-white/35">
+        <div className="flex items-center gap-1.5 text-[10px] text-white/35 admin-light:text-slate-500">
           <MapPin size={12} />
           {value ? `${value[0].toFixed(6)}, ${value[1].toFixed(6)}` : "No location selected"}
         </div>

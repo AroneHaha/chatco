@@ -315,33 +315,33 @@ export default function RouteEditor({ route, farePoints, onRouteChanged, onEditF
   };
 
   return (
-    <section className="min-w-0 space-y-4 rounded-2xl border border-[#62A0EA]/20 bg-[#071A2E] p-5">
+    <section className="min-w-0 space-y-4 rounded-2xl border border-[#62A0EA]/20 admin-light:border-[#1A5FB4]/20 bg-[#071A2E] admin-light:bg-white p-5">
       <div className="flex flex-col gap-3 @[40rem]/fare-matrix:flex-row @[40rem]/fare-matrix:items-start @[40rem]/fare-matrix:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <GitBranch className="shrink-0 text-[#62A0EA]" size={20} />
-            <h2 className="font-bold text-white">Published Route Editor</h2>
+            <GitBranch className="shrink-0 text-[#62A0EA] admin-light:text-[#1A5FB4]" size={20} />
+            <h2 className="font-bold text-white admin-light:text-slate-900">Published Route Editor</h2>
           </div>
-          <p className="mt-1 max-w-2xl text-xs text-white/45">
+          <p className="mt-1 max-w-2xl text-xs text-white/45 admin-light:text-slate-500">
             Use Insert Correction to fix a middle street, or Extend Route to add at the end. Drag numbered points to fine-tune. Changes remain drafts until published.
           </p>
         </div>
-        <div className="shrink-0 rounded-xl border border-white/10 bg-[#050F1A] px-4 py-2 text-xs text-white/60">
-          <p>Live version: <span className="font-bold text-white">{route.active_version ? `v${route.active_version.number}` : "None"}</span></p>
+        <div className="shrink-0 rounded-xl border border-white/10 admin-light:border-[#CBD5E1] bg-[#050F1A] admin-light:bg-[#F8FAFC] px-4 py-2 text-xs text-white/60 admin-light:text-slate-600">
+          <p>Live version: <span className="font-bold text-white admin-light:text-slate-900">{route.active_version ? `v${route.active_version.number}` : "None"}</span></p>
           <p className="mt-0.5">{route.active_version?.is_temporary ? "Temporary detour active" : "Permanent route"}</p>
         </div>
       </div>
 
-      {error && <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>}
-      {message && <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">{message}</div>}
+      {error && <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300 admin-light:text-red-700">{error}</div>}
+      {message && <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300 admin-light:text-emerald-700">{message}</div>}
       {detourWarnings.length > 0 && (
         <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3">
-          <p className="text-sm font-bold text-amber-200">
+          <p className="text-sm font-bold text-amber-200 admin-light:text-amber-800">
             {waypointSource === "fare_points"
               ? "Some old Point Area pins are misplaced. Your live route was kept unchanged."
               : "The preview contains an unusually long road detour."}
           </p>
-          <p className="mt-1 text-xs leading-relaxed text-amber-100/65">
+          <p className="mt-1 text-xs leading-relaxed text-amber-100/65 admin-light:text-amber-800/80">
             {waypointSource === "fare_points"
               ? "You can keep using the safe live route now, then correct these locations through the map picker when convenient."
               : "Check the red control points on the map. If the detour is intentional, you may continue and save the draft."}
@@ -357,7 +357,7 @@ export default function RouteEditor({ route, farePoints, onRouteChanged, onEditF
                 key={point.id}
                 type="button"
                 onClick={() => onEditFarePoint?.(point.point_number)}
-                className="rounded-lg border border-amber-300/30 px-3 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-300/10"
+                className="rounded-lg border border-amber-300/30 px-3 py-2 text-xs font-semibold text-amber-100 admin-light:text-amber-800 hover:bg-amber-300/10"
               >
                 Fix {point.name}
               </button>
@@ -368,7 +368,7 @@ export default function RouteEditor({ route, farePoints, onRouteChanged, onEditF
 
       {/* Stack in the drawer; stretch beside the controls when the page has room. */}
       <div className="grid min-w-0 items-stretch gap-4 @[56rem]/fare-matrix:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="relative h-120 min-w-0 overflow-hidden rounded-2xl border border-white/10 @[56rem]/fare-matrix:h-auto @[56rem]/fare-matrix:min-h-120">
+        <div className="relative h-120 min-w-0 overflow-hidden rounded-2xl border border-white/10 admin-light:border-[#CBD5E1] @[56rem]/fare-matrix:h-auto @[56rem]/fare-matrix:min-h-120">
           <div className="absolute inset-0">
             <MapContainer center={mapCenter} zoom={12} className="h-full w-full" attributionControl>
               <TileLayer
@@ -402,55 +402,55 @@ export default function RouteEditor({ route, farePoints, onRouteChanged, onEditF
         </div>
 
         <div className="min-w-0 space-y-3">
-          <div className="grid grid-cols-2 gap-2 rounded-xl border border-white/10 bg-[#050F1A] p-1.5">
+          <div className="grid grid-cols-2 gap-2 rounded-xl border border-white/10 admin-light:border-[#CBD5E1] bg-[#050F1A] admin-light:bg-[#F8FAFC] p-1.5">
             <button
               type="button"
               onClick={() => setMapClickMode("insert")}
-              className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[11px] font-bold transition-colors ${mapClickMode === "insert" ? "bg-[#1A5FB4] text-white" : "text-white/45 hover:bg-white/5"}`}
+              className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[11px] font-bold transition-colors ${mapClickMode === "insert" ? "bg-[#1A5FB4] text-white" : "text-white/45 admin-light:text-slate-500 hover:bg-white/5 admin-light:hover:bg-slate-100"}`}
             >
               <ListPlus size={13} /> Insert Correction
             </button>
             <button
               type="button"
               onClick={() => setMapClickMode("append")}
-              className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[11px] font-bold transition-colors ${mapClickMode === "append" ? "bg-[#1A5FB4] text-white" : "text-white/45 hover:bg-white/5"}`}
+              className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[11px] font-bold transition-colors ${mapClickMode === "append" ? "bg-[#1A5FB4] text-white" : "text-white/45 admin-light:text-slate-500 hover:bg-white/5 admin-light:hover:bg-slate-100"}`}
             >
               <Plus size={13} /> Extend Route
             </button>
           </div>
-          <p className="px-1 text-[10px] leading-relaxed text-white/35">
+          <p className="px-1 text-[10px] leading-relaxed text-white/35 admin-light:text-slate-500">
             {mapClickMode === "insert"
               ? "Click the intended road near a wrong middle segment. The correction is inserted at the closest part of the route."
               : "Click roads in travel order. Each click is added after the current final point."}
           </p>
 
-          <button type="button" onClick={() => setFitRequest((current) => current + 1)} className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 px-3 py-2.5 text-xs font-semibold text-white/60 hover:bg-white/5">
+          <button type="button" onClick={() => setFitRequest((current) => current + 1)} className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 admin-light:border-[#CBD5E1] px-3 py-2.5 text-xs font-semibold text-white/60 admin-light:text-slate-600 hover:bg-white/5 admin-light:hover:bg-slate-100">
             <LocateFixed size={14} /> Fit Entire Route
           </button>
 
           <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={useActiveRoute} disabled={!route.active_version} className="rounded-xl bg-white/5 px-3 py-2.5 text-xs font-semibold text-white/70 hover:bg-white/10 disabled:opacity-40">
+            <button type="button" onClick={useActiveRoute} disabled={!route.active_version} className="rounded-xl bg-white/5 admin-light:bg-slate-100 px-3 py-2.5 text-xs font-semibold text-white/70 admin-light:text-slate-700 hover:bg-white/10 admin-light:hover:bg-slate-200 disabled:opacity-40">
               Edit Live Route
             </button>
-            <button type="button" onClick={useFarePoints} className="rounded-xl bg-white/5 px-3 py-2.5 text-xs font-semibold text-white/70 hover:bg-white/10">
+            <button type="button" onClick={useFarePoints} className="rounded-xl bg-white/5 admin-light:bg-slate-100 px-3 py-2.5 text-xs font-semibold text-white/70 admin-light:text-slate-700 hover:bg-white/10 admin-light:hover:bg-slate-200">
               Build from Point Areas
             </button>
           </div>
 
-          <button type="button" onClick={() => { setMapClickMode("append"); setWaypointSource("manual"); markDirty([]); }} className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/20 px-3 py-2.5 text-xs font-semibold text-red-300 hover:bg-red-500/10">
+          <button type="button" onClick={() => { setMapClickMode("append"); setWaypointSource("manual"); markDirty([]); }} className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/20 px-3 py-2.5 text-xs font-semibold text-red-300 admin-light:text-red-700 hover:bg-red-500/10">
             <Trash2 size={14} /> Clear Control Points
           </button>
 
-          <div className="max-h-44 space-y-1 overflow-y-auto rounded-xl border border-white/10 bg-[#050F1A] p-2">
+          <div className="max-h-44 space-y-1 overflow-y-auto rounded-xl border border-white/10 admin-light:border-[#CBD5E1] bg-[#050F1A] admin-light:bg-[#F8FAFC] p-2">
             {waypoints.length === 0 ? (
-              <p className="px-2 py-4 text-center text-xs text-white/30">Click the map to add points.</p>
+              <p className="px-2 py-4 text-center text-xs text-white/30 admin-light:text-slate-500">Click the map to add points.</p>
             ) : waypoints.map((coordinate, index) => (
-              <div key={`${coordinate[0]}-${coordinate[1]}-list`} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5">
+              <div key={`${coordinate[0]}-${coordinate[1]}-list`} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5 admin-light:hover:bg-slate-100">
                 <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#1A5FB4] text-[9px] font-bold text-white">{index + 1}</span>
-                <span className="min-w-0 flex-1 truncate text-[10px] text-white/50">{coordinate[0].toFixed(6)}, {coordinate[1].toFixed(6)}</span>
-                <button type="button" onClick={() => moveWaypointOrder(index, -1)} disabled={index === 0} className="text-white/40 disabled:opacity-20">↑</button>
-                <button type="button" onClick={() => moveWaypointOrder(index, 1)} disabled={index === waypoints.length - 1} className="text-white/40 disabled:opacity-20">↓</button>
-                <button type="button" onClick={() => removeWaypoint(index)} className="text-red-300/70">×</button>
+                <span className="min-w-0 flex-1 truncate text-[10px] text-white/50 admin-light:text-slate-600">{coordinate[0].toFixed(6)}, {coordinate[1].toFixed(6)}</span>
+                <button type="button" onClick={() => moveWaypointOrder(index, -1)} disabled={index === 0} className="text-white/40 admin-light:text-slate-500 disabled:opacity-20">↑</button>
+                <button type="button" onClick={() => moveWaypointOrder(index, 1)} disabled={index === waypoints.length - 1} className="text-white/40 admin-light:text-slate-500 disabled:opacity-20">↓</button>
+                <button type="button" onClick={() => removeWaypoint(index)} className="text-red-300/70 admin-light:text-red-600">×</button>
               </div>
             ))}
           </div>
@@ -460,16 +460,16 @@ export default function RouteEditor({ route, farePoints, onRouteChanged, onEditF
             Generate Road Preview
           </button>
 
-          <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={2} placeholder="Reason for reroute or revision" className="w-full rounded-xl border border-white/10 bg-[#050F1A] px-3 py-2 text-xs text-white outline-none focus:border-[#62A0EA]" />
+          <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={2} placeholder="Reason for reroute or revision" className="w-full rounded-xl border border-white/10 admin-light:border-[#CBD5E1] bg-[#050F1A] admin-light:bg-[#F8FAFC] px-3 py-2 text-xs text-white admin-light:text-slate-900 outline-none focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4]" />
 
-          <button type="button" onClick={saveDraft} disabled={isSaving || previewGeometry.length < 2 || waypoints.length < 2 || (waypointSource === "fare_points" && detourWarnings.length > 0)} className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#62A0EA]/30 px-4 py-3 text-sm font-bold text-[#93C5FD] hover:bg-[#1A5FB4]/10 disabled:opacity-40">
+          <button type="button" onClick={saveDraft} disabled={isSaving || previewGeometry.length < 2 || waypoints.length < 2 || (waypointSource === "fare_points" && detourWarnings.length > 0)} className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#62A0EA]/30 admin-light:border-[#1A5FB4]/30 px-4 py-3 text-sm font-bold text-[#93C5FD] admin-light:text-[#1A5FB4] hover:bg-[#1A5FB4]/10 disabled:opacity-40">
             {isSaving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
             Save Draft
           </button>
 
           <div>
-            <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-white/35">Optional detour expiration</label>
-            <input type="datetime-local" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} className="w-full rounded-xl border border-white/10 bg-[#050F1A] px-3 py-2.5 text-xs text-white outline-none focus:border-[#62A0EA]" />
+            <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-white/35 admin-light:text-slate-500">Optional detour expiration</label>
+            <input type="datetime-local" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} className="w-full rounded-xl border border-white/10 admin-light:border-[#CBD5E1] bg-[#050F1A] admin-light:bg-[#F8FAFC] px-3 py-2.5 text-xs text-white admin-light:text-slate-900 outline-none focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4]" />
           </div>
 
           <button type="button" onClick={publish} disabled={isPublishing || !hasSavedDraft} className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-500 disabled:opacity-40">
@@ -483,30 +483,30 @@ export default function RouteEditor({ route, farePoints, onRouteChanged, onEditF
           and revision note. Previously only the latest three were shown with
           no heading, so older published versions were unreachable. */}
       <div>
-        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-white/35">
+        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-white/35 admin-light:text-slate-500">
           Route versions ({versions.length})
         </p>
         {versions.length === 0 ? (
-          <p className="rounded-xl border border-white/5 bg-[#050F1A]/70 px-3 py-2 text-xs text-white/35">No versions saved yet.</p>
+          <p className="rounded-xl border border-white/5 admin-light:border-[#E2E8F0] bg-[#050F1A]/70 admin-light:bg-[#F8FAFC] px-3 py-2 text-xs text-white/35 admin-light:text-slate-500">No versions saved yet.</p>
         ) : (
           <div className="grid max-h-56 gap-2 overflow-y-auto pr-1 @[40rem]/fare-matrix:grid-cols-2 @[56rem]/fare-matrix:grid-cols-3">
             {versions.map((version) => (
-              <div key={version.id} className="rounded-xl border border-white/5 bg-[#050F1A]/70 px-3 py-2 text-xs">
+              <div key={version.id} className="rounded-xl border border-white/5 admin-light:border-[#E2E8F0] bg-[#050F1A]/70 admin-light:bg-[#F8FAFC] px-3 py-2 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-white">v{version.number}</span>
-                  <span className={version.status === "PUBLISHED" ? "text-emerald-400" : "text-amber-400"}>
+                  <span className="font-bold text-white admin-light:text-slate-900">v{version.number}</span>
+                  <span className={version.status === "PUBLISHED" ? "text-emerald-400 admin-light:text-emerald-700" : "text-amber-400 admin-light:text-amber-700"}>
                     {version.status}{version.is_temporary ? " · DETOUR" : ""}
                   </span>
                 </div>
-                <p className="mt-1 truncate text-white/35" title={version.notes ?? undefined}>{version.notes || "No revision note"}</p>
-                <p className="mt-1 text-[10px] text-white/25">{formatVersionDate(version.published_at)}</p>
+                <p className="mt-1 truncate text-white/35 admin-light:text-slate-500" title={version.notes ?? undefined}>{version.notes || "No revision note"}</p>
+                <p className="mt-1 text-[10px] text-white/25 admin-light:text-slate-400">{formatVersionDate(version.published_at)}</p>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      <p className="flex items-start gap-1.5 text-[10px] text-white/30">
+      <p className="flex items-start gap-1.5 text-[10px] text-white/30 admin-light:text-slate-500">
         <MapPin size={12} className="shrink-0" /> The gray line is live. The blue line is the preview. Publishing updates tracking and route coverage together.
       </p>
     </section>
