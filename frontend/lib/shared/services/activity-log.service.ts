@@ -1,11 +1,12 @@
 /**
  * Admin Activity Logs service.
  *
- * Read-only audit trail — every admin-mutating action across the panel
- * writes one row server-side (ActivityLogService::record()), this service
- * only reads them.
+ * Read-only audit trail — admin actions, commuter account edits and system
+ * events are written server-side (ActivityLogService::record()); this
+ * service only reads them.
  *
- *   GET /api/admin/activity-logs → listForAdmin({ category?, search?, date?, dateRange?, page?, perPage? })
+ *   GET /api/admin/activity-logs        → listForAdmin({ category?, search?, date?, dateRange?, actorRole?, page?, perPage? })
+ *   GET /api/admin/activity-logs/export → exportForAdmin({ same filters }) — every matching row, capped server-side
  *
  * Mirrors the pattern established by lib/shared/services/announcement.service.ts
  * (raw→view-model mapper, typed error class, buildQuery helper, AbortSignal
@@ -17,12 +18,22 @@ import { api, ApiError, RequestCancelledError } from "@/lib/api/client";
 
 // ─── Raw backend shape ──────────────────────────────────────────────
 
+interface RawActivityChange {
+  field: string;
+  from: string | null;
+  to: string | null;
+}
+
 interface RawActivityLog {
   id: string;
   category: string;
   description: string;
-  /** Null when the action was not attributable to an admin (renders as "System"). */
+  /** Null when no person did it (renders as "System"). */
   actor_name: string | null;
+  /** ADMIN | COMMUTER | CONDUCTOR | SYSTEM; null on rows whose actor was later deleted. */
+  actor_role: string | null;
+  /** Field-level before/after values for edits; null or [] when not applicable. */
+  changes: RawActivityChange[] | null;
   created_at: string;
 }
 
@@ -48,14 +59,41 @@ interface PaginatedEnvelope<T> {
 
 // ─── Frontend view-model (camelCase) ────────────────────────────────
 
+export type ActivityActorRole = "ADMIN" | "COMMUTER" | "CONDUCTOR" | "SYSTEM";
+
+export interface ActivityChange {
+  field: string;
+  from: string | null;
+  to: string | null;
+}
+
 export interface ActivityLog {
   id: string;
   category: string;
   description: string;
-  /** The admin's display name, or "System" for a non-admin-triggered event. */
+  /** The actor's display name, or "System" for an automatic event. */
   by: string;
+  /** Who "by" is; null when unknown (actor deleted before roles were recorded). */
+  role: ActivityActorRole | null;
+  changes: ActivityChange[];
   /** ISO timestamp (created_at). */
   createdAt: string;
+}
+
+export interface ActivityLogFilters {
+  category?: string;
+  search?: string;
+  /** An exact Y-m-d from the date picker. Wins over dateRange if both are set. */
+  date?: string;
+  /** 'today' | 'last_7_days' | 'last_30_days' | 'all' — scopes by created_at server-side. */
+  dateRange?: string;
+  actorRole?: ActivityActorRole;
+}
+
+export interface ActivityLogExport {
+  items: ActivityLog[];
+  /** Every matching row, which can exceed items.length when the server cap applies. */
+  total: number;
 }
 
 export interface ActivityLogPage {
@@ -84,13 +122,30 @@ export class ActivityLogOperationError extends Error {
 
 // ─── Row mapper ─────────────────────────────────────────────────────
 
+const ACTOR_ROLES: readonly string[] = ["ADMIN", "COMMUTER", "CONDUCTOR", "SYSTEM"];
+
 function mapActivityLog(raw: RawActivityLog): ActivityLog {
   return {
     id: raw.id,
     category: raw.category,
     description: raw.description,
     by: raw.actor_name ?? "System",
+    role: raw.actor_role && ACTOR_ROLES.includes(raw.actor_role) ? (raw.actor_role as ActivityActorRole) : null,
+    changes: Array.isArray(raw.changes) ? raw.changes : [],
     createdAt: raw.created_at,
+  };
+}
+
+/** The filter query shared by the list and the export. */
+function filterQuery(params: ActivityLogFilters) {
+  return {
+    category: params.category,
+    search: params.search,
+    date: params.date || undefined,
+    // The exact date picker and the range dropdown are mutually exclusive in
+    // the UI — only send the range when there's no specific date selected.
+    date_range: !params.date && params.dateRange && params.dateRange !== "all" ? params.dateRange : undefined,
+    actor_role: params.actorRole,
   };
 }
 
@@ -135,25 +190,14 @@ function buildQuery(params: Record<string, string | number | boolean | undefined
  *
  * @throws {ActivityLogOperationError} 401/403/5xx
  */
-export async function listForAdmin(params: {
-  category?: string;
-  search?: string;
-  /** An exact Y-m-d from the date picker. Wins over dateRange if both are set. */
-  date?: string;
-  /** 'today' | 'last_7_days' | 'last_30_days' | 'all' — scopes by created_at server-side. */
-  dateRange?: string;
+export async function listForAdmin(params: ActivityLogFilters & {
   page?: number;
   perPage?: number;
   /** Cancels a stale request superseded by a newer search/page/filter change. */
   signal?: AbortSignal;
 } = {}): Promise<ActivityLogPage> {
   const qs = buildQuery({
-    category: params.category,
-    search: params.search,
-    date: params.date || undefined,
-    // The exact date picker and the range dropdown are mutually exclusive in
-    // the UI — only send the range when there's no specific date selected.
-    date_range: !params.date && params.dateRange && params.dateRange !== "all" ? params.dateRange : undefined,
+    ...filterQuery(params),
     page: params.page,
     per_page: params.perPage,
   });
@@ -174,6 +218,32 @@ export async function listForAdmin(params: {
     if (err instanceof RequestCancelledError) throw err;
     if (err instanceof ApiError) {
       throw classifyError(err, "Unable to load activity logs.");
+    }
+    throw new ActivityLogOperationError(
+      "network",
+      err instanceof Error ? err.message : "Unable to reach the backend service."
+    );
+  }
+}
+
+/**
+ * Every entry matching the filters, newest first, for a report export. The
+ * server caps the rows (ActivityLogService::EXPORT_LIMIT); `total` is the full
+ * match count so the caller can say when the export was cut short.
+ *
+ * @throws {ActivityLogOperationError} 401/403/5xx
+ */
+export async function exportForAdmin(params: ActivityLogFilters = {}): Promise<ActivityLogExport> {
+  const qs = buildQuery(filterQuery(params));
+  try {
+    const response = await api.get<ApiResponseEnvelope<{ data: RawActivityLog[]; total: number }>>(
+      `/api/admin/activity-logs/export${qs}`
+    );
+    const items = (response.data?.data ?? []).map(mapActivityLog);
+    return { items, total: response.data?.total ?? items.length };
+  } catch (err) {
+    if (err instanceof ApiError) {
+      throw classifyError(err, "Unable to export activity logs.");
     }
     throw new ActivityLogOperationError(
       "network",

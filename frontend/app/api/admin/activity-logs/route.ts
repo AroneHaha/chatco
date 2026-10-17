@@ -5,10 +5,9 @@ import { proxyToLaravel } from "@/lib/conductor/server/proxy";
 /**
  * GET /api/admin/activity-logs — paginated, server-filtered admin audit trail.
  *
- * Forwards filter query params (category, search, date, date_range, per_page,
- * page) to Laravel GET /api/v1/admin/activity-logs. Read-only — rows are
- * written server-side by ActivityLogService::record() from every other admin
- * endpoint, never through this route.
+ * Forwards filter query params (category, search, date, date_range, actor_role,
+ * per_page, page) to Laravel GET /api/v1/admin/activity-logs. Read-only — rows are
+ * written server-side by ActivityLogService::record(), never through this route.
  *
  * Role:ADMIN enforced at the Laravel /admin route group.
  */
