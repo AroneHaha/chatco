@@ -23,7 +23,7 @@ import {
  * out of every other session.
  *
  * Light-ready: rendered inside the settings panel, which follows the admin
- * theme for this page (see `lightReady` in settings-drawer).
+ * theme (see settings-drawer).
  */
 
 type Field = 'currentPassword' | 'newPassword' | 'confirmNewPassword' | 'code';

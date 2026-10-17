@@ -7,7 +7,6 @@ import {
   ChevronUp,
   ChevronDown,
   X,
-  RefreshCw,
   AlertCircle,
   Check,
   Search,
@@ -44,13 +43,13 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
 const DEFAULT_CATEGORY = FAQ_CATEGORIES[0].id;
 const EMPTY_DRAFT = { question: '', answer: '', category: DEFAULT_CATEGORY };
 const FIELD =
-  'block min-w-0 w-full rounded-lg border border-[#23344F] bg-[#0E1628] px-3 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none transition-colors focus:border-[#62A0EA] focus:ring-2 focus:ring-[#62A0EA]/20';
+  'block min-w-0 w-full rounded-lg border border-[#23344F] admin-light:border-[#CBD5E1] bg-[#0E1628] admin-light:bg-[#F8FAFC] px-3 py-2.5 text-sm text-white admin-light:text-slate-900 placeholder:text-slate-500 admin-light:placeholder:text-slate-400 outline-none transition-colors focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4] focus:ring-2 focus:ring-[#62A0EA]/20 admin-light:focus:ring-[#1A5FB4]/20';
 const ACTION =
-  'inline-flex min-h-9 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-medium text-slate-400 transition-colors hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]/50 disabled:cursor-not-allowed disabled:opacity-30';
+  'inline-flex min-h-9 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-medium text-slate-400 admin-light:text-slate-500 transition-colors hover:bg-white/5 admin-light:hover:bg-slate-100 hover:text-white admin-light:hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]/50 admin-light:focus-visible:ring-[#1A5FB4]/50 disabled:cursor-not-allowed disabled:opacity-30';
 
 function CategoryIcon({ category }: { category: string }) {
   const Icon = CATEGORY_ICONS[category] ?? MessageCircleQuestion;
-  return <Icon size={16} aria-hidden="true" className="shrink-0 text-[#8CB9F0]" />;
+  return <Icon size={16} aria-hidden="true" className="shrink-0 text-[#8CB9F0] admin-light:text-[#1A5FB4]" />;
 }
 
 export default function FaqManagementPage() {
@@ -242,17 +241,17 @@ export default function FaqManagementPage() {
       <div role="status" aria-label="Loading FAQ management" className="px-4 pb-12 sm:px-6">
         <div className="mx-auto w-full max-w-3xl space-y-5">
           <div className="flex items-center gap-3">
-            <div className="h-11 w-11 rounded-xl bg-[#1E2D45] motion-safe:animate-pulse" />
+            <div className="h-11 w-11 rounded-xl bg-[#1E2D45] admin-light:bg-slate-200 motion-safe:animate-pulse" />
             <div className="space-y-2">
-              <div className="h-6 w-44 rounded bg-[#1E2D45] motion-safe:animate-pulse" />
-              <div className="h-3 w-48 rounded bg-[#1E2D45] motion-safe:animate-pulse" />
+              <div className="h-6 w-44 rounded bg-[#1E2D45] admin-light:bg-slate-200 motion-safe:animate-pulse" />
+              <div className="h-3 w-48 rounded bg-[#1E2D45] admin-light:bg-slate-200 motion-safe:animate-pulse" />
             </div>
           </div>
-          <div className="h-32 rounded-xl border border-[#1E2D45] bg-[#111A2B] motion-safe:animate-pulse" />
+          <div className="h-32 rounded-xl border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#111A2B] admin-light:bg-white motion-safe:animate-pulse" />
           {[0, 1, 2].map((index) => (
             <div
               key={index}
-              className="h-36 rounded-xl border border-[#1E2D45] bg-[#111A2B] motion-safe:animate-pulse"
+              className="h-36 rounded-xl border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#111A2B] admin-light:bg-white motion-safe:animate-pulse"
             />
           ))}
         </div>
@@ -265,31 +264,22 @@ export default function FaqManagementPage() {
       <div className="@container/faq mx-auto min-w-0 w-full max-w-3xl space-y-5">
         <header className="flex flex-col gap-4 @[36rem]/faq:flex-row @[36rem]/faq:items-center @[36rem]/faq:justify-between">
           <div className="flex min-w-0 items-start gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#62A0EA]/20 bg-[#62A0EA]/10 text-[#62A0EA]">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#62A0EA]/20 admin-light:border-[#1A5FB4]/20 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4]">
               <MessageCircleQuestion size={20} aria-hidden="true" />
             </span>
             <div className="min-w-0">
-              <h1 className="text-xl font-bold text-white">FAQ Management</h1>
-              <p className="mt-1 text-sm text-slate-400">Manage the questions commuters see.</p>
+              <h1 className="text-xl font-bold text-white admin-light:text-slate-900">FAQ Management</h1>
+              <p className="mt-1 text-sm text-slate-400 admin-light:text-slate-500">Manage the questions commuters see.</p>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void fetchFaqs()}
-              disabled={busy}
-              aria-label="Refresh FAQs"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#23344F] bg-[#111A2B] text-slate-400 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]/50 disabled:opacity-40"
-            >
-              <RefreshCw size={17} aria-hidden="true" className={isRefreshing ? 'animate-spin' : ''} />
-            </button>
             <button
               type="button"
               onClick={() => openEditor()}
               disabled={busy}
               aria-expanded={showForm}
               aria-controls="faq-editor"
-              className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#4A8BD4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]/50 disabled:opacity-40"
+              className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] admin-light:bg-[#1A5FB4] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]/50 admin-light:focus-visible:ring-[#1A5FB4]/50 disabled:opacity-40"
             >
               <Plus size={17} aria-hidden="true" /> Add question
             </button>
@@ -299,7 +289,7 @@ export default function FaqManagementPage() {
         {error && (
           <div
             role="alert"
-            className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300"
+            className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300 admin-light:text-red-700"
           >
             <AlertCircle size={17} className="mt-0.5 shrink-0" aria-hidden="true" />
             <p className="min-w-0 flex-1 break-words">{error}</p>
@@ -316,7 +306,7 @@ export default function FaqManagementPage() {
         {successMsg && (
           <div
             role="status"
-            className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-300"
+            className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-300 admin-light:text-emerald-700"
           >
             <Check size={17} className="shrink-0" aria-hidden="true" />
             <p className="min-w-0 flex-1">{successMsg}</p>
@@ -337,14 +327,14 @@ export default function FaqManagementPage() {
             ref={editorRef}
             onSubmit={handleSave}
             aria-labelledby="faq-editor-title"
-            className="scroll-mt-6 space-y-4 rounded-xl border border-[#62A0EA]/30 bg-[#111A2B] p-4 @[32rem]/faq:p-5"
+            className="scroll-mt-6 space-y-4 rounded-xl border border-[#62A0EA]/30 admin-light:border-[#1A5FB4]/30 bg-[#111A2B] admin-light:bg-white p-4 @[32rem]/faq:p-5"
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 id="faq-editor-title" className="text-base font-semibold text-white">
+                <h2 id="faq-editor-title" className="text-base font-semibold text-white admin-light:text-slate-900">
                   {editingId ? 'Edit question' : 'Add a question'}
                 </h2>
-                <p className="mt-1 text-xs text-slate-400">Keep answers clear and helpful.</p>
+                <p className="mt-1 text-xs text-slate-400 admin-light:text-slate-500">Keep answers clear and helpful.</p>
               </div>
               <button
                 type="button"
@@ -357,7 +347,7 @@ export default function FaqManagementPage() {
               </button>
             </div>
             <div>
-              <label htmlFor="faq-category" className="mb-1.5 block text-xs font-medium text-slate-300">
+              <label htmlFor="faq-category" className="mb-1.5 block text-xs font-medium text-slate-300 admin-light:text-slate-700">
                 Category
               </label>
               <select
@@ -366,7 +356,7 @@ export default function FaqManagementPage() {
                 onChange={(event) => setDraft((previous) => ({ ...previous, category: event.target.value }))}
                 disabled={isSaving}
                 required
-                className={`${FIELD} [color-scheme:dark]`}
+                className={`${FIELD} [color-scheme:dark] admin-light:[color-scheme:light]`}
               >
                 {FAQ_CATEGORIES.map((category) => (
                   <option key={category.id} value={category.id}>
@@ -376,7 +366,7 @@ export default function FaqManagementPage() {
               </select>
             </div>
             <div>
-              <label htmlFor="faq-question" className="mb-1.5 block text-xs font-medium text-slate-300">
+              <label htmlFor="faq-question" className="mb-1.5 block text-xs font-medium text-slate-300 admin-light:text-slate-700">
                 Question
               </label>
               <input
@@ -392,7 +382,7 @@ export default function FaqManagementPage() {
               />
             </div>
             <div>
-              <label htmlFor="faq-answer" className="mb-1.5 block text-xs font-medium text-slate-300">
+              <label htmlFor="faq-answer" className="mb-1.5 block text-xs font-medium text-slate-300 admin-light:text-slate-700">
                 Answer
               </label>
               <textarea
@@ -406,7 +396,7 @@ export default function FaqManagementPage() {
                 className={`${FIELD} resize-y`}
               />
             </div>
-            <div className="flex flex-wrap justify-end gap-2 border-t border-[#1E2D45] pt-4">
+            <div className="flex flex-wrap justify-end gap-2 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] pt-4">
               <button
                 type="button"
                 onClick={() => setShowForm(false)}
@@ -418,7 +408,7 @@ export default function FaqManagementPage() {
               <button
                 type="submit"
                 disabled={busy || !draft.question.trim() || !draft.answer.trim()}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] px-4 text-sm font-semibold text-white hover:bg-[#4A8BD4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]/50 disabled:opacity-40"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] admin-light:bg-[#1A5FB4] px-4 text-sm font-semibold text-white hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]/50 admin-light:focus-visible:ring-[#1A5FB4]/50 disabled:opacity-40"
               >
                 {isSaving ? 'Saving…' : editingId ? 'Save changes' : 'Add question'}
               </button>
@@ -428,10 +418,10 @@ export default function FaqManagementPage() {
 
         <section
           aria-label="Find questions"
-          className="space-y-4 rounded-xl border border-[#1E2D45] bg-[#111A2B] p-4"
+          className="space-y-4 rounded-xl border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#111A2B] admin-light:bg-white p-4"
         >
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
-            <span className="font-semibold text-slate-200">{faqs.length} questions</span>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400 admin-light:text-slate-500">
+            <span className="font-semibold text-slate-200 admin-light:text-slate-800">{faqs.length} questions</span>
             <span className="inline-flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
               {visibleCount} visible
@@ -457,7 +447,7 @@ export default function FaqManagementPage() {
                   type="button"
                   onClick={() => setSearch('')}
                   aria-label="Clear search"
-                  className="absolute right-1 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]/50"
+                  className="absolute right-1 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 admin-light:text-slate-500 hover:text-white admin-light:hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]/50 admin-light:focus-visible:ring-[#1A5FB4]/50"
                 >
                   <X size={15} />
                 </button>
@@ -467,7 +457,7 @@ export default function FaqManagementPage() {
               aria-label="Filter by category"
               value={categoryFilter}
               onChange={(event) => setCategoryFilter(event.target.value)}
-              className={`${FIELD} h-11 [color-scheme:dark]`}
+              className={`${FIELD} h-11 [color-scheme:dark] admin-light:[color-scheme:light]`}
             >
               <option value="all">All categories</option>
               {categoryIds.map((category) => (
@@ -487,12 +477,12 @@ export default function FaqManagementPage() {
         </div>
 
         {groups.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-[#23344F] bg-[#111A2B]/60 px-5 py-10 text-center">
+          <div className="rounded-xl border border-dashed border-[#23344F] admin-light:border-[#CBD5E1] bg-[#111A2B]/60 admin-light:bg-[#F8FAFC] px-5 py-10 text-center">
             <MessageCircleQuestion size={28} className="mx-auto mb-3 text-slate-500" aria-hidden="true" />
-            <h2 className="text-sm font-semibold text-slate-200">
+            <h2 className="text-sm font-semibold text-slate-200 admin-light:text-slate-800">
               {faqs.length === 0 ? 'No questions yet' : 'No matching questions'}
             </h2>
-            <p className="mt-1 text-xs leading-relaxed text-slate-400">
+            <p className="mt-1 text-xs leading-relaxed text-slate-400 admin-light:text-slate-500">
               {faqs.length === 0
                 ? 'Add your first answer to help commuters get started.'
                 : 'Try another search or category.'}
@@ -501,7 +491,7 @@ export default function FaqManagementPage() {
               type="button"
               disabled={busy}
               onClick={() => (faqs.length === 0 ? openEditor() : (setSearch(''), setCategoryFilter('all')))}
-              className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg px-4 text-sm font-medium text-[#8CB9F0] hover:bg-[#62A0EA]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]/50 disabled:opacity-40"
+              className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg px-4 text-sm font-medium text-[#8CB9F0] admin-light:text-[#1A5FB4] hover:bg-[#62A0EA]/10 admin-light:hover:bg-[#1A5FB4]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]/50 admin-light:focus-visible:ring-[#1A5FB4]/50 disabled:opacity-40"
             >
               {faqs.length === 0 ? 'Add question' : 'Clear filters'}
             </button>
@@ -511,21 +501,21 @@ export default function FaqManagementPage() {
             <section
               key={group.category}
               aria-labelledby={`faq-group-${group.category}`}
-              className="min-w-0 overflow-hidden rounded-xl border border-[#1E2D45] bg-[#111A2B]"
+              className="min-w-0 overflow-hidden rounded-xl border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#111A2B] admin-light:bg-white"
             >
-              <div className="flex items-center justify-between gap-3 border-b border-[#1E2D45] bg-[#0E1628]/50 px-4 py-3">
+              <div className="flex items-center justify-between gap-3 border-b border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628]/50 admin-light:bg-[#F8FAFC] px-4 py-3">
                 <h2
                   id={`faq-group-${group.category}`}
-                  className="flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-200"
+                  className="flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-200 admin-light:text-slate-800"
                 >
                   <CategoryIcon category={group.category} />
                   {CATEGORY_META[group.category]?.label ?? group.category}
                 </h2>
-                <span className="rounded-md bg-white/5 px-2 py-0.5 text-xs tabular-nums text-slate-400">
+                <span className="rounded-md bg-white/5 admin-light:bg-slate-100 px-2 py-0.5 text-xs tabular-nums text-slate-400 admin-light:text-slate-500">
                   {group.items.length}
                 </span>
               </div>
-              <div className="divide-y divide-[#1E2D45]">
+              <div className="divide-y divide-[#1E2D45] admin-light:divide-[#E2E8F0]">
                 {group.items.map((faq) => {
                   const siblings = faqs
                     .filter((item) => item.category === faq.category)
@@ -534,11 +524,11 @@ export default function FaqManagementPage() {
                   return (
                     <article key={faq.id} className="min-w-0 p-4">
                       <details className="group">
-                        <summary className="flex cursor-pointer list-none items-start gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]/50 [&::-webkit-details-marker]:hidden">
-                          <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-[#23344F] text-[10px] tabular-nums text-slate-500">
+                        <summary className="flex cursor-pointer list-none items-start gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]/50 admin-light:focus-visible:ring-[#1A5FB4]/50 [&::-webkit-details-marker]:hidden">
+                          <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-[#23344F] admin-light:border-[#CBD5E1] text-[10px] tabular-nums text-slate-500">
                             {index + 1}
                           </span>
-                          <h3 className="min-w-0 flex-1 break-words text-sm font-semibold leading-relaxed text-white">
+                          <h3 className="min-w-0 flex-1 break-words text-sm font-semibold leading-relaxed text-white admin-light:text-slate-900">
                             {faq.question}
                           </h3>
                           <ChevronDown
@@ -547,13 +537,13 @@ export default function FaqManagementPage() {
                             className="mt-1 shrink-0 text-slate-500 transition-transform group-open:rotate-180"
                           />
                         </summary>
-                        <p className="mt-3 whitespace-pre-wrap break-words border-l-2 border-[#62A0EA]/20 pl-3 text-sm leading-relaxed text-slate-300">
+                        <p className="mt-3 whitespace-pre-wrap break-words border-l-2 border-[#62A0EA]/20 admin-light:border-[#1A5FB4]/20 pl-3 text-sm leading-relaxed text-slate-300 admin-light:text-slate-700">
                           {faq.answer}
                         </p>
                       </details>
                       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                         <span
-                          className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] font-medium ${faq.is_active ? 'bg-emerald-500/10 text-emerald-300' : 'bg-white/5 text-slate-500'}`}
+                          className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] font-medium ${faq.is_active ? 'bg-emerald-500/10 text-emerald-300 admin-light:text-emerald-700' : 'bg-white/5 admin-light:bg-slate-100 text-slate-500'}`}
                         >
                           <span
                             className={`h-1.5 w-1.5 rounded-full ${faq.is_active ? 'bg-emerald-400' : 'bg-slate-500'}`}
@@ -612,7 +602,7 @@ export default function FaqManagementPage() {
                             onClick={() => void handleDelete(faq)}
                             aria-label={`Delete question: ${faq.question}`}
                             title="Delete question"
-                            className={`${ACTION} hover:bg-red-500/10 hover:text-red-300`}
+                            className={`${ACTION} hover:bg-red-500/10 hover:text-red-300 admin-light:hover:text-red-600`}
                           >
                             <Trash2 size={14} aria-hidden="true" />
                           </button>

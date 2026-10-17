@@ -8,11 +8,11 @@
  * Pulse is motion-safe only (off under prefers-reduced-motion).
  */
 
-const CARD = 'rounded-2xl border border-white/[0.06] bg-[#071A2E]';
-const INSET = 'rounded-xl border border-white/5 bg-[#050F1A]/60';
+const CARD = 'rounded-2xl border border-white/[0.06] admin-light:border-[#E2E8F0] bg-[#071A2E] admin-light:bg-white';
+const INSET = 'rounded-xl border border-white/5 admin-light:border-[#E2E8F0] bg-[#050F1A]/60 admin-light:bg-[#F8FAFC]';
 
 function Bar({ className }: { className: string }) {
-  return <div className={`max-w-full rounded-md bg-white/[0.07] motion-safe:animate-pulse ${className}`} />;
+  return <div className={`max-w-full rounded-md bg-white/[0.07] admin-light:bg-slate-200 motion-safe:animate-pulse ${className}`} />;
 }
 
 // Varied name widths so the list reads as real rows, not a repeated block.
@@ -20,7 +20,7 @@ const ROW_NAME_WIDTHS = ['w-40', 'w-56', 'w-32', 'w-48', 'w-44', 'w-36', 'w-52']
 
 export function SkeletonFareRouteEditor() {
   return (
-    <div className="min-w-0 space-y-4 rounded-2xl border border-[#62A0EA]/20 bg-[#071A2E] p-5">
+    <div className="min-w-0 space-y-4 rounded-2xl border border-[#62A0EA]/20 admin-light:border-[#1A5FB4]/20 bg-[#071A2E] admin-light:bg-white p-5">
       <div className="flex flex-col gap-3 @[40rem]/fare-matrix:flex-row @[40rem]/fare-matrix:items-start @[40rem]/fare-matrix:justify-between">
         <div className="min-w-0 space-y-2">
           <div className="flex items-center gap-2">
@@ -33,7 +33,7 @@ export function SkeletonFareRouteEditor() {
         <Bar className="h-12 w-40 shrink-0 rounded-xl" />
       </div>
       <div className="grid min-w-0 gap-4 @[56rem]/fare-matrix:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="h-120 min-w-0 rounded-2xl border border-white/10 bg-[#050F1A]/60 motion-safe:animate-pulse" />
+        <div className="h-120 min-w-0 rounded-2xl border border-white/10 admin-light:border-[#CBD5E1] bg-[#050F1A]/60 admin-light:bg-[#F8FAFC] motion-safe:animate-pulse" />
         <div className="min-w-0 space-y-3">
           {[0, 1, 2, 3].map((i) => (
             <div key={i} className={`${INSET} space-y-2 p-3`}>
@@ -126,7 +126,7 @@ export function SkeletonFareMatrix() {
         </div>
 
         {/* Point areas list */}
-        <div className={`${CARD} divide-y divide-white/5 overflow-hidden`}>
+        <div className={`${CARD} divide-y divide-white/5 admin-light:divide-[#E2E8F0] overflow-hidden`}>
           {ROW_NAME_WIDTHS.map((width, i) => (
             <div key={i} className="grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2 px-4 py-3.5 @[32rem]/fare-matrix:grid-cols-[2rem_minmax(0,1fr)_auto]">
               <Bar className="h-8 w-8 shrink-0 rounded-lg" />

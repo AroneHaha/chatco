@@ -25,10 +25,10 @@ const FaqManagementPage = lazy(() => import('@/app/(admin)/settings/faq-manageme
 const AppConfigurationPage = lazy(() => import('@/app/(admin)/settings/app-configuration/page'));
 const ProfileSecurityPage = lazy(() => import('@/app/(admin)/settings/profile-security/page'));
 
-// `lightReady`: the page has admin-light: styles, so the panel keeps
-// following the admin theme while it's open (the others stay dark).
+// Every settings page has admin-light: styles, so the panel follows the admin
+// theme in the menu and in each sub-page.
 const settingsOptions = [
-  { title: 'Profile & Security', description: 'Your account and password.', icon: UserRoundCog, href: '/settings/profile-security', group: 'account', component: ProfileSecurityPage, lightReady: true },
+  { title: 'Profile & Security', description: 'Your account and password.', icon: UserRoundCog, href: '/settings/profile-security', group: 'account', component: ProfileSecurityPage },
   { title: 'Fare Matrix', description: 'Set base fares and per-kilometer rates.', icon: Calculator, href: '/settings/fare-matrix', group: 'fares', component: FareMatrixPage },
   { title: 'Financial Rules', description: 'Wallet limits, discounts, loyalty.', icon: PiggyBank, href: '/settings/financial-rules', group: 'fares', component: FinancialRulesPage },
   { title: 'Voucher Generator', description: 'Generate bulk promo codes.', icon: Ticket, href: '/settings/voucher-generator', group: 'fares', component: VoucherGeneratorPage },
@@ -157,7 +157,6 @@ export function SettingsDrawer({ docked = false }: { docked?: boolean }) {
 
   const ActiveComponent = activeOption?.component ?? null;
   const isReceiptView = activeHref === '/settings/receipt';
-  const followsTheme = !activeOption || ('lightReady' in activeOption && activeOption.lightReady);
 
   // left-64 / 16rem = the desktop sidebar's w-64.
   const panelPlacement = docked
@@ -180,11 +179,8 @@ export function SettingsDrawer({ docked = false }: { docked?: boolean }) {
 
       {/* Drawer Panel — beside the sidebar on desktop (docked), from the
           right edge on mobile (90%). */}
-      {/* The menu follows the admin theme, and so does a sub-page marked
-          `lightReady`; the other settings pages aren't light-styled yet, so
-          they keep the dark drawer around them. */}
       <aside
-        data-admin-theme={followsTheme ? theme : undefined}
+        data-admin-theme={theme}
         inert={!isSettingsOpen}
         className={`
           fixed ${panelPlacement}

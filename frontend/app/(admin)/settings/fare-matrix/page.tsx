@@ -20,7 +20,7 @@ const RouteEditor = dynamic(() => import('@/components/admin/routes/route-editor
 
 const FarePointMapPicker = dynamic(() => import('@/components/admin/routes/fare-point-map-picker'), {
   ssr: false,
-  loading: () => <div className="h-[320px] animate-pulse rounded-2xl border border-white/10 bg-[#050F1A]" />,
+  loading: () => <div className="h-[320px] animate-pulse rounded-2xl border border-white/10 admin-light:border-[#CBD5E1] bg-[#050F1A] admin-light:bg-[#F8FAFC]" />,
 });
 
 // Adapter: convert API fare point to the format the original UI expects
@@ -136,25 +136,25 @@ function SubDropoffEditor({
             }
           }}
           placeholder="e.g. Crossing or Public Market"
-          className="block min-w-0 flex-1 rounded-xl border border-white/10 bg-[#050F1A] px-3 py-2.5 text-sm text-white placeholder:text-white/25 focus:border-[#62A0EA] focus:outline-none focus:ring-1 focus:ring-[#62A0EA]/30"
+          className="block min-w-0 flex-1 rounded-xl border border-white/10 admin-light:border-[#CBD5E1] bg-[#050F1A] admin-light:bg-[#F8FAFC] px-3 py-2.5 text-sm text-white admin-light:text-slate-900 placeholder:text-white/25 admin-light:placeholder:text-slate-400 focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4] focus:outline-none focus:ring-1 focus:ring-[#62A0EA]/30 admin-light:focus:ring-[#1A5FB4]/30"
         />
-        <button type="button" onClick={addItem} className="flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-2.5 text-xs font-bold text-white hover:bg-white/15">
+        <button type="button" onClick={addItem} className="flex items-center gap-1.5 rounded-xl bg-white/10 admin-light:bg-slate-100 px-3 py-2.5 text-xs font-bold text-white admin-light:text-slate-900 hover:bg-white/15 admin-light:hover:bg-slate-200">
           <Plus size={14} /> Add to list
         </button>
       </div>
       {items.length > 0 ? (
         <div className="flex flex-wrap gap-2">
           {items.map((item, index) => (
-            <span key={`${item}-${index}`} className="flex items-center gap-1.5 rounded-lg border border-[#62A0EA]/20 bg-[#1A5FB4]/10 px-2.5 py-1.5 text-xs text-[#BFDBFE]">
+            <span key={`${item}-${index}`} className="flex items-center gap-1.5 rounded-lg border border-[#62A0EA]/20 admin-light:border-[#1A5FB4]/20 bg-[#1A5FB4]/10 px-2.5 py-1.5 text-xs text-[#BFDBFE] admin-light:text-[#1A5FB4]">
               {item}
-              <button type="button" onClick={() => removeItem(index)} className="text-white/35 hover:text-red-300" aria-label={`Remove ${item}`}>
+              <button type="button" onClick={() => removeItem(index)} className="text-white/35 admin-light:text-slate-500 hover:text-red-300 admin-light:hover:text-red-600" aria-label={`Remove ${item}`}>
                 <X size={12} />
               </button>
             </span>
           ))}
         </div>
       ) : (
-        <p className="text-[10px] text-white/25">Optional. These choices appear under the Point Area in the conductor fare calculator and use the same fare.</p>
+        <p className="text-[10px] text-white/25 admin-light:text-slate-400">Optional. These choices appear under the Point Area in the conductor fare calculator and use the same fare.</p>
       )}
     </div>
   );
@@ -472,7 +472,7 @@ export default function FareMatrixPage() {
     }
   };
 
-  const inputClasses = "block min-w-0 w-full px-3 py-2.5 bg-[#050F1A] border border-white/10 rounded-xl text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#62A0EA] focus:ring-1 focus:ring-[#62A0EA]/30 transition-colors";
+  const inputClasses = "block min-w-0 w-full px-3 py-2.5 bg-[#050F1A] admin-light:bg-[#F8FAFC] border border-white/10 admin-light:border-[#CBD5E1] rounded-xl text-white admin-light:text-slate-900 text-sm placeholder:text-white/25 admin-light:placeholder:text-slate-400 focus:outline-none focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4] focus:ring-1 focus:ring-[#62A0EA]/30 admin-light:focus:ring-[#1A5FB4]/30 transition-colors";
 
   // ── Loading State ──
   if (isLoading) {
@@ -486,11 +486,11 @@ export default function FareMatrixPage() {
         {/* Header */}
         <div className="flex flex-col gap-4 @[40rem]/fare-matrix:flex-row @[40rem]/fare-matrix:items-center @[40rem]/fare-matrix:justify-between">
           <div className="min-w-0">
-            <h1 className="text-2xl @[40rem]/fare-matrix:text-3xl font-bold text-white">Fare Matrix Management</h1>
-            <p className="text-sm text-white/40 mt-1 break-words">{farePoints.length} point areas on {selectedRoute?.name ?? 'the selected route'}</p>
+            <h1 className="text-2xl @[40rem]/fare-matrix:text-3xl font-bold text-white admin-light:text-slate-900">Fare Matrix Management</h1>
+            <p className="text-sm text-white/40 admin-light:text-slate-500 mt-1 break-words">{farePoints.length} point areas on {selectedRoute?.name ?? 'the selected route'}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <button onClick={fetchFarePoints} title="Refresh" className="p-2.5 text-white/40 hover:text-white bg-[#071A2E] border border-white/[0.06] rounded-xl transition-colors">
+            <button onClick={fetchFarePoints} title="Refresh" className="p-2.5 text-white/40 admin-light:text-slate-500 hover:text-white admin-light:hover:text-slate-900 bg-[#071A2E] admin-light:bg-white border border-white/[0.06] admin-light:border-[#E2E8F0] rounded-xl transition-colors">
               <RefreshCw size={18} />
             </button>
             <button
@@ -506,10 +506,10 @@ export default function FareMatrixPage() {
         </div>
 
         {/* Route selection controls Fare Points, map geometry, and hailing coverage together. */}
-        <div className="rounded-2xl border border-white/[0.06] bg-[#071A2E] p-4">
+        <div className="rounded-2xl border border-white/[0.06] admin-light:border-[#E2E8F0] bg-[#071A2E] admin-light:bg-white p-4">
           <div className="grid grid-cols-1 items-end gap-3 @[20rem]/fare-matrix:grid-cols-2 @[48rem]/fare-matrix:grid-cols-[minmax(0,1fr)_auto_auto]">
             <div className="min-w-0 @[20rem]/fare-matrix:col-span-2 @[48rem]/fare-matrix:col-span-1">
-              <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-white/30">Managed Route</label>
+              <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-white/30 admin-light:text-slate-500">Managed Route</label>
               <select
                 value={selectedRouteId}
                 onChange={(event) => {
@@ -517,7 +517,7 @@ export default function FareMatrixPage() {
                   setPreviewFrom(null);
                   setPreviewTo(null);
                 }}
-                className="min-w-0 w-full rounded-xl border border-white/10 bg-[#050F1A] px-3 py-2.5 text-sm text-white outline-none focus:border-[#62A0EA]"
+                className="min-w-0 w-full rounded-xl border border-white/10 admin-light:border-[#CBD5E1] bg-[#050F1A] admin-light:bg-[#F8FAFC] px-3 py-2.5 text-sm text-white admin-light:text-slate-900 outline-none focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4]"
               >
                 {routes.length === 0 && <option value="">No routes created</option>}
                 {routes.map((route) => (
@@ -525,20 +525,20 @@ export default function FareMatrixPage() {
                 ))}
               </select>
             </div>
-            <button type="button" onClick={() => setShowCreateRoute((visible) => !visible)} className="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-[#62A0EA]/30 px-3 py-2.5 text-sm font-semibold text-[#93C5FD] hover:bg-[#1A5FB4]/10">
+            <button type="button" onClick={() => setShowCreateRoute((visible) => !visible)} className="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-[#62A0EA]/30 admin-light:border-[#1A5FB4]/30 px-3 py-2.5 text-sm font-semibold text-[#93C5FD] admin-light:text-[#1A5FB4] hover:bg-[#1A5FB4]/10">
               <Plus size={16} className="shrink-0" /> New Route
             </button>
             <button
               type="button"
               onClick={() => { setDeleteRouteError(null); setIsDeleteRouteOpen(true); }}
               disabled={!selectedRoute}
-              className="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-red-500/25 px-3 py-2.5 text-sm font-semibold text-red-300 hover:bg-red-500/10 disabled:opacity-40"
+              className="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-red-500/25 px-3 py-2.5 text-sm font-semibold text-red-300 admin-light:text-red-700 hover:bg-red-500/10 disabled:opacity-40"
             >
               <Trash2 size={16} className="shrink-0" /> Delete Route
             </button>
           </div>
           {showCreateRoute && (
-            <div className="mt-3 flex flex-col gap-2 border-t border-white/5 pt-3 @[32rem]/fare-matrix:flex-row">
+            <div className="mt-3 flex flex-col gap-2 border-t border-white/5 admin-light:border-[#E2E8F0] pt-3 @[32rem]/fare-matrix:flex-row">
               <input value={newRouteName} onChange={(event) => setNewRouteName(event.target.value)} placeholder="e.g. Calumpit–Marilao via McArthur Highway" className={inputClasses} />
               <button type="button" onClick={handleCreateRoute} disabled={isSaving || !newRouteName.trim()} className="whitespace-nowrap rounded-xl bg-[#1A5FB4] px-5 py-2.5 text-sm font-bold text-white disabled:opacity-40">Create Route</button>
             </div>
@@ -548,16 +548,16 @@ export default function FareMatrixPage() {
         {/* Error Banner */}
         {error && (
           <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-center justify-between">
-            <p className="text-sm text-red-400">{error}</p>
-            <button onClick={() => setError(null)} className="text-red-400 hover:text-red-300"><X size={16} /></button>
+            <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
+            <button onClick={() => setError(null)} className="text-red-400 admin-light:text-red-600 hover:text-red-300 admin-light:hover:text-red-600"><X size={16} /></button>
           </div>
         )}
 
         {/* Success Banner */}
         {successMsg && (
           <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 flex items-center justify-between">
-            <p className="text-sm text-emerald-400">{successMsg}</p>
-            <button onClick={() => setSuccessMsg(null)} className="text-emerald-400 hover:text-emerald-300"><X size={16} /></button>
+            <p className="text-sm text-emerald-400 admin-light:text-emerald-700">{successMsg}</p>
+            <button onClick={() => setSuccessMsg(null)} className="text-emerald-400 admin-light:text-emerald-700 hover:text-emerald-300 admin-light:hover:text-emerald-800"><X size={16} /></button>
           </div>
         )}
 
@@ -571,48 +571,48 @@ export default function FareMatrixPage() {
         )}
 
         {/* Fare Info Banner */}
-        <div className="bg-[#071A2E] border border-white/[0.06] rounded-2xl p-5">
+        <div className="bg-[#071A2E] admin-light:bg-white border border-white/[0.06] admin-light:border-[#E2E8F0] rounded-2xl p-5">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-xl bg-[#1A5FB4]/15 flex items-center justify-center flex-shrink-0">
-              <Route size={20} className="text-[#62A0EA]" />
+              <Route size={20} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />
             </div>
             <div>
-              <h2 className="text-white font-bold text-sm">Barangay-Based Fare System</h2>
-              <p className="text-white/40 text-xs mt-0.5">Base fare covers first 4 barangays traveled, ₱2 per succeeding barangay</p>
+              <h2 className="text-white admin-light:text-slate-900 font-bold text-sm">Barangay-Based Fare System</h2>
+              <p className="text-white/40 admin-light:text-slate-500 text-xs mt-0.5">Base fare covers first 4 barangays traveled, ₱2 per succeeding barangay</p>
             </div>
           </div>
           <div className="grid grid-cols-1 gap-3 @[28rem]/fare-matrix:grid-cols-3">
-            <div className="bg-[#050F1A]/60 rounded-xl px-4 py-3 text-center border border-white/5">
-              <p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold">Base Fare</p>
-              <p className="text-xl font-extrabold text-[#62A0EA] mt-1">₱17.00</p>
-              <p className="text-[10px] text-white/25 mt-0.5">First 4 barangays</p>
+            <div className="bg-[#050F1A]/60 admin-light:bg-[#F8FAFC] rounded-xl px-4 py-3 text-center border border-white/5 admin-light:border-[#E2E8F0]">
+              <p className="text-[10px] text-white/30 admin-light:text-slate-500 uppercase tracking-wider font-semibold">Base Fare</p>
+              <p className="text-xl font-extrabold text-[#62A0EA] admin-light:text-[#1A5FB4] mt-1">₱17.00</p>
+              <p className="text-[10px] text-white/25 admin-light:text-slate-400 mt-0.5">First 4 barangays</p>
             </div>
-            <div className="bg-[#050F1A]/60 rounded-xl px-4 py-3 text-center border border-white/5">
-              <p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold">Succeeding</p>
-              <p className="text-xl font-extrabold text-emerald-400 mt-1">₱2.00</p>
-              <p className="text-[10px] text-white/25 mt-0.5">Per barangay</p>
+            <div className="bg-[#050F1A]/60 admin-light:bg-[#F8FAFC] rounded-xl px-4 py-3 text-center border border-white/5 admin-light:border-[#E2E8F0]">
+              <p className="text-[10px] text-white/30 admin-light:text-slate-500 uppercase tracking-wider font-semibold">Succeeding</p>
+              <p className="text-xl font-extrabold text-emerald-400 admin-light:text-emerald-700 mt-1">₱2.00</p>
+              <p className="text-[10px] text-white/25 admin-light:text-slate-400 mt-0.5">Per barangay</p>
             </div>
-            <div className="bg-[#050F1A]/60 rounded-xl px-4 py-3 text-center border border-white/5">
-              <p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold">Discount</p>
-              <p className="text-xl font-extrabold text-amber-400 mt-1">20%</p>
-              <p className="text-[10px] text-white/25 mt-0.5">Student/Senior/PWD</p>
+            <div className="bg-[#050F1A]/60 admin-light:bg-[#F8FAFC] rounded-xl px-4 py-3 text-center border border-white/5 admin-light:border-[#E2E8F0]">
+              <p className="text-[10px] text-white/30 admin-light:text-slate-500 uppercase tracking-wider font-semibold">Discount</p>
+              <p className="text-xl font-extrabold text-amber-400 admin-light:text-amber-700 mt-1">20%</p>
+              <p className="text-[10px] text-white/25 admin-light:text-slate-400 mt-0.5">Student/Senior/PWD</p>
             </div>
           </div>
         </div>
 
         {/* Fare Preview Tool */}
-        <div className="bg-[#071A2E] border border-white/[0.06] rounded-2xl p-5">
+        <div className="bg-[#071A2E] admin-light:bg-white border border-white/[0.06] admin-light:border-[#E2E8F0] rounded-2xl p-5">
           <div className="flex items-center gap-2 mb-4">
-            <Search size={16} className="text-white/30" />
-            <h3 className="text-[10px] font-bold text-white/30 uppercase tracking-wider">Fare Calculator Preview</h3>
+            <Search size={16} className="text-white/30 admin-light:text-slate-500" />
+            <h3 className="text-[10px] font-bold text-white/30 admin-light:text-slate-500 uppercase tracking-wider">Fare Calculator Preview</h3>
           </div>
           <div className="grid grid-cols-1 @[32rem]/fare-matrix:grid-cols-2 gap-3 mb-4">
             <div className="min-w-0">
-              <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1.5">From (Point #)</label>
+              <label className="text-[10px] text-white/30 admin-light:text-slate-500 uppercase tracking-wider block mb-1.5">From (Point #)</label>
               <select
                 value={previewFrom ?? ''}
                 onChange={(e) => setPreviewFrom(e.target.value ? Number(e.target.value) : null)}
-                className="w-full px-3 py-2.5 bg-[#050F1A] border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-[#62A0EA] transition-colors"
+                className="w-full px-3 py-2.5 bg-[#050F1A] admin-light:bg-[#F8FAFC] border border-white/10 admin-light:border-[#CBD5E1] rounded-xl text-sm text-white admin-light:text-slate-900 focus:outline-none focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4] transition-colors"
               >
                 <option value="">Select pickup point</option>
                 {farePoints.map(p => (
@@ -621,11 +621,11 @@ export default function FareMatrixPage() {
               </select>
             </div>
             <div className="min-w-0">
-              <label className="text-[10px] text-white/30 uppercase tracking-wider block mb-1.5">To (Point #)</label>
+              <label className="text-[10px] text-white/30 admin-light:text-slate-500 uppercase tracking-wider block mb-1.5">To (Point #)</label>
               <select
                 value={previewTo ?? ''}
                 onChange={(e) => setPreviewTo(e.target.value ? Number(e.target.value) : null)}
-                className="w-full px-3 py-2.5 bg-[#050F1A] border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-[#62A0EA] transition-colors"
+                className="w-full px-3 py-2.5 bg-[#050F1A] admin-light:bg-[#F8FAFC] border border-white/10 admin-light:border-[#CBD5E1] rounded-xl text-sm text-white admin-light:text-slate-900 focus:outline-none focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4] transition-colors"
               >
                 <option value="">Select drop-off point</option>
                 {farePoints.map(p => (
@@ -635,25 +635,25 @@ export default function FareMatrixPage() {
             </div>
           </div>
           {farePreview ? (
-            <div className="bg-[#050F1A]/60 rounded-xl p-4 border border-white/5 space-y-2">
+            <div className="bg-[#050F1A]/60 admin-light:bg-[#F8FAFC] rounded-xl p-4 border border-white/5 admin-light:border-[#E2E8F0] space-y-2">
               <div className="flex flex-wrap items-center gap-2 mb-3">
                 <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[9px] font-bold">A</span>
-                <span className="min-w-0 break-words text-sm text-white font-medium">{farePreview.fareResult.fromPoint.name}</span>
-                <svg className="w-4 h-4 text-white/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
+                <span className="min-w-0 break-words text-sm text-white admin-light:text-slate-900 font-medium">{farePreview.fareResult.fromPoint.name}</span>
+                <svg className="w-4 h-4 text-white/20 admin-light:text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
                 <span className="w-5 h-5 rounded-full bg-[#FF6D3A] text-white flex items-center justify-center text-[9px] font-bold">B</span>
-                <span className="min-w-0 break-words text-sm text-white font-medium">{farePreview.fareResult.toPoint.name}</span>
+                <span className="min-w-0 break-words text-sm text-white admin-light:text-slate-900 font-medium">{farePreview.fareResult.toPoint.name}</span>
               </div>
-              <div className="flex justify-between text-sm"><span className="text-white/60">Barangays Traveled</span><span className="font-semibold text-white">{farePreview.fareResult.barangaysTraveled} pts</span></div>
-              <div className="flex justify-between text-sm"><span className="text-white/60">Base Fare</span><span className="font-semibold text-white">{formatPeso(farePreview.fareResult.baseFare)}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-white/60 admin-light:text-slate-600">Barangays Traveled</span><span className="font-semibold text-white admin-light:text-slate-900">{farePreview.fareResult.barangaysTraveled} pts</span></div>
+              <div className="flex justify-between text-sm"><span className="text-white/60 admin-light:text-slate-600">Base Fare</span><span className="font-semibold text-white admin-light:text-slate-900">{formatPeso(farePreview.fareResult.baseFare)}</span></div>
               {farePreview.fareResult.succeedingCount > 0 && (
-                <div className="flex justify-between text-sm"><span className="text-white/60">Succeeding ({farePreview.fareResult.succeedingCount} x {formatPeso(farePreview.fareResult.succeedingFare)})</span><span className="font-semibold text-white">{formatPeso(farePreview.fareResult.succeedingFare * farePreview.fareResult.succeedingCount)}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-white/60 admin-light:text-slate-600">Succeeding ({farePreview.fareResult.succeedingCount} x {formatPeso(farePreview.fareResult.succeedingFare)})</span><span className="font-semibold text-white admin-light:text-slate-900">{formatPeso(farePreview.fareResult.succeedingFare * farePreview.fareResult.succeedingCount)}</span></div>
               )}
-              <div className="border-t border-dashed border-white/10 my-2" />
-              <div className="flex justify-between text-sm"><span className="text-white/60">Regular</span><span className="font-semibold text-[#62A0EA]">{formatPeso(farePreview.fareResult.regularFare)}</span></div>
-              <div className="flex justify-between text-sm"><span className="text-white/60">Discounted</span><span className="font-semibold text-emerald-400">{formatPeso(farePreview.fareResult.discountedFare)}</span></div>
+              <div className="border-t border-dashed border-white/10 admin-light:border-[#CBD5E1] my-2" />
+              <div className="flex justify-between text-sm"><span className="text-white/60 admin-light:text-slate-600">Regular</span><span className="font-semibold text-[#62A0EA] admin-light:text-[#1A5FB4]">{formatPeso(farePreview.fareResult.regularFare)}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-white/60 admin-light:text-slate-600">Discounted</span><span className="font-semibold text-emerald-400 admin-light:text-emerald-700">{formatPeso(farePreview.fareResult.discountedFare)}</span></div>
             </div>
           ) : (
-            <div className="text-white/20 text-xs text-center py-3">
+            <div className="text-white/20 admin-light:text-slate-400 text-xs text-center py-3">
               Select both points to preview fare
             </div>
           )}
@@ -664,17 +664,17 @@ export default function FareMatrixPage() {
           {/* Add Point Form */}
           {showAddForm && (
             <div id="fare-point-add-form" className="bg-[#1A5FB4]/5 border border-[#1A5FB4]/30 p-5 rounded-2xl space-y-4">
-              <h3 className="text-sm font-bold text-white">New Point Area</h3>
+              <h3 className="text-sm font-bold text-white admin-light:text-slate-900">New Point Area</h3>
               <div className="grid grid-cols-1 @[32rem]/fare-matrix:grid-cols-2 gap-4">
                 {/* Full width: the next field (Sub Pickup) is also
                     spans both columns, so a single-column Point Name left an
                     empty cell beside it instead of the two stacking flush. */}
                 <div className="@[32rem]/fare-matrix:col-span-2">
-                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Point Name</label>
+                  <label className="block text-[10px] text-white/30 admin-light:text-slate-500 uppercase tracking-wider mb-1.5">Point Name</label>
                   <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Jollibee Crossing" className={inputClasses} />
                 </div>
                 <div className="@[32rem]/fare-matrix:col-span-2">
-                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Sub Pickup / Drop-off Points</label>
+                  <label className="block text-[10px] text-white/30 admin-light:text-slate-500 uppercase tracking-wider mb-1.5">Sub Pickup / Drop-off Points</label>
                   <SubDropoffEditor
                     value={newSubStops}
                     onChange={setNewSubStops}
@@ -683,16 +683,16 @@ export default function FareMatrixPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Regular Fare (₱)</label>
+                  <label className="block text-[10px] text-white/30 admin-light:text-slate-500 uppercase tracking-wider mb-1.5">Regular Fare (₱)</label>
                   <input type="number" step="0.25" value={newRegular} onChange={(e) => setNewRegular(e.target.value)} className={inputClasses} />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Discounted Fare (₱)</label>
+                  <label className="block text-[10px] text-white/30 admin-light:text-slate-500 uppercase tracking-wider mb-1.5">Discounted Fare (₱)</label>
                   <input type="number" step="0.25" value={newDiscounted} onChange={(e) => setNewDiscounted(e.target.value)} className={inputClasses} />
                 </div>
               </div>
               <div>
-                <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-white/30">Point Location</label>
+                <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-white/30 admin-light:text-slate-500">Point Location</label>
                 <FarePointMapPicker
                   value={newLocation}
                   onChange={setNewLocation}
@@ -708,15 +708,15 @@ export default function FareMatrixPage() {
           {/* Edit Point Form */}
           {editingPoint !== null && (
             <div id="fare-point-edit-form" className="bg-[#1A5FB4]/5 border border-[#1A5FB4]/30 p-5 rounded-2xl space-y-4">
-              <h3 className="text-sm font-bold text-white">Edit Point #{editingPoint}</h3>
+              <h3 className="text-sm font-bold text-white admin-light:text-slate-900">Edit Point #{editingPoint}</h3>
               <div className="grid grid-cols-1 @[32rem]/fare-matrix:grid-cols-2 gap-4">
                 {/* Full width, same reasoning as the Add form above. */}
                 <div className="@[32rem]/fare-matrix:col-span-2">
-                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Point Name</label>
+                  <label className="block text-[10px] text-white/30 admin-light:text-slate-500 uppercase tracking-wider mb-1.5">Point Name</label>
                   <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} className={inputClasses} />
                 </div>
                 <div className="@[32rem]/fare-matrix:col-span-2">
-                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Sub Pickup / Drop-off Points</label>
+                  <label className="block text-[10px] text-white/30 admin-light:text-slate-500 uppercase tracking-wider mb-1.5">Sub Pickup / Drop-off Points</label>
                   <SubDropoffEditor
                     value={editSubStops}
                     onChange={setEditSubStops}
@@ -725,16 +725,16 @@ export default function FareMatrixPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Regular Fare (₱)</label>
+                  <label className="block text-[10px] text-white/30 admin-light:text-slate-500 uppercase tracking-wider mb-1.5">Regular Fare (₱)</label>
                   <input type="number" step="0.25" value={editRegular} onChange={(e) => setEditRegular(e.target.value)} className={inputClasses} />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1.5">Discounted Fare (₱)</label>
+                  <label className="block text-[10px] text-white/30 admin-light:text-slate-500 uppercase tracking-wider mb-1.5">Discounted Fare (₱)</label>
                   <input type="number" step="0.25" value={editDiscounted} onChange={(e) => setEditDiscounted(e.target.value)} className={inputClasses} />
                 </div>
               </div>
               <div>
-                <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-white/30">Point Location</label>
+                <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-white/30 admin-light:text-slate-500">Point Location</label>
                 <FarePointMapPicker
                   value={editLocation}
                   onChange={setEditLocation}
@@ -745,41 +745,41 @@ export default function FareMatrixPage() {
                 <button type="button" onClick={handleSaveEdit} disabled={isSaving} className="px-6 py-2.5 bg-[#1A5FB4] text-white text-sm font-bold rounded-xl hover:bg-[#165a9f] transition-colors active:scale-95 disabled:opacity-50">
                   {isSaving ? 'Saving...' : 'Save Changes'}
                 </button>
-                <button type="button" onClick={() => setEditingPoint(null)} className="px-6 py-2.5 bg-white/10 text-white text-sm font-bold rounded-xl hover:bg-white/20 transition-colors active:scale-95">Cancel</button>
+                <button type="button" onClick={() => setEditingPoint(null)} className="px-6 py-2.5 bg-white/10 admin-light:bg-slate-100 text-white admin-light:text-slate-900 text-sm font-bold rounded-xl hover:bg-white/20 admin-light:hover:bg-slate-200 transition-colors active:scale-95">Cancel</button>
               </div>
             </div>
           )}
 
           {/* Search Bar */}
           <div className="relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 admin-light:text-slate-500" />
             <input
               type="text"
               placeholder="Search point areas or landmarks..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#071A2E] border border-white/[0.06] rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-[#62A0EA] focus:ring-1 focus:ring-[#62A0EA]/30 transition-colors"
+              className="w-full bg-[#071A2E] admin-light:bg-white border border-white/[0.06] admin-light:border-[#E2E8F0] rounded-xl pl-10 pr-4 py-3 text-sm text-white admin-light:text-slate-900 placeholder:text-white/25 admin-light:placeholder:text-slate-400 focus:outline-none focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4] focus:ring-1 focus:ring-[#62A0EA]/30 admin-light:focus:ring-[#1A5FB4]/30 transition-colors"
             />
             {searchQuery.trim() && (
-              <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
-                <X size={12} className="text-white/60" />
+              <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/10 admin-light:bg-slate-100 hover:bg-white/20 admin-light:hover:bg-slate-200 flex items-center justify-center transition-colors">
+                <X size={12} className="text-white/60 admin-light:text-slate-600" />
               </button>
             )}
           </div>
 
           {/* Results count */}
           <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-            <p className="text-[10px] text-white/25">
+            <p className="text-[10px] text-white/25 admin-light:text-slate-400">
               {searchQuery.trim() ? `${filteredPoints.length} of ${farePoints.length} point areas` : `${farePoints.length} point areas total`}
             </p>
-            <p className="min-w-0 break-words text-[10px] text-white/25">{selectedRoute?.name ?? 'No route selected'}</p>
+            <p className="min-w-0 break-words text-[10px] text-white/25 admin-light:text-slate-400">{selectedRoute?.name ?? 'No route selected'}</p>
           </div>
 
           {/* Point Areas List */}
-          <div className="bg-[#071A2E] border border-white/[0.06] rounded-2xl overflow-hidden">
-            <div className="divide-y divide-white/5 max-h-[60vh] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="bg-[#071A2E] admin-light:bg-white border border-white/[0.06] admin-light:border-[#E2E8F0] rounded-2xl overflow-hidden">
+            <div className="divide-y divide-white/5 admin-light:divide-[#E2E8F0] max-h-[60vh] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {filteredPoints.length === 0 ? (
-                <div className="py-12 text-center text-white/20 text-sm">
+                <div className="py-12 text-center text-white/20 admin-light:text-slate-400 text-sm">
                   No fare points found. Click &quot;Add Point Area&quot; to create one.
                 </div>
               ) : filteredPoints.map((point) => {
@@ -787,47 +787,47 @@ export default function FareMatrixPage() {
 
                 return (
                   <div key={point.pointNumber}>
-                    <div className="grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2 px-4 py-3.5 hover:bg-white/[0.03] transition-colors @[32rem]/fare-matrix:grid-cols-[2rem_minmax(0,1fr)_auto]">
+                    <div className="grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2 px-4 py-3.5 hover:bg-white/[0.03] admin-light:hover:bg-[#F8FAFC] transition-colors @[32rem]/fare-matrix:grid-cols-[2rem_minmax(0,1fr)_auto]">
                       {/* Point Number Badge */}
-                      <span className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-bold ${isBaseZone ? 'bg-emerald-500/15 text-emerald-400' : 'bg-[#62A0EA]/15 text-[#62A0EA]'}`}>
+                      <span className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-bold ${isBaseZone ? 'bg-emerald-500/15 text-emerald-400 admin-light:text-emerald-700' : 'bg-[#62A0EA]/15 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4]'}`}>
                         {point.pointNumber}
                       </span>
 
                       {/* Name + Landmark indicator */}
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <MapPin size={12} className={isBaseZone ? 'text-emerald-400/60 flex-shrink-0' : 'text-[#62A0EA]/60 flex-shrink-0'} />
-                          <span className="min-w-0 flex-1 text-sm text-white font-medium truncate" title={point.name}>{point.name}</span>
+                          <MapPin size={12} className={isBaseZone ? 'text-emerald-400/60 admin-light:text-emerald-600 flex-shrink-0' : 'text-[#62A0EA]/60 admin-light:text-[#1A5FB4]/60 flex-shrink-0'} />
+                          <span className="min-w-0 flex-1 text-sm text-white admin-light:text-slate-900 font-medium truncate" title={point.name}>{point.name}</span>
                           {point.subStops && point.subStops.length > 0 && (
-                            <span className="rounded-full border border-[#62A0EA]/20 bg-[#62A0EA]/10 px-2 py-0.5 text-[9px] font-semibold text-[#93C5FD]">
+                            <span className="rounded-full border border-[#62A0EA]/20 admin-light:border-[#1A5FB4]/20 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 px-2 py-0.5 text-[9px] font-semibold text-[#93C5FD] admin-light:text-[#1A5FB4]">
                               {point.subStops.length} sub-area{point.subStops.length === 1 ? '' : 's'}
                             </span>
                           )}
                         </div>
                         {isBaseZone && (
-                          <p className="text-[9px] text-emerald-400/50 ml-4 mt-0.5">Base fare zone</p>
+                          <p className="text-[9px] text-emerald-400/50 admin-light:text-emerald-700 ml-4 mt-0.5">Base fare zone</p>
                         )}
                       </div>
 
                       {/* Fares */}
                       <div className="col-start-2 flex min-w-0 items-center justify-between gap-3 @[32rem]/fare-matrix:col-start-auto @[32rem]/fare-matrix:justify-end">
                         <div className="shrink-0 @[32rem]/fare-matrix:text-right">
-                          <p className="text-xs font-bold text-[#62A0EA]">{formatPeso(point.regularFare)}</p>
-                          <p className="text-[10px] text-emerald-400/70">{formatPeso(point.discountedFare)}</p>
+                          <p className="text-xs font-bold text-[#62A0EA] admin-light:text-[#1A5FB4]">{formatPeso(point.regularFare)}</p>
+                          <p className="text-[10px] text-emerald-400/70 admin-light:text-emerald-700">{formatPeso(point.discountedFare)}</p>
                         </div>
 
                         {/* Actions */}
                         <div className="flex items-center gap-0.5">
-                          <button type="button" onClick={() => handleMovePoint(point.pointNumber, -1)} disabled={point.pointNumber === 1 || isSaving} className="p-1.5 text-white/20 hover:text-white disabled:opacity-20" title="Move earlier">
+                          <button type="button" onClick={() => handleMovePoint(point.pointNumber, -1)} disabled={point.pointNumber === 1 || isSaving} className="p-1.5 text-white/20 admin-light:text-slate-400 hover:text-white admin-light:hover:text-slate-900 disabled:opacity-20" title="Move earlier">
                             <ArrowUp size={13} />
                           </button>
-                          <button type="button" onClick={() => handleMovePoint(point.pointNumber, 1)} disabled={point.pointNumber === farePoints.length || isSaving} className="p-1.5 text-white/20 hover:text-white disabled:opacity-20" title="Move later">
+                          <button type="button" onClick={() => handleMovePoint(point.pointNumber, 1)} disabled={point.pointNumber === farePoints.length || isSaving} className="p-1.5 text-white/20 admin-light:text-slate-400 hover:text-white admin-light:hover:text-slate-900 disabled:opacity-20" title="Move later">
                             <ArrowDown size={13} />
                           </button>
-                          <button type="button" onClick={() => handleStartEdit(point.pointNumber)} className="p-1.5 text-white/20 hover:text-[#62A0EA] transition-colors" title="Edit">
+                          <button type="button" onClick={() => handleStartEdit(point.pointNumber)} className="p-1.5 text-white/20 admin-light:text-slate-400 hover:text-[#62A0EA] admin-light:hover:text-[#1A5FB4] transition-colors" title="Edit">
                             <Pencil size={14} />
                           </button>
-                          <button type="button" onClick={() => handleDelete(point.pointNumber)} className="p-1.5 text-white/20 hover:text-red-400 transition-colors" title="Delete">
+                          <button type="button" onClick={() => handleDelete(point.pointNumber)} className="p-1.5 text-white/20 admin-light:text-slate-400 hover:text-red-400 admin-light:hover:text-red-600 transition-colors" title="Delete">
                             <Trash2 size={14} />
                           </button>
                         </div>
@@ -836,13 +836,13 @@ export default function FareMatrixPage() {
 
                     {/* Sub-areas stay visible so Admin sees the same choices as Conductor. */}
                     {point.subStops && point.subStops.length > 0 && (
-                      <div className="bg-[#050F1A]/60 px-4 py-3 mx-4 mb-3 rounded-xl border border-white/5">
-                        <p className="text-[10px] uppercase tracking-wider text-white/30 font-bold mb-2">Sub pickup / drop-off points in this area</p>
+                      <div className="bg-[#050F1A]/60 admin-light:bg-[#F8FAFC] px-4 py-3 mx-4 mb-3 rounded-xl border border-white/5 admin-light:border-[#E2E8F0]">
+                        <p className="text-[10px] uppercase tracking-wider text-white/30 admin-light:text-slate-500 font-bold mb-2">Sub pickup / drop-off points in this area</p>
                         <div className="flex flex-wrap gap-2">
                           {point.subStops.map((stop, idx) => (
-                            <div key={idx} className="flex min-w-0 max-w-full items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/5">
-                              <span className="w-1.5 h-1.5 shrink-0 rounded-full bg-[#62A0EA]" />
-                              <span className="min-w-0 break-words text-xs text-white/60">{stop}</span>
+                            <div key={idx} className="flex min-w-0 max-w-full items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.04] admin-light:bg-white border border-white/5 admin-light:border-[#E2E8F0]">
+                              <span className="w-1.5 h-1.5 shrink-0 rounded-full bg-[#62A0EA] admin-light:bg-[#1A5FB4]" />
+                              <span className="min-w-0 break-words text-xs text-white/60 admin-light:text-slate-600">{stop}</span>
                             </div>
                           ))}
                         </div>
@@ -856,18 +856,18 @@ export default function FareMatrixPage() {
         </form>
       </div>
 
-      <Modal isOpen={isDeleteRouteOpen} onClose={() => { if (!isDeletingRoute) setIsDeleteRouteOpen(false); }}>
+      <Modal isOpen={isDeleteRouteOpen} onClose={() => { if (!isDeletingRoute) setIsDeleteRouteOpen(false); }} adminThemed>
         <div className="space-y-5">
           <div>
-            <h2 className="text-lg font-bold text-white">Delete route?</h2>
-            <p className="mt-1 text-sm text-slate-400">
+            <h2 className="text-lg font-bold text-white admin-light:text-slate-900">Delete route?</h2>
+            <p className="mt-1 text-sm text-slate-400 admin-light:text-slate-500">
               {selectedRoute?.name ?? 'This route'} will be removed. A route can only be deleted once no vehicle
               is assigned to it and it has no Fare Points.
             </p>
           </div>
           {deleteRouteError && (
             <div role="alert" className="rounded-md border border-red-500/30 bg-red-500/10 p-3">
-              <p className="text-sm text-red-400">{deleteRouteError}</p>
+              <p className="text-sm text-red-400 admin-light:text-red-600">{deleteRouteError}</p>
             </div>
           )}
           <div className="flex justify-end gap-2">
@@ -875,7 +875,7 @@ export default function FareMatrixPage() {
               type="button"
               onClick={() => setIsDeleteRouteOpen(false)}
               disabled={isDeletingRoute}
-              className="rounded-md border border-[#1E2D45] px-5 py-2.5 text-slate-300 hover:bg-[#131C2E] disabled:opacity-50"
+              className="rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] px-5 py-2.5 text-slate-300 admin-light:text-slate-700 hover:bg-[#131C2E] admin-light:hover:bg-slate-100 disabled:opacity-50"
             >
               Cancel
             </button>

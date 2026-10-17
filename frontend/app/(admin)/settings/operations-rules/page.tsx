@@ -19,13 +19,13 @@ function formatMinutes(total: number): string {
 
 function RuleField({ icon: Icon, label, help, children }: { icon: LucideIcon; label: string; help: string; children: ReactNode }) {
   return (
-    <label className="flex flex-col gap-3 rounded-lg border border-[#1E2D45] bg-[#0E1628]/60 p-3 transition-colors focus-within:border-[#62A0EA]/60">
+    <label className="flex flex-col gap-3 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628]/60 admin-light:bg-[#F8FAFC] p-3 transition-colors focus-within:border-[#62A0EA]/60 admin-light:focus-within:border-[#1A5FB4]/60">
       <span className="flex items-start gap-3">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#62A0EA]/10 text-[#8CB9F0]">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 text-[#8CB9F0] admin-light:text-[#1A5FB4]">
           <Icon size={16} aria-hidden="true" />
         </span>
         <span className="min-w-0">
-          <span className="block text-sm font-medium text-white">{label}</span>
+          <span className="block text-sm font-medium text-white admin-light:text-slate-900">{label}</span>
           <span className="block text-xs text-slate-500">{help}</span>
         </span>
       </span>
@@ -37,15 +37,15 @@ function RuleField({ icon: Icon, label, help, children }: { icon: LucideIcon; la
 function TimelineStep({ label, highlight = false }: { label: string; highlight?: boolean }) {
   return (
     <li className="flex items-center gap-2">
-      <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${highlight ? 'bg-[#62A0EA]' : 'bg-slate-500'}`} />
-      <span className={highlight ? 'font-semibold text-white' : 'text-slate-300'}>{label}</span>
+      <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${highlight ? 'bg-[#62A0EA] admin-light:bg-[#1A5FB4]' : 'bg-slate-500'}`} />
+      <span className={highlight ? 'font-semibold text-white admin-light:text-slate-900' : 'text-slate-300 admin-light:text-slate-700'}>{label}</span>
     </li>
   );
 }
 
 function TimelineGap({ text }: { text: string }) {
   return (
-    <li className="flex items-center gap-1.5 pl-4 text-xs font-semibold tabular-nums text-[#8CB9F0] sm:pl-0">
+    <li className="flex items-center gap-1.5 pl-4 text-xs font-semibold tabular-nums text-[#8CB9F0] admin-light:text-[#1A5FB4] sm:pl-0">
       <ArrowRight size={13} aria-hidden="true" className="rotate-90 sm:rotate-0" />
       {text}
     </li>
@@ -117,14 +117,14 @@ export default function OperationsRulesPage() {
       <div className="mx-auto w-full max-w-3xl space-y-6">
 
         <div className="text-center">
-          <h1 className="text-2xl sm:text-3xl font-bold text-white">Operations & Fleet Rules</h1>
-          <p className="mt-1 text-sm text-slate-400">Speed alerts, shift limits and remittance reminders.</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white admin-light:text-slate-900">Operations & Fleet Rules</h1>
+          <p className="mt-1 text-sm text-slate-400 admin-light:text-slate-500">Speed alerts, shift limits and remittance reminders.</p>
         </div>
 
         {error && (
           <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-center gap-2">
-            <AlertCircle size={16} className="text-red-400 flex-shrink-0" />
-            <p className="text-sm text-red-400">{error}</p>
+            <AlertCircle size={16} className="text-red-400 admin-light:text-red-600 flex-shrink-0" />
+            <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
           </div>
         )}
 
@@ -154,7 +154,7 @@ export default function OperationsRulesPage() {
             </div>
 
             {/* Read-back of the two numbers as a timeline */}
-            <ol aria-label="Reminder timeline" className="mt-4 flex flex-col gap-2 rounded-lg border border-[#62A0EA]/15 bg-[#62A0EA]/5 px-4 py-3 text-sm sm:flex-row sm:items-center sm:gap-3">
+            <ol aria-label="Reminder timeline" className="mt-4 flex flex-col gap-2 rounded-lg border border-[#62A0EA]/15 admin-light:border-[#1A5FB4]/15 bg-[#62A0EA]/5 admin-light:bg-[#1A5FB4]/5 px-4 py-3 text-sm sm:flex-row sm:items-center sm:gap-3">
               {timelineValid ? (
                 <>
                   <TimelineStep label="Shift closes" />
@@ -164,7 +164,7 @@ export default function OperationsRulesPage() {
                   <TimelineStep label="Next reminders until remitted" />
                 </>
               ) : (
-                <li className="text-slate-400">Grace period must be at least 1 minute and the interval at least 5.</li>
+                <li className="text-slate-400 admin-light:text-slate-500">Grace period must be at least 1 minute and the interval at least 5.</li>
               )}
             </ol>
           </SettingsSection>
@@ -173,7 +173,7 @@ export default function OperationsRulesPage() {
             <button
               type="submit"
               disabled={isSaving}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 bg-[#62A0EA] text-white font-medium rounded-lg hover:bg-[#4A8BD4] transition-colors active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white font-medium rounded-lg hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] transition-colors active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save size={18} />
               <span>{isSaving ? 'Saving...' : isSaved ? 'Changes Saved!' : 'Save Rules'}</span>
