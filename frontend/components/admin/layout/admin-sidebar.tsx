@@ -11,7 +11,6 @@ import {
 } from '@/config/admin-nav';
 import { useSettingsDrawer } from '@/components/admin/ui/settings-drawer';
 import { NotificationBell } from '@/components/admin/layout/notification-bell';
-import { AdminIdentity } from '@/components/admin/layout/admin-identity';
 import { AdminThemeToggle } from '@/components/admin/layout/admin-theme-toggle';
 import { useAdminTheme } from '@/contexts/admin-theme-context';
 import { useAdminNotifications, formatAdminBadgeCount } from '@/contexts/admin-notifications-context';
@@ -170,10 +169,8 @@ export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
         </div>
       </div>
 
-      {/* Bottom Section (Signed-in Admin, Sign Out & Branding) */}
+      {/* Bottom Section (Sign Out & Branding) */}
       <div className="px-3 pb-5 border-t border-white/10 admin-light:border-white/10 pt-3 mt-2 space-y-2">
-        <AdminIdentity onBrand />
-
         <button
           onClick={onSignOut}
           className="flex items-center space-x-3 px-3 py-2.5 w-full rounded-md text-red-400 admin-light:text-red-200 hover:bg-red-400/10 admin-light:hover:bg-white/10 transition-colors duration-200"
