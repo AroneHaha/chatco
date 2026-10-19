@@ -78,7 +78,7 @@ export default function DashboardHome() {
     recentVehicles,
     recentLostFound,
     recentUsers,
-    recentAnnouncements,
+    recentNotifications,
     recentActivityLogs,
     quickStats,
     settingsModules,
@@ -113,7 +113,7 @@ export default function DashboardHome() {
         recentVehicles={recentVehicles}
         recentLostFound={recentLostFound}
         recentUsers={recentUsers}
-        recentAnnouncements={recentAnnouncements}
+        recentNotifications={recentNotifications}
         recentActivityLogs={recentActivityLogs}
         activityFeed={activityFeed}
       />

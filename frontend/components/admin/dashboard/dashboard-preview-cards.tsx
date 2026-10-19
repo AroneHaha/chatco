@@ -3,10 +3,22 @@ import { useEffect, useRef } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { formatDateTime } from "@/lib/utils/format";
 import { getActivityLogCategoryLabel } from "@/lib/shared/services/activity-log.service";
-import type { VehicleItem, LostFoundItem, UserItem, AnnouncementItem, ActivityLogItem, DashboardActivityFeed } from "@/app/(admin)/admin-dashboard/data/dashboard-data";
+import type { VehicleItem, LostFoundItem, UserItem, NotificationItem, ActivityLogItem, DashboardActivityFeed } from "@/app/(admin)/admin-dashboard/data/dashboard-data";
 
 function formatCategory(category: string): string {
   return category.toLowerCase().split("_").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+}
+
+// Opens the notification's detail in the Updates Center (and marks it read).
+function notificationHref(id: string): string {
+  return `/announcements?updateId=${encodeURIComponent(id)}`;
+}
+
+// Time for today's notifications, date for anything older (Philippine time).
+function formatNotificationTime(iso: string): string {
+  if (!iso) return "";
+  const stamp = formatDateTime(iso, "Asia/Manila");
+  return stamp.date === formatDateTime(new Date().toISOString(), "Asia/Manila").date ? stamp.time : stamp.date;
 }
 
 interface DashboardPreviewCardsProps {
@@ -14,7 +26,7 @@ interface DashboardPreviewCardsProps {
   recentVehicles: VehicleItem[];
   recentLostFound: LostFoundItem[];
   recentUsers: UserItem[];
-  recentAnnouncements: AnnouncementItem[];
+  recentNotifications: NotificationItem[];
   recentActivityLogs: ActivityLogItem[];
   activityFeed: DashboardActivityFeed;
 }
@@ -30,7 +42,7 @@ function PreviewHeader({ title, href, detail }: { title: string; href: string; d
   );
 }
 
-export function DashboardPreviewCards({ activeVehicles, recentVehicles, recentLostFound, recentUsers, recentAnnouncements, recentActivityLogs, activityFeed }: DashboardPreviewCardsProps) {
+export function DashboardPreviewCards({ activeVehicles, recentVehicles, recentLostFound, recentUsers, recentNotifications, recentActivityLogs, activityFeed }: DashboardPreviewCardsProps) {
   const activityScrollRef = useRef<HTMLDivElement>(null);
   const { isLoading: isLoadingActivity, hasMore: hasMoreActivity, error: activityError, loadMore: loadMoreActivity } = activityFeed;
   useEffect(() => {
@@ -46,7 +58,7 @@ export function DashboardPreviewCards({ activeVehicles, recentVehicles, recentLo
     observer.observe(list);
     return () => observer.disconnect();
   }, [recentActivityLogs, hasMoreActivity, isLoadingActivity, activityError, loadMoreActivity]);
-  const [latestAnnouncement, ...olderAnnouncements] = recentAnnouncements;
+  const [latestNotification, ...olderNotifications] = recentNotifications;
   // These are previews of three recent accounts/items, not system-wide totals.
   const roleCounts = Array.from(new Set(recentUsers.map((user) => user.role))).map((role) => ({
     role, count: recentUsers.filter((user) => user.role === role).length,
@@ -128,33 +140,44 @@ export function DashboardPreviewCards({ activeVehicles, recentVehicles, recentLo
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12">
-        <section aria-label="Recent announcements" className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white md:col-span-2 xl:col-span-5">
-          <PreviewHeader title="Announcements" href="/announcements" />
-          {latestAnnouncement ? (
-            <div className="flex flex-1 flex-col px-5 pb-5">
-              <div className="py-5">
-                <p className="text-[10px] font-medium uppercase tracking-wider text-white/40 admin-light:text-slate-500">Latest announcement</p>
-                <p className="mt-3 line-clamp-3 break-words text-lg font-medium leading-7 tracking-tight text-white/90 admin-light:text-slate-800" title={latestAnnouncement.title}>{latestAnnouncement.title}</p>
-                <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
-                  <span className="text-white/45 admin-light:text-slate-500">{formatCategory(latestAnnouncement.type)}</span>
-                  <span className={latestAnnouncement.status === "Active" ? "text-[#62A0EA] admin-light:text-[#1A5FB4]" : "text-white/35 admin-light:text-slate-400"}>{latestAnnouncement.status}</span>
+        <section aria-label="Recent notifications" className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white md:col-span-2 xl:col-span-5">
+          <PreviewHeader title="Notifications" href="/announcements?tab=notifications" />
+          {latestNotification ? (
+            <div className="flex flex-1 flex-col px-5 pb-4">
+              <Link href={notificationHref(latestNotification.id)} className="group -mx-2 mt-3 block rounded-md px-2 py-3 transition-colors hover:bg-[#1A2540]/60 admin-light:hover:bg-[#F8FAFC] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#62A0EA] admin-light:focus-visible:outline-[#1A5FB4]">
+                <div className="flex items-baseline justify-between gap-3 text-[10px]">
+                  <span className="font-medium uppercase tracking-wider text-white/40 admin-light:text-slate-500">Latest</span>
+                  <time dateTime={latestNotification.createdAt} className="tabular-nums text-white/45 admin-light:text-slate-500">{formatNotificationTime(latestNotification.createdAt)}</time>
                 </div>
-              </div>
-              {olderAnnouncements.length > 0 && (
-                <div className="mt-auto border-t border-[#1E2D45] admin-light:border-[#E2E8F0] pt-3">
-                  <p className="text-[10px] text-white/40 admin-light:text-slate-500">Also recent</p>
-                  <ul className="mt-2 space-y-2">
-                    {olderAnnouncements.map((announcement, index) => (
-                      <li key={`${announcement.title}-${index}`} className="flex items-start justify-between gap-3 text-[11px] leading-5">
-                        <span className="min-w-0 line-clamp-2 break-words text-white/65 admin-light:text-slate-600" title={announcement.title}>{announcement.title}</span>
-                        <span className={`shrink-0 ${announcement.status === "Active" ? "text-[#62A0EA] admin-light:text-[#1A5FB4]" : "text-white/35 admin-light:text-slate-400"}`}>{announcement.status}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                <p className={`mt-2 line-clamp-2 break-words text-lg leading-7 tracking-tight ${latestNotification.isRead ? "font-medium text-white/80 admin-light:text-slate-700" : "font-semibold text-white admin-light:text-slate-900"}`} title={latestNotification.title}>{latestNotification.title}</p>
+                {latestNotification.message && <p className="mt-1.5 line-clamp-2 break-words text-xs leading-5 text-white/55 admin-light:text-slate-600">{latestNotification.message}</p>}
+                <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+                  <span className="text-white/45 admin-light:text-slate-500">{formatCategory(latestNotification.type)}</span>
+                  <span className={latestNotification.isRead ? "text-white/35 admin-light:text-slate-400" : "text-[#62A0EA] admin-light:text-[#1A5FB4]"}>{latestNotification.isRead ? "Read" : "Unread"}</span>
+                </p>
+              </Link>
+              {olderNotifications.length > 0 && (
+                <ul className="mt-2 divide-y divide-[#1E2D45] admin-light:divide-[#E2E8F0] border-t border-[#1E2D45] admin-light:border-[#E2E8F0]">
+                  {olderNotifications.map((notification) => (
+                    <li key={notification.id}>
+                      <Link href={notificationHref(notification.id)} className="-mx-2 grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 rounded-md px-2 py-2.5 transition-colors hover:bg-[#1A2540]/60 admin-light:hover:bg-[#F8FAFC] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#62A0EA] admin-light:focus-visible:outline-[#1A5FB4]">
+                        <span className="min-w-0">
+                          <span className={`block truncate text-xs leading-5 ${notification.isRead ? "text-white/65 admin-light:text-slate-600" : "font-medium text-white/90 admin-light:text-slate-900"}`} title={notification.title}>
+                            {!notification.isRead && <span className="sr-only">Unread: </span>}{notification.title}
+                          </span>
+                          <span className="mt-0.5 block truncate text-[10px] text-white/40 admin-light:text-slate-500">{formatCategory(notification.type)}</span>
+                        </span>
+                        <span className="flex items-center gap-2 text-[10px] tabular-nums text-white/45 admin-light:text-slate-500">
+                          {!notification.isRead && <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[#62A0EA] admin-light:bg-[#1A5FB4]" />}
+                          <time dateTime={notification.createdAt}>{formatNotificationTime(notification.createdAt)}</time>
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
-          ) : <p className="px-5 py-6 text-xs text-white/45 admin-light:text-slate-500">No recent announcements.</p>}
+          ) : <p className="px-5 py-6 text-xs text-white/45 admin-light:text-slate-500">No notifications yet.</p>}
         </section>
 
         <section aria-label="Recent lost and found items" className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white xl:col-span-4">

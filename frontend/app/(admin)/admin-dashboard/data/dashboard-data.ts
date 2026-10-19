@@ -27,10 +27,15 @@ export interface UserItem {
   status: "Active" | "Inactive";
 }
 
-export interface AnnouncementItem {
+// The signed-in admin's own notifications — the Updates Center
+// "Notifications" tab, not the broadcast announcements it also lists.
+export interface NotificationItem {
+  id: string;
   title: string;
+  message: string;
   type: string;
-  status: "Active" | "Archived";
+  isRead: boolean;
+  createdAt: string;
 }
 
 export type ActivityLogItem = ActivityLog;
@@ -77,7 +82,7 @@ export interface DashboardData {
   recentVehicles: VehicleItem[];
   recentLostFound: LostFoundItem[];
   recentUsers: UserItem[];
-  recentAnnouncements: AnnouncementItem[];
+  recentNotifications: NotificationItem[];
   recentActivityLogs: ActivityLogItem[];
   quickStats: StatItem[];
   settingsModules: SettingsModule[];
@@ -115,6 +120,8 @@ function formatNumber(value: number): string {
 /* ─── Data Hook (real API — no mock) ─── */
 
 const ACTIVITY_PREVIEW_LIMIT = 10;
+/** Notifications shown in the dashboard box: one featured + four listed. */
+const NOTIFICATION_PREVIEW_LIMIT = 5;
 
 export function useDashboardData() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -150,16 +157,19 @@ export function useDashboardData() {
       //  - vehicles:     { data: { data: [...], current_page, ... } } (paginator)
       //  - users:        { data: { data: [...], current_page, ... } } (paginator)
       //  - lost-items:   { data: { data: [...], current_page, ... } } (paginator)
-      const [analyticsRes, vehiclesRes, usersRes, lostItemsRes, announcementsRes, activityPage] = await Promise.all([
+      const [analyticsRes, vehiclesRes, usersRes, lostItemsRes, notificationsRes, activityPage] = await Promise.all([
         fetch("/api/admin/analytics?pickup_period=week", { headers: { Accept: "application/json" } }),
         fetch("/api/admin/vehicles?per_page=3", { headers: { Accept: "application/json" } }),
-        // users + lost-items + announcements + activity-logs are best-effort:
+        // users + lost-items + notifications + activity-logs are best-effort:
         // if any fails (e.g. permission edge case), we still render the rest
         // of the dashboard instead of throwing the whole thing into the
         // error state.
         fetch("/api/admin/users?per_page=3", { headers: { Accept: "application/json" } }).catch(() => null),
         fetch("/api/admin/lost-items?per_page=3", { headers: { Accept: "application/json" } }).catch(() => null),
-        fetch("/api/admin/announcements?per_page=3", { headers: { Accept: "application/json" } }).catch(() => null),
+        // The admin list (/api/admin/announcements) returns every row in the
+        // table: broadcasts plus every recipient's notifications. The user
+        // feed scoped with notifications_only returns just this admin's own.
+        fetch(`/api/announcements?notifications_only=1&per_page=${NOTIFICATION_PREVIEW_LIMIT}`, { headers: { Accept: "application/json" } }).catch(() => null),
         listActivityLogs({ dateRange: "today", page: 1, perPage: ACTIVITY_PREVIEW_LIMIT, signal: controller.signal })
           .then((result) => ({ result, error: null }))
           .catch((error: unknown) => ({ result: null, error })),
@@ -173,7 +183,7 @@ export function useDashboardData() {
       const vehiclesJson = await vehiclesRes.json();
       const usersJson = usersRes?.ok ? await usersRes.json() : { data: { data: [] } };
       const lostItemsJson = lostItemsRes?.ok ? await lostItemsRes.json() : { data: { data: [] } };
-      const announcementsJson = announcementsRes?.ok ? await announcementsRes.json() : { data: { data: [] } };
+      const notificationsJson = notificationsRes?.ok ? await notificationsRes.json() : { data: { data: [] } };
       if (generation !== generationRef.current) return;
       const activityResult = activityPage.result;
       activityPagingRef.current = { page: activityResult?.page ?? 0, hasMore: !!activityResult && activityResult.page < activityResult.lastPage };
@@ -199,9 +209,9 @@ export function useDashboardData() {
       const lostItems = Array.isArray(lostItemsRaw) ? lostItemsRaw :
                         Array.isArray(lostItemsRaw?.data) ? lostItemsRaw.data : [];
 
-      const announcementsRaw = announcementsJson.data;
-      const announcementsData = Array.isArray(announcementsRaw) ? announcementsRaw :
-                                Array.isArray(announcementsRaw?.data) ? announcementsRaw.data : [];
+      const notificationsRaw = notificationsJson.data;
+      const notificationsData = Array.isArray(notificationsRaw) ? notificationsRaw :
+                                Array.isArray(notificationsRaw?.data) ? notificationsRaw.data : [];
 
       // ── Quick Stats from real analytics ──
       // The default analytics window ends today in the backend's timezone.
@@ -267,11 +277,14 @@ export function useDashboardData() {
                 item.status === 'AVAILABLE' || item.status === 'REPORTED' ? 'Under Review' : 'Reported',
       }));
 
-      // ── Recent Announcements ──
-      const recentAnnouncements: AnnouncementItem[] = (announcementsData as Record<string, unknown>[]).slice(0, 3).map(a => ({
-        title: String(a.title ?? 'Untitled'),
-        type: String(a.type ?? 'General'),
-        status: a.status === 'ARCHIVED' ? 'Archived' : 'Active',
+      // ── Recent Notifications ──
+      const recentNotifications: NotificationItem[] = (notificationsData as Record<string, unknown>[]).slice(0, NOTIFICATION_PREVIEW_LIMIT).map(n => ({
+        id: String(n.id ?? ''),
+        title: String(n.title ?? 'Untitled'),
+        message: String(n.message ?? ''),
+        type: String(n.type ?? 'General'),
+        isRead: Boolean(n.is_read),
+        createdAt: String(n.created_at ?? ''),
       }));
 
       // ── Recent Activity Logs ──
@@ -296,7 +309,7 @@ export function useDashboardData() {
         recentVehicles,
         recentLostFound,
         recentUsers,
-        recentAnnouncements,
+        recentNotifications,
         recentActivityLogs,
         quickStats,
         settingsModules: SETTINGS_MODULES,

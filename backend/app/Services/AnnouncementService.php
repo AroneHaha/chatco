@@ -44,12 +44,18 @@ class AnnouncementService
     /**
      * User-facing feed: ACTIVE announcements, newest first, with is_read.
      * Includes broadcasts (user_id IS NULL) plus rows targeted at this user.
-     * Supports ?unread_only=1 to filter to unread only.
+     * Supports ?unread_only=1 to filter to unread only, and
+     * ?notifications_only=1 to drop broadcasts and keep only the rows
+     * targeted at this user (the Updates Center "Notifications" set).
      */
     public function listForUser(User $user, array $filters, int $perPage = 15): LengthAwarePaginator
     {
         $query = Announcement::where('status', self::STATUS_ACTIVE)
-            ->where(function ($q) use ($user) {
+            ->where(function ($q) use ($user, $filters) {
+                if (! empty($filters['notifications_only'])) {
+                    $q->where('announcements.user_id', $user->id);
+                    return;
+                }
                 $q->whereNull('announcements.user_id')
                   ->orWhere('announcements.user_id', $user->id);
             })
