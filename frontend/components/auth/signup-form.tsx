@@ -278,6 +278,8 @@ export default function SignupForm({ onBusyChange, initialMaintenanceMessage = n
 
     if (stepNum === LAST_STEP) {
       if (!formData.username.trim()) errors.username = ["Choose a username."];
+      // Mirrors RegisterRequest: letters, numbers, '.' and '_' only.
+      else if (!/^[A-Za-z0-9._]+$/.test(formData.username)) errors.username = ["Usernames can only use letters, numbers, periods (.) and underscores (_), with no spaces."];
       if (!formData.password) {
         errors.password = ["Enter a password."];
       } else {

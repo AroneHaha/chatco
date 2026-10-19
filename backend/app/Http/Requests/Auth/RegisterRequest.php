@@ -86,7 +86,8 @@ class RegisterRequest extends FormRequest
             'gender' => ['required', 'string', 'max:20'],
             'email' => ['required', 'string', 'email:rfc', 'max:255'],
             'contact_number' => ['required', 'string', new PhilippineMobileNumber],
-            'username' => ['required', 'string', 'max:50', 'unique:commuter_profiles,username'],
+            // Letters, digits, '.' and '_' only: no spaces or other symbols.
+            'username' => ['required', 'string', 'max:50', 'regex:/^[A-Za-z0-9._]+$/', 'unique:commuter_profiles,username'],
             'password' => ['required', 'string', 'confirmed', new StrongPassword],
             'language_preference' => ['nullable', 'string', 'max:20'],
             'applied_type' => ['required', 'string', Rule::in(['REGULAR', 'STUDENT', 'SENIOR', 'PWD'])],
@@ -119,6 +120,7 @@ class RegisterRequest extends FormRequest
             'applied_type.in' => 'The applied type must be one of: REGULAR, STUDENT, SENIOR, PWD.',
             'suffix.in' => 'The suffix must be one of: '.implode(', ', self::SUFFIX_OPTIONS).'.',
             'username.unique' => 'The username has already been taken.',
+            'username.regex' => 'Usernames can only use letters, numbers, periods (.) and underscores (_), with no spaces.',
             'id_image.required' => 'A valid ID image is required to complete registration.',
             'password.confirmed' => 'The password confirmation does not match.',
         ];

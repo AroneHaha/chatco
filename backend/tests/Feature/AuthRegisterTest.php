@@ -344,6 +344,24 @@ class AuthRegisterTest extends TestCase
             ->assertJsonStructure(['errors' => ['email']]);
     }
 
+    public function test_register_rejects_username_with_spaces_or_other_symbols(): void
+    {
+        // Leading/trailing spaces are trimmed by TrimStrings before validation.
+        foreach (['maria santos', 'maria-santos', 'maria@santos', 'maria!'] as $username) {
+            $this->registerWithFile(['username' => $username])
+                ->assertStatus(422)
+                ->assertJsonValidationErrors('username');
+        }
+
+        $this->assertDatabaseCount('commuter_profiles', 0);
+    }
+
+    public function test_register_accepts_username_with_period_and_underscore(): void
+    {
+        $this->registerWithFile(['username' => 'maria.santos_01'])
+            ->assertStatus(201);
+    }
+
     public function test_register_rejects_duplicate_username_with_422(): void
     {
         $existing = $this->seedApprovedCommuter(['username' => 'maria.santos']);
