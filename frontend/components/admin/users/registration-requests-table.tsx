@@ -84,7 +84,7 @@ export function RegistrationRequestsTable({
       key: 'commuterType',
       label: 'Type',
       cellClassName: 'whitespace-nowrap',
-      render: (value: string) => <Badge variant="info">{value}</Badge>,
+      render: (value: string) => <span className="text-sm text-slate-300 admin-light:text-slate-700">{value}</span>,
     },
     {
       key: 'createdAt',
