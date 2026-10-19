@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 /**
  * Admin Settings Controller (S6 Settings Batch 4).
@@ -101,6 +102,9 @@ class AdminSettingController extends Controller
         $value = in_array($key, $integerKeys, true)
             ? (string) $validated['value']
             : ($validated['value'] ?? null);
+        // For the activity log: the settings pages save every key on each
+        // Save, so only a key whose value actually changes gets an entry.
+        $previous = Setting::where('key', $key)->value('value');
 
         if ($key === Setting::RIDES_FOR_FREE_REWARD_KEY) {
             $setting = DB::transaction(function () use ($key, $value, $category, $request): Setting {
@@ -145,15 +149,84 @@ class AdminSettingController extends Controller
             Cache::forget('overspeed.limit_kmh');
         }
 
-        $this->activityLogService->record(
-            ActivityLogCategory::SETTINGS,
-            "Updated setting {$key} to {$value}",
-            $request->user(),
+        $label = self::SETTING_LABELS[$key] ?? Str::ucfirst(Str::lower(Str::headline($key)));
+        $changes = ActivityLogService::diff(
+            ['value' => $this->displaySetting($key, $previous)],
+            ['value' => $this->displaySetting($key, $value)],
+            ['value' => $label],
         );
+        if ($changes !== []) {
+            [$change] = $changes;
+            // Short values read well inline; templates and messages stay in
+            // the entry's details.
+            $inline = mb_strlen((string) $change['from']) <= 40 && mb_strlen((string) $change['to']) <= 40;
+            $this->activityLogService->record(
+                ActivityLogCategory::SETTINGS,
+                $inline
+                    ? "Changed {$label} from ".($change['from'] ?? 'none').' to '.($change['to'] ?? 'none')
+                    : "Changed {$label}",
+                $request->user(),
+                $changes,
+            );
+        }
 
         return $this->successResponse(
             ['key' => $setting->key, 'value' => $setting->value, 'category' => $setting->category],
             'Setting updated successfully'
         );
+    }
+
+    /** Readable names for the activity log; other keys fall back to a headline of the key. */
+    private const SETTING_LABELS = [
+        Setting::RIDES_FOR_FREE_REWARD_KEY => 'Paid rides for 1 free ride',
+        'regular_discount' => 'Regular discount (%)',
+        'student_discount' => 'Student discount (%)',
+        'senior_discount' => 'Senior citizen discount (%)',
+        'pwd_discount' => 'PWD discount (%)',
+        'speed_limit_kmh' => 'Overspeeding limit (km/h)',
+        'max_shift_hours' => 'Maximum shift duration (hours)',
+        'remittance_grace_minutes' => 'Remittance grace period (minutes)',
+        'remittance_reminder_interval_minutes' => 'Remittance reminder interval (minutes)',
+        'emergency_hotline' => 'Emergency hotline',
+        'admin_sos_email' => 'Admin SOS email',
+        'sender_gmail' => 'Registration email sender',
+        'sos_admin_template' => 'SOS alert template',
+        'ride_receipt_template' => 'Ride receipt template',
+        'account_approved_template' => 'Account approved email',
+        'account_rejected_template' => 'Account rejected email',
+        'maintenance_mode' => 'Maintenance mode',
+        'maintenance_roles' => 'Maintenance applies to',
+        'maintenance_message' => 'Maintenance message',
+        'require_id_upload' => 'Require valid ID at signup',
+        'receipt_business_name' => 'Receipt business name',
+        'receipt_address_line' => 'Receipt address or contact',
+        'receipt_footer_note' => 'Receipt footer message',
+        'receipt_paper_width' => 'Receipt paper width (mm)',
+        'receipt_auto_print' => 'Auto-print receipts',
+        'receipt_show_datetime' => 'Receipt shows date & time',
+        'receipt_show_transaction_id' => 'Receipt shows reference no.',
+        'receipt_show_route' => 'Receipt shows route',
+        'receipt_show_unit' => 'Receipt shows unit',
+        'receipt_show_conductor' => 'Receipt shows conductor',
+        'receipt_show_passenger' => 'Receipt shows passenger',
+        'receipt_show_fare_breakdown' => 'Receipt shows fare breakdown',
+        'receipt_show_qr_code' => 'Receipt shows reward QR',
+        'receipt_show_manual_code' => 'Receipt shows manual claim code',
+    ];
+
+    /** A stored setting as admins read it: "true" → On, role lists → names. */
+    private function displaySetting(string $key, ?string $value): ?string
+    {
+        if ($value === 'true' || $value === 'false') {
+            return $value === 'true' ? 'On' : 'Off';
+        }
+        if ($key === 'maintenance_roles' && $value !== null) {
+            $roles = json_decode($value, true);
+            if (is_array($roles)) {
+                return implode(', ', array_map(fn ($role) => Str::ucfirst(Str::lower((string) $role)).'s', $roles));
+            }
+        }
+
+        return $value;
     }
 }

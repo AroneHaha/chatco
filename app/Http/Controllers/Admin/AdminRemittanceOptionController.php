@@ -46,13 +46,19 @@ class AdminRemittanceOptionController extends Controller
             'option_name' => ['sometimes', 'string', 'max:100'],
             'is_active' => ['nullable', 'boolean'],
         ]);
+        $fields = ['option_name' => 'Name', 'is_active' => 'Active'];
+        $before = $option->only(array_keys($fields));
         $option->update($validated);
 
-        $this->activityLogService->record(
-            ActivityLogCategory::REMITTANCE_OPTION,
-            "Updated remittance option {$option->option_name}",
-            $request->user(),
-        );
+        $changes = ActivityLogService::diff($before, $option->only(array_keys($fields)), $fields);
+        if ($changes !== []) {
+            $this->activityLogService->record(
+                ActivityLogCategory::REMITTANCE_OPTION,
+                "Updated remittance option {$option->option_name}: ".ActivityLogService::changedFields($changes),
+                $request->user(),
+                $changes,
+            );
+        }
 
         return $this->successResponse($option, 'Remittance option updated');
     }

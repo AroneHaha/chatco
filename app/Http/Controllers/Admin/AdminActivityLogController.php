@@ -9,14 +9,18 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Admin activity log — read-only audit trail.
+ * Activity log — read-only audit trail.
  *
  *   GET /api/v1/admin/activity-logs — paginated list (?category=, ?search=,
- *   ?date=, ?date_range=, ?per_page=, ?page=)
+ *   ?actor_role=, ?date=, ?date_range=, ?per_page= (1–100), ?page=)
  *
- * Rows are written by ActivityLogService::record(), called from every other
- * admin controller right after a mutating action succeeds — this controller
- * only reads.
+ *   GET /api/v1/admin/activity-logs/export — every row matching the same
+ *   filters, newest first, capped at ActivityLogService::EXPORT_LIMIT, plus
+ *   the full match count so the page can say when the export was cut short.
+ *
+ * Rows are written by ActivityLogService::record() from the admin
+ * controllers, the commuter account endpoints and the scheduled jobs — this
+ * controller only reads.
  */
 class AdminActivityLogController extends Controller
 {
@@ -28,17 +32,31 @@ class AdminActivityLogController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $filters = [
+        // Capped like the other admin lists, so a crafted per_page can't
+        // load the whole table in one request.
+        $perPage = max(1, min((int) $request->integer('per_page', 30), 100));
+
+        $logs = $this->activityLogService->listForAdmin($this->filters($request), $perPage);
+
+        return $this->successResponse($logs, 'Activity logs retrieved');
+    }
+
+    public function export(Request $request): JsonResponse
+    {
+        return $this->successResponse(
+            $this->activityLogService->exportForAdmin($this->filters($request)),
+            'Activity logs exported',
+        );
+    }
+
+    private function filters(Request $request): array
+    {
+        return [
             'category' => $request->string('category')->toString() ?: null,
             'search' => $request->string('search')->toString() ?: null,
+            'actor_role' => $request->string('actor_role')->toString() ?: null,
             'date' => $request->string('date')->toString() ?: null,
             'date_range' => $request->string('date_range')->toString() ?: null,
         ];
-
-        $perPage = (int) $request->integer('per_page', 30);
-
-        $logs = $this->activityLogService->listForAdmin($filters, $perPage);
-
-        return $this->successResponse($logs, 'Activity logs retrieved');
     }
 }

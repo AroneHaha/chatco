@@ -6,6 +6,7 @@ use App\Enums\ActivityLogCategory;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreVehicleRequest;
 use App\Http\Requests\Admin\UpdateVehicleRequest;
+use App\Models\Vehicle;
 use App\Services\ActivityLogService;
 use App\Services\AdminService;
 use App\Traits\ApiResponse;
@@ -97,15 +98,53 @@ class AdminVehicleController extends Controller
      */
     public function update(UpdateVehicleRequest $request, string $id): JsonResponse
     {
+        $before = $this->vehicleSnapshot($this->adminService->getVehicle($id));
+
         $vehicle = $this->adminService->updateVehicle($id, $request->validated());
 
-        $this->activityLogService->record(
-            ActivityLogCategory::VEHICLE,
-            "Updated vehicle {$vehicle->plate_number}",
-            $request->user(),
-        );
+        $changes = ActivityLogService::diff($before, $this->vehicleSnapshot($vehicle), [
+            'unit_number' => 'Unit number',
+            'plate_number' => 'Plate number',
+            'vehicle_type' => 'Vehicle type',
+            'route' => 'Route',
+            'driver' => 'Driver',
+            'conductor' => 'Conductor',
+            'status' => 'Status',
+            'capacity_status' => 'Capacity',
+        ]);
+        if ($changes !== []) {
+            $this->activityLogService->record(
+                ActivityLogCategory::VEHICLE,
+                "Updated vehicle {$vehicle->plate_number}: ".ActivityLogService::changedFields($changes),
+                $request->user(),
+                $changes,
+            );
+        }
 
         return $this->successResponse($vehicle, 'Vehicle updated successfully');
+    }
+
+    /** The vehicle as admins read it: names instead of ids, status labels. */
+    private function vehicleSnapshot(Vehicle $vehicle): array
+    {
+        $vehicle->loadMissing(['route', 'driver', 'conductor']);
+        $name = fn ($person) => $person ? trim("{$person->first_name} {$person->last_name}") : null;
+
+        return [
+            'unit_number' => $vehicle->unit_number,
+            'plate_number' => $vehicle->plate_number,
+            'vehicle_type' => $vehicle->vehicle_type,
+            'route' => $vehicle->route?->name,
+            'driver' => $name($vehicle->driver),
+            'conductor' => $name($vehicle->conductor),
+            'status' => match ($vehicle->status) {
+                'ACTIVE' => 'Operating',
+                'MAINTENANCE' => 'Under Maintenance',
+                'INACTIVE' => 'Out of Service / Damaged',
+                default => $vehicle->status,
+            },
+            'capacity_status' => $vehicle->capacity_status,
+        ];
     }
 
     /**

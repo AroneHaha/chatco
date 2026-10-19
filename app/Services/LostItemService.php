@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ActivityLogCategory;
 use App\Models\Claim;
 use App\Models\ClaimPhoto;
 use App\Models\ClaimRejectionAudit;
@@ -95,6 +96,7 @@ class LostItemService
     public function __construct(
         private readonly AnnouncementService $announcementService,
         private readonly MediaStorageService $mediaStorage,
+        private readonly ActivityLogService $activityLog,
     ) {}
 
     /**
@@ -1022,6 +1024,12 @@ class LostItemService
 
             $this->recordRejectionAudit($claim, null, self::CLAIM_APPROVED, self::CLAIM_REJECTED, self::NO_SHOW_REASON);
             $this->reopenItemAfterRejection($item, $claim, self::ITEM_APPROVED, restartExpiryWindow: true);
+            $this->activityLog->record(
+                ActivityLogCategory::LOST_FOUND,
+                "Claim on \"{$item->item_name}\" rejected automatically: not collected on its pickup day",
+                null,
+                [['field' => 'Claim', 'from' => 'Approved', 'to' => 'Rejected']],
+            );
 
             if ($claim->claimant_id) {
                 $when = $claim->pickup_at->copy()->timezone(config('app.timezone'))->format('M j, Y');
@@ -1086,13 +1094,27 @@ class LostItemService
     public function expireStale(): int
     {
         $cutoff = now()->subDays(self::EXPIRY_DAYS);
+        $stale = fn () => LostItem::where('status', self::ITEM_AVAILABLE)
+            ->whereRaw('COALESCE(available_since, created_at) < ?', [$cutoff]);
 
-        return LostItem::where('status', self::ITEM_AVAILABLE)
-            ->whereRaw('COALESCE(available_since, created_at) < ?', [$cutoff])
-            ->update([
-                'status' => self::ITEM_EXPIRED,
-                'expired_at' => now(),
-            ]);
+        // Named before the update so the audit entry can list them; one
+        // entry per run, not one per item.
+        $names = $stale()->orderBy('item_name')->limit(20)->pluck('item_name');
+        $expired = $stale()->update([
+            'status' => self::ITEM_EXPIRED,
+            'expired_at' => now(),
+        ]);
+
+        if ($expired > 0) {
+            $listed = $names->map(fn ($name) => "\"{$name}\"")->implode(', ');
+            $more = $expired > $names->count() ? ' and '.($expired - $names->count()).' more' : '';
+            $this->activityLog->record(
+                ActivityLogCategory::LOST_FOUND,
+                "Archived {$expired} unclaimed lost ".($expired === 1 ? 'item' : 'items').' after '.self::EXPIRY_DAYS." days: {$listed}{$more}",
+            );
+        }
+
+        return $expired;
     }
 
     /**

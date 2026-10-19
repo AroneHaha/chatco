@@ -1,19 +1,19 @@
 <?php
 
-namespace App\Http\Requests\Commuter;
+namespace App\Http\Requests\Auth;
 
 use Illuminate\Foundation\Http\FormRequest;
 use App\Rules\StrongPassword;
 
 /**
- * Validates POST /api/v1/commuter/change-password.
+ * Validates POST /api/v1/{commuter,mobile/commuter,admin/account}/change-password/request-code.
  *
  * Field contract (frontend maps its own field names onto these):
  *   - current_password         the user's existing password
  *   - password                 the new password
  *   - password_confirmation    must match `password` ('confirmed' rule)
  *
- * The actual current-password check (Hash::check) is done in CommuterService
+ * The actual current-password check (Hash::check) is done in PasswordChangeService
  * so a wrong password returns a field-level 422 rather than leaking timing via
  * a DB lookup here. Authorization is enforced by route middleware.
  */

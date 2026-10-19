@@ -609,9 +609,9 @@ class AdminService
      * performs the merge in SQL so large personnel tables are never fully
      * loaded into PHP or the browser.
      */
-    public function listFleetPersonnel(int $perPage = 25, int $page = 1, ?string $search = null, ?string $role = null): Paginator
+    public function listFleetPersonnel(int $perPage = 25, int $page = 1, ?string $search = null, ?string $role = null, ?string $status = null): Paginator
     {
-        $base = $this->fleetPersonnelBaseQuery($search, $role);
+        $base = $this->fleetPersonnelBaseQuery($search, $role, $status);
         $total = (clone $base)->count();
         $items = (clone $base)
             ->orderBy('role_order')
@@ -639,12 +639,12 @@ class AdminService
         );
     }
 
-    public function countFleetPersonnel(?string $search = null, ?string $role = null): int
+    public function countFleetPersonnel(?string $search = null, ?string $role = null, ?string $status = null): int
     {
-        return (int) $this->fleetPersonnelBaseQuery($search, $role)->count();
+        return (int) $this->fleetPersonnelBaseQuery($search, $role, $status)->count();
     }
 
-    private function fleetPersonnelBaseQuery(?string $search = null, ?string $role = null): \Illuminate\Database\Query\Builder
+    private function fleetPersonnelBaseQuery(?string $search = null, ?string $role = null, ?string $status = null): \Illuminate\Database\Query\Builder
     {
         $normalizedRole = match (strtoupper(trim((string) $role))) {
             'DRIVER' => 'Driver',
@@ -710,15 +710,34 @@ class AdminService
             });
         }
 
-        if ($normalizedRole === 'Driver') {
-            return DB::query()->fromSub($drivers, 'fleet_personnel');
+        $personnel = $drivers->unionAll($conductors);
+
+        // Preserve the current-personnel view for callers without a status filter.
+        // Separation snapshots use their own IDs and must never open live profile actions.
+        if (in_array($status, ['all', 'TERMINATED', 'RESIGNED'], true)) {
+            $separated = DB::table('terminated_personnel')->select([
+                'id', 'name', 'role', 'contact',
+                DB::raw('NULL as birthday'),
+                DB::raw('NULL as profile_picture_url'),
+                'termination_type as status',
+                DB::raw("CASE WHEN role = 'Driver' THEN 0 ELSE 1 END as role_order"),
+                'name as sort_last_name',
+                DB::raw("'' as sort_first_name"),
+            ]);
+            if ($search !== null && trim($search) !== '') {
+                $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], trim($search)).'%';
+                $separated->where(function ($query) use ($term): void {
+                    $query->where('name', 'like', $term)
+                        ->orWhere('role', 'like', $term)
+                        ->orWhere('contact', 'like', $term);
+                });
+            }
+            $personnel->unionAll($separated);
         }
 
-        if ($normalizedRole === 'Conductor') {
-            return DB::query()->fromSub($conductors, 'fleet_personnel');
-        }
-
-        return DB::query()->fromSub($drivers->unionAll($conductors), 'fleet_personnel');
+        return DB::query()->fromSub($personnel, 'fleet_personnel')
+            ->when($normalizedRole, fn ($query) => $query->where('role', $normalizedRole))
+            ->when($status && $status !== 'all', fn ($query) => $query->where('status', $status));
     }
 
     /**
@@ -877,6 +896,12 @@ class AdminService
 
         $query = User::query()
             ->with($this->profileEagerLoads());
+
+        // Leave out the requesting admin, in the query itself so the page
+        // totals stay accurate.
+        if (! empty($filters['exclude_id'])) {
+            $query->whereKeyNot($filters['exclude_id']);
+        }
 
         if (! empty($filters['active_only'])) {
             $query->where(function ($activeQuery) {

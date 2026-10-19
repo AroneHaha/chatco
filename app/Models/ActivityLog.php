@@ -14,8 +14,14 @@ class ActivityLog extends Model
         'id',
         'category',
         'description',
+        'changes',
         'actor_id',
         'actor_name',
+        'actor_role',
+    ];
+
+    protected $casts = [
+        'changes' => 'array',
     ];
 
     protected static function booted(): void

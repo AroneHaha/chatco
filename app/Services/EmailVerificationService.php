@@ -162,23 +162,43 @@ class EmailVerificationService
             return ['expired', $invalid];
         }
 
-        if (! Hash::check($code, $record->token)) {
-            $attempts = (int) $record->attempts + 1;
+        // Reserve this guess BEFORE checking it, in one conditional UPDATE.
+        // A read-then-write counter let concurrent guesses all read the same
+        // count, so a burst of parallel requests could test far more than
+        // MAX_ATTEMPTS codes. Scoped to this code's token so a guess can't
+        // spend the budget of a code re-issued in the meantime. A correct
+        // guess hands its slot back below, so `attempts` still counts wrong
+        // guesses only, exactly as before.
+        $row = DB::table(self::TABLE)
+            ->where('email', $email)
+            ->where('purpose', $purpose)
+            ->where('token', $record->token);
 
-            if ($attempts >= self::MAX_ATTEMPTS) {
-                DB::table(self::TABLE)->where('email', $email)->where('purpose', $purpose)->delete();
+        if ((clone $row)->where('attempts', '<', self::MAX_ATTEMPTS)->increment('attempts') === 0) {
+            (clone $row)->delete();
+
+            return ['locked', 'Too many incorrect attempts. Please request a new code.'];
+        }
+
+        if (! Hash::check($code, $record->token)) {
+            $attempts = (clone $row)->value('attempts');
+
+            // Null: a concurrent guess burned the code meanwhile.
+            if ($attempts === null || (int) $attempts >= self::MAX_ATTEMPTS) {
+                (clone $row)->delete();
 
                 return ['locked', 'Too many incorrect attempts. Please request a new code.'];
             }
 
-            DB::table(self::TABLE)->where('email', $email)->where('purpose', $purpose)->update(['attempts' => $attempts]);
-
-            $remaining = self::MAX_ATTEMPTS - $attempts;
+            $remaining = self::MAX_ATTEMPTS - (int) $attempts;
 
             return ['invalid', "That code is incorrect. You have {$remaining} " . Str::plural('attempt', $remaining) . ' left before you need a new code.'];
         }
 
-        DB::table(self::TABLE)->where('email', $email)->where('purpose', $purpose)->update(['verified_at' => now()]);
+        (clone $row)->update([
+            'verified_at' => now(),
+            'attempts' => DB::raw('attempts - 1'),
+        ]);
 
         return ['valid', 'Email verified.'];
     }
@@ -216,10 +236,15 @@ class EmailVerificationService
         ]);
     }
 
-    /** Burn the verification once the action it was for is fulfilled. */
-    public function consume(string $email, string $purpose = self::PURPOSE_REGISTRATION): void
+    /**
+     * Burn the verification once the action it was for is fulfilled.
+     *
+     * Returns whether a row was actually removed, so a caller can treat a
+     * code as single-use under concurrency (only one request can burn it).
+     */
+    public function consume(string $email, string $purpose = self::PURPOSE_REGISTRATION): bool
     {
-        DB::table(self::TABLE)->where('email', $email)->where('purpose', $purpose)->delete();
+        return DB::table(self::TABLE)->where('email', $email)->where('purpose', $purpose)->delete() > 0;
     }
 
     private function find(string $email, string $purpose = self::PURPOSE_REGISTRATION): ?object

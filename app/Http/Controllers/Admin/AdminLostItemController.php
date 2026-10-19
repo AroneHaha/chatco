@@ -9,6 +9,7 @@ use App\Http\Requests\LostFound\RejectClaimRequest;
 use App\Http\Requests\LostFound\StoreLostItemRequest;
 use App\Http\Requests\LostFound\UpdateLostItemRequest;
 use App\Http\Requests\LostFound\UploadLostItemImageRequest;
+use App\Models\LostItem;
 use App\Services\ActivityLogService;
 use App\Services\LostItemService;
 use App\Support\LostFound\LostFoundException;
@@ -108,6 +109,18 @@ class AdminLostItemController extends Controller
      */
     public function update(UpdateLostItemRequest $request, string $itemId): JsonResponse
     {
+        // The unit is logged by plate number (vehicle_id is just its key).
+        $fields = [
+            'item_name' => 'Item name',
+            'description' => 'Description',
+            'category' => 'Category',
+            'plate_number' => 'Plate number',
+            'driver_name' => 'Driver',
+            'conductor_name' => 'Conductor',
+            'estimated_time_lost' => 'Estimated time lost',
+        ];
+        $before = LostItem::query()->find($itemId)?->only(array_keys($fields)) ?? [];
+
         try {
             $item = $this->lostItemService->update($itemId, $request->validated());
         } catch (LostFoundException $e) {
@@ -116,11 +129,15 @@ class AdminLostItemController extends Controller
             return $this->errorResponse($e->getMessage(), $status);
         }
 
-        $this->activityLogService->record(
-            ActivityLogCategory::LOST_FOUND,
-            "Updated lost item \"{$item->item_name}\"",
-            $request->user(),
-        );
+        $changes = ActivityLogService::diff($before, $item->only(array_keys($fields)), $fields);
+        if ($changes !== []) {
+            $this->activityLogService->record(
+                ActivityLogCategory::LOST_FOUND,
+                "Updated lost item \"{$item->item_name}\": ".ActivityLogService::changedFields($changes),
+                $request->user(),
+                $changes,
+            );
+        }
 
         return $this->successResponse($item, 'Lost item updated');
     }
@@ -141,6 +158,12 @@ class AdminLostItemController extends Controller
 
             return $this->errorResponse($e->getMessage(), $status);
         }
+
+        $this->activityLogService->record(
+            ActivityLogCategory::LOST_FOUND,
+            "Added a photo to lost item \"{$item->item_name}\"",
+            $request->user(),
+        );
 
         return $this->successResponse($item, 'Photo added');
     }
@@ -163,19 +186,31 @@ class AdminLostItemController extends Controller
             return $this->errorResponse($e->getMessage(), 404);
         }
 
+        $this->activityLogService->record(
+            ActivityLogCategory::LOST_FOUND,
+            "Replaced a photo of lost item \"{$item->item_name}\"",
+            $request->user(),
+        );
+
         return $this->successResponse($item, 'Photo replaced');
     }
 
     /**
      * DELETE /admin/lost-items/{itemId}/photos/{photoId}
      */
-    public function destroyPhoto(string $itemId, string $photoId): JsonResponse
+    public function destroyPhoto(Request $request, string $itemId, string $photoId): JsonResponse
     {
         try {
             $item = $this->lostItemService->deletePhoto($itemId, $photoId);
         } catch (LostFoundException $e) {
             return $this->errorResponse($e->getMessage(), 404);
         }
+
+        $this->activityLogService->record(
+            ActivityLogCategory::LOST_FOUND,
+            "Removed a photo from lost item \"{$item->item_name}\"",
+            $request->user(),
+        );
 
         return $this->successResponse($item, 'Photo removed');
     }

@@ -89,7 +89,15 @@ class DiscountApplicationService
             $history = $application->submission_history ?? [];
             $history[] = $application->only(['revision', 'requested_type', 'document_path', 'document_mime', 'school_name', 'education_level', 'grade_level', 'school_year', 'enrollment_term', 'submitted_at', 'reviewed_at', 'reviewed_by', 'status', 'reason']);
             $application->submission_history = $history;
-            $this->activity->record(ActivityLogCategory::MEMBER, "Discount request {$application->id} resubmitted; previous status {$application->status}, reason: {$application->reason}", $user);
+            $this->activity->record(
+                ActivityLogCategory::MEMBER,
+                "Resubmitted their {$this->categoryLabel($application->requested_type)} discount request",
+                $user,
+                array_values(array_filter([
+                    ['field' => 'Status', 'from' => $this->statusLabel($application->status), 'to' => 'Pending'],
+                    $application->reason ? ['field' => 'Reason given', 'from' => $application->reason, 'to' => null] : null,
+                ])),
+            );
         }
         // A correction keeps its original submission time: renewals only within
         // their deadline, applications always since their corrections never lapse.
@@ -143,7 +151,7 @@ class DiscountApplicationService
                     $applicantName.($resubmission
                         ? " sent corrected documents for their {$category} discount application."
                         : " applied for a {$category} discount."), $application->id);
-                $this->activity->record(ActivityLogCategory::MEMBER, "Discount application {$application->id} submitted: {$application->requested_type}", $user);
+                $this->activity->record(ActivityLogCategory::MEMBER, "Applied for a {$category} discount", $user);
             }, 3);
         } catch (\Throwable $error) {
             if ($path) {
@@ -176,10 +184,21 @@ class DiscountApplicationService
                 'This application has already been reviewed and can no longer be cancelled.');
             $previous = $application->status;
             $application->update(['status' => 'CANCELLED', 'correction_due_at' => null]);
-            $this->activity->record(ActivityLogCategory::MEMBER, "Discount application {$application->id} cancelled by the commuter; previous status {$previous}", $user);
+            $this->activity->record(
+                ActivityLogCategory::MEMBER,
+                "Cancelled their {$this->categoryLabel($application->requested_type)} discount application",
+                $user,
+                [['field' => 'Status', 'from' => $this->statusLabel($previous), 'to' => 'Cancelled']],
+            );
         }, 3);
 
         return $this->state($user->fresh());
+    }
+
+    /** PENDING → "Pending", NEEDS_CORRECTION → "Needs correction". */
+    private function statusLabel(string $status): string
+    {
+        return ucfirst(strtolower(str_replace('_', ' ', $status)));
     }
 
     public function categoryLabel(string $type): string
@@ -265,7 +284,21 @@ class DiscountApplicationService
             };
             $this->announcements->notifyUser($profile->id, $isRenewal ? 'STUDENT_RENEWAL_DONE' : 'DISCOUNT_APPLICATION_DONE',
                 $title, $message, $application->id);
-            $this->activity->record(ActivityLogCategory::MEMBER, "Discount request {$id}: {$decision}. ".($application->reason ?? ''), $admin);
+            $verb = match ($decision) {
+                'APPROVED' => 'Approved',
+                'NEEDS_CORRECTION' => 'Asked for corrections on',
+                default => 'Rejected',
+            };
+            $subject = $isRenewal ? 'student renewal' : "{$category} discount application";
+            $this->activity->record(
+                ActivityLogCategory::MEMBER,
+                "{$verb} the {$subject} of {$profile->first_name} {$profile->surname}",
+                $admin,
+                array_values(array_filter([
+                    ['field' => 'Status', 'from' => 'Pending', 'to' => $this->statusLabel($decision)],
+                    $application->reason ? ['field' => 'Reason', 'from' => null, 'to' => $application->reason] : null,
+                ])),
+            );
 
             return $this->present($application, true);
         }, 3);

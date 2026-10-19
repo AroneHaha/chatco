@@ -28,6 +28,12 @@ $app = Application::configure(basePath: dirname(__DIR__))
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
         ]);
 
+        // Runs after the route's own auth middleware. Blocks API calls from an
+        // account that still has to set its password (see the middleware).
+        $middleware->api(append: [
+            \App\Http\Middleware\EnsurePasswordChanged::class,
+        ]);
+
         $middleware->statefulApi();
 
         $middleware->alias([

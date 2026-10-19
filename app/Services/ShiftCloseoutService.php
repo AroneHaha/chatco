@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ActivityLogCategory;
 use App\Enums\HailStatus;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
@@ -29,6 +30,7 @@ final class ShiftCloseoutService
     public function __construct(
         private ShiftDeviceService $shiftDeviceService,
         private AnnouncementService $announcementService,
+        private ActivityLogService $activityLog,
     ) {}
 
     public const REASON_MANUAL = 'MANUAL';
@@ -162,6 +164,27 @@ final class ShiftCloseoutService
                 "{$endedBy} ended the shift on unit {$shift->unit_number} at {$endedAt} ({$reasonLabel}). Conductor: {$shift->conductor_name}. Driver: {$shift->driver_name}. Remittance: {$status}.",
                 $shiftId,
             );
+
+            // A conductor ending their own shift is already in Shift History;
+            // an automatic end usually means a forgotten shift or a dead
+            // device, so it goes in the audit trail. The midnight sweep runs
+            // with REASON_STALE too, so a shift from an earlier day is how
+            // the two are told apart. Inside the transaction: a rollback
+            // (and retry) leaves no entry for a shift that didn't end.
+            if ($reason !== self::REASON_MANUAL) {
+                $why = $shift->time_in->lt(now('Asia/Manila')->startOfDay())
+                    ? 'still open at midnight'
+                    : 'ran past the maximum shift duration';
+                $this->activityLog->record(
+                    ActivityLogCategory::SHIFT,
+                    "Shift on unit {$shift->unit_number} ({$shift->conductor_name}) ended automatically: {$why}",
+                    null,
+                    [
+                        ['field' => 'Shift', 'from' => 'Active', 'to' => 'Ended'],
+                        ['field' => 'Remittance', 'from' => null, 'to' => ucfirst(strtolower($status)).' (₱'.number_format($expected, 2).' cash expected)'],
+                    ],
+                );
+            }
 
             if ($vehicle && $vehicle->active_shift_id === $shiftId) {
                 $vehicle->update([

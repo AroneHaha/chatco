@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AnnouncementController;
+use App\Http\Controllers\Auth\PasswordChangeController;
 use App\Http\Controllers\Commuter\CommuterController;
 use App\Http\Controllers\Commuter\FeedbackController;
 use App\Http\Controllers\Commuter\HailController;
@@ -114,8 +115,8 @@ Route::prefix('mobile/commuter')->middleware(['auth:sanctum', 'role:COMMUTER', '
     Route::get('/profile', [CommuterController::class, 'profile'])->middleware('throttle:conductor-read');
     Route::put('/profile', [CommuterController::class, 'updateProfile'])->middleware('throttle:conductor-write');
         Route::post('/profile/photo', [CommuterController::class, 'uploadProfilePhoto'])->middleware('throttle:conductor-write');
-    Route::post('/change-password/request-code', [CommuterController::class, 'requestPasswordChangeCode'])->middleware('throttle:conductor-write');
-    Route::post('/change-password/confirm', [CommuterController::class, 'confirmPasswordChange'])->middleware('throttle:conductor-write');
+    Route::post('/change-password/request-code', [PasswordChangeController::class, 'requestCode'])->middleware('throttle:account-security');
+    Route::post('/change-password/confirm', [PasswordChangeController::class, 'confirm'])->middleware('throttle:account-security');
     Route::get('/trips', [CommuterController::class, 'trips'])->middleware('throttle:conductor-read');
     Route::get('/rewards', [CommuterController::class, 'rewards'])->middleware('throttle:conductor-read');
     Route::post('/location', [CommuterController::class, 'updateLocation'])->middleware('throttle:commuter-hail');

@@ -8,17 +8,23 @@ use App\Http\Requests\Admin\RejectRegistrationRequest;
 use App\Enums\ActivityLogCategory;
 use App\Enums\UserRole;
 use App\Models\CommuterProfile;
+use App\Models\DiscountApplication;
+use App\Mail\OnsiteAccountCreatedMail;
 use App\Models\User;
 use App\Rules\PhilippineMobileNumber;
+use App\Rules\StrongPassword;
 use App\Services\ActivityLogService;
 use App\Services\AdminService;
 use App\Services\RegistrationGuard;
+use App\Services\MediaStorageService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -105,18 +111,25 @@ class AdminRegistrationController extends Controller
      * Mirrors AuthService::register() but:
      *   - gender is optional (defaults to 'UNSPECIFIED') — the admin onsite
      *     flow is faster and may not collect gender
-     *   - no password collection (the commuter sets it through Forgot password
-     *     after approval; the initial password is random and never disclosed)
+     *   - no password collection: a random default password is generated,
+     *     emailed to the commuter, and must be replaced at first sign-in
+     *     (users.must_change_password, enforced by EnsurePasswordChanged)
      *   - no email verification flow (admin-created accounts skip it)
-     *
-     * The account appears in the Pending Verification tab immediately, where
-     * the admin (or another admin) can approve it to grant the requested
-     * discount tier.
+     *   - account_status is APPROVED straight away, as approveRegistration()
+     *     would set it: the staff member has already verified the ID in person,
+     *     and the first-time password change is the activation step
      *
      * Accepts multipart/form-data (because of the ID image file).
      */
     public function store(Request $request): JsonResponse
     {
+        foreach (DiscountApplication::STUDENT_TEXT_FIELDS as $field) {
+            if (is_string($request->input($field))) {
+                $request->merge([$field => trim($request->input($field))]);
+            }
+        }
+        $student = $request->input('applied_type') === 'STUDENT';
+
         $validated = $request->validate([
             'first_name' => ['required', 'string', 'max:100'],
             'middle_name' => ['nullable', 'string', 'max:100'],
@@ -128,7 +141,9 @@ class AdminRegistrationController extends Controller
             'username' => ['required', 'string', 'max:50', 'unique:commuter_profiles,username'],
             'language_preference' => ['nullable', 'string', 'max:20'],
             'applied_type' => ['required', 'string', Rule::in(['REGULAR', 'STUDENT', 'SENIOR', 'PWD'])],
-            'id_image' => ['required', 'file', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
+            'id_image' => ['required', 'file', 'image', 'mimes:jpeg,jpg,png,webp', 'max:3072'],
+            // A Student gives the same school details renewal asks for.
+            ...DiscountApplication::studentDetailRules($student),
         ]);
 
         // Safety net: enforce the re-registration cooldown here too, so an
@@ -163,26 +178,32 @@ class AdminRegistrationController extends Controller
         // so it matches the id already baked into the uploaded filename.
         $userId = (string) Str::uuid();
         $file = $request->file('id_image');
-        $extension = $file->getClientOriginalExtension() ?: 'jpg';
-        $filename = $userId . '-' . Str::random(16) . '.' . $extension;
-        $idImagePath = $file->storeAs(
-            "ids/commuters/{$userId}",
-            $filename,
-            config('filesystems.uploads.private_id_disk', 'r2_private')
-        );
+        try {
+            $idImagePath = app(MediaStorageService::class)->storeCommuterId($file, $userId);
+        } catch (\Throwable $error) {
+            Log::error('Onsite ID image storage failed.', ['exception' => get_class($error)]);
+
+            return $this->errorResponse('The ID image could not be stored. Please try again.', 503);
+        }
 
         // Any failure inside the transaction (e.g. a race on the unique
         // username/email index) leaves $idImagePath uploaded with no owning
         // account — delete it before rethrowing so a failed onsite
         // registration never orphans a government ID in R2.
+        // Held only in memory for this request: it is hashed on the User
+        // insert and sent in the email, and never logged or returned.
+        $defaultPassword = $this->generateDefaultPassword();
+
         try {
-            $created = DB::transaction(function () use ($validated, $userId, $idImagePath) {
+            $adminId = $request->user()->id;
+            $created = DB::transaction(function () use ($validated, $userId, $idImagePath, $defaultPassword, $student, $adminId) {
                 $user = new User([
                     'email' => $validated['email'],
-                    'password' => Str::random(64), // 'hashed' cast on User
+                    'password' => $defaultPassword, // 'hashed' cast on User
                     'role' => UserRole::COMMUTER,
                 ]);
                 $user->id = $userId;
+                $user->must_change_password = true;
                 $user->save();
 
                 $profile = CommuterProfile::create([
@@ -198,11 +219,35 @@ class AdminRegistrationController extends Controller
                     'applied_type' => $validated['applied_type'],
                     'username' => $validated['username'],
                     'language_preference' => $validated['language_preference'] ?? 'English',
-                    'account_status' => 'PENDING',
+                    'account_status' => 'APPROVED',
+                    'student_discount_expires_at' => $validated['applied_type'] === 'STUDENT' ? CommuterProfile::initialStudentExpiry() : null,
                     'id_image_url' => $idImagePath,
-                    'verified_at' => null,
+                    'verified_at' => now(),
                     'rejection_reason' => null,
                 ]);
+
+                // Keep the school details where renewals and discount
+                // applications keep theirs: an approved Student application,
+                // reviewed by the admin who saw the ID in person. The valid ID
+                // stays on the profile, so no separate proof document is stored.
+                if ($student) {
+                    $now = now();
+                    DiscountApplication::create([
+                        'commuter_id' => $profile->id,
+                        'request_type' => 'APPLICATION',
+                        'requested_type' => 'STUDENT',
+                        'status' => 'APPROVED',
+                        'school_name' => $validated['school_name'],
+                        'education_level' => $validated['education_level'],
+                        'grade_level' => $validated['grade_level'] ?? null,
+                        'school_year' => $validated['school_year'],
+                        'enrollment_term' => ($validated['enrollment_term'] ?? null) ?: null,
+                        'submitted_at' => $now,
+                        'first_submitted_at' => $now,
+                        'reviewed_at' => $now,
+                        'reviewed_by' => $adminId,
+                    ]);
+                }
 
                 return [
                     'user' => $user,
@@ -214,6 +259,8 @@ class AdminRegistrationController extends Controller
 
             throw $e;
         }
+
+        $emailSent = $this->sendDefaultPasswordEmail($created['user'], $created['profile'], $defaultPassword);
 
         $this->activityLogService->record(
             ActivityLogCategory::MEMBER,
@@ -228,8 +275,51 @@ class AdminRegistrationController extends Controller
             'surname' => $created['profile']->surname,
             'username' => $created['profile']->username,
             'applied_type' => $created['profile']->applied_type,
-            'account_status' => 'PENDING',
-        ], 'Onsite registration created — awaiting verification.', 201);
+            'account_status' => 'APPROVED',
+            'must_change_password' => true,
+            // false means the account exists but the credentials email did not
+            // go out; the admin should tell the commuter.
+            'email_sent' => $emailSent,
+        ], 'Onsite registration created. The commuter must set a new password at first sign-in.', 201);
+    }
+
+    /**
+     * A random default password that satisfies App\Rules\StrongPassword, so the
+     * first-time setup starts from a password the policy would have accepted.
+     */
+    private function generateDefaultPassword(): string
+    {
+        do {
+            $candidate = Str::password(12, true, true, true, false);
+        } while (Validator::make(['password' => $candidate], ['password' => [new StrongPassword]])->fails());
+
+        return $candidate;
+    }
+
+    /**
+     * Best-effort, like the approval and rejection emails: a mail outage must
+     * not undo the account that was just created. Returns whether it was sent.
+     */
+    private function sendDefaultPasswordEmail(User $user, CommuterProfile $profile, string $defaultPassword): bool
+    {
+        try {
+            Mail::to($user->email)->send(new OnsiteAccountCreatedMail(
+                name: $user->getDisplayName(),
+                email: $user->email,
+                username: $profile->username,
+                defaultPassword: $defaultPassword,
+            ));
+
+            return true;
+        } catch (\Throwable $e) {
+            // The exception message is logged, never the password.
+            Log::error('Failed to send onsite account email', [
+                'user_id' => $user->id,
+                'exception' => $e->getMessage(),
+            ]);
+
+            return false;
+        }
     }
 
     /**
