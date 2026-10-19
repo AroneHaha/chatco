@@ -380,3 +380,11 @@ body {
 .map-tiles-mono {
   filter: grayscale(1);
 }
+
+/* Edge/IE add their own black password-reveal (and clear) button once a
+   password field has text. CHATCO's password fields render their own Eye
+   toggle, so the native one showed up as a second eye beside it. */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}
