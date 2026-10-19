@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import type { NearbyVehicle, GpsStatus } from "@/lib/shared/geo/nearby-detector";
 import { useAuth } from "@/contexts/auth-context";
 import { createHail, cancelHail, isOutsideRadiusError } from "@/lib/commuter/services/hail.service";
+import { useHoldToConfirm } from "@/hooks/use-hold-to-confirm";
 import { ApiError, NetworkError } from "@/lib/api/client";
 
 import PaymentHistoryModal from "@/components/commuter/modals/payment-history-modal";
@@ -27,6 +28,8 @@ const ScanModal = dynamic(
 const HAIL_DURATION_MS = 3 * 60 * 1000;
 // Cadence of the vibrate + beep reminder while a hail is active.
 const REMINDER_INTERVAL_MS = 4000;
+// How long the hail button must be held before a hail is sent.
+const HAIL_HOLD_MS = 600;
 
 export default function CommuterHome() {
   const { user, commuterProfile } = useAuth();
@@ -70,19 +73,29 @@ export default function CommuterHome() {
   // ─── Vibrate + sound reminder helpers ───────────────────────────────
   const audioCtxRef = useRef<AudioContext | null>(null);
 
-  // Soft beep via Web Audio. The AudioContext is created on the hail tap
-  // (a user gesture), which satisfies browser autoplay policies.
-  const playBeep = useCallback(() => {
+  // Soft beep via Web Audio. The AudioContext is created/resumed from the
+  // hail button's pointer release (a user gesture, see primeAudio), which
+  // satisfies browser autoplay policies.
+  const primeAudio = useCallback((): AudioContext | null => {
     try {
       if (!audioCtxRef.current) {
         const Ctx =
           window.AudioContext ??
           (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-        if (!Ctx) return;
+        if (!Ctx) return null;
         audioCtxRef.current = new Ctx();
       }
-      const ctx = audioCtxRef.current;
-      if (ctx.state === "suspended") void ctx.resume();
+      if (audioCtxRef.current.state === "suspended") void audioCtxRef.current.resume();
+      return audioCtxRef.current;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const playBeep = useCallback(() => {
+    try {
+      const ctx = primeAudio();
+      if (!ctx) return;
       [880, 1175, 880].forEach((frequency, index) => {
         const start = ctx.currentTime + index * 0.18;
         const osc = ctx.createOscillator();
@@ -99,7 +112,7 @@ export default function CommuterHome() {
     } catch {
       /* audio unavailable — ignore */
     }
-  }, []);
+  }, [primeAudio]);
 
   const vibrate = useCallback(() => {
     // navigator.vibrate is Android/Chrome only; iOS Safari ignores it (sound
@@ -164,6 +177,25 @@ export default function CommuterHome() {
       void startHail();
     }
   }, [hailPending, isHailing, stopHail, startHail]);
+
+  // Sending a hail takes a press-and-hold (HAIL_HOLD_MS) so a pocket tap or a
+  // brush against the screen can't send one; releasing early cancels it.
+  // Cancelling an active hail stays a single tap. The fill overlays on the
+  // hail buttons use duration-600 to match.
+  const hailHold = useHoldToConfirm(() => { void startHail(); }, canHail && !isHailing && !hailPending, HAIL_HOLD_MS);
+  const hailButtonProps = isHailing
+    ? { onClick: handleHailToggle }
+    : {
+        ...hailHold.handlers,
+        onPointerUp: () => {
+          // A touch hold completes while the finger is still down, which is not
+          // a user gesture for autoplay; lifting it is, so unlock the reminder
+          // beep's AudioContext here.
+          primeAudio();
+          hailHold.handlers.onPointerUp();
+        },
+      };
+  const hailIdleLabel = hailHold.releasedEarly ? "Keep holding" : "Hold to Hail";
 
   // While a hail is active: repeat the vibrate + beep reminder so the commuter
   // doesn't forget it's on, and auto-turn-off after the TTL.
@@ -368,9 +400,10 @@ export default function CommuterHome() {
       >
         <div className="absolute -top-23 right-4 z-30">
           <button
-            onClick={handleHailToggle}
+            {...hailButtonProps}
+            aria-label={isHailing ? "Cancel hail" : "Press and hold to hail"}
             disabled={hailPending || (!isHailing && !canHail)}
-            className={`w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 border-4 disabled:cursor-not-allowed ${
+            className={`relative overflow-hidden select-none touch-none [-webkit-touch-callout:none] w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 border-4 disabled:cursor-not-allowed ${
               isHailing
                 ? "bg-red-500 border-red-300 shadow-red-500/50 animate-bounce"
                 : canHail
@@ -378,21 +411,26 @@ export default function CommuterHome() {
                   : "bg-gray-600 border-gray-500 shadow-gray-600/30 opacity-50 cursor-not-allowed"
             } ${hailPending ? "opacity-70" : ""}`}
           >
+            {/* Hold progress: grows to fill the button over HAIL_HOLD_MS. */}
+            <span
+              aria-hidden
+              className={`pointer-events-none absolute inset-0 rounded-full bg-white/30 transition-transform ease-linear ${hailHold.isHolding ? "scale-100 duration-600" : "scale-0 duration-150"}`}
+            />
             {hailPending ? (
-              <span className="w-7 h-7 rounded-full border-[3px] border-white/40 border-t-white animate-spin" />
+              <span className="relative w-7 h-7 rounded-full border-[3px] border-white/40 border-t-white animate-spin" />
             ) : isHailing ? (
-              <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <svg className="relative w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
               </svg>
             ) : (
-              <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <svg className="relative w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
               </svg>
             )}
           </button>
           <span className="block text-center text-[10px] font-extrabold text-white mt-2 drop-shadow-lg uppercase tracking-wider">
-            {hailPending ? (isHailing ? "Cancelling…" : "Sending…") : isHailing ? "Cancel" : canHail ? "Hail Me" : gpsStatus === "loading" ? "Locating..." : gpsStatus === "denied" ? "No GPS" : "Too Far"}
+            {hailPending ? (isHailing ? "Cancelling…" : "Sending…") : isHailing ? "Cancel" : canHail ? hailIdleLabel : gpsStatus === "loading" ? "Locating..." : gpsStatus === "denied" ? "No GPS" : "Too Far"}
           </span>
         </div>
         <div
@@ -620,9 +658,9 @@ export default function CommuterHome() {
         <div className="p-6 border-t border-white/10 light:border-gray-200">
           {desktopHailError}
           <button
-            onClick={handleHailToggle}
+            {...hailButtonProps}
             disabled={hailPending || (!isHailing && !canHail)}
-            className={`w-full flex items-center justify-center gap-3 py-4 rounded-xl text-base font-bold transition-all duration-300 disabled:cursor-not-allowed ${
+            className={`relative overflow-hidden select-none touch-none [-webkit-touch-callout:none] w-full flex items-center justify-center gap-3 py-4 rounded-xl text-base font-bold transition-all duration-300 disabled:cursor-not-allowed ${
               isHailing
                 ? "bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/40"
                 : canHail
@@ -630,27 +668,34 @@ export default function CommuterHome() {
                   : "bg-gray-600 text-gray-300 light:bg-gray-200 light:text-gray-500 cursor-not-allowed shadow-none"
             } ${hailPending ? "opacity-70" : ""}`}
           >
-            {hailPending ? (
-              <>
-                <span className="w-6 h-6 rounded-full border-[3px] border-white/40 border-t-white animate-spin" />{" "}
-                {isHailing ? "Cancelling…" : "Sending…"}
-              </>
-            ) : isHailing ? (
-              <>
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                </svg>{" "}
-                Cancel Hail
-              </>
-            ) : (
-              <>
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
-                </svg>{" "}
-                {gpsStatus === "loading" ? "Locating..." : gpsStatus === "denied" || gpsStatus === "unavailable" ? "No GPS Access" : canHail ? "Hail Me" : "Outside Service Radius"}
-              </>
-            )}
+            {/* Hold progress: sweeps left to right over HAIL_HOLD_MS. */}
+            <span
+              aria-hidden
+              className={`pointer-events-none absolute inset-0 origin-left bg-white/25 transition-transform ease-linear ${hailHold.isHolding ? "scale-x-100 duration-600" : "scale-x-0 duration-150"}`}
+            />
+            <span className="relative flex items-center justify-center gap-3">
+              {hailPending ? (
+                <>
+                  <span className="w-6 h-6 rounded-full border-[3px] border-white/40 border-t-white animate-spin" />{" "}
+                  {isHailing ? "Cancelling…" : "Sending…"}
+                </>
+              ) : isHailing ? (
+                <>
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                  </svg>{" "}
+                  Cancel Hail
+                </>
+              ) : (
+                <>
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+                  </svg>{" "}
+                  {gpsStatus === "loading" ? "Locating..." : gpsStatus === "denied" || gpsStatus === "unavailable" ? "No GPS Access" : canHail ? hailIdleLabel : "Outside Service Radius"}
+                </>
+              )}
+            </span>
           </button>
         </div>
       </div>
@@ -737,9 +782,9 @@ export default function CommuterHome() {
           {/* Hail */}
           <div className="flex items-center px-4 py-3">
             <button
-              onClick={handleHailToggle}
+              {...hailButtonProps}
               disabled={hailPending || (!isHailing && !canHail)}
-              className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap transition-all duration-300 cursor-pointer disabled:cursor-not-allowed ${
+              className={`relative overflow-hidden select-none touch-none [-webkit-touch-callout:none] flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap transition-all duration-300 cursor-pointer disabled:cursor-not-allowed ${
                 isHailing
                   ? "bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/40"
                   : canHail
@@ -747,27 +792,34 @@ export default function CommuterHome() {
                     : "bg-gray-600 text-gray-300 light:bg-gray-200 light:text-gray-500 shadow-none"
               } ${hailPending ? "opacity-70" : ""}`}
             >
-              {hailPending ? (
-                <>
-                  <span className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
-                  {isHailing ? "Cancelling…" : "Sending…"}
-                </>
-              ) : isHailing ? (
-                <>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                  </svg>
-                  Cancel Hail
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
-                  </svg>
-                  {gpsStatus === "loading" ? "Locating..." : gpsStatus === "denied" || gpsStatus === "unavailable" ? "No GPS Access" : canHail ? "Hail Me" : "Outside Service Radius"}
-                </>
-              )}
+              {/* Hold progress: sweeps left to right over HAIL_HOLD_MS. */}
+              <span
+                aria-hidden
+                className={`pointer-events-none absolute inset-0 origin-left bg-white/25 transition-transform ease-linear ${hailHold.isHolding ? "scale-x-100 duration-600" : "scale-x-0 duration-150"}`}
+              />
+              <span className="relative flex items-center justify-center gap-2">
+                {hailPending ? (
+                  <>
+                    <span className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+                    {isHailing ? "Cancelling…" : "Sending…"}
+                  </>
+                ) : isHailing ? (
+                  <>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                    </svg>
+                    Cancel Hail
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+                    </svg>
+                    {gpsStatus === "loading" ? "Locating..." : gpsStatus === "denied" || gpsStatus === "unavailable" ? "No GPS Access" : canHail ? hailIdleLabel : "Outside Service Radius"}
+                  </>
+                )}
+              </span>
             </button>
           </div>
         </div>
