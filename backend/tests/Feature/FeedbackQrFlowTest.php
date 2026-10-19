@@ -356,7 +356,7 @@ class FeedbackQrFlowTest extends TestCase
         ]);
     }
 
-    public function test_feedback_rejects_commuter_with_no_transaction_for_shift(): void
+    public function test_commuter_can_submit_feedback_without_a_transaction_for_shift(): void
     {
         Transaction::query()->delete();
 
@@ -366,13 +366,16 @@ class FeedbackQrFlowTest extends TestCase
                 'rating' => 5,
                 'conductor_rating' => 5,
             ])
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'Feedback is only available after your completed ride on this shift');
+            ->assertStatus(201)
+            ->assertJsonPath('message', 'Feedback submitted');
 
-        $this->assertDatabaseCount('feedback', 0);
+        $this->assertDatabaseHas('feedback', [
+            'shift_id' => $this->shift->shift_id,
+            'commuter_id' => $this->commuter->commuterProfile->id,
+        ]);
     }
 
-    public function test_feedback_rejects_transaction_belonging_to_another_commuter(): void
+    public function test_feedback_does_not_require_a_transaction_belonging_to_the_commuter(): void
     {
         Transaction::query()->delete();
         $otherCommuter = User::factory()->commuter()->create();
@@ -384,13 +387,16 @@ class FeedbackQrFlowTest extends TestCase
                 'rating' => 4,
                 'conductor_rating' => 4,
             ])
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'Feedback is only available after your completed ride on this shift');
+            ->assertStatus(201)
+            ->assertJsonPath('message', 'Feedback submitted');
 
-        $this->assertDatabaseCount('feedback', 0);
+        $this->assertDatabaseHas('feedback', [
+            'shift_id' => $this->shift->shift_id,
+            'commuter_id' => $this->commuter->commuterProfile->id,
+        ]);
     }
 
-    public function test_feedback_rejects_every_non_paid_transaction_status(): void
+    public function test_feedback_is_not_gated_by_payment_status(): void
     {
         Transaction::query()->delete();
 
@@ -414,13 +420,16 @@ class FeedbackQrFlowTest extends TestCase
                 'rating' => 3,
                 'conductor_rating' => 3,
             ])
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'Feedback is only available after your completed ride on this shift');
+            ->assertStatus(201)
+            ->assertJsonPath('message', 'Feedback submitted');
 
-        $this->assertDatabaseCount('feedback', 0);
+        $this->assertDatabaseHas('feedback', [
+            'shift_id' => $this->shift->shift_id,
+            'commuter_id' => $this->commuter->commuterProfile->id,
+        ]);
     }
 
-    public function test_feedback_rejects_paid_transaction_pending_reconciliation(): void
+    public function test_feedback_is_not_gated_by_payment_reconciliation_status(): void
     {
         Transaction::query()->update([
             'payment_reconciliation_status' => 'REFUND_REQUIRED',
@@ -433,10 +442,13 @@ class FeedbackQrFlowTest extends TestCase
                 'rating' => 3,
                 'conductor_rating' => 3,
             ])
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'Feedback is only available after your completed ride on this shift');
+            ->assertStatus(201)
+            ->assertJsonPath('message', 'Feedback submitted');
 
-        $this->assertDatabaseCount('feedback', 0);
+        $this->assertDatabaseHas('feedback', [
+            'shift_id' => $this->shift->shift_id,
+            'commuter_id' => $this->commuter->commuterProfile->id,
+        ]);
     }
 
     public function test_feedback_min_rating_accepted(): void

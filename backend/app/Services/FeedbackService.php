@@ -2,13 +2,10 @@
 
 namespace App\Services;
 
-use App\Enums\PaymentMethod;
-use App\Enums\PaymentStatus;
 use App\Models\ConductorProfile;
 use App\Models\Driver;
 use App\Models\Feedback;
 use App\Models\ShiftLog;
-use App\Models\Transaction;
 use App\Models\User;
 use App\Support\Feedback\FeedbackException;
 use App\Support\Qr\QrTokenException;
@@ -80,14 +77,14 @@ class FeedbackService
     }
 
     /**
-     * Persist feedback only after a locked PAID transaction proves that the
-     * authenticated commuter rode on the shift. Crew and vehicle identities
-     * are derived from that verified ride, never from client input.
+     * Persist feedback for a scanned shift. Crew and vehicle identities are
+     * derived from the shift row, never from client input. A payment is not
+     * required to submit feedback from the unit QR.
      *
      * @param  User  $commuter  The authenticated commuter.
      * @param  array  $data  Validated: shift_id, rating, category?, comment?
      *
-     * @throws FeedbackException If no eligible ride exists or feedback is duplicate.
+     * @throws FeedbackException If the shift no longer exists or feedback is duplicate.
      */
     public function submit(User $commuter, array $data): Feedback
     {
@@ -98,30 +95,12 @@ class FeedbackService
 
         try {
             return DB::transaction(function () use ($commuterProfile, $data): Feedback {
-                $transaction = Transaction::query()
+                $shift = ShiftLog::query()
                     ->where('shift_id', $data['shift_id'])
-                    ->where('passenger_id', $commuterProfile->id)
-                    ->where('status', PaymentStatus::PAID->value)
-                    ->whereIn('payment_method', [
-                        PaymentMethod::CASH->value,
-                        PaymentMethod::GCASH->value,
-                        PaymentMethod::VOUCHER->value,
-                    ])
-                    ->whereNull('payment_reconciliation_status')
-                    ->orderByDesc('paid_at')
-                    ->orderByDesc('created_at')
                     ->lockForUpdate()
                     ->first();
-
-                if (! $transaction) {
-                    throw new FeedbackException('Feedback is only available after your completed ride on this shift');
-                }
-
-                $shift = ShiftLog::query()
-                    ->where('shift_id', $transaction->shift_id)
-                    ->first();
                 if (! $shift) {
-                    throw new FeedbackException('The verified ride no longer has an associated shift');
+                    throw new FeedbackException('The scanned shift could not be found');
                 }
 
                 if (Feedback::query()

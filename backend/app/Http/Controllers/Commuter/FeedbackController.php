@@ -17,9 +17,9 @@ use Illuminate\Http\Request;
  *
  * The commuter first scans the unit QR (POST /qr/scan) to resolve today's
  * shift_id + crew, then submits a rating + optional comment here. The
- * service verifies a PAID transaction owned by the authenticated commuter,
- * then derives vehicle_id/driver_id/conductor_id from that ride's shift.
- * Client-provided identity fields are never trusted.
+ * service derives vehicle_id/driver_id/conductor_id from the resolved shift;
+ * feedback does not require a payment transaction. Client-provided identity
+ * fields are never trusted.
  */
 class FeedbackController extends Controller
 {
