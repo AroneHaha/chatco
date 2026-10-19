@@ -122,7 +122,7 @@ class AdminAccountPasswordTest extends TestCase
         $this->assertTrue(Hash::check('password123', $admin->fresh()->password));
     }
 
-    public function test_confirm_signs_out_the_admins_other_sessions_only(): void
+    public function test_confirm_signs_out_every_session_of_the_admin_only(): void
     {
         $admin = $this->seedAdmin();
         $otherAdmin = $this->seedAdmin('second.admin@chatco.test');
@@ -136,7 +136,9 @@ class AdminAccountPasswordTest extends TestCase
             ->postJson(self::CONFIRM, [...$this->payload, 'code' => $code])
             ->assertStatus(200);
 
-        $this->assertSame(1, $admin->tokens()->count());
+        // Admins sign in again with the new password, so the current
+        // session is revoked too; another admin's sessions are untouched.
+        $this->assertSame(0, $admin->tokens()->count());
         $this->assertSame(1, $otherAdmin->tokens()->count());
         $this->assertTrue(Hash::check('password123', $otherAdmin->fresh()->password));
     }

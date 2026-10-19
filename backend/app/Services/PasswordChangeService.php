@@ -76,7 +76,9 @@ class PasswordChangeService
      * effect) and the emailed code, then rotates the password exactly as the
      * old single-step flow did: re-hashed via the User 'hashed' cast, and all
      * OTHER access tokens revoked so any other logged-in session is
-     * invalidated while the caller's current session stays valid.
+     * invalidated while the caller's current session stays valid. With
+     * $revokeCurrentSession (admins) the current session is revoked too, so
+     * the caller must sign in again with the new password.
      *
      * @throws ValidationException on a bad current/new password or code
      */
