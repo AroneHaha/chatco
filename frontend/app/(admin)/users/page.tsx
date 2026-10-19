@@ -29,6 +29,7 @@ import { ConfirmPasswordModal } from '@/components/admin/ui/confirm-password-mod
 import { PageTabs } from '@/components/admin/ui/page-tabs';
 import { DiscountApplicationsPanel } from '@/components/admin/users/discount-applications-panel';
 import { useAdminNotifications } from '@/contexts/admin-notifications-context';
+import { compressImage, IMAGE_COMPRESSION } from '@/lib/utils/compress-image';
 
 /** How long a success banner stays before clearing itself. */
 const SUCCESS_MESSAGE_MS = 3000;
@@ -325,7 +326,7 @@ export default function UsersPage() {
     formData.append('contact_number', data.phoneNumber);
     formData.append('username', data.username);
     formData.append('applied_type', appliedType);
-    formData.append('id_image', data.idImageFile);
+    formData.append('id_image', await compressImage(data.idImageFile, IMAGE_COMPRESSION.document));
     // Same school fields student renewal sends.
     if (data.studentDetails) {
       formData.append('school_name', data.studentDetails.schoolName);

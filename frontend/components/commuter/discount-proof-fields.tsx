@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useState, type ChangeEvent } from 'react';
+import { useCallback, useRef, useState, type ChangeEvent } from 'react';
 import { FileText, ImageIcon, Upload, X } from 'lucide-react';
+import { compressImage, IMAGE_COMPRESSION } from '@/lib/utils/compress-image';
 import { EDUCATION_LABELS, ENROLLMENT_TERMS, HIGH_SCHOOL_GRADES, type EducationLevel, type DiscountApplication } from '@/lib/shared/services/student-renewal.service';
 
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -15,8 +16,12 @@ export function useDiscountProof() {
   const [gradeLevel, setGradeLevel] = useState('');
   const [schoolYear, setSchoolYear] = useState('');
   const [term, setTerm] = useState('');
-  const [document, setDocument] = useState<File | null>(null);
+  const [document, setDocumentState] = useState<File | null>(null);
   const [fileError, setFileError] = useState('');
+  // Bumped on every pick/clear so a compression that finishes after the
+  // document was cleared or replaced cannot overwrite the newer state.
+  const pick = useRef(0);
+  const setDocument = useCallback((file: File | null) => { pick.current += 1; setDocumentState(file); }, []);
   const incomplete = !schoolName.trim() || !educationLevel || !schoolYear.trim()
     || (educationLevel === 'HIGH_SCHOOL' && !gradeLevel) || (educationLevel === 'COLLEGE' && !term.trim());
   const prefill = useCallback((previous: DiscountApplication) => {
@@ -26,13 +31,17 @@ export function useDiscountProof() {
     setSchoolYear(previous.school_year ?? '');
     setTerm(ENROLLMENT_TERMS.some(item => item === previous.enrollment_term) ? previous.enrollment_term ?? '' : '');
   }, []);
-  const chooseDocument = (event: ChangeEvent<HTMLInputElement>) => {
+  const chooseDocument = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]; event.target.value = '';
     if (!file) return;
     if (file.size > MAX_BYTES || !ACCEPTED_TYPES.includes(file.type)) {
       setFileError('Choose a JPG, PNG, WebP, or PDF document up to 5 MB.'); return;
     }
-    setFileError(''); setDocument(file);
+    setFileError('');
+    const current = ++pick.current;
+    // PDFs come back unchanged; images are downscaled before upload.
+    const compressed = await compressImage(file, IMAGE_COMPRESSION.document);
+    if (current === pick.current) setDocumentState(compressed);
   };
   const formData = (student = true, includeDocument = true) => {
     const body = new FormData();

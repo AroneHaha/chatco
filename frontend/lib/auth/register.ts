@@ -4,6 +4,8 @@
 // Submits multipart form data (including the ID image file) to
 // POST /api/auth/register → Laravel /api/v1/auth/register.
 
+import { compressImage, IMAGE_COMPRESSION } from "@/lib/utils/compress-image";
+
 export type AppliedType = "REGULAR" | "STUDENT" | "SENIOR" | "PWD";
 
 export interface RegistrationAgreement {
@@ -81,7 +83,7 @@ export async function register(input: RegisterInput): Promise<RegisterResult> {
   formData.append("terms_version", input.terms_version);
   formData.append("privacy_version", input.privacy_version);
   if (input.language_preference) formData.append("language_preference", input.language_preference);
-  if (input.id_image) formData.append("id_image", input.id_image);
+  if (input.id_image) formData.append("id_image", await compressImage(input.id_image, IMAGE_COMPRESSION.document));
 
   const res = await fetch("/api/auth/register", {
     method: "POST",

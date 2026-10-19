@@ -26,6 +26,7 @@
 import { api } from "@/lib/api/client";
 import { createPasswordChangeClient } from "@/lib/shared/services/password-change.service";
 import { COMMUTER_API } from "@/lib/commuter/endpoints";
+import { compressImage, IMAGE_COMPRESSION } from "@/lib/utils/compress-image";
 import type { AccountStatus, CommuterProfile, CommuterType } from "@/types";
 
 // ─── Raw backend shapes ──────────────────────────────────────────────
@@ -149,7 +150,7 @@ export async function getProfile(): Promise<CommuterProfile> {
 
 export async function uploadProfilePhoto(photo: File): Promise<CommuterProfile> {
   const body = new FormData();
-  body.set("photo", photo);
+  body.set("photo", await compressImage(photo, IMAGE_COMPRESSION.avatar));
   const response = await api.postForm<ApiResponseEnvelope<ProfilePayload>>(
     `${COMMUTER_API.profile}/photo`, body
   );
