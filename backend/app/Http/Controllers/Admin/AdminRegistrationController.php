@@ -73,6 +73,8 @@ class AdminRegistrationController extends Controller
             // just-signed-up applicant regardless of where they fall in the
             // (oldest-first) review queue.
             'id' => ['nullable', 'uuid'],
+            // Defaults to 'oldest' (the FIFO review queue) when omitted.
+            'sort' => ['nullable', Rule::in(['recent', 'oldest'])],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'page' => ['nullable', 'integer', 'min:1'],
         ]);

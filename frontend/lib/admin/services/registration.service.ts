@@ -75,6 +75,8 @@ export interface RegistrationListFilters {
   appliedType?: AppliedType | "";
   /** Look up one specific pending registration by its User.id (e.g. from a notification deep-link). */
   id?: string;
+  /** Pending list order by submission time; the backend defaults to "oldest" (FIFO). */
+  sort?: "recent" | "oldest";
   perPage?: number;
   page?: number;
 }
@@ -174,6 +176,7 @@ function buildQuery(filters: RegistrationListFilters): string {
   if (filters.search?.trim()) params.set("search", filters.search.trim());
   if (filters.appliedType) params.set("applied_type", filters.appliedType);
   if (filters.id) params.set("id", filters.id);
+  if (filters.sort) params.set("sort", filters.sort);
   params.set("per_page", String(filters.perPage ?? 10));
   params.set("page", String(filters.page ?? 1));
   return `?${params.toString()}`;

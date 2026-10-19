@@ -30,6 +30,7 @@ import * as registrationService from "@/lib/admin/services/registration.service"
 
 export type { AdminUser, PaginationMeta, UserListFilters, UpdateUserInput };
 export type PendingRequest = registrationService.PendingRegistration;
+export type PendingSort = NonNullable<registrationService.RegistrationListFilters["sort"]>;
 export type RejectedRequest = registrationService.RejectedRegistration;
 
 /**
@@ -120,6 +121,8 @@ export interface UseUsersDataReturn {
   setFilters: (f: Partial<UsersTabFilters>) => void;
   pendingType: registrationService.AppliedType | "";
   setPendingType: (type: registrationService.AppliedType | "") => void;
+  pendingSort: PendingSort;
+  setPendingSort: (sort: PendingSort) => void;
   setPendingPage: (page: number) => void;
   setRejectedPage: (page: number) => void;
   refetch: () => void;
@@ -204,6 +207,7 @@ export function useUsersData(activeTab: "active" | "pending" | "rejected" | "dis
   const [pendingPage, setPendingPageState] = useState(1);
   const [rejectedPage, setRejectedPageState] = useState(1);
   const [pendingType, setPendingTypeState] = useState<registrationService.AppliedType | "">("");
+  const [pendingSort, setPendingSortState] = useState<PendingSort>("oldest");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const requestSequence = useRef(0);
@@ -312,6 +316,7 @@ export function useUsersData(activeTab: "active" | "pending" | "rejected" | "dis
       const result = await registrationService.listPending({
         search: filters.search,
         appliedType: pendingType,
+        sort: pendingSort,
         page: pendingPage,
         perPage: filters.perPage,
       });
@@ -326,7 +331,7 @@ export function useUsersData(activeTab: "active" | "pending" | "rejected" | "dis
     } finally {
       if (sequence === requestSequence.current) setIsLoading(false);
     }
-  }, [filters.search, filters.perPage, pendingPage, pendingType]);
+  }, [filters.search, filters.perPage, pendingPage, pendingType, pendingSort]);
 
   // ── Fetch rejected registrations (soft-deleted REJECTED commuters) ──
   // Rejected accounts are soft-deleted with their email rewritten to
@@ -510,6 +515,11 @@ export function useUsersData(activeTab: "active" | "pending" | "rejected" | "dis
     setPendingPageState(1);
   }, []);
 
+  const setPendingSort = useCallback((sort: PendingSort) => {
+    setPendingSortState(sort);
+    setPendingPageState(1);
+  }, []);
+
   const setPendingPage = useCallback((page: number) => setPendingPageState(Math.max(1, page)), []);
   const setRejectedPage = useCallback((page: number) => setRejectedPageState(Math.max(1, page)), []);
 
@@ -531,6 +541,8 @@ export function useUsersData(activeTab: "active" | "pending" | "rejected" | "dis
     setFilters,
     pendingType,
     setPendingType,
+    pendingSort,
+    setPendingSort,
     setPendingPage,
     setRejectedPage,
     refetch,

@@ -54,6 +54,8 @@ export default function UsersPage() {
     setFilters,
     pendingType,
     setPendingType,
+    pendingSort,
+    setPendingSort,
     setPendingPage,
     setRejectedPage,
     refetch,
@@ -505,18 +507,29 @@ export default function UsersPage() {
             </>
           )}
           {activeTab === 'pending' && (
-            <select
-              value={pendingType}
-              onChange={(event) => setPendingType(event.target.value as typeof pendingType)}
-              aria-label="Filter pending registrations by commuter type"
-              className={`${selectFilterClasses} col-span-2`}
-            >
-              <option value="">All Types</option>
-              <option value="REGULAR">Regular</option>
-              <option value="STUDENT">Student</option>
-              <option value="SENIOR">Senior Citizen</option>
-              <option value="PWD">PWD</option>
-            </select>
+            <>
+              <select
+                value={pendingType}
+                onChange={(event) => setPendingType(event.target.value as typeof pendingType)}
+                aria-label="Filter pending registrations by commuter type"
+                className={selectFilterClasses}
+              >
+                <option value="">All Types</option>
+                <option value="REGULAR">Regular</option>
+                <option value="STUDENT">Student</option>
+                <option value="SENIOR">Senior Citizen</option>
+                <option value="PWD">PWD</option>
+              </select>
+              <select
+                value={pendingSort}
+                onChange={(event) => setPendingSort(event.target.value as typeof pendingSort)}
+                aria-label="Sort pending registrations"
+                className={selectFilterClasses}
+              >
+                <option value="oldest" className="bg-gray-800 admin-light:bg-white">Oldest</option>
+                <option value="recent" className="bg-gray-800 admin-light:bg-white">Recent</option>
+              </select>
+            </>
           )}
         </div>
       </div>

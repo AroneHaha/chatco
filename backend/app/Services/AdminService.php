@@ -1325,6 +1325,8 @@ class AdminService
     public function listPendingRegistrations(array $filters = []): LengthAwarePaginator
     {
         $perPage = max(1, min((int) ($filters['per_page'] ?? 15), 100));
+        // Oldest first (FIFO review queue) unless the admin asks for most recent.
+        $direction = ($filters['sort'] ?? 'oldest') === 'recent' ? 'desc' : 'asc';
 
         $paginator = User::where('role', UserRole::COMMUTER)
             ->whereHas('commuterProfile', function ($q) {
@@ -1340,7 +1342,11 @@ class AdminService
                 $this->applySearch($query, trim($search));
             })
             ->with(['commuterProfile:id,first_name,middle_name,surname,birthdate,gender,email,contact_number,commuter_type,applied_type,account_status,id_image_url,verified_at,rejection_reason,username,language_preference'])
-            ->orderBy('created_at', 'asc') // oldest first — FIFO review queue
+            ->orderBy('users.created_at', $direction)
+            // created_at has second precision; the id tie-breaker keeps
+            // same-second sign-ups in a fixed order so paging never repeats
+            // or skips an applicant, and 'recent' is the exact reverse of 'oldest'.
+            ->orderBy('users.id', $direction)
             ->paginate($perPage);
 
         // Batch-fetch rejection history for every applicant on this page in
