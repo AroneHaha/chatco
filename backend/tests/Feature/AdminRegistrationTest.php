@@ -38,6 +38,35 @@ class AdminRegistrationTest extends TestCase
 
     private User $admin;
 
+    public function test_false_storage_result_does_not_create_an_onsite_account(): void
+    {
+        config(['filesystems.uploads.private_id_disk' => 'r2_private']);
+        $disk = \Mockery::mock(\Illuminate\Contracts\Filesystem\Filesystem::class);
+        $disk->shouldReceive('putFileAs')->once()->andReturn(false);
+        Storage::shouldReceive('disk')->with('r2_private')->once()->andReturn($disk);
+        $payload = $this->onsitePayload();
+        $this->actingAs($this->admin)->post('/api/v1/admin/registrations', $payload, ['Accept' => 'application/json'])
+            ->assertStatus(503)->assertJsonPath('message', 'The ID image could not be stored. Please try again.');
+        $this->assertDatabaseMissing('commuter_profiles', ['username' => $payload['username']]);
+    }
+
+    public function test_onsite_storage_failure_does_not_create_an_account(): void
+    {
+        $this->mock(\App\Services\MediaStorageService::class, fn ($mock) => $mock->shouldReceive('storeCommuterId')->once()->andThrow(new \RuntimeException('Storage unavailable')));
+        $this->actingAs($this->admin)->post('/api/v1/admin/registrations', $this->onsitePayload(), ['Accept' => 'application/json'])
+            ->assertStatus(503)->assertJsonPath('message', 'The ID image could not be stored. Please try again.');
+        $this->assertDatabaseMissing('commuter_profiles', ['username' => $this->onsitePayload()['username']]);
+    }
+
+    public function test_onsite_rejects_files_above_safe_web_upload_limit(): void
+    {
+        Storage::fake('public');
+        $this->actingAs($this->admin)->post('/api/v1/admin/registrations', $this->onsitePayload([
+            'id_image' => UploadedFile::fake()->image('large.jpg')->size(3073),
+        ]), ['Accept' => 'application/json'])->assertStatus(422)->assertJsonValidationErrors('id_image');
+        $this->assertEmpty(Storage::disk('public')->allFiles());
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

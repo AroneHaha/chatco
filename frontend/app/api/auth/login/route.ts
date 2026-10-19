@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     const data = await res.json().catch(() => null);
 
     if (res.ok && data?.data?.token) {
-      const { id, email: userEmail, role, name, token, must_change_password } = data.data;
+      const { id, email: userEmail, role, name, token, must_change_password, profile_picture_url } = data.data;
       let activeShift: ConductorShift | null = null;
 
       if (role === "CONDUCTOR") {
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
         }
       }
 
-      return issueSession({ id, email: userEmail, role, name, token }, activeShift, Boolean(must_change_password));
+      return issueSession({ id, email: userEmail, role, name, token, profile_picture_url }, activeShift, Boolean(must_change_password));
     }
 
     if (res.status === 503 && data?.code === "MAINTENANCE") {
@@ -92,7 +92,7 @@ export async function POST(request: Request) {
 }
 
 function issueSession(
-  user: { id: string; email: string; role: string; name: string; token: string },
+  user: { id: string; email: string; role: string; name: string; token: string; profile_picture_url?: string | null },
   activeShift: ConductorShift | null,
   mustChangePassword: boolean
 ) {

@@ -12,6 +12,7 @@ import {
   PasswordChangeError,
   confirmPasswordChange,
   requestPasswordChangeCode,
+  uploadProfilePhoto,
 } from '@/lib/admin/services/account.service';
 
 /**
@@ -101,7 +102,7 @@ function Section({ title, description, children }: { title: string; description:
 }
 
 export default function ProfileSecurityPage() {
-  const { user, logout } = useAuth();
+  const { user, logout, updateProfilePicture } = useAuth();
   const [form, setForm] = useState(EMPTY_FORM);
   const [code, setCode] = useState('');
   const [step, setStep] = useState<Step>('passwords');
@@ -114,6 +115,12 @@ export default function ProfileSecurityPage() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [photoNotice, setPhotoNotice] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoSaving, setPhotoSaving] = useState(false);
+  const [failedPhotoUrl, setFailedPhotoUrl] = useState<string | null>(null);
+  const photoFlight = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const [otpOpen, setOtpOpen] = useState(false);
   const [passwordChanged, setPasswordChanged] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -221,6 +228,7 @@ export default function ProfileSecurityPage() {
   };
 
   const handlePhotoSelection = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (photoFlight.current) return;
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
@@ -228,20 +236,41 @@ export default function ProfileSecurityPage() {
       setPhotoError('Choose a JPG, PNG, or WebP image.');
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setPhotoError('Choose an image smaller than 5 MB.');
+    if (file.size > 3 * 1024 * 1024) {
+      setPhotoError('Choose an image of 3 MB or smaller.');
       return;
     }
     setPhotoError(null);
     setPhotoNotice(null);
+    setPhotoFile(file);
     setPhotoPreview(URL.createObjectURL(file));
     setPhotoOpen(true);
   };
 
   const closePhotoPreview = () => {
+    if (photoFlight.current) return;
     setPhotoOpen(false);
     setPhotoPreview(null);
     setPhotoError(null);
+    setPhotoFile(null);
+  };
+
+  const savePhoto = async () => {
+    if (!photoFile || photoFlight.current) return;
+    photoFlight.current = true;
+    setPhotoSaving(true); setPhotoError(null);
+    try {
+      const url = await uploadProfilePhoto(photoFile);
+      if (!mounted.current) return;
+      updateProfilePicture(url);
+      setPhotoNotice('Profile picture updated.');
+      setPhotoOpen(false); setPhotoFile(null); setPhotoPreview(null);
+    } catch (error) {
+      if (mounted.current) setPhotoError(error instanceof Error ? error.message : 'Unable to save the picture. Please retry.');
+    } finally {
+      photoFlight.current = false;
+      if (mounted.current) setPhotoSaving(false);
+    }
   };
 
   return (
@@ -252,7 +281,9 @@ export default function ProfileSecurityPage() {
             <>
               <div className="flex min-w-0 flex-wrap items-center gap-4">
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#1A2540] admin-light:bg-[#EEF2F7] text-base font-semibold text-[#62A0EA] admin-light:text-[#1A5FB4]" aria-label="Current profile picture">
-                  {getInitials(name)}
+                  {user.profilePictureUrl && failedPhotoUrl !== user.profilePictureUrl
+                    ? <Image src={user.profilePictureUrl} alt="Your profile picture" width={56} height={56} unoptimized className="h-full w-full rounded-md object-cover" onError={() => setFailedPhotoUrl(user.profilePictureUrl ?? null)} />
+                    : getInitials(name)}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-base font-semibold text-white admin-light:text-slate-900" title={name}>{name}</p>
@@ -261,7 +292,7 @@ export default function ProfileSecurityPage() {
                 <button type="button" onClick={() => { setPhotoError(null); setPhotoOpen(true); }} className="inline-flex h-9 items-center gap-2 rounded-md border border-[#1E2D45] admin-light:border-[#CBD5E1] px-3 text-xs font-semibold text-slate-200 admin-light:text-slate-700 transition-colors hover:bg-white/5 admin-light:hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4]">
                   <Camera size={15} aria-hidden="true" /> Change picture
                 </button>
-                <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoSelection} className="sr-only" aria-label="Choose a profile picture" />
+                <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoSelection} disabled={photoSaving} className="sr-only" aria-label="Choose a profile picture" />
               </div>
               {photoNotice && <p role="status" className="mt-3 text-xs text-slate-500">{photoNotice}</p>}
               <dl className="mt-5 border-t border-[#1E2D45] admin-light:border-[#E2E8F0]">
@@ -381,7 +412,7 @@ export default function ProfileSecurityPage() {
           <section role="dialog" aria-modal="true" aria-labelledby="profile-photo-title" className="my-auto w-full max-w-lg rounded-lg border border-[#1E2D45] admin-light:border-[#CBD5E1] bg-[#131C2E] admin-light:bg-white p-5 shadow-2xl sm:p-6">
             <header className="flex items-start justify-between gap-4">
               <div>
-                <h2 id="profile-photo-title" className="text-base font-semibold text-white admin-light:text-slate-900">Profile picture preview</h2>
+                <h2 id="profile-photo-title" className="text-base font-semibold text-white admin-light:text-slate-900">Change profile picture</h2>
                 <p className="mt-1 text-sm leading-5 text-slate-400 admin-light:text-slate-600">Choose an image to preview how it will look on your account.</p>
               </div>
               <button type="button" onClick={closePhotoPreview} aria-label="Close profile picture preview" className="rounded-md p-1.5 text-slate-400 hover:bg-white/5 hover:text-white admin-light:hover:bg-slate-100 admin-light:hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4]"><X size={18} aria-hidden="true" /></button>
@@ -389,16 +420,16 @@ export default function ProfileSecurityPage() {
             <div className="mt-5 flex min-h-52 items-center justify-center overflow-hidden rounded-md border border-dashed border-[#33445F] admin-light:border-slate-300 bg-[#0E1628] admin-light:bg-slate-50 p-4">
               {photoPreview
                 ? <Image src={photoPreview} alt="Selected profile picture preview" width={176} height={176} unoptimized className="h-44 w-44 rounded-md object-cover" />
-                : <div className="flex flex-col items-center gap-2 text-center text-slate-500 admin-light:text-slate-500"><ImagePlus size={32} aria-hidden="true" /><p className="text-sm">Select a JPG, PNG, or WebP image (up to 5 MB).</p></div>}
+                : <div className="flex flex-col items-center gap-2 text-center text-slate-500 admin-light:text-slate-500"><ImagePlus size={32} aria-hidden="true" /><p className="text-sm">Select a JPG, PNG, or WebP image (up to 3 MB).</p></div>}
             </div>
             {photoError && <p role="alert" className="mt-3 text-sm text-red-400 admin-light:text-red-600">{photoError}</p>}
-            <p className="mt-3 text-xs leading-5 text-slate-500">This is a preview only. The current profile picture will not be changed or saved.</p>
+            <p className="mt-3 text-xs leading-5 text-slate-500">Save to update your picture across the Admin interface. Your current picture stays unchanged if the upload fails.</p>
             <div className="mt-5 flex flex-wrap items-center gap-2">
               <button type="button" onClick={() => photoInputRef.current?.click()} className="inline-flex h-10 items-center gap-2 rounded-md border border-[#1E2D45] admin-light:border-[#CBD5E1] px-3 text-sm font-medium text-slate-200 admin-light:text-slate-700 hover:bg-white/5 admin-light:hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4]"><Upload size={15} aria-hidden="true" />{photoPreview ? 'Replace image' : 'Choose image'}</button>
-              {photoPreview && <button type="button" onClick={() => { setPhotoPreview(null); setPhotoError(null); }} className="inline-flex h-10 items-center gap-2 rounded-md px-3 text-sm font-medium text-red-300 admin-light:text-red-600 hover:bg-red-500/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"><Trash2 size={15} aria-hidden="true" />Remove preview</button>}
+              {photoPreview && <button type="button" disabled={photoSaving} onClick={() => { setPhotoPreview(null); setPhotoFile(null); setPhotoError(null); }} className="inline-flex h-10 items-center gap-2 rounded-md px-3 text-sm font-medium text-red-300 admin-light:text-red-600 hover:bg-red-500/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"><Trash2 size={15} aria-hidden="true" />Remove preview</button>}
               <span className="flex-1" />
               <button type="button" onClick={closePhotoPreview} className="h-10 rounded-md px-4 text-sm font-medium text-slate-300 admin-light:text-slate-700 hover:bg-white/5 admin-light:hover:bg-slate-100">Cancel</button>
-              <button type="button" disabled={!photoPreview} onClick={() => { setPhotoNotice('Preview confirmed. Picture updates are not connected yet, so your current profile picture remains unchanged.'); closePhotoPreview(); }} className="h-10 rounded-md bg-[#62A0EA] admin-light:bg-[#1A5FB4] px-4 text-sm font-semibold text-white hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] disabled:cursor-not-allowed disabled:opacity-50">Confirm preview</button>
+              <button type="button" disabled={!photoFile || photoSaving} onClick={() => void savePhoto()} className="h-10 rounded-md bg-[#62A0EA] admin-light:bg-[#1A5FB4] px-4 text-sm font-semibold text-white hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] disabled:cursor-not-allowed disabled:opacity-50">{photoSaving ? 'Saving picture…' : 'Save picture'}</button>
             </div>
           </section>
         </div>

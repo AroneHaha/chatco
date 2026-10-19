@@ -9,6 +9,7 @@
 // (lib/shared/services/password-change.service.ts).
 
 import { createPasswordChangeClient } from '@/lib/shared/services/password-change.service';
+import { api } from '@/lib/api/client';
 
 export { PasswordChangeError } from '@/lib/shared/services/password-change.service';
 export type { PasswordChangeCodeRequested } from '@/lib/shared/services/password-change.service';
@@ -23,3 +24,11 @@ export const requestPasswordChangeCode = adminPasswordChange.requestCode;
 
 /** Phase 2: verify the emailed code, then rotate the password. */
 export const confirmPasswordChange = adminPasswordChange.confirm;
+
+export async function uploadProfilePhoto(file: File): Promise<string> {
+  const form = new FormData();
+  form.set('photo', file);
+  const response = await api.postForm<{ data: { profile_picture_url: string } }>('/api/admin/account/profile/photo', form);
+  if (!response.data?.profile_picture_url) throw new Error('The server did not confirm the uploaded picture. Please retry.');
+  return response.data.profile_picture_url;
+}

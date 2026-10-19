@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     return jsonError("Unauthorized. Admin session required.", 401);
   }
 
-  const API_URL = process.env.API_URL || "http://localhost:8000";
+  const API_URL = (process.env.API_URL || "http://localhost:8000").replace(/\/+$/, '');
   const API_V1 = "/api/v1";
 
   // Read the raw multipart body + its Content-Type header (includes the

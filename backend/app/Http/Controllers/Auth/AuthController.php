@@ -99,6 +99,7 @@ class AuthController extends Controller
             'email' => $user->email,
             'role' => $user->role->value,
             'name' => $user->getDisplayName(),
+            'profile_picture_url' => $user->role === UserRole::ADMIN ? $user->adminProfile?->profile_picture_url : null,
             'token' => $result['token'],
             // The client sends the commuter to the Set New Password page instead
             // of their dashboard. The backend enforces it regardless (see
@@ -146,6 +147,7 @@ class AuthController extends Controller
             'email' => $user->email,
             'role' => $user->role->value,
             'name' => $user->getDisplayName(),
+            'profile_picture_url' => $user->role === UserRole::ADMIN ? $user->adminProfile?->profile_picture_url : null,
         ];
 
         // Role-specific profile fields
