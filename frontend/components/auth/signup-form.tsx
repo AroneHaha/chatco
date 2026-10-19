@@ -958,8 +958,6 @@ export default function SignupForm({ onBusyChange, initialMaintenanceMessage = n
                   </button>
                 )}
               </div>
-
-              <p className="text-xs text-gray-400">Check your spam folder if it hasn&apos;t arrived after a minute. The code expires 15 minutes after it&apos;s sent.</p>
             </div>
           </Step>
 
