@@ -76,7 +76,7 @@ export default function DashboardHome() {
 
   const {
     recentVehicles,
-    recentLostFound,
+    recentClaims,
     recentUsers,
     recentNotifications,
     recentActivityLogs,
@@ -111,7 +111,7 @@ export default function DashboardHome() {
       <DashboardPreviewCards
         activeVehicles={quickStats.find((stat) => stat.link === "/monitoring")?.value ?? "—"}
         recentVehicles={recentVehicles}
-        recentLostFound={recentLostFound}
+        recentClaims={recentClaims}
         recentUsers={recentUsers}
         recentNotifications={recentNotifications}
         recentActivityLogs={recentActivityLogs}

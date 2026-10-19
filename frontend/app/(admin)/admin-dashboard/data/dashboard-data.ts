@@ -16,15 +16,22 @@ export interface VehicleItem {
   status: "Active" | "Maintenance";
 }
 
-export interface LostFoundItem {
+export interface RecentClaim {
+  id: string;
   item: string;
-  status: "Under Review" | "Reported" | "Returned";
+  imageUrl: string;
+  claimant: string;
+  status: string;
+  itemStatus: string;
+  createdAt: string;
 }
 
 export interface UserItem {
   name: string;
   role: string;
   status: "Active" | "Inactive";
+  imageUrl: string;
+  createdAt: string;
 }
 
 // The signed-in admin's own notifications — the Updates Center
@@ -80,7 +87,7 @@ export interface AlertItem {
 
 export interface DashboardData {
   recentVehicles: VehicleItem[];
-  recentLostFound: LostFoundItem[];
+  recentClaims: RecentClaim[];
   recentUsers: UserItem[];
   recentNotifications: NotificationItem[];
   recentActivityLogs: ActivityLogItem[];
@@ -88,6 +95,27 @@ export interface DashboardData {
   settingsModules: SettingsModule[];
   topPickupPoints: PickupPoint[];
   paymentTendencies: PaymentTendencies;
+}
+
+function mapRecentClaims(value: unknown): RecentClaim[] {
+  const payload = value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>).data
+    : value;
+  if (!Array.isArray(payload)) return [];
+
+  return (payload as Record<string, unknown>[]).map((claim) => {
+    const item = claim.item && typeof claim.item === "object" ? claim.item as Record<string, unknown> : null;
+    const claimant = typeof claim.claimant_name === "string" ? claim.claimant_name.trim() : "";
+    return {
+      id: String(claim.id ?? ""),
+      item: String(item?.item_name ?? "Unknown item"),
+      imageUrl: typeof item?.image_url === "string" ? item.image_url : "",
+      claimant: claimant || "Claimant name unavailable",
+      status: String(claim.status ?? "PENDING"),
+      itemStatus: String(item?.status ?? ""),
+      createdAt: String(claim.created_at ?? ""),
+    };
+  });
 }
 
 /* ─── Static settings modules (navigation links — not from API) ─── */
@@ -132,6 +160,7 @@ export function useDashboardData() {
   const [hasMoreActivity, setHasMoreActivity] = useState(false);
   const activityPagingRef = useRef({ page: 0, hasMore: false });
   const activityRequestRef = useRef<AbortController | null>(null);
+  const recentClaimsRequestRef = useRef<AbortController | null>(null);
   const generationRef = useRef(0);
 
   const fetchData = useCallback(async () => {
@@ -146,7 +175,7 @@ export function useDashboardData() {
     setIsLoading(true);
     setError(null);
     try {
-      // Fetch analytics + vehicles + users + lost-items in parallel.
+      // Fetch analytics + vehicles + users + recent lost-item claims in parallel.
       // The "Recent Users" card needs the actual /admin/users list (all
       // roles, sorted by created_at DESC) — NOT /admin/registrations,
       // which only returns PENDING commuters. We request per_page=3 so
@@ -156,8 +185,8 @@ export function useDashboardData() {
       //  - analytics:    { data: { totals, payment_split, ... } } (flat obj)
       //  - vehicles:     { data: { data: [...], current_page, ... } } (paginator)
       //  - users:        { data: { data: [...], current_page, ... } } (paginator)
-      //  - lost-items:   { data: { data: [...], current_page, ... } } (paginator)
-      const [analyticsRes, vehiclesRes, usersRes, lostItemsRes, notificationsRes, activityPage] = await Promise.all([
+      //  - recent-claims: { data: [...] } (newest claims with matching item details)
+      const [analyticsRes, vehiclesRes, usersRes, recentClaimsRes, notificationsRes, activityPage] = await Promise.all([
         fetch("/api/admin/analytics?pickup_period=week", { headers: { Accept: "application/json" } }),
         fetch("/api/admin/vehicles?per_page=3", { headers: { Accept: "application/json" } }),
         // users + lost-items + notifications + activity-logs are best-effort:
@@ -165,7 +194,7 @@ export function useDashboardData() {
         // of the dashboard instead of throwing the whole thing into the
         // error state.
         fetch("/api/admin/users?per_page=3", { headers: { Accept: "application/json" } }).catch(() => null),
-        fetch("/api/admin/lost-items?per_page=3", { headers: { Accept: "application/json" } }).catch(() => null),
+        fetch("/api/admin/lost-items/recent-claims", { headers: { Accept: "application/json" } }).catch(() => null),
         // The admin list (/api/admin/announcements) returns every row in the
         // table: broadcasts plus every recipient's notifications. The user
         // feed scoped with notifications_only returns just this admin's own.
@@ -182,7 +211,7 @@ export function useDashboardData() {
       const analyticsJson = await analyticsRes.json();
       const vehiclesJson = await vehiclesRes.json();
       const usersJson = usersRes?.ok ? await usersRes.json() : { data: { data: [] } };
-      const lostItemsJson = lostItemsRes?.ok ? await lostItemsRes.json() : { data: { data: [] } };
+      const recentClaimsJson = recentClaimsRes?.ok ? await recentClaimsRes.json() : { data: [] };
       const notificationsJson = notificationsRes?.ok ? await notificationsRes.json() : { data: { data: [] } };
       if (generation !== generationRef.current) return;
       const activityResult = activityPage.result;
@@ -204,10 +233,6 @@ export function useDashboardData() {
       const usersRaw = usersJson.data;
       const usersData = Array.isArray(usersRaw) ? usersRaw :
                         Array.isArray(usersRaw?.data) ? usersRaw.data : [];
-
-      const lostItemsRaw = lostItemsJson.data;
-      const lostItems = Array.isArray(lostItemsRaw) ? lostItemsRaw :
-                        Array.isArray(lostItemsRaw?.data) ? lostItemsRaw.data : [];
 
       const notificationsRaw = notificationsJson.data;
       const notificationsData = Array.isArray(notificationsRaw) ? notificationsRaw :
@@ -267,15 +292,13 @@ export function useDashboardData() {
       const recentUsers: UserItem[] = (usersData as Record<string, unknown>[]).slice(0, 3).map(u => ({
         name: String(u.name ?? u.email ?? 'Unknown'),
         role: roleLabel(u.role),
-        status: u.account_status === 'SUSPENDED' ? 'Inactive' : 'Active',
+        status: u.account_status === 'SUSPENDED' || u.account_status === 'DISABLED' ? 'Inactive' : 'Active',
+        imageUrl: typeof u.profile_image_url === 'string' ? u.profile_image_url : '',
+        createdAt: String(u.created_at ?? ''),
       }));
 
-      // ── Recent Lost & Found ──
-      const recentLostFound: LostFoundItem[] = (lostItems as Record<string, unknown>[]).slice(0, 3).map(item => ({
-        item: String(item.item_name ?? item.description ?? 'Unknown item'),
-        status: item.status === 'RETURNED' || item.status === 'CLAIMED' ? 'Returned' :
-                item.status === 'AVAILABLE' || item.status === 'REPORTED' ? 'Under Review' : 'Reported',
-      }));
+      // ── Recent Lost & Found claims ──
+      const recentClaims = mapRecentClaims(recentClaimsJson.data);
 
       // ── Recent Notifications ──
       const recentNotifications: NotificationItem[] = (notificationsData as Record<string, unknown>[]).slice(0, NOTIFICATION_PREVIEW_LIMIT).map(n => ({
@@ -294,7 +317,7 @@ export function useDashboardData() {
       // The backend counts this week's PAID cash/GCash rides by their major
       // fare point, combining that point's landmarks under one location.
       // The response is untyped JSON, so narrow the row shape before mapping
-      // and coerce both fields — matching how recentUsers/recentLostFound above
+      // and coerce both fields — matching how recentUsers/recentClaims above
       // defend against missing keys.
       const rawPickupPoints = (analytics?.pickup_points ?? []) as Array<{
         name?: unknown;
@@ -307,7 +330,7 @@ export function useDashboardData() {
 
       setData({
         recentVehicles,
-        recentLostFound,
+        recentClaims,
         recentUsers,
         recentNotifications,
         recentActivityLogs,
@@ -362,6 +385,26 @@ export function useDashboardData() {
     }
   }, []);
 
+  const refreshRecentClaims = useCallback(async () => {
+    recentClaimsRequestRef.current?.abort();
+    const controller = new AbortController();
+    recentClaimsRequestRef.current = controller;
+    try {
+      const response = await fetch("/api/admin/lost-items/recent-claims", {
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      });
+      if (!response.ok) return;
+      const result = await response.json();
+      const recentClaims = mapRecentClaims(result?.data);
+      setData((current) => current ? { ...current, recentClaims } : current);
+    } catch {
+      // Keep the last successful preview when a background refresh fails.
+    } finally {
+      if (recentClaimsRequestRef.current === controller) recentClaimsRequestRef.current = null;
+    }
+  }, []);
+
   const cancelActivity = useCallback(() => {
     generationRef.current++;
     activityRequestRef.current?.abort();
@@ -372,6 +415,25 @@ export function useDashboardData() {
     fetchData();
     return cancelActivity;
   }, [fetchData, cancelActivity]);
+
+  const isDashboardReady = data !== null && !isLoading;
+  useEffect(() => {
+    if (!isDashboardReady) return;
+    let isRefreshing = false;
+    const refreshIfVisible = () => {
+      if (isRefreshing || document.visibilityState !== "visible") return;
+      isRefreshing = true;
+      void refreshRecentClaims().finally(() => { isRefreshing = false; });
+    };
+    const interval = window.setInterval(refreshIfVisible, 30_000);
+    document.addEventListener("visibilitychange", refreshIfVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshIfVisible);
+      recentClaimsRequestRef.current?.abort();
+      recentClaimsRequestRef.current = null;
+    };
+  }, [isDashboardReady, refreshRecentClaims]);
 
   return {
     data,

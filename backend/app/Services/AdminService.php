@@ -1212,9 +1212,9 @@ class AdminService
     private function profileEagerLoads(): array
     {
         return [
-            'adminProfile:id,first_name,middle_name,last_name',
-            'conductorProfile:id,first_name,middle_name,last_name,generated_username,status',
-            'commuterProfile:id,first_name,middle_name,suffix,surname,birthdate,gender,contact_number,commuter_type,applied_type,account_status,verified_at,username,id_image_url,student_discount_expires_at',
+            'adminProfile:id,first_name,middle_name,last_name,profile_picture_url',
+            'conductorProfile:id,first_name,middle_name,last_name,generated_username,status,profile_picture_url',
+            'commuterProfile:id,first_name,middle_name,suffix,surname,birthdate,gender,contact_number,commuter_type,applied_type,account_status,verified_at,username,id_image_url,profile_image_url,student_discount_expires_at',
             'activeSuspension',
         ];
     }
@@ -1268,12 +1268,18 @@ class AdminService
         $accountStatus = $isConductor
             ? ($user->conductorProfile?->status === 'DISABLED' ? 'DISABLED' : 'ACTIVE')
             : ($suspension ? 'SUSPENDED' : $commuter?->account_status);
+        $profileImageUrl = match ($user->role) {
+            UserRole::ADMIN => $user->adminProfile?->profile_picture_url,
+            UserRole::CONDUCTOR => $user->conductorProfile?->profile_picture_url,
+            UserRole::COMMUTER => $commuter?->profile_image_url,
+        };
 
         return [
             'id' => $user->id,
             'email' => $user->email,
             'role' => $user->role->value,
             'name' => $user->getDisplayName(),
+            'profile_image_url' => $profileImageUrl,
             'first_name' => $commuter?->first_name,
             'middle_name' => $commuter?->middle_name,
             'suffix' => $commuter?->suffix,

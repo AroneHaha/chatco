@@ -1,12 +1,51 @@
 import Link from "next/link";
 import { useEffect, useRef } from "react";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, ImageIcon, UserRound } from "lucide-react";
 import { formatDateTime } from "@/lib/utils/format";
 import { getActivityLogCategoryLabel } from "@/lib/shared/services/activity-log.service";
-import type { VehicleItem, LostFoundItem, UserItem, NotificationItem, ActivityLogItem, DashboardActivityFeed } from "@/app/(admin)/admin-dashboard/data/dashboard-data";
+import type { VehicleItem, RecentClaim, UserItem, NotificationItem, ActivityLogItem, DashboardActivityFeed } from "@/app/(admin)/admin-dashboard/data/dashboard-data";
 
 function formatCategory(category: string): string {
   return category.toLowerCase().split("_").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+}
+
+function claimStatusLabel(status: string): string {
+  switch (status.toUpperCase()) {
+    case "PENDING": return "Awaiting follow-up";
+    case "APPROVED": return "Approved for pickup";
+    case "REJECTED": return "Claim rejected";
+    default: return "Claim update";
+  }
+}
+
+function claimStatusTextClass(status: string): string {
+  switch (status.toUpperCase()) {
+    case "PENDING": return "text-amber-300 admin-light:text-amber-700";
+    case "APPROVED": return "text-emerald-300 admin-light:text-emerald-700";
+    case "REJECTED": return "text-red-300 admin-light:text-red-700";
+    default: return "text-white/50 admin-light:text-slate-500";
+  }
+}
+
+function claimStatusDotClass(status: string): string {
+  switch (status.toUpperCase()) {
+    case "PENDING": return "bg-amber-300 admin-light:bg-amber-500";
+    case "APPROVED": return "bg-emerald-300 admin-light:bg-emerald-500";
+    case "REJECTED": return "bg-red-300 admin-light:bg-red-500";
+    default: return "bg-white/40 admin-light:bg-slate-400";
+  }
+}
+
+function itemStatusLabel(status: string): string {
+  switch (status.toUpperCase()) {
+    case "AVAILABLE": return "Reported";
+    case "CLAIMED": return "Claimed";
+    case "APPROVED": return "Approved";
+    case "RELEASED": return "Returned";
+    case "CLOSED": return "Closed";
+    case "EXPIRED": return "Expired";
+    default: return "Status unavailable";
+  }
 }
 
 // Opens the notification's detail in the Updates Center (and marks it read).
@@ -24,7 +63,7 @@ function formatNotificationTime(iso: string): string {
 interface DashboardPreviewCardsProps {
   activeVehicles: string;
   recentVehicles: VehicleItem[];
-  recentLostFound: LostFoundItem[];
+  recentClaims: RecentClaim[];
   recentUsers: UserItem[];
   recentNotifications: NotificationItem[];
   recentActivityLogs: ActivityLogItem[];
@@ -42,7 +81,7 @@ function PreviewHeader({ title, href, detail }: { title: string; href: string; d
   );
 }
 
-export function DashboardPreviewCards({ activeVehicles, recentVehicles, recentLostFound, recentUsers, recentNotifications, recentActivityLogs, activityFeed }: DashboardPreviewCardsProps) {
+export function DashboardPreviewCards({ activeVehicles, recentVehicles, recentClaims, recentUsers, recentNotifications, recentActivityLogs, activityFeed }: DashboardPreviewCardsProps) {
   const activityScrollRef = useRef<HTMLDivElement>(null);
   const { isLoading: isLoadingActivity, hasMore: hasMoreActivity, error: activityError, loadMore: loadMoreActivity } = activityFeed;
   useEffect(() => {
@@ -63,9 +102,7 @@ export function DashboardPreviewCards({ activeVehicles, recentVehicles, recentLo
   const roleCounts = Array.from(new Set(recentUsers.map((user) => user.role))).map((role) => ({
     role, count: recentUsers.filter((user) => user.role === role).length,
   }));
-  const featuredItemIndex = Math.max(0, recentLostFound.findIndex((item) => item.status !== "Returned"));
-  const featuredItem = recentLostFound[featuredItemIndex];
-  const otherItems = recentLostFound.filter((_, index) => index !== featuredItemIndex);
+  const [featuredClaim, ...otherClaims] = recentClaims;
 
   return (
     <div className="space-y-4">
@@ -180,51 +217,73 @@ export function DashboardPreviewCards({ activeVehicles, recentVehicles, recentLo
           ) : <p className="px-5 py-6 text-xs text-white/45 admin-light:text-slate-500">No notifications yet.</p>}
         </section>
 
-        <section aria-label="Recent lost and found items" className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white xl:col-span-4">
+        <section aria-label="Recent lost and found claims" className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white xl:col-span-4">
           <PreviewHeader title="Lost & Found" href="/lost-found" />
-          {featuredItem ? (
+          {featuredClaim ? (
             <div className="flex flex-1 flex-col px-5 pb-5">
-              <div className="py-5">
-                <p className={`text-[10px] font-medium uppercase tracking-wider ${featuredItem.status === "Returned" ? "text-white/40 admin-light:text-slate-500" : "text-amber-300 admin-light:text-amber-700"}`}>{featuredItem.status === "Returned" ? "Recently returned" : "Awaiting follow-up"}</p>
-                <p className="mt-3 line-clamp-3 break-words text-base font-medium leading-6 text-white/90 admin-light:text-slate-800" title={featuredItem.item}>{featuredItem.item}</p>
-                <p className="mt-3 text-[11px] text-white/50 admin-light:text-slate-500">{featuredItem.status}</p>
+              <div className="grid grid-cols-[minmax(0,1fr)_6rem] items-center gap-4 py-5">
+                <div className="min-w-0">
+                  <p className={`text-[10px] font-medium uppercase tracking-wider ${claimStatusTextClass(featuredClaim.status)}`}>{claimStatusLabel(featuredClaim.status)}</p>
+                  <p className="mt-3 line-clamp-3 break-words text-base font-medium leading-6 text-white/90 admin-light:text-slate-800" title={featuredClaim.item}>{featuredClaim.item}</p>
+                  <p className="mt-3 truncate text-[11px] text-[#8CB9F0] admin-light:text-[#1A5FB4]" title={`Claimant: ${featuredClaim.claimant}`}>Claimant: {featuredClaim.claimant}</p>
+                  <p className="mt-1 text-[10px] text-white/50 admin-light:text-slate-500">{itemStatusLabel(featuredClaim.itemStatus)}</p>
+                  <p className="mt-1 text-[10px] text-white/40 admin-light:text-slate-500">{formatNotificationTime(featuredClaim.createdAt)}</p>
+                </div>
+                <div className="flex aspect-square w-24 items-center justify-center overflow-hidden rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0B1628] admin-light:bg-[#F1F5F9]">
+                  {featuredClaim.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={featuredClaim.imageUrl} alt={`Photo of ${featuredClaim.item}`} className="h-full w-full object-cover" />
+                  ) : <ImageIcon className="h-6 w-6 text-white/25 admin-light:text-slate-400" aria-hidden="true" />}
+                </div>
               </div>
-              {otherItems.length > 0 && (
-                <ul className="mt-auto space-y-3 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] pt-4">
-                  {otherItems.map((item, index) => (
-                    <li key={`${item.item}-${index}`} className="flex items-start gap-2">
-                      <span aria-hidden="true" className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${item.status === "Returned" ? "bg-[#62A0EA] admin-light:bg-[#1A5FB4]" : "bg-amber-300 admin-light:bg-amber-500"}`} />
+              {otherClaims.length > 0 && (
+                <ul className="mt-1 space-y-3 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] pt-4">
+                  {otherClaims.map((claim) => (
+                    <li key={claim.id} className="flex items-start gap-2">
+                      <span aria-hidden="true" className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${claimStatusDotClass(claim.status)}`} />
                       <div className="min-w-0">
-                        <p className="line-clamp-2 break-words text-xs leading-5 text-white/75 admin-light:text-slate-700" title={item.item}>{item.item}</p>
-                        <p className="mt-0.5 text-[10px] text-white/40 admin-light:text-slate-500">{item.status}</p>
+                        <p className="line-clamp-1 break-words text-xs leading-5 text-white/75 admin-light:text-slate-700" title={claim.item}>{claim.item}</p>
+                        <p className="mt-0.5 truncate text-[10px] text-white/45 admin-light:text-slate-500" title={`Claimant: ${claim.claimant}`}>{claim.claimant} <span aria-hidden="true">·</span> <span className={claimStatusTextClass(claim.status)}>{claimStatusLabel(claim.status)}</span></p>
                       </div>
+                      <time className="ml-auto shrink-0 pt-0.5 text-[10px] tabular-nums text-white/35 admin-light:text-slate-400">{formatNotificationTime(claim.createdAt)}</time>
                     </li>
                   ))}
                 </ul>
               )}
             </div>
-          ) : <p className="px-5 py-6 text-xs text-white/45 admin-light:text-slate-500">No recent lost items.</p>}
+          ) : <p className="px-5 py-6 text-xs text-white/45 admin-light:text-slate-500">No recent claims.</p>}
         </section>
 
         <section aria-label="Recent users" className="min-w-0 overflow-hidden rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white xl:col-span-3">
           <PreviewHeader title="Users" href="/users" />
           {recentUsers.length > 0 ? (
             <div className="px-5 pb-5">
-              <p className="mt-5 text-[10px] font-medium uppercase tracking-wider text-white/40 admin-light:text-slate-500">Recently joined</p>
-              <dl className="my-4 grid grid-cols-3 gap-2" aria-label="Roles of recent accounts">
-                {roleCounts.map(({ role, count }) => (
-                  <div key={role} className="min-w-0">
-                    <dd className="text-2xl font-semibold text-white/90 admin-light:text-slate-800 tabular-nums">{count}</dd>
-                    <dt className="mt-1 break-words text-[10px] text-white/45 admin-light:text-slate-500">{role}</dt>
-                  </div>
-                ))}
-              </dl>
-              <ul className="space-y-3 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] pt-4">
+              <div className="mt-5 flex items-end justify-between gap-3 border-b border-[#1E2D45] admin-light:border-[#E2E8F0] pb-4">
+                <div>
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-white/40 admin-light:text-slate-500">Newest accounts</p>
+                  <p className="mt-1 flex items-baseline gap-2">
+                    <span className="text-3xl font-semibold leading-none text-white/95 admin-light:text-slate-900 tabular-nums">{recentUsers.length.toString().padStart(2, "0")}</span>
+                    <span className="text-[11px] text-white/50 admin-light:text-slate-500">recently joined</span>
+                  </p>
+                </div>
+                <div className="flex max-w-[48%] flex-wrap justify-end gap-x-2 gap-y-1" aria-label="Roles in recent accounts">
+                  {roleCounts.map(({ role, count }) => (
+                    <span key={role} className="text-[10px] text-white/50 admin-light:text-slate-500">{count} {role}{count === 1 ? "" : "s"}</span>
+                  ))}
+                </div>
+              </div>
+              <ul className="divide-y divide-[#1E2D45] admin-light:divide-[#E2E8F0]">
                 {recentUsers.map((user, index) => (
-                  <li key={`${user.name}-${index}`} className="flex min-w-0 items-center gap-3">
-                    <span aria-hidden="true" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#1A2540] admin-light:bg-[#EEF2F7] text-[10px] font-medium text-white/60 admin-light:text-slate-600">{user.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>
-                    <div className="min-w-0">
-                      <p className="truncate text-xs text-white/85 admin-light:text-slate-800" title={user.name}>{user.name}</p>
+                  <li key={`${user.name}-${user.createdAt}-${index}`} className="flex min-w-0 items-center gap-3 py-3">
+                    <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#2A3A55] bg-[#1A2540] text-white/45 admin-light:border-[#D7E0EB] admin-light:bg-[#F1F5F9] admin-light:text-slate-400">
+                      <UserRound className="h-[18px] w-[18px]" aria-hidden="true" />
+                      {user.imageUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={user.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" onError={(event) => event.currentTarget.remove()} />
+                      )}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-medium text-white/90 admin-light:text-slate-800" title={user.name}>{user.name}</p>
                       <p className="mt-0.5 text-[10px] text-white/40 admin-light:text-slate-500">{user.role} <span aria-hidden="true">·</span> {user.status}</p>
                     </div>
                   </li>
