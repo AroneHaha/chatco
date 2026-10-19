@@ -3,7 +3,7 @@
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
-import { CheckCircle, XCircle, AlertTriangle, LoaderCircle, ZoomIn, X, IdCard, User, FileText, GraduationCap, ExternalLink, ChevronDown, Check } from 'lucide-react';
+import { AlertTriangle, LoaderCircle, ZoomIn, X, IdCard, User, FileText, GraduationCap, ExternalLink, ChevronDown, Check } from 'lucide-react';
 import type { PendingRequest } from '@/app/(admin)/users/data/users-data';
 import { DISCOUNT_CATEGORIES, discountStatusLabel, educationSummary, schoolYearSummary, type DiscountApplication, type RenewalStatus } from '@/lib/shared/services/student-renewal.service';
 
@@ -168,6 +168,7 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
   const [showApproveConfirm, setShowApproveConfirm] = useState(false);
   const [isImageExpanded, setIsImageExpanded] = useState(false);
   const [decision, setDecision] = useState<RenewalDecision | ''>('');
+  const rejectReasonId = useId();
 
   // Reset internal state whenever the modal is closed or a different
   // request is opened — prevents a stale rejection reason from a previous
@@ -465,113 +466,123 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
             failed review leaves the admin at the bottom of a scrolled panel. */}
         {errorMessage && <p role="alert" className="rounded-lg border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200 admin-light:text-red-800">{errorMessage}</p>}
 
-        {/* Rejection Reason Input (Hidden until clicked) */}
-        {showRejectConfirm && (
-          <div className="rounded-xl border border-red-400/30 bg-red-400/10 p-4">
-            <div className="flex items-center space-x-2 mb-2 text-red-400 admin-light:text-red-600">
-              <AlertTriangle size={16} />
-              <span className="text-sm font-semibold">Select the reason for rejection:</span>
-            </div>
-            <select
-              value={selectedReason}
-              onChange={(e) => setSelectedReason(e.target.value)}
-              disabled={isProcessing}
-              className="w-full bg-black/30 admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-lg text-white admin-light:text-slate-900 text-sm p-2 focus:outline-none focus:ring-1 focus:ring-red-400 [color-scheme:dark] admin-light:[color-scheme:light]"
-            >
-              <option value="" disabled className="bg-gray-800 admin-light:bg-white">Select a reason...</option>
-              {REJECTION_REASONS.map((reason) => (
-                <option key={reason} value={reason} className="bg-gray-800 admin-light:bg-white">{reason}</option>
-              ))}
-              <option value={OTHER_REASON} className="bg-gray-800 admin-light:bg-white">{OTHER_REASON}</option>
-            </select>
+        {/* Registration decision bar. The two button slots never move:
+            Reject/Approve become Cancel/Confirm in place, so the confirm
+            lands where the admin just clicked and both buttons always share
+            the same width. Only the text on the left changes per step. */}
+        {!isDiscountRequest && (
+          <div className="space-y-3 pt-2">
+            {showRejectConfirm && (
+              <div>
+                <label htmlFor={rejectReasonId} className="text-sm font-semibold text-slate-300 admin-light:text-slate-700">Reason for rejection</label>
+                <select
+                  id={rejectReasonId}
+                  value={selectedReason}
+                  onChange={(e) => setSelectedReason(e.target.value)}
+                  disabled={isProcessing}
+                  className="mt-2 block h-11 w-full rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 text-sm text-white admin-light:text-slate-900 scheme-dark admin-light:scheme-light focus:outline-none focus:ring-1 focus:ring-[#62A0EA] admin-light:focus:ring-[#1A5FB4]"
+                >
+                  <option value="" disabled className="bg-gray-800 admin-light:bg-white">Select a reason...</option>
+                  {REJECTION_REASONS.map((reason) => (
+                    <option key={reason} value={reason} className="bg-gray-800 admin-light:bg-white">{reason}</option>
+                  ))}
+                  <option value={OTHER_REASON} className="bg-gray-800 admin-light:bg-white">{OTHER_REASON}</option>
+                </select>
 
-            {/* Free-text box only appears when "Other" is selected. */}
-            {isOtherReason && (
-              <textarea
-                value={customReason}
-                onChange={(e) => setCustomReason(e.target.value)}
-                disabled={isProcessing}
-                rows={2}
-                autoFocus
-                placeholder="Describe the reason for rejection..."
-                className="mt-2 w-full bg-black/30 admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-lg text-white admin-light:text-slate-900 text-sm placeholder-slate-500 admin-light:placeholder-slate-400 p-2 focus:outline-none focus:ring-1 focus:ring-red-400 resize-none"
-              />
+                {/* Free-text box only appears when "Other" is selected. */}
+                {isOtherReason && (
+                  <textarea
+                    value={customReason}
+                    onChange={(e) => setCustomReason(e.target.value)}
+                    disabled={isProcessing}
+                    rows={2}
+                    autoFocus
+                    aria-label="Describe the reason for rejection"
+                    placeholder="Describe the reason for rejection..."
+                    className="mt-2 block w-full resize-none rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 py-2.5 text-sm text-white admin-light:text-slate-900 placeholder-slate-500 admin-light:placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] admin-light:focus:ring-[#1A5FB4]"
+                  />
+                )}
+              </div>
             )}
 
-            <div className="mt-3 flex gap-2">
-              <button
-                onClick={resetRejectState}
-                disabled={isProcessing}
-                className="px-4 py-2 border border-[#1E2D45] admin-light:border-[#E2E8F0] text-slate-300 admin-light:text-slate-700 rounded-xl hover:bg-[#131C2E] admin-light:hover:bg-[#F1F5F9] transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleRejectClick}
-                disabled={!effectiveReason || isProcessing}
-                className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {isProcessing ? <LoaderCircle size={18} className="animate-spin" /> : <XCircle size={18} />}
-                <span>{isProcessing ? 'Processing...' : 'Confirm Rejection'}</span>
-              </button>
-            </div>
-          </div>
-        )}
+            <div className="flex flex-col gap-3 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#1A2540] admin-light:bg-[#F8FAFC] p-3 sm:flex-row sm:items-center sm:gap-4 sm:pl-4">
+              <div className="min-w-0 flex-1" aria-live="polite">
+                {showApproveConfirm ? (
+                  <>
+                    <p className="text-sm font-semibold text-white admin-light:text-slate-900">Approve as a {request.commuterType} commuter?</p>
+                    <p className="text-xs text-slate-400 admin-light:text-slate-500">They can log in right away.</p>
+                  </>
+                ) : showRejectConfirm ? (
+                  <>
+                    <p className="text-sm font-semibold text-white admin-light:text-slate-900">Reject this registration?</p>
+                    <p className="text-xs text-slate-400 admin-light:text-slate-500">The reason is emailed to {request.firstName || request.name}.</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 admin-light:text-slate-500">Decision</p>
+                    <p className="truncate text-sm font-semibold text-white admin-light:text-slate-900" title={`${request.name} · ${request.commuterType}`}>{request.name} · {request.commuterType}</p>
+                  </>
+                )}
+              </div>
 
-        {/* Approval Confirmation (Hidden until "Approve Account" is clicked) */}
-        {showApproveConfirm && (
-          <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-4">
-            <div className="flex items-start space-x-2 mb-3 text-emerald-300 admin-light:text-emerald-700">
-              <CheckCircle size={16} className="mt-0.5 shrink-0" />
-              <p className="text-sm">
-                Approve <span className="font-semibold text-white admin-light:text-slate-900">{request.name}</span>&apos;s registration as a{' '}
-                <span className="font-semibold">{request.commuterType}</span> commuter? They will be able to log in immediately.
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowApproveConfirm(false)}
-                disabled={isProcessing}
-                className="px-4 py-2 border border-[#1E2D45] admin-light:border-[#E2E8F0] text-slate-300 admin-light:text-slate-700 rounded-xl hover:bg-[#131C2E] admin-light:hover:bg-[#F1F5F9] transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={onApprove}
-                disabled={isProcessing}
-                className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isProcessing ? <LoaderCircle size={18} className="animate-spin" /> : <CheckCircle size={18} />}
-                <span>{isProcessing ? 'Processing...' : 'Confirm Approval'}</span>
-              </button>
-            </div>
-          </div>
-        )}
+              <div className="grid grid-cols-2 gap-2 sm:w-76 sm:shrink-0">
+                {showingConfirm ? (
+                  <button
+                    type="button"
+                    onClick={showRejectConfirm ? resetRejectState : () => setShowApproveConfirm(false)}
+                    disabled={isProcessing}
+                    className="h-11 rounded-lg border border-[#2A3B57] admin-light:border-[#CBD5E1] bg-[#131C2E] admin-light:bg-white text-sm font-semibold text-slate-300 admin-light:text-slate-700 transition-colors hover:bg-[#172238] admin-light:hover:bg-[#F1F5F9] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4] disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowRejectConfirm(true)}
+                    disabled={isProcessing}
+                    className="flex h-11 items-center justify-center gap-2 rounded-lg border border-[#2A3B57] admin-light:border-[#CBD5E1] bg-[#131C2E] admin-light:bg-white text-sm font-semibold text-red-300 admin-light:text-red-600 transition-colors hover:bg-[#172238] admin-light:hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4] disabled:opacity-50"
+                  >
+                    <X size={16} aria-hidden="true" />
+                    Reject
+                  </button>
+                )}
 
-        {/* Action Buttons — both tonal (border + low-opacity fill) so they
-            read as part of the same flat, bordered panel system as the
-            sections above, rather than a bright solid bar dropped on top of
-            it. Equal width keeps the pair reading as one balanced decision.
-            Each escalates to a solid confirm button only once the admin has
-            actually committed, in the panel below. */}
-        {!showingConfirm && !isDiscountRequest && (
-          <div className="flex gap-3 pt-2">
-            <button
-              onClick={() => setShowRejectConfirm(true)}
-              disabled={isProcessing}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-5 py-3 font-semibold text-red-400 admin-light:text-red-600 transition-colors hover:border-red-500/30 hover:bg-red-500/15"
-            >
-              <XCircle size={18} />
-              <span>Reject</span>
-            </button>
-            <button
-              onClick={() => setShowApproveConfirm(true)}
-              disabled={isProcessing}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-5 py-3 font-semibold text-emerald-400 admin-light:text-emerald-700 transition-colors hover:border-emerald-500/30 hover:bg-emerald-500/15"
-            >
-              <CheckCircle size={18} />
-              <span>Approve Account</span>
-            </button>
+                {/* `detail > 1` is the second click of a double-click: the
+                    confirm sits exactly where Approve/Reject was, so without
+                    this guard a double-click would confirm on its own. */}
+                {showApproveConfirm ? (
+                  <button
+                    type="button"
+                    onClick={(event) => { if (event.detail <= 1) onApprove(); }}
+                    disabled={isProcessing}
+                    className="flex h-11 items-center justify-center gap-2 rounded-lg border border-emerald-700 bg-emerald-700 text-sm font-semibold text-white transition-colors hover:border-emerald-800 hover:bg-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1A2540] admin-light:focus-visible:ring-offset-[#F8FAFC] disabled:opacity-50"
+                  >
+                    <Check size={16} aria-hidden="true" />
+                    Confirm
+                  </button>
+                ) : showRejectConfirm ? (
+                  <button
+                    type="button"
+                    onClick={(event) => { if (event.detail <= 1) handleRejectClick(); }}
+                    disabled={!effectiveReason || isProcessing}
+                    className="flex h-11 items-center justify-center gap-2 rounded-lg border border-red-600 bg-red-600 text-sm font-semibold text-white transition-colors hover:border-red-700 hover:bg-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1A2540] admin-light:focus-visible:ring-offset-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <X size={16} aria-hidden="true" />
+                    Confirm
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowApproveConfirm(true)}
+                    disabled={isProcessing}
+                    className="flex h-11 items-center justify-center gap-2 rounded-lg border border-emerald-700 bg-emerald-700 text-sm font-semibold text-white transition-colors hover:border-emerald-800 hover:bg-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1A2540] admin-light:focus-visible:ring-offset-[#F8FAFC] disabled:opacity-50"
+                  >
+                    <Check size={16} aria-hidden="true" />
+                    Approve
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
