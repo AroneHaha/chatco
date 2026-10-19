@@ -48,30 +48,63 @@ const settingsGroups = [
   { id: 'app', label: 'App' },
 ] as const;
 
+// True when `href` is a setting the drawer can open as a panel.
+export function isSettingsPanelHref(href: string) {
+  return settingsOptions.some(o => o.href === href);
+}
+
 // ─── Context ───
+// The open sub-page (`activeHref`) lives here rather than in the drawer so
+// callers outside it (dashboard Quick Links) can open a specific panel.
 interface SettingsDrawerContextType {
   isSettingsOpen: boolean;
+  activeHref: string | null;
+  setActiveHref: (href: string | null) => void;
   openSettingsDrawer: () => void;
+  openSettingsPanel: (href: string) => void;
   closeSettingsDrawer: () => void;
   toggleSettingsDrawer: () => void;
 }
 
 const SettingsDrawerContext = createContext<SettingsDrawerContextType>({
   isSettingsOpen: false,
+  activeHref: null,
+  setActiveHref: () => {},
   openSettingsDrawer: () => {},
+  openSettingsPanel: () => {},
   closeSettingsDrawer: () => {},
   toggleSettingsDrawer: () => {},
 });
 
 export function SettingsDrawerProvider({ children }: { children: ReactNode }) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [activeHref, setActiveHref] = useState<string | null>(null);
 
-  const openSettingsDrawer = useCallback(() => setIsSettingsOpen(true), []);
-  const closeSettingsDrawer = useCallback(() => setIsSettingsOpen(false), []);
-  const toggleSettingsDrawer = useCallback(() => setIsSettingsOpen(prev => !prev), []);
+  // Opening from the nav always starts at the menu; closing resets it too.
+  const openSettingsDrawer = useCallback(() => {
+    setActiveHref(null);
+    setIsSettingsOpen(true);
+  }, []);
+  const openSettingsPanel = useCallback((href: string) => {
+    setActiveHref(isSettingsPanelHref(href) ? href : null);
+    setIsSettingsOpen(true);
+  }, []);
+  const closeSettingsDrawer = useCallback(() => {
+    setActiveHref(null);
+    setIsSettingsOpen(false);
+  }, []);
+  const toggleSettingsDrawer = useCallback(() => {
+    setActiveHref(null);
+    setIsSettingsOpen(prev => !prev);
+  }, []);
+
+  const value = useMemo(
+    () => ({ isSettingsOpen, activeHref, setActiveHref, openSettingsDrawer, openSettingsPanel, closeSettingsDrawer, toggleSettingsDrawer }),
+    [isSettingsOpen, activeHref, openSettingsDrawer, openSettingsPanel, closeSettingsDrawer, toggleSettingsDrawer]
+  );
 
   return (
-    <SettingsDrawerContext.Provider value={{ isSettingsOpen, openSettingsDrawer, closeSettingsDrawer, toggleSettingsDrawer }}>
+    <SettingsDrawerContext.Provider value={value}>
       {children}
     </SettingsDrawerContext.Provider>
   );
@@ -123,21 +156,12 @@ function DrawerLoader() {
 // clickable. The menu is a narrow list; opening a setting widens the same
 // panel over the page.
 export function SettingsDrawer({ docked = false }: { docked?: boolean }) {
-  const { isSettingsOpen, closeSettingsDrawer } = useSettingsDrawer();
+  const { isSettingsOpen, activeHref, setActiveHref, closeSettingsDrawer } = useSettingsDrawer();
   const [theme] = useAdminTheme();
   const pathname = usePathname();
-  const [activeHref, setActiveHref] = useState<string | null>(null);
 
-  // Reset to menu whenever the drawer closes
-  if (!isSettingsOpen && activeHref !== null) {
-    setActiveHref(null);
-  }
-
-  // Close drawer + reset to menu
-  const handleClose = () => {
-    setActiveHref(null);
-    closeSettingsDrawer();
-  };
+  // Close drawer + reset to menu (the context resets activeHref on close)
+  const handleClose = closeSettingsDrawer;
 
   // Open a sub-page inside the drawer (no router.push — parent page stays put)
   const handleOptionClick = (href: string) => {
