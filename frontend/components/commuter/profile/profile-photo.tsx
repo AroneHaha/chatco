@@ -5,6 +5,7 @@ import { Camera } from "lucide-react";
 import { ApiError } from "@/lib/api/client";
 import { uploadProfilePhoto } from "@/lib/commuter/services/profile.service";
 import type { CommuterProfile } from "@/types";
+import ProfilePhotoCropper from "./profile-photo-cropper";
 
 export default function ProfilePhoto({ profile, onUploaded, className, helpId }: {
   profile: CommuterProfile;
@@ -18,9 +19,25 @@ export default function ProfilePhoto({ profile, onUploaded, className, helpId }:
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  // The chosen photo waiting in the crop step; only the cropped square is uploaded.
+  // Its object URL is created when chosen and revoked when the step closes.
+  const [pending, setPending] = useState<{ file: File; url: string } | null>(null);
+  const pendingUrl = useRef<string | null>(null);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      if (pendingUrl.current) URL.revokeObjectURL(pendingUrl.current);
+    };
+  }, []);
 
-  const choose = async (event: ChangeEvent<HTMLInputElement>) => {
+  const closeCrop = () => {
+    if (pendingUrl.current) URL.revokeObjectURL(pendingUrl.current);
+    pendingUrl.current = null;
+    setPending(null);
+  };
+
+  const choose = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file || busy.current) return;
@@ -28,6 +45,16 @@ export default function ProfilePhoto({ profile, onUploaded, className, helpId }:
       setError("Choose a JPG, PNG or WebP photo up to 3 MB.");
       return;
     }
+    setError("");
+    if (pendingUrl.current) URL.revokeObjectURL(pendingUrl.current);
+    const url = URL.createObjectURL(file);
+    pendingUrl.current = url;
+    setPending({ file, url });
+  };
+
+  const upload = async (file: File) => {
+    closeCrop();
+    if (busy.current) return;
     busy.current = true;
     setUploading(true); setError("");
     try {
@@ -58,5 +85,6 @@ export default function ProfilePhoto({ profile, onUploaded, className, helpId }:
       {uploading ? "Uploading…" : "Change photo"}
     </span>
     {error && <p role="alert" className="max-w-28 text-center text-xs text-red-300 light:text-red-600">{error}</p>}
+    {pending && <ProfilePhotoCropper src={pending.url} fileName={pending.file.name} onCancel={closeCrop} onConfirm={(cropped) => { void upload(cropped); }} />}
   </div>;
 }
