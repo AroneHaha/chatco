@@ -34,9 +34,9 @@ use Illuminate\Validation\ValidationException;
  * Admins see PENDING commuter accounts (with uploaded valid ID), then
  * approve (granting the requested discount tier) or reject (with a reason).
  *
- * Admins can also create PENDING commuter accounts on behalf of commuters
- * who register onsite (e.g. at a terminal kiosk) — the commuter then waits
- * for admin approval before they can log in, same as self-registered users.
+ * Admins can also create APPROVED commuter accounts on behalf of commuters
+ * who register onsite (e.g. at a terminal kiosk). A generated temporary
+ * password is emailed to the commuter, who must replace it at first sign-in.
  *
  * Routes (all behind auth:sanctum + role:ADMIN):
  *   GET  /api/v1/admin/registrations                → pending()
@@ -103,9 +103,10 @@ class AdminRegistrationController extends Controller
 
     /**
      * POST /api/v1/admin/registrations
-     * Create a PENDING commuter account on behalf of a commuter who registered
+     * Create an APPROVED commuter account on behalf of a commuter who registered
      * onsite (e.g. at a terminal kiosk). The admin fills the form, uploads the
-     * valid ID image, and the account is created with account_status=PENDING.
+     * valid ID image, and the account can sign in with its emailed temporary
+     * password but must set a new password before accessing any other feature.
      *
      * Mirrors AuthService::register() but:
      *   - gender is optional (defaults to 'UNSPECIFIED') — the admin onsite
