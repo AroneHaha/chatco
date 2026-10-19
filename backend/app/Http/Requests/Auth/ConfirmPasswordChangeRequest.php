@@ -1,15 +1,15 @@
 <?php
 
-namespace App\Http\Requests\Commuter;
+namespace App\Http\Requests\Auth;
 
 use Illuminate\Foundation\Http\FormRequest;
 use App\Rules\StrongPassword;
 
 /**
- * Validates POST /api/v1/commuter/change-password/confirm.
+ * Validates POST /api/v1/{commuter,mobile/commuter,admin/account}/change-password/confirm.
  *
  * Same field contract as ChangePasswordRequest (current_password, password,
- * password_confirmation) plus the 6-digit `code` emailed to the commuter's
+ * password_confirmation) plus the 6-digit `code` emailed to the account's
  * registered address by /change-password/request-code. current_password and
  * password are re-validated here (not just trusted from the request-code
  * step) since this is the request that actually rotates the password.
@@ -26,7 +26,7 @@ class ConfirmPasswordChangeRequest extends FormRequest
         return [
             'current_password' => ['required', 'string'],
             'password' => ['required', 'confirmed', new StrongPassword],
-            'code' => ['required', 'string'],
+            'code' => ['required', 'string', 'regex:/^\d{6}$/'],
         ];
     }
 
@@ -37,6 +37,7 @@ class ConfirmPasswordChangeRequest extends FormRequest
             'password.required'         => 'A new password is required',
             'password.confirmed'        => 'The new password confirmation does not match',
             'code.required'              => 'Enter the code we emailed you',
+            'code.regex'                 => 'Enter the 6-digit code we emailed you',
         ];
     }
 }

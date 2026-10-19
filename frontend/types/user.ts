@@ -28,6 +28,8 @@ export interface AuthUser {
   id: string;
   email: string;
   role: UserRole;
+  /** Laravel `User::getDisplayName()`; falls back to the email when no profile exists. */
+  name?: string;
 }
 
 // ─── Commuter Type & Account Status ──────────────────────────────────

@@ -33,7 +33,8 @@ import {
 import { useAuth } from "@/contexts/auth-context";
 import { getEcho } from "@/lib/echo";
 import { notifyRewardsChanged } from "@/lib/commuter/rewards-events";
-import type { Announcement, AnnouncementType } from "@/types";
+import type { Announcement } from "@/types";
+import { CLAIM_UPDATE_TYPES, mapAnnouncementType } from "@/lib/shared/announcement-category";
 import {
   list as listAnnouncements,
   markRead as markAnnouncementRead,
@@ -49,59 +50,11 @@ const POLL_INTERVAL_MS = 30_000;
 /** How many feed items to pull for the rewards panel. */
 const FEED_PAGE_SIZE = 15;
 
-/**
- * Backend `type` values a Lost & Found claim status-change announcement can
- * carry (set by LostItemService::notifyUser at approve/reject/release). The
- * single source of truth for what counts as a "claim update" — used both to
- * bucket a row into the canonical CLAIM_UPDATE type below and to scope the
- * Lost & Found Claims tab's dedicated unread count / mark-all-read call.
- */
-const CLAIM_UPDATE_TYPES = ["claim_approved", "claim_rejected", "claim_released"];
-
-/**
- * Map the backend's free-form `type` string (max 20, e.g. 'holiday', 'route',
- * 'system', 'safety', 'promo', 'maintenance', 'claim_approved') to a canonical
- * AnnouncementType values the rewards panel's announcementConfig expects.
- * An empty/blank type, or one that explicitly says "system", is SYSTEM; a
- * non-empty type that doesn't match any known bucket (e.g. a custom category
- * typed via the admin's "Other" option) falls to CUSTOM, which the UI shows
- * using the original raw text rather than a generic label.
- */
-function mapType(rawType: string): AnnouncementType {
-  const t = (rawType ?? "").toLowerCase().trim();
-  if ((t.startsWith('student_renewal') || t.startsWith('discount_application'))) return 'SYSTEM';
-  if (t === "voucher_received") return "VOUCHER";
-  if (!t || t.includes("system")) {
-    return "SYSTEM";
-  }
-  if (CLAIM_UPDATE_TYPES.some((type) => t.includes(type))) {
-    return "CLAIM_UPDATE";
-  }
-  // Watchlist notices (LostItemService::notifyWatchers / remindExpiringWatchedItems).
-  if (t.startsWith("saved_item")) {
-    return "SAVED_ITEM";
-  }
-  if (["safety", "alert", "sos", "warning"].some((k) => t.includes(k))) {
-    return "SAFETY";
-  }
-  if (["promo", "holiday", "reward", "deal"].some((k) => t.includes(k))) {
-    return "PROMO";
-  }
-  if (
-    ["maintenance", "route", "schedule", "construction", "detour", "advisory"].some(
-      (k) => t.includes(k)
-    )
-  ) {
-    return "MAINTENANCE";
-  }
-  return "CUSTOM";
-}
-
 /** Map a service Announcement → the canonical Announcement the UI consumes. */
 function toCanonical(a: ServiceAnnouncement): Announcement {
   return {
     id: a.id,
-    type: mapType(a.type),
+    type: mapAnnouncementType(a.type),
     rawType: a.type ?? "",
     title: a.title,
     message: a.message,

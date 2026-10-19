@@ -3,7 +3,7 @@
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { DataTable } from '@/components/admin/ui/data-table';
-import { BADGE_VARIANT_CLASSES } from '@/components/shared/badge';
+import { RemittanceStatusText, STATUS_TEXT_CLASSES } from '@/components/admin/remittance/remittance-status-text';
 import { ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import {
   useRemittanceData,
@@ -19,10 +19,9 @@ import { remittanceStatusVariant } from '@/lib/shared/remittance-status';
  * still-active shift with no Remittance row yet to attach a declaration to. */
 const canDeclareCash = (status: RemittanceStatus) => status === 'For Cash Declaration' || status === 'Overdue';
 
-// Fixed size shared by both the "Declare" trigger and a plain status pill in
-// the Status column, so the column never reflows depending on which one a
-// given row happens to render.
-const STATUS_PILL_CLASSES = 'inline-flex w-24 items-center justify-center gap-1 px-2 py-1 text-xs font-semibold rounded-full transition-colors';
+// The "Declare" trigger is a small squared button in the status colour — an
+// action, so it keeps a border; plain statuses render as coloured text.
+const DECLARE_BUTTON_CLASSES = 'inline-flex items-center gap-1 rounded-md border border-[#2A3A55] admin-light:border-[#CBD5E1] px-2 py-1 text-xs font-semibold transition-colors hover:bg-white/5 admin-light:hover:bg-[#F1F5F9]';
 
 // ─── Helper: format PHP currency ───────────────────────────────────────
 const fmtPHP = (n: number) =>
@@ -93,29 +92,28 @@ export function RemittanceTable({ searchQuery, selectedDate, dateFrom, statusFil
     {
       key: 'remittanceStatus',
       label: 'Status',
-      // Fixed-width column — both pill variants below share the exact same
-      // size (STATUS_PILL_CLASSES), so which rows happen to be "Declare" vs
-      // a plain status never reflows this column or the table around it.
+      // Fixed-width column, so which rows happen to be "Declare" vs a plain
+      // status never reflows this column or the table around it.
       headerClassName: 'w-28',
       cellClassName: 'w-28',
-      // When the row is eligible, the status pill itself is the trigger (a
+      // When the row is eligible, the status itself is the trigger (a
       // chevron marks it as clickable) instead of a second element next to
       // it. Label is shortened to "Declare" (not the full status text) so a
-      // long value like "For Cash Declaration" can't blow out the pill; the
-      // full status is still the pill's color + the tooltip on hover.
+      // long value like "For Cash Declaration" fits the column; the full
+      // status is still the button's colour + the tooltip on hover.
       render: (value: RemittanceStatus, row: RemittanceRow) =>
         canDeclareCash(value) ? (
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); setDeclaringRecord(row); }}
             title={value}
-            className={`${STATUS_PILL_CLASSES} hover:brightness-125 ${BADGE_VARIANT_CLASSES[remittanceStatusVariant(value)]}`}
+            className={`${DECLARE_BUTTON_CLASSES} ${STATUS_TEXT_CLASSES[remittanceStatusVariant(value)]}`}
           >
             Declare
             <ChevronDown size={12} />
           </button>
         ) : (
-          <span className={`${STATUS_PILL_CLASSES} ${BADGE_VARIANT_CLASSES[remittanceStatusVariant(value)]}`}>{value}</span>
+          <RemittanceStatusText status={value} />
         ),
     },
   ];
@@ -172,7 +170,7 @@ export function RemittanceTable({ searchQuery, selectedDate, dateFrom, statusFil
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <p className="text-sm text-slate-400">Loading remittances...</p>
+        <p className="text-sm text-slate-400 admin-light:text-slate-500">Loading remittances...</p>
       </div>
     );
   }
@@ -180,10 +178,10 @@ export function RemittanceTable({ searchQuery, selectedDate, dateFrom, statusFil
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-12 gap-3">
-        <p className="text-sm text-red-400">{error}</p>
+        <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
         <button
           onClick={refresh}
-          className="px-4 py-2 bg-[#1A2540] border border-[#1E2D45] rounded-md text-xs text-slate-300 hover:text-white hover:bg-[#1E2D45]"
+          className="px-4 py-2 bg-[#1A2540] admin-light:bg-[#EEF2F7] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-xs text-slate-300 admin-light:text-slate-700 hover:text-white admin-light:hover:text-slate-900 hover:bg-[#1E2D45] admin-light:hover:bg-[#E2E8F0]"
         >
           Retry
         </button>
@@ -194,8 +192,8 @@ export function RemittanceTable({ searchQuery, selectedDate, dateFrom, statusFil
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* Click hint */}
-      <p className="shrink-0 text-xs text-slate-600 mb-3 flex items-center gap-1.5">
-        <span className="px-1.5 py-0.5 bg-[#0E1628] rounded text-[10px] text-slate-500 border border-[#1E2D45] font-mono">click</span>
+      <p className="shrink-0 text-xs text-slate-600 admin-light:text-slate-400 mb-3 flex items-center gap-1.5">
+        <span className="px-1.5 py-0.5 bg-[#0E1628] admin-light:bg-[#F1F5F9] rounded text-[10px] text-slate-500 border border-[#1E2D45] admin-light:border-[#E2E8F0] font-mono">click</span>
         Click a row to view conductor details &amp; transaction history
       </p>
 
@@ -213,29 +211,29 @@ export function RemittanceTable({ searchQuery, selectedDate, dateFrom, statusFil
       </div>
 
       {/* Pagination Controls */}
-      <div className="shrink-0 flex flex-col sm:flex-row justify-between items-center mt-4 pt-4 border-t border-[#1E2D45] gap-4 text-xs text-slate-400">
+      <div className="shrink-0 flex flex-col sm:flex-row justify-between items-center mt-4 pt-4 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] gap-4 text-xs text-slate-400 admin-light:text-slate-500">
         <div>
           Showing {paginatedData.length > 0 ? (safeCurrentPage - 1) * ROWS_PER_PAGE + 1 : 0} to{' '}
-          {(safeCurrentPage - 1) * ROWS_PER_PAGE + paginatedData.length} of <span className="text-slate-300 font-medium">{total}</span> results
+          {(safeCurrentPage - 1) * ROWS_PER_PAGE + paginatedData.length} of <span className="text-slate-300 admin-light:text-slate-700 font-medium">{total}</span> results
         </div>
 
         <div className="flex items-center gap-2">
           <button
             onClick={handlePrevPage}
             disabled={safeCurrentPage === 1}
-            className="p-2 rounded-md bg-[#0E1628] border border-[#1E2D45] hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="p-2 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             <ChevronLeft size={16} />
           </button>
 
-          <span className="px-4 py-2 bg-[#62A0EA]/20 text-[#62A0EA] rounded-md font-medium text-xs">
+          <span className="px-4 py-2 bg-[#62A0EA]/20 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4] rounded-md font-medium text-xs">
             Page {safeCurrentPage} of {totalPages}
           </span>
 
           <button
             onClick={handleNextPage}
             disabled={safeCurrentPage === totalPages}
-            className="p-2 rounded-md bg-[#0E1628] border border-[#1E2D45] hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="p-2 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             <ChevronRight size={16} />
           </button>

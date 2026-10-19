@@ -5,9 +5,9 @@ import { useState } from "react";
 import { DataTable } from "@/components/admin/ui/data-table";
 import { TablePagination } from "@/components/admin/ui/table-pagination";
 import { SearchBar } from "@/components/admin/ui/search-bar";
-import { Edit, Eye, Trash, Plus, UserPlus } from "lucide-react";
+import { ChevronDown, Edit, Eye, IdCard, Trash, Plus, UserPlus } from "lucide-react";
 import { formatLogDate } from "@/lib/utils/format";
-import type { PageMeta, Personnel, PersonnelRoleFilter } from "@/app/(admin)/vehicles/data/vehicles-data";
+import type { PageMeta, Personnel, PersonnelRoleFilter, PersonnelStatusFilter } from "@/app/(admin)/vehicles/data/vehicles-data";
 import { DriverDetailModal } from "@/components/admin/vehicles/driver-detail-modal";
 import { ConductorDetailModal } from "@/components/admin/vehicles/conductor-detail-modal";
 import { SkeletonTable } from "@/components/admin/ui/skeleton";
@@ -17,10 +17,12 @@ interface PersonnelTableProps {
   personnel: Personnel[];
   searchQuery: string;
   roleFilter: PersonnelRoleFilter;
+  statusFilter: PersonnelStatusFilter;
   page: PageMeta;
   onPageChange: (page: number) => void;
   onSearchChange: (value: string) => void;
   onRoleFilterChange: (role: PersonnelRoleFilter) => void;
+  onStatusFilterChange: (status: PersonnelStatusFilter) => void;
   onAddDriver: () => void;
   onCreateConductor: () => void;
   onEdit: (personnel: Personnel) => void;
@@ -39,10 +41,12 @@ export function PersonnelTable({
   personnel,
   searchQuery,
   roleFilter,
+  statusFilter,
   page,
   onPageChange,
   onSearchChange,
   onRoleFilterChange,
+  onStatusFilterChange,
   onAddDriver,
   onCreateConductor,
   onEdit,
@@ -57,6 +61,7 @@ export function PersonnelTable({
   // Account actions. Row double-click still opens them; the explicit button
   // below makes them reachable without knowing about the double-click.
   const openDetails = (p: Personnel) => {
+    if (p.status === "TERMINATED" || p.status === "RESIGNED") return;
     if (p.role === "Driver") {
       setSelectedDriver(p);
     } else if (p.role === "Conductor") {
@@ -73,12 +78,12 @@ export function PersonnelTable({
         <div className="flex items-center gap-3 min-w-0">
           <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold border flex-shrink-0 ${
             row.role === "Driver"
-              ? "bg-[#62A0EA]/10 border-[#62A0EA]/25 text-[#62A0EA]"
-              : "bg-amber-400/10 border-amber-400/25 text-amber-400"
+              ? "bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 border-[#62A0EA]/25 admin-light:border-[#1A5FB4]/25 text-[#62A0EA] admin-light:text-[#1A5FB4]"
+              : "bg-amber-400/10 border-amber-400/25 text-amber-400 admin-light:text-amber-700"
           }`}>
             {value.split(" ").map(part => part[0]).join("").slice(0, 2)}
           </div>
-          <p className="min-w-0 truncate font-medium text-white">{value}</p>
+          <p className="min-w-0 truncate font-medium text-white admin-light:text-slate-900">{value}</p>
         </div>
       ),
     },
@@ -91,10 +96,10 @@ export function PersonnelTable({
       render: (value: string) => {
         const isDriver = value === "Driver";
         return (
-          <span className="inline-flex items-center gap-2 text-sm text-slate-300">
+          <span className="inline-flex items-center gap-2 text-sm text-slate-300 admin-light:text-slate-700">
             <span
               aria-hidden="true"
-              className={`h-1.5 w-1.5 shrink-0 rounded-full ${isDriver ? "bg-[#62A0EA]" : "bg-amber-400"}`}
+              className={`h-1.5 w-1.5 shrink-0 rounded-full ${isDriver ? "bg-[#62A0EA] admin-light:bg-[#1A5FB4]" : "bg-amber-400"}`}
             />
             {value}
           </span>
@@ -120,11 +125,11 @@ export function PersonnelTable({
             <span
               aria-hidden="true"
               className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${
-                isActive ? "bg-emerald-400" : "bg-slate-600"
+                isActive ? "bg-emerald-400" : row.status === "TERMINATED" ? "bg-red-400" : row.status === "RESIGNED" ? "bg-amber-400" : "bg-slate-600"
               }`}
             />
-            <span className={`text-xs font-medium ${isActive ? "text-slate-300" : "text-slate-500"}`}>
-              {isActive ? "Active" : "Deactivated"}
+            <span className={`text-xs font-medium ${isActive ? "text-slate-300 admin-light:text-slate-700" : "text-slate-500"}`}>
+              {isActive ? "Active" : row.status === "TERMINATED" ? "Terminated" : row.status === "RESIGNED" ? "Resigned" : "Deactivated"}
             </span>
           </span>
         );
@@ -136,7 +141,9 @@ export function PersonnelTable({
       align: "center" as const,
       headerClassName: "w-20",
       cellClassName: "w-20",
-      render: (_: unknown, row: Personnel) => (
+      render: (_: unknown, row: Personnel) => row.status === "TERMINATED" || row.status === "RESIGNED" ? (
+        <span className="text-xs text-slate-500">Archived</span>
+      ) : (
         <RowActionsMenu
           label={`Actions for ${row.name}`}
           actions={[
@@ -151,41 +158,59 @@ export function PersonnelTable({
 
   return (
     <>
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 rounded-lg border border-[#1E2D45] bg-[#111A2B] p-3 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#111A2B] admin-light:bg-white p-3 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
         <div className="flex shrink-0 flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
             <SearchBar
               placeholder="Search personnel..."
               value={searchQuery}
               onChange={onSearchChange}
-              className="min-w-0 w-full sm:w-80"
+              className="min-w-0 w-full sm:w-56"
             />
             <select
               value={roleFilter}
               onChange={(event) => onRoleFilterChange(event.target.value as PersonnelRoleFilter)}
               aria-label="Filter personnel by role"
-              className="h-10 rounded-lg border border-[#1E2D45] bg-[#0E1628] px-3 text-sm text-slate-200 outline-none transition-colors focus:border-[#62A0EA]/50 focus:ring-1 focus:ring-[#62A0EA]/30"
+              className="h-10 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 text-sm text-slate-200 admin-light:text-slate-700 outline-none transition-colors focus:border-[#62A0EA]/50 admin-light:focus:border-[#1A5FB4]/50 focus:ring-1 focus:ring-[#62A0EA]/30 admin-light:focus:ring-[#1A5FB4]/30"
             >
               <option value="all">All personnel</option>
               <option value="driver">Drivers</option>
               <option value="conductor">Conductors</option>
             </select>
+            <select
+              value={statusFilter}
+              onChange={(event) => onStatusFilterChange(event.target.value as PersonnelStatusFilter)}
+              aria-label="Filter personnel by status"
+              className="h-10 rounded-lg border border-[#1E2D45] bg-[#0E1628] px-3 text-sm text-slate-200 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]/50 focus:ring-1 focus:ring-[#62A0EA]/30 admin-light:border-[#E2E8F0] admin-light:bg-white admin-light:text-slate-700 admin-light:[color-scheme:light] admin-light:focus:border-[#1A5FB4]/50 admin-light:focus:ring-[#1A5FB4]/30"
+            >
+              <option value="all">All statuses</option>
+              <option value="ACTIVE">Active</option>
+              <option value="TERMINATED">Terminated</option>
+              <option value="RESIGNED">Resigned</option>
+            </select>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <button
-              onClick={onCreateConductor}
-              className="flex w-full items-center justify-center gap-2 rounded-md bg-[#62A0EA] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#4A8BD4] sm:w-44"
-            >
-              <UserPlus size={18} />
-              <span>Conductor</span>
-            </button>
-            <button
-              onClick={onAddDriver}
-              className="flex w-full items-center justify-center gap-2 rounded-md bg-[#62A0EA] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#4A8BD4] sm:w-44"
-            >
-              <Plus size={18} />
-              <span>Add Driver</span>
-            </button>
+          {/* One "Add Personnel" menu instead of a button per role, same
+              pattern as User Management's "Register". Each item opens the
+              modal its old button did. */}
+          <div className="flex sm:items-center [&>button]:w-full sm:[&>button]:w-44">
+            <RowActionsMenu
+              label="Add personnel"
+              menuWidth={232}
+              trigger={{
+                content: (
+                  <>
+                    <Plus size={18} aria-hidden="true" />
+                    <span>Add Personnel</span>
+                    <ChevronDown size={16} aria-hidden="true" />
+                  </>
+                ),
+                className: (isOpen) => `flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] [&>svg:last-child]:transition-transform ${isOpen ? 'bg-[#4A8BD4] admin-light:bg-[#164A8F] [&>svg:last-child]:rotate-180' : 'bg-[#62A0EA] admin-light:bg-[#1A5FB4]'}`,
+              }}
+              actions={[
+                { label: 'Add driver', hint: 'Driver record and license', icon: IdCard, onSelect: onAddDriver },
+                { label: 'Add conductor', hint: 'Conductor with an app login', icon: UserPlus, onSelect: onCreateConductor },
+              ]}
+            />
           </div>
         </div>
 

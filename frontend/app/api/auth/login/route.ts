@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     const data = await res.json().catch(() => null);
 
     if (res.ok && data?.data?.token) {
-      const { id, email: userEmail, role, name, token } = data.data;
+      const { id, email: userEmail, role, name, token, must_change_password } = data.data;
       let activeShift: ConductorShift | null = null;
 
       if (role === "CONDUCTOR") {
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
         }
       }
 
-      return issueSession({ id, email: userEmail, role, name, token }, activeShift);
+      return issueSession({ id, email: userEmail, role, name, token }, activeShift, Boolean(must_change_password));
     }
 
     if (res.status === 503 && data?.code === "MAINTENANCE") {
@@ -93,9 +93,12 @@ export async function POST(request: Request) {
 
 function issueSession(
   user: { id: string; email: string; role: string; name: string; token: string },
-  activeShift: ConductorShift | null
+  activeShift: ConductorShift | null,
+  mustChangePassword: boolean
 ) {
-  const redirectPath = getRoleDashboard(user.role);
+  // A default-password account gets the session cookie (the setup page needs
+  // it) but is sent to Set New Password instead of its dashboard.
+  const redirectPath = mustChangePassword ? "/set-new-password" : getRoleDashboard(user.role);
   if (!redirectPath) {
     return NextResponse.json({ message: "Unable to sign in." }, { status: 403 });
   }

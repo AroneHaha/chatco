@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DiscountApplication;
 use App\Services\StudentRenewalService;
 use App\Services\DiscountApplicationService;
 use App\Traits\ApiResponse;
@@ -45,7 +46,7 @@ class StudentRenewalController extends Controller
 
     private function proofData(Request $request, bool $application = false): array
     {
-        foreach (['school_name', 'school_year', 'enrollment_term'] as $field) {
+        foreach (DiscountApplication::STUDENT_TEXT_FIELDS as $field) {
             if (is_string($request->input($field))) {
                 $request->merge([$field => trim($request->input($field))]);
             }
@@ -57,11 +58,7 @@ class StudentRenewalController extends Controller
             'application_id' => $application ? ['nullable', 'uuid', 'required_with:revision'] : ['exclude'],
             'revision' => $application ? ['nullable', 'integer', 'min:1', 'required_with:application_id'] : ['exclude'],
             'document' => [$documentOptional ? 'sometimes' : 'required', 'nullable', 'file', 'mimes:jpeg,jpg,png,webp,pdf', 'max:5120'],
-            'school_name' => [Rule::excludeIf(! $student), 'required', 'string', 'max:150'],
-            'education_level' => [Rule::excludeIf(! $student), 'required', Rule::in(['HIGH_SCHOOL', 'COLLEGE'])],
-            'grade_level' => [Rule::excludeIf(! $student), 'exclude_unless:education_level,HIGH_SCHOOL', 'required', 'integer', 'between:7,12'],
-            'school_year' => [Rule::excludeIf(! $student), 'required', 'string', 'max:20'],
-            'enrollment_term' => [Rule::excludeIf(! $student), 'required_if:education_level,COLLEGE', 'nullable', 'string', 'max:50'],
+            ...DiscountApplication::studentDetailRules($student),
         ]);
 
         return $data;

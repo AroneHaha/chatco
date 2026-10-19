@@ -89,22 +89,15 @@ function DeltaBadge({ current, previous }: { current: number; previous: number }
 
   if (pct === null) {
     return (
-      <span className="text-[10px] text-slate-600" title="No data in the preceding period to compare against">
+      <span className="text-[10px] text-slate-600 admin-light:text-slate-500" title="No data in the preceding period to compare against">
         no prior data
       </span>
     );
   }
 
   const Icon = direction === 'up' ? TrendingUp : direction === 'down' ? TrendingDown : Minus;
-  const tone =
-    direction === 'flat'
-      ? 'text-slate-500'
-      : direction === 'up'
-        ? 'text-emerald-400'
-        : 'text-red-400';
-
   return (
-    <span className={`inline-flex items-center gap-0.5 text-[10px] font-medium ${tone}`}>
+    <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-slate-500 admin-light:text-slate-600">
       <Icon size={11} />
       {Math.abs(pct).toFixed(1)}%
     </span>
@@ -116,37 +109,27 @@ function MetricCard({
   value,
   sublabel,
   icon: Icon,
-  color,
   current,
   previous,
-  tone = 'default',
 }: {
   label: string;
   value: string;
   sublabel?: string;
   icon: React.ElementType;
-  color: string;
   /** Supply both to render a period-over-period delta. */
   current?: number;
   previous?: number;
-  /** 'alert' escalates the card itself (not just the icon) for a genuine
-   *  problem — e.g. an unreconciled shortage — so it outranks routine
-   *  totals at a glance instead of reading as one of eight equal tiles. */
-  tone?: 'default' | 'alert';
 }) {
-  const isAlert = tone === 'alert';
   return (
-    <div className={`border rounded-lg p-4 flex items-center space-x-4 ${
-      isAlert ? 'bg-red-500/10 border-red-500/30' : 'bg-[#131C2E] border-[#1E2D45]'
-    }`}>
-      <div className={`p-3 rounded-full ${color} shrink-0 ${isAlert ? 'bg-red-500/15' : 'bg-[#0E1628]'}`}>
+    <div className="border rounded-lg p-4 flex items-center space-x-4 bg-[#131C2E] admin-light:bg-white border-[#1E2D45] admin-light:border-[#E2E8F0]">
+      <div className="p-3 rounded-full text-slate-300 admin-light:text-slate-600 shrink-0 bg-[#0E1628] admin-light:bg-[#F1F5F9]">
         <Icon size={22} />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">{label}</p>
+        <p className="text-xs font-medium text-slate-400 admin-light:text-slate-500 uppercase tracking-wider">{label}</p>
         {/* title carries the full value: the truncate here used to clip large
             peso figures on narrow/mobile cards with no way to read them. */}
-        <p className="text-xl font-bold text-white truncate" title={value}>{value}</p>
+        <p className="text-xl font-bold text-white admin-light:text-slate-900 truncate" title={value}>{value}</p>
         <div className="flex items-center gap-1.5 mt-0.5">
           {current !== undefined && previous !== undefined && (
             <DeltaBadge current={current} previous={previous} />
@@ -171,7 +154,7 @@ function SectionEyebrow({ children, live = false }: { children: React.ReactNode;
       ) : (
         <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#62A0EA]" />
       )}
-      <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{children}</h2>
+      <h2 className="text-xs font-semibold text-slate-400 admin-light:text-slate-500 uppercase tracking-wider">{children}</h2>
     </div>
   );
 }
@@ -195,7 +178,7 @@ function PaymentSplitDonut({ data }: { data: AnalyticsData['payment_split'] }) {
 
   if (totalRides === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-center text-slate-600 text-sm">
+      <div className="flex-1 flex items-center justify-center text-center text-slate-600 admin-light:text-slate-500 text-sm">
         No paid transactions in this date range.
       </div>
     );
@@ -212,10 +195,10 @@ function PaymentSplitDonut({ data }: { data: AnalyticsData['payment_split'] }) {
             background: `conic-gradient(#10b981 0% ${cashPct}%, #3b82f6 ${cashPct}% 100%)`,
           }}
         />
-        <div className="absolute inset-5 bg-[#131C2E] rounded-full flex items-center justify-center">
+        <div className="absolute inset-5 bg-[#131C2E] admin-light:bg-white rounded-full flex items-center justify-center">
           <div className="text-center">
             <p className="text-[10px] text-slate-500 uppercase tracking-wider">Rides</p>
-            <p className="text-2xl font-bold text-white">{formatNumber(totalRides)}</p>
+            <p className="text-2xl font-bold text-white admin-light:text-slate-900">{formatNumber(totalRides)}</p>
             <p className="text-[10px] text-slate-500">total</p>
           </div>
         </div>
@@ -225,25 +208,25 @@ function PaymentSplitDonut({ data }: { data: AnalyticsData['payment_split'] }) {
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-emerald-500 flex-shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-slate-300">Cash</p>
+            <p className="text-sm font-medium text-slate-300 admin-light:text-slate-700">Cash</p>
             <p className="text-xs text-slate-500">{data.cash.count} rides · {cashPct.toFixed(1)}% of revenue</p>
           </div>
-          <p className="text-sm font-bold text-emerald-400 font-mono">{formatPeso(cashTotal)}</p>
+          <p className="text-sm font-bold text-emerald-400 admin-light:text-emerald-700 font-mono">{formatPeso(cashTotal)}</p>
         </div>
 
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-blue-500 flex-shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-slate-300">GCash</p>
+            <p className="text-sm font-medium text-slate-300 admin-light:text-slate-700">GCash</p>
             <p className="text-xs text-slate-500">{data.gcash.count} rides · {gcashPct.toFixed(1)}% of revenue</p>
           </div>
-          <p className="text-sm font-bold text-blue-400 font-mono">{formatPeso(gcashTotal)}</p>
+          <p className="text-sm font-bold text-blue-400 admin-light:text-blue-700 font-mono">{formatPeso(gcashTotal)}</p>
         </div>
 
-        <div className="flex items-center gap-2 pt-3 border-t border-[#1E2D45]">
+        <div className="flex items-center gap-2 pt-3 border-t border-[#1E2D45] admin-light:border-[#E2E8F0]">
           <div className="w-3 h-3 rounded-full bg-pink-500 flex-shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-slate-300">Voucher</p>
+            <p className="text-sm font-medium text-slate-300 admin-light:text-slate-700">Voucher</p>
             <p className="text-xs text-slate-500">
               {data.voucher.count} free reward rides
             </p>
@@ -251,9 +234,9 @@ function PaymentSplitDonut({ data }: { data: AnalyticsData['payment_split'] }) {
           <p className="text-sm font-bold text-slate-500 font-mono">{formatPeso(data.voucher.total)}</p>
         </div>
 
-        <div className="flex items-center justify-between pt-3 border-t border-[#1E2D45]">
-          <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Revenue</p>
-          <p className="text-base font-bold text-white font-mono">{formatPeso(grandTotal)}</p>
+        <div className="flex items-center justify-between pt-3 border-t border-[#1E2D45] admin-light:border-[#E2E8F0]">
+          <p className="text-xs font-medium text-slate-400 admin-light:text-slate-500 uppercase tracking-wider">Total Revenue</p>
+          <p className="text-base font-bold text-white admin-light:text-slate-900 font-mono">{formatPeso(grandTotal)}</p>
         </div>
       </div>
     </div>
@@ -405,8 +388,8 @@ function ReportsTab({
   if (isLoading) {
     return (
       <div className="grid lg:grid-cols-2 gap-6">
-        <SkeletonCard count={2} height="300px" />
-        <SkeletonCard count={2} height="300px" />
+        <SkeletonCard count={2} height="300px" adminThemed />
+        <SkeletonCard count={2} height="300px" adminThemed />
       </div>
     );
   }
@@ -414,11 +397,11 @@ function ReportsTab({
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <AlertCircle className="h-12 w-12 text-red-400 mb-4" />
-        <p className="text-sm text-slate-400 mb-4">{error}</p>
+        <AlertCircle className="h-12 w-12 text-red-400 admin-light:text-red-600 mb-4" />
+        <p className="text-sm text-slate-400 admin-light:text-slate-500 mb-4">{error}</p>
         <button
           onClick={() => refetch()}
-          className="px-4 py-2 bg-[#62A0EA] hover:bg-[#99C1F1] text-white rounded-md text-sm font-medium transition-colors"
+          className="px-4 py-2 bg-[#62A0EA] admin-light:bg-[#1A5FB4] hover:bg-[#99C1F1] admin-light:hover:bg-[#164A8F] text-white rounded-md text-sm font-medium transition-colors"
         >
           Try Again
         </button>
@@ -482,11 +465,11 @@ function OverviewTab({
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <SkeletonCard count={4} height="80px" />
+          <SkeletonCard count={4} height="80px" adminThemed />
         </div>
         <div className="grid lg:grid-cols-2 gap-6">
-          <SkeletonCard count={2} height="300px" />
-          <SkeletonCard count={2} height="300px" />
+          <SkeletonCard count={2} height="300px" adminThemed />
+          <SkeletonCard count={2} height="300px" adminThemed />
         </div>
       </div>
     );
@@ -495,11 +478,11 @@ function OverviewTab({
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <AlertCircle className="h-12 w-12 text-red-400 mb-4" />
-        <p className="text-sm text-slate-400 mb-4">{error}</p>
+        <AlertCircle className="h-12 w-12 text-red-400 admin-light:text-red-600 mb-4" />
+        <p className="text-sm text-slate-400 admin-light:text-slate-500 mb-4">{error}</p>
         <button
           onClick={() => refetch()}
-          className="px-4 py-2 bg-[#62A0EA] hover:bg-[#99C1F1] text-white rounded-md text-sm font-medium transition-colors"
+          className="px-4 py-2 bg-[#62A0EA] admin-light:bg-[#1A5FB4] hover:bg-[#99C1F1] admin-light:hover:bg-[#164A8F] text-white rounded-md text-sm font-medium transition-colors"
         >
           Try Again
         </button>
@@ -524,25 +507,25 @@ function OverviewTab({
           <MetricCard
             label="Total Fares" value={formatPeso(data.totals.total_fares)}
             sublabel={`${formatNumber(data.totals.paid_count)} paid rides`}
-            icon={TrendingUp} color="text-[#62A0EA]"
+            icon={TrendingUp}
             current={data.totals.total_fares} previous={prev.total_fares}
           />
           <MetricCard
             label="Cash Total" value={formatPeso(data.totals.cash_total)}
             sublabel={`${data.payment_split.cash.count} rides`}
-            icon={Banknote} color="text-emerald-400"
+            icon={Banknote}
             current={data.totals.cash_total} previous={prev.cash_total}
           />
           <MetricCard
             label="GCash Total" value={formatPeso(data.totals.gcash_total)}
             sublabel={`${data.payment_split.gcash.count} rides`}
-            icon={Smartphone} color="text-blue-400"
+            icon={Smartphone}
             current={data.totals.gcash_total} previous={prev.gcash_total}
           />
           <MetricCard
             label="Avg Fare" value={formatPeso(data.totals.avg_fare)}
             sublabel="per paying ride"
-            icon={Receipt} color="text-[#62A0EA]"
+            icon={Receipt}
             current={data.totals.avg_fare} previous={prev.avg_fare}
           />
         </div>
@@ -550,34 +533,29 @@ function OverviewTab({
 
       {/* ── Rides & Operations Health: volume plus the things worth watching
           (payment reliability, what's still pending, what didn't reconcile).
-          Second group — "how's the operation running." Shortage escalates to
-          an alert-toned card the moment it's nonzero, so an actual problem
-          outranks the seven routine tiles around it instead of blending in. ── */}
+          Second group — "how's the operation running." ── */}
       <div className="space-y-3">
         <SectionEyebrow>Rides &amp; Operations Health</SectionEyebrow>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard
             label="Passengers" value={formatNumber(data.totals.total_passengers)}
             sublabel={`incl. ${data.totals.voucher_count} voucher rides`}
-            icon={Users} color="text-[#62A0EA]"
+            icon={Users}
             current={data.totals.total_passengers} previous={prev.total_passengers}
           />
           <MetricCard
             label="GCash Success" value={health.success_rate === null ? '—' : `${health.success_rate}%`}
             sublabel={health.success_rate === null ? 'no gateway attempts' : `${health.failed + health.expired + health.cancelled} unsettled`}
             icon={ShieldCheck}
-            color={health.success_rate !== null && health.success_rate < 90 ? 'text-red-400' : 'text-emerald-400'}
           />
           <MetricCard
             label="Pending" value={formatNumber(data.totals.pending_count)}
-            sublabel="awaiting payment" icon={Clock} color="text-amber-400"
+            sublabel="awaiting payment" icon={Clock}
           />
           <MetricCard
             label="Shortage" value={formatPeso(data.remittances.total_shortage)}
             sublabel={hasShortage ? `${data.remittances.shortage_rate}% of collected` : 'No shortage'}
             icon={AlertTriangle}
-            color={hasShortage ? 'text-red-400' : 'text-slate-500'}
-            tone={hasShortage ? 'alert' : 'default'}
           />
         </div>
       </div>
@@ -586,43 +564,43 @@ function OverviewTab({
           Deliberately separated from the cards above: these are point-in-time
           "right now" counts, not range aggregates, and mixing the two in one
           grid invited them to be read as scoped to the selected window. */}
-      <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-4">
+      <div className="bg-[#131C2E] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-lg p-4">
         <div className="mb-3">
           <SectionEyebrow live>Live Fleet — current status, not affected by the date range</SectionEyebrow>
         </div>
         <div className="grid grid-cols-2 gap-4">
           <MetricCard
             label="Active Vehicles" value={`${data.fleet.active_vehicles} / ${data.fleet.total_vehicles}`}
-            sublabel="on active shift now" icon={Car} color="text-[#62A0EA]"
+            sublabel="on active shift now" icon={Car}
           />
           <MetricCard
             label="Active Conductors" value={`${data.fleet.active_conductors} / ${data.fleet.total_conductors}`}
-            sublabel="on shift now" icon={Users} color="text-[#62A0EA]"
+            sublabel="on shift now" icon={Users}
           />
         </div>
       </div>
 
       {/* ── Charts ── */}
-      <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5">
+      <div className="bg-[#131C2E] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-lg p-5">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-          <h2 className="text-lg font-bold text-white">Daily Revenue</h2>
+          <h2 className="text-lg font-bold text-white admin-light:text-slate-900">Daily Revenue</h2>
           <div className="flex items-center gap-3 text-xs">
-            <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-emerald-500" /><span className="text-slate-400">Cash</span></span>
-            <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-blue-500" /><span className="text-slate-400">GCash</span></span>
-            <span className="flex items-center gap-1.5"><div className="w-4 h-0.5 rounded-full bg-amber-500" /><span className="text-slate-400">7-day avg</span></span>
+            <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-emerald-500" /><span className="text-slate-400 admin-light:text-slate-500">Cash</span></span>
+            <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-blue-500" /><span className="text-slate-400 admin-light:text-slate-500">GCash</span></span>
+            <span className="flex items-center gap-1.5"><div className="w-4 h-0.5 rounded-full bg-amber-500" /><span className="text-slate-400 admin-light:text-slate-500">7-day avg</span></span>
           </div>
         </div>
         <DailyRevenueChart data={data.daily_series} />
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
-        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5">
-          <h2 className="text-lg font-bold text-white mb-1">Peak Hours</h2>
+        <div className="bg-[#131C2E] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-lg p-5">
+          <h2 className="text-lg font-bold text-white admin-light:text-slate-900 mb-1">Peak Hours</h2>
           <p className="text-xs text-slate-500 mb-4">Rides by hour of day across the selected range</p>
           <PeakHoursChart data={data.hourly_series} />
         </div>
-        <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5 flex flex-col">
-          <h2 className="text-lg font-bold text-white mb-1">Payment Method Split</h2>
+        <div className="bg-[#131C2E] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-lg p-5 flex flex-col">
+          <h2 className="text-lg font-bold text-white admin-light:text-slate-900 mb-1">Payment Method Split</h2>
           <p className="text-xs text-slate-500 mb-4">Ring shows revenue share; voucher rides are free</p>
           <PaymentSplitDonut data={data.payment_split} />
         </div>
@@ -781,16 +759,16 @@ export default function AnalyticsPage() {
   return (
     <div className="space-y-6">
       <StickyPageHeader>
-        <h1 className="text-2xl font-bold text-white">Financial &amp; Operations Analytics</h1>
+        <h1 className="text-2xl font-bold text-white admin-light:text-slate-900">Financial &amp; Operations Analytics</h1>
       </StickyPageHeader>
 
-      <div className="-mt-4 md:mt-0 flex items-center gap-1.5 min-w-0 text-sm text-slate-400">
+      <div className="-mt-4 md:mt-0 flex items-center gap-1.5 min-w-0 text-sm text-slate-400 admin-light:text-slate-500">
         {data ? (
           <>
             <CalendarDays size={14} className="text-slate-500 shrink-0" />
             <span className="truncate">
               {formatDateRangeLabel(data.date_range.from, data.date_range.to)}
-              <span className="text-slate-600"> · vs </span>
+              <span className="text-slate-600 admin-light:text-slate-500"> · vs </span>
               {formatDateRangeLabel(data.previous_range.from, data.previous_range.to)}
             </span>
           </>
@@ -813,14 +791,14 @@ export default function AnalyticsPage() {
       {/* Tabs + range control share one row: tabs on the left, filters
           flush right against the same border. The range control still
           applies to BOTH tabs. */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-[#1E2D45]">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-[#1E2D45] admin-light:border-[#E2E8F0]">
         <div className="flex space-x-1">
           <button
             onClick={() => setActiveTab('overview')}
             className={`flex items-center space-x-2 py-2.5 px-4 font-medium text-sm rounded-t-md transition-colors ${
               activeTab === 'overview'
-                ? 'text-white border-b-2 border-[#62A0EA] bg-[#62A0EA]/10'
-                : 'text-slate-400 hover:text-white hover:bg-[#1A2540]'
+                ? 'text-white admin-light:text-slate-900 border-b-2 border-[#62A0EA] bg-[#62A0EA]/10'
+                : 'text-slate-400 admin-light:text-slate-500 hover:text-white admin-light:hover:text-slate-900 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7]'
             }`}
           >
             <BarChart3 size={18} />
@@ -830,8 +808,8 @@ export default function AnalyticsPage() {
             onClick={() => setActiveTab('reports')}
             className={`flex items-center space-x-2 py-2.5 px-4 font-medium text-sm rounded-t-md transition-colors ${
               activeTab === 'reports'
-                ? 'text-white border-b-2 border-[#62A0EA] bg-[#62A0EA]/10'
-                : 'text-slate-400 hover:text-white hover:bg-[#1A2540]'
+                ? 'text-white admin-light:text-slate-900 border-b-2 border-[#62A0EA] bg-[#62A0EA]/10'
+                : 'text-slate-400 admin-light:text-slate-500 hover:text-white admin-light:hover:text-slate-900 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7]'
             }`}
           >
             <FileText size={18} />
@@ -840,13 +818,13 @@ export default function AnalyticsPage() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap pb-2 lg:pb-2.5">
-          <div className="flex items-center gap-1 bg-[#0E1628] p-1 rounded-md border border-[#1E2D45]">
+          <div className="flex items-center gap-1 bg-[#0E1628] admin-light:bg-white p-1 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0]">
             {(['7d', '30d', '90d', 'custom'] as PresetKey[]).map(p => (
               <button
                 key={p}
                 onClick={() => setPreset(p)}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                  preset === p ? 'bg-[#62A0EA] text-white' : 'text-slate-500 hover:text-slate-300'
+                  preset === p ? 'bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white' : 'text-slate-500 hover:text-slate-300 admin-light:text-slate-700 admin-light:hover:text-slate-700'
                 }`}
               >
                 {p === '7d' ? '7 Days' : p === '30d' ? '30 Days' : p === '90d' ? '90 Days' : 'Custom'}
@@ -864,7 +842,7 @@ export default function AnalyticsPage() {
                   max={customTo || undefined}
                   aria-label="Range start date"
                   onChange={e => setCustomFrom(e.target.value)}
-                  className="bg-[#0E1628] border border-[#1E2D45] rounded-md text-xs text-slate-300 pl-8 pr-2 py-1.5 focus:outline-none focus:border-[#62A0EA]/50 [color-scheme:dark]"
+                  className="bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-xs text-slate-300 admin-light:text-slate-700 pl-8 pr-2 py-1.5 focus:outline-none focus:border-[#62A0EA]/50 admin-light:focus:border-[#1A5FB4] scheme-dark admin-light:scheme-light"
                 />
               </div>
               <span className="text-slate-500 text-xs">to</span>
@@ -876,7 +854,7 @@ export default function AnalyticsPage() {
                   min={customFrom || undefined}
                   aria-label="Range end date"
                   onChange={e => setCustomTo(e.target.value)}
-                  className="bg-[#0E1628] border border-[#1E2D45] rounded-md text-xs text-slate-300 pl-8 pr-2 py-1.5 focus:outline-none focus:border-[#62A0EA]/50 [color-scheme:dark]"
+                  className="bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-xs text-slate-300 admin-light:text-slate-700 pl-8 pr-2 py-1.5 focus:outline-none focus:border-[#62A0EA]/50 admin-light:focus:border-[#1A5FB4] scheme-dark admin-light:scheme-light"
                 />
               </div>
             </div>
@@ -893,7 +871,7 @@ export default function AnalyticsPage() {
                 title={`Export ${scopedRows.length} remittances`}
                 aria-haspopup="menu"
                 aria-expanded={isExportOpen}
-                className="flex items-center gap-1.5 px-2.5 py-2 bg-[#62A0EA] text-white text-xs font-medium rounded-md hover:bg-[#4A8BD4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-1.5 px-2.5 py-2 bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white text-xs font-medium rounded-md hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Download size={13} />
                 <span>Export</span>
@@ -903,13 +881,13 @@ export default function AnalyticsPage() {
               {isExportOpen && (
                 <div
                   role="menu"
-                  className="absolute right-0 top-full mt-2 w-32 bg-[#131C2E] border border-[#1E2D45] rounded-md shadow-2xl shadow-black/50 overflow-hidden z-20"
+                  className="absolute right-0 top-full mt-2 w-32 bg-[#131C2E] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md shadow-2xl shadow-black/50 overflow-hidden z-20"
                 >
                   <button
                     role="menuitem"
                     onClick={() => { handleExportCSV(); setIsExportOpen(false); }}
                     title={`Export ${scopedRows.length} remittances to CSV`}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-slate-300 hover:bg-[#1A2540] hover:text-white transition-colors"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-slate-300 admin-light:text-slate-700 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] hover:text-white admin-light:hover:text-slate-900 transition-colors"
                   >
                     <Download size={13} className="text-slate-500" />
                     <span>CSV</span>
@@ -920,7 +898,7 @@ export default function AnalyticsPage() {
                       role="menuitem"
                       onClick={() => { handleReportExport(format); setIsExportOpen(false); }}
                       title={`Export ${scopedRows.length} remittances to ${format.toUpperCase()}`}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-slate-300 hover:bg-[#1A2540] hover:text-white transition-colors"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-slate-300 admin-light:text-slate-700 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] hover:text-white admin-light:hover:text-slate-900 transition-colors"
                     >
                       <Download size={13} className="text-slate-500" />
                       <span>{format === 'pdf' ? 'PDF' : format === 'excel' ? 'Excel' : 'Word'}</span>

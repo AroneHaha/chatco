@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminActivityLogController;
+use App\Http\Controllers\Admin\AdminAccountController;
 use App\Http\Controllers\Admin\AdminAnnouncementController;
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\AdminFaqController;
@@ -18,6 +19,7 @@ use App\Http\Controllers\Admin\AdminVehicleController;
 use App\Http\Controllers\Admin\AdminVoucherController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\Auth\PasswordChangeController;
 use App\Http\Controllers\Commuter\CommuterController;
 use App\Http\Controllers\Commuter\EmailChangeController;
 use App\Http\Controllers\Commuter\FeedbackController;
@@ -52,7 +54,10 @@ Route::prefix('auth')->group(function () {
     // mailed to their address before /register will create the account.
     Route::post('/register/send-code', [AuthController::class, 'sendRegistrationCode'])->middleware(['throttle:auth', 'maintenance:COMMUTER']);
     Route::post('/register/verify-code', [AuthController::class, 'verifyRegistrationCode'])->middleware(['throttle:auth', 'maintenance:COMMUTER']);
-    Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
+    Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum')->name('auth.logout');
+    // First-time setup: replaces the system-generated default password. The only
+    // route (besides logout) a must-change account can call; see EnsurePasswordChanged.
+    Route::post('/set-new-password', [AuthController::class, 'setNewPassword'])->middleware(['auth:sanctum', 'throttle:auth'])->name('auth.set-new-password');
     // Password reset — public (no auth required, throttled to prevent abuse).
     // 3-step 6-digit-code flow: request code → verify code → set new password.
     Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:auth');
@@ -127,8 +132,8 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER', 'mainten
         Route::post('/confirm', [EmailChangeController::class, 'confirm']);
         Route::post('/cancel', [EmailChangeController::class, 'cancel']);
     });
-    Route::post('/change-password/request-code', [CommuterController::class, 'requestPasswordChangeCode'])->middleware('throttle:conductor-write');
-    Route::post('/change-password/confirm', [CommuterController::class, 'confirmPasswordChange'])->middleware('throttle:conductor-write');
+    Route::post('/change-password/request-code', [PasswordChangeController::class, 'requestCode'])->middleware('throttle:account-security');
+    Route::post('/change-password/confirm', [PasswordChangeController::class, 'confirm'])->middleware('throttle:account-security');
     Route::get('/trips', [CommuterController::class, 'trips'])->middleware('throttle:conductor-read');
     Route::get('/rewards', [CommuterController::class, 'rewards'])->middleware('throttle:conductor-read');
     Route::post('/location', [CommuterController::class, 'updateLocation'])->middleware('throttle:commuter-hail');
@@ -278,7 +283,12 @@ Route::prefix('vehicles')->middleware(['auth:sanctum', 'maintenance'])->group(fu
 |--------------------------------------------------------------------------
 */
 Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(function () {
+    Route::post('/admins', [AdminAccountController::class, 'store'])->middleware('throttle:conductor-write');
     Route::get('/dashboard', [AdminController::class, 'dashboard']);
+    // The signed-in admin's own password: same two-step emailed-code flow
+    // as commuters (Settings > Profile & Security).
+    Route::post('/account/change-password/request-code', [PasswordChangeController::class, 'requestCode'])->middleware('throttle:account-security');
+    Route::post('/account/change-password/confirm', [PasswordChangeController::class, 'confirm'])->middleware('throttle:account-security');
     Route::get('/analytics', [AdminController::class, 'analytics'])->middleware('throttle:conductor-read');
     Route::get('/monitoring', [AdminController::class, 'monitoring'])->middleware('throttle:admin-monitoring');
     Route::get('/monitoring/overspeed', [AdminController::class, 'overspeed'])->middleware('throttle:admin-monitoring');
@@ -402,10 +412,11 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::get('/feedback', [AdminFeedbackController::class, 'index'])->middleware('throttle:conductor-read');
 
     // ── Activity Logs (audit trail) ─────────────────────────────
-    // Read-only admin audit trail — every admin-mutating action across the
-    // panel writes one row via ActivityLogService::record(). See the 13
+    // Read-only audit trail — admin actions, commuter account changes and
+    // system events, each written via ActivityLogService::record(). See the
     // categories in App\Enums\ActivityLogCategory.
     Route::get('/activity-logs', [AdminActivityLogController::class, 'index'])->middleware('throttle:conductor-read');
+    Route::get('/activity-logs/export', [AdminActivityLogController::class, 'export'])->middleware('throttle:conductor-read');
 });
 
 /*

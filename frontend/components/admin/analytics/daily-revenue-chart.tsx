@@ -49,7 +49,7 @@ export function DailyRevenueChart({ data, averageWindow = 7 }: Props) {
 
   if (data.length === 0) {
     return (
-      <div className="py-16 text-center text-slate-600 text-sm">
+      <div className="py-16 text-center text-slate-600 admin-light:text-slate-500 text-sm">
         No transaction data in this date range.
       </div>
     );
@@ -102,7 +102,7 @@ export function DailyRevenueChart({ data, averageWindow = 7 }: Props) {
               x2={PAD.left + plotW}
               y1={yFor(t)}
               y2={yFor(t)}
-              stroke="#1E2D45"
+              className="stroke-[#1E2D45] admin-light:stroke-[#E2E8F0]"
               strokeWidth={1}
             />
             <text
@@ -179,7 +179,7 @@ export function DailyRevenueChart({ data, averageWindow = 7 }: Props) {
           x2={PAD.left + plotW}
           y1={PAD.top + plotH}
           y2={PAD.top + plotH}
-          stroke="#1E2D45"
+          className="stroke-[#1E2D45] admin-light:stroke-[#E2E8F0]"
         />
         {data.map((d, i) =>
           i % labelStride === 0 ? (
@@ -200,30 +200,30 @@ export function DailyRevenueChart({ data, averageWindow = 7 }: Props) {
       {/* Readout. Replaces title-attribute tooltips — always visible, no
           hover delay, and it reserves its own space so the chart doesn't
           shift when values appear. */}
-      <div className="mt-2 h-9 flex items-center justify-between rounded-md bg-[#0E1628] border border-[#1E2D45] px-3 text-xs">
+      <div className="mt-2 h-9 flex items-center justify-between rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] px-3 text-xs">
         {active ? (
           <>
-            <span className="text-slate-300 font-medium">{formatShortDate(active.date)}</span>
+            <span className="text-slate-300 admin-light:text-slate-700 font-medium">{formatShortDate(active.date)}</span>
             <div className="flex items-center gap-4 font-mono">
-              <span className="text-emerald-400">{formatPeso(active.cash)}</span>
-              <span className="text-blue-400">{formatPeso(active.gcash)}</span>
-              <span className="text-white font-bold">{formatPeso(active.total)}</span>
+              <span className="text-emerald-400 admin-light:text-emerald-700">{formatPeso(active.cash)}</span>
+              <span className="text-blue-400 admin-light:text-blue-700">{formatPeso(active.gcash)}</span>
+              <span className="text-white admin-light:text-slate-900 font-bold">{formatPeso(active.total)}</span>
               <span className="text-slate-500">{active.count} fares</span>
             </div>
           </>
         ) : (
-          <span className="text-slate-600">Hover a day for its breakdown</span>
+          <span className="text-slate-600 admin-light:text-slate-500">Hover a day for its breakdown</span>
         )}
       </div>
 
       {/* Keyboard/screen-reader accessible equivalent of the same data. */}
       <details className="mt-2">
-        <summary className="text-[11px] text-slate-500 cursor-pointer hover:text-slate-300">
+        <summary className="text-[11px] text-slate-500 cursor-pointer hover:text-slate-300 admin-light:text-slate-700 admin-light:hover:text-slate-700">
           View as table
         </summary>
         <div className="mt-2 max-h-48 overflow-y-auto">
           <table className="w-full text-[11px]">
-            <thead className="sticky top-0 bg-[#131C2E]">
+            <thead className="sticky top-0 bg-[#131C2E] admin-light:bg-white">
               <tr className="text-slate-500 text-left">
                 <th className="py-1 font-medium">Date</th>
                 <th className="py-1 font-medium text-right">Cash</th>
@@ -232,13 +232,13 @@ export function DailyRevenueChart({ data, averageWindow = 7 }: Props) {
                 <th className="py-1 font-medium text-right">Fares</th>
               </tr>
             </thead>
-            <tbody className="text-slate-400 font-mono">
+            <tbody className="text-slate-400 admin-light:text-slate-500 font-mono">
               {data.map(d => (
-                <tr key={d.date} className="border-t border-[#1E2D45]">
+                <tr key={d.date} className="border-t border-[#1E2D45] admin-light:border-[#E2E8F0]">
                   <td className="py-1 font-sans">{formatShortDate(d.date)}</td>
                   <td className="py-1 text-right">{formatPeso(d.cash)}</td>
                   <td className="py-1 text-right">{formatPeso(d.gcash)}</td>
-                  <td className="py-1 text-right text-slate-300">{formatPeso(d.total)}</td>
+                  <td className="py-1 text-right text-slate-300 admin-light:text-slate-700">{formatPeso(d.total)}</td>
                   <td className="py-1 text-right">{d.count}</td>
                 </tr>
               ))}

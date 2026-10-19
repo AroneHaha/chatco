@@ -64,13 +64,29 @@ class AdminRouteController extends Controller
     public function update(UpdateRouteRequest $request, string $id): JsonResponse
     {
         $route = Route::findOrFail($id);
+        // Waypoints are logged as a count; the coordinates themselves live in
+        // the route's version history.
+        $snapshot = fn (Route $route) => [
+            'name' => $route->name,
+            'status' => $route->status,
+            'waypoints' => is_array($route->waypoints) ? count($route->waypoints).' points' : null,
+        ];
+        $before = $snapshot($route);
         $route->update($request->safe()->only(['name', 'status', 'waypoints']));
 
-        $this->activityLogService->record(
-            ActivityLogCategory::ROUTE,
-            "Updated route {$route->name}",
-            $request->user(),
-        );
+        $changes = ActivityLogService::diff($before, $snapshot($route), [
+            'name' => 'Name',
+            'status' => 'Status',
+            'waypoints' => 'Waypoints',
+        ]);
+        if ($changes !== []) {
+            $this->activityLogService->record(
+                ActivityLogCategory::ROUTE,
+                "Updated route {$route->name}: ".ActivityLogService::changedFields($changes),
+                $request->user(),
+                $changes,
+            );
+        }
 
         return $this->successResponse($this->adminPayload($route->fresh()), 'Route updated successfully');
     }

@@ -6,7 +6,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { RemittanceTable } from '@/components/admin/remittance/remittance-table';
 import { RemittanceSummary } from '@/components/admin/remittance/remittance-summary';
 import { SearchBar } from '@/components/admin/ui/search-bar';
-import { CalendarDays, ChevronUp } from 'lucide-react';
+import { ChevronUp } from 'lucide-react';
+import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
 import type { RemittanceStatus } from '@/app/(admin)/remittance/data/remittance-data';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
@@ -144,7 +145,7 @@ export default function RemittancePage() {
           the title as soon as the filters scrolled past — long before the
           remittance table, which is exactly where the title matters most. */}
       <StickyPageHeader className="flex flex-wrap items-center justify-between gap-3 mb-4 shrink-0">
-        <h1 className="text-2xl font-bold text-white">Remittance Tracker</h1>
+        <h1 className="text-2xl font-bold text-white admin-light:text-slate-900">Remittance Tracker</h1>
       </StickyPageHeader>
 
       <div className="flex shrink-0 flex-col gap-4 mb-4">
@@ -197,18 +198,18 @@ export default function RemittancePage() {
                   className="w-full md:w-64"
                 />
 
-                <div className="relative w-full md:w-48">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <CalendarDays className="h-4 w-4 text-slate-400" />
-                  </div>
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => handlePickDate(e.target.value)}
-                    aria-label="Filter remittances by date"
-                    className="block w-full pl-10 pr-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] focus:border-[#62A0EA] scheme-dark"
-                  />
-                </div>
+                {/* popover: the filters wrapper above is overflow-hidden for
+                    the mobile collapse animation, which clipped an inline
+                    calendar; the top layer escapes it. */}
+                <AdminDatePicker
+                  accent="blue"
+                  popover
+                  ariaLabel="Filter remittances by date"
+                  value={selectedDate}
+                  onChange={handlePickDate}
+                  triggerClassName="w-full py-2"
+                  className="w-full md:w-48"
+                />
               </div>
 
               <div className="grid grid-cols-2 lg:flex lg:flex-row gap-3 w-full lg:w-auto lg:ml-auto">
@@ -218,7 +219,7 @@ export default function RemittancePage() {
                   value={rangePreset}
                   onChange={(e) => handlePickRange(e.target.value as RangePreset)}
                   aria-label="Filter by date range"
-                  className="w-full lg:w-36 rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white scheme-dark"
+                  className="w-full lg:w-36 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 py-2 text-sm text-white admin-light:text-slate-900 scheme-dark admin-light:scheme-light"
                 >
                   {RANGE_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                 </select>
@@ -226,7 +227,7 @@ export default function RemittancePage() {
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as RemittanceStatus | 'All')}
                   aria-label="Filter by status"
-                  className="w-full lg:w-44 rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white scheme-dark"
+                  className="w-full lg:w-44 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 py-2 text-sm text-white admin-light:text-slate-900 scheme-dark admin-light:scheme-light"
                 >
                   {quickFilters.map((filter) => <option key={filter} value={filter}>{filter}</option>)}
                 </select>
@@ -234,7 +235,7 @@ export default function RemittancePage() {
                   value={conductorFilter}
                   onChange={(e) => setConductorFilter(e.target.value)}
                   aria-label="Filter by conductor"
-                  className="w-full lg:w-36 rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white scheme-dark"
+                  className="w-full lg:w-36 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 py-2 text-sm text-white admin-light:text-slate-900 scheme-dark admin-light:scheme-light"
                 >
                   <option value="">All conductors</option>
                   {conductorOptions.map((name) => <option key={name} value={name}>{name}</option>)}
@@ -243,7 +244,7 @@ export default function RemittancePage() {
                   value={driverFilter}
                   onChange={(e) => setDriverFilter(e.target.value)}
                   aria-label="Filter by driver"
-                  className="w-full lg:w-36 rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white scheme-dark"
+                  className="w-full lg:w-36 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 py-2 text-sm text-white admin-light:text-slate-900 scheme-dark admin-light:scheme-light"
                 >
                   <option value="">All drivers</option>
                   {driverOptions.map((name) => <option key={name} value={name}>{name}</option>)}
@@ -258,7 +259,7 @@ export default function RemittancePage() {
           onClick={() => setIsMobileFiltersExpanded((prev) => !prev)}
           aria-expanded={isMobileFiltersExpanded}
           aria-label={isMobileFiltersExpanded ? 'Collapse filters' : 'Expand filters'}
-          className="-mt-1 flex w-full shrink-0 items-center justify-center border-t border-white/5 py-1.5 text-slate-500 transition-colors hover:bg-white/5 hover:text-slate-300 active:bg-white/10 md:hidden"
+          className="-mt-1 flex w-full shrink-0 items-center justify-center border-t border-white/5 admin-light:border-[#E2E8F0] py-1.5 text-slate-500 transition-colors hover:bg-white/5 admin-light:hover:bg-[#F8FAFC] hover:text-slate-300 admin-light:hover:text-slate-700 active:bg-white/10 admin-light:active:bg-slate-100 md:hidden"
         >
           <ChevronUp className={`h-4 w-4 transition-transform duration-300 ${isMobileFiltersExpanded ? 'rotate-180' : ''}`} />
         </button>
@@ -266,7 +267,7 @@ export default function RemittancePage() {
 
       {/* Table card — fills whatever vertical space is left, on every screen
           size, instead of a fixed height that either clips or leaves a gap. */}
-      <div className="flex flex-1 min-h-0 flex-col bg-[#0B1220] border border-[#1E2D45] rounded-xl p-3 sm:p-4">
+      <div className="flex flex-1 min-h-0 flex-col bg-[#0B1220] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-xl p-3 sm:p-4">
         <RemittanceTable
           searchQuery={debouncedSearchQuery}
           selectedDate={selectedDate}

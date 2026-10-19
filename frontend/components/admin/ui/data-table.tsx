@@ -68,7 +68,7 @@ export function DataTable<T extends object>({
 
   return (
     <div
-      className={`flex w-full flex-col overflow-hidden rounded-lg border border-[#23344F] bg-[#0E1628] ${
+      className={`flex w-full flex-col overflow-hidden rounded-lg border border-[#23344F] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white ${
         allowHorizontalScroll ? (mobileCards ? 'overflow-x-hidden md:overflow-x-auto' : 'overflow-x-auto') : 'overflow-x-hidden'
       } scrollbar-themed`}
       style={{ height: tableHeight }}
@@ -85,17 +85,17 @@ export function DataTable<T extends object>({
                 <article
                   key={String((item as Record<string, unknown>).id ?? idx)}
                   onDoubleClick={() => onRowDoubleClick?.(item)}
-                  className="min-w-0 rounded-lg border border-[#1E2D45] bg-[#111A2B] p-3 break-words [&_.whitespace-nowrap]:whitespace-normal"
+                  className="min-w-0 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#111A2B] admin-light:bg-[#F8FAFC] p-3 break-words [&_.whitespace-nowrap]:whitespace-normal"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">{cardHeading && renderValue(cardHeading, item)}</div>
                     {cardActions && <div className="shrink-0 [&_button]:min-h-11 [&_button]:min-w-11">{renderValue(cardActions, item)}</div>}
                   </div>
-                  <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-[#1E2D45] pt-3">
+                  <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] pt-3">
                     {cardDetails.map((column) => (
                       <div key={column.key} className={`min-w-0 ${column.key === 'rejectionReason' ? 'col-span-2' : ''}`}>
                         <dt className="mb-1 text-[10px] font-medium uppercase tracking-wide text-slate-500">{column.label}</dt>
-                        <dd className="min-w-0 text-sm text-slate-300">{renderValue(column, item)}</dd>
+                        <dd className="min-w-0 text-sm text-slate-300 admin-light:text-slate-700">{renderValue(column, item)}</dd>
                       </div>
                     ))}
                   </dl>
@@ -106,17 +106,17 @@ export function DataTable<T extends object>({
           <div className={`${mobileCards ? 'hidden md:block' : ''} min-h-0 flex-1 overflow-y-auto scrollbar-themed`}>
           <table className={`${allowHorizontalScroll ? 'min-w-full' : 'w-full'} ${tableClassName}`}>
             <thead className={stickyHeader ? 'sticky top-0 z-10' : ''}>
-              <tr className="border-b border-[#1E2D45]">
+              <tr className="border-b border-[#1E2D45] admin-light:border-[#E2E8F0]">
                 {columns.map((col) => (
                   <th
                     key={col.key}
                     scope="col"
-                    className={`px-4 ${isCompact ? 'py-2' : 'py-3'} text-xs font-medium text-slate-400 uppercase tracking-wider ${
+                    className={`px-4 ${isCompact ? 'py-2' : 'py-3'} text-xs font-medium text-slate-400 admin-light:text-slate-500 uppercase tracking-wider ${
                       col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'
                     } ${
                       // The <tr> border doesn't travel with sticky cells, so the
                       // divider is redrawn as an inset shadow on each header cell.
-                      stickyHeader ? 'bg-[#111A2B] shadow-[inset_0_-1px_0_#23344F]' : 'bg-[#111A2B]'
+                      stickyHeader ? 'bg-[#111A2B] admin-light:bg-[#F8FAFC] shadow-[inset_0_-1px_0_#23344F]' : 'bg-[#111A2B] admin-light:bg-[#F8FAFC]'
                     } ${col.headerClassName ?? ''}`}
                   >
                     {col.label}
@@ -124,11 +124,11 @@ export function DataTable<T extends object>({
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#1A2540]">
+            <tbody className="divide-y divide-[#1A2540] admin-light:divide-[#E2E8F0]">
               {filteredData.map((item, idx) => (
                 <tr
                   key={idx}
-                  className={`${isCompact ? 'h-9' : 'h-12'} hover:bg-[#172238] transition-colors ${onRowDoubleClick ? 'cursor-pointer' : ''}`}
+                  className={`${isCompact ? 'h-9' : 'h-12'} hover:bg-[#172238] admin-light:hover:bg-[#F1F5F9] transition-colors ${onRowDoubleClick ? 'cursor-pointer' : ''}`}
                   onDoubleClick={() => onRowDoubleClick?.(item)}
                 >
                   {columns.map((col) => {
@@ -136,7 +136,7 @@ export function DataTable<T extends object>({
                     return (
                       <td
                         key={col.key}
-                        className={`min-w-0 px-4 ${isCompact ? 'py-1.5' : 'py-3'} text-sm text-slate-300 ${
+                        className={`min-w-0 px-4 ${isCompact ? 'py-1.5' : 'py-3'} text-sm text-slate-300 admin-light:text-slate-700 ${
                           col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'
                         } ${col.cellClassName ?? ''}`}
                       >

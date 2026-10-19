@@ -10,7 +10,7 @@ export interface Personnel {
   /** YYYY-MM-DD, or null when not recorded. */
   birthday: string | null;
   profilePic: string;
-  status: 'ACTIVE' | 'DEACTIVATED';
+  status: 'ACTIVE' | 'DEACTIVATED' | 'TERMINATED' | 'RESIGNED';
 }
 
 export interface Vehicle {
@@ -96,6 +96,7 @@ export interface FleetCounts {
 export type FleetTab = 'vehicles' | 'personnel' | 'history';
 export type FleetHistoryTab = 'terminated' | 'shifts';
 export type PersonnelRoleFilter = 'all' | 'driver' | 'conductor';
+export type PersonnelStatusFilter = 'all' | 'ACTIVE' | 'TERMINATED' | 'RESIGNED';
 export type FleetShiftHistoryRange = 'today' | 'last_7_days' | 'this_month' | 'all_time';
 
 export interface VehiclesQueryState {
@@ -103,6 +104,7 @@ export interface VehiclesQueryState {
   historyTab: FleetHistoryTab;
   searchQuery: string;
   personnelRole: PersonnelRoleFilter;
+  personnelStatus: PersonnelStatusFilter;
   shiftHistoryRange: FleetShiftHistoryRange;
   vehiclePage: number;
   personnelPage: number;
@@ -242,7 +244,7 @@ function mapPersonnel(apiPersonnel: Record<string, unknown>[]): Personnel[] {
       profilePic: p.profile_picture_url
         ? String(p.profile_picture_url)
         : `https://placehold.co/150x150/0A1E33/${role === 'Driver' ? '62A0EA' : 'F59E0B'}?text=${name[0] ?? role[0]}`,
-      status: p.status === 'DEACTIVATED' ? 'DEACTIVATED' : 'ACTIVE',
+      status: p.status === 'TERMINATED' || p.status === 'RESIGNED' || p.status === 'DEACTIVATED' ? p.status : 'ACTIVE',
     };
   });
 }
@@ -295,9 +297,10 @@ async function fetchVehiclesData(
     shiftHistoryLog: PageMeta;
   };
 }> {
-  const personnelExtra = query.personnelRole === 'all'
-    ? undefined
-    : { role: query.personnelRole };
+  const personnelExtra = {
+    status: query.personnelStatus,
+    ...(query.personnelRole === 'all' ? {} : { role: query.personnelRole }),
+  };
   const shiftExtra = {
     entry_view: 'personnel',
     ...(query.shiftHistoryRange === 'all_time' ? {} : { shift_range: query.shiftHistoryRange }),

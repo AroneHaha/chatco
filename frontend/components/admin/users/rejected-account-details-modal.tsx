@@ -44,32 +44,32 @@ export function RejectedAccountDetailsModal({ isOpen, onClose, request }: Reject
   if (!request) return null;
 
   const initials = `${request.firstName?.[0] ?? ''}${request.surname?.[0] ?? ''}`.toUpperCase() || '—';
-  const sectionClasses = 'rounded-xl border border-white/10 bg-white/[0.035] p-4';
+  const sectionClasses = 'rounded-xl border border-white/10 admin-light:border-[#E2E8F0] bg-white/[0.035] admin-light:bg-[#F8FAFC] p-4';
   const fieldLabelClasses = 'text-[10px] font-semibold uppercase tracking-wider text-slate-500';
-  const fieldValueClasses = 'mt-1 truncate text-sm font-medium text-white';
+  const fieldValueClasses = 'mt-1 truncate text-sm font-medium text-white admin-light:text-slate-900';
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-2xl">
+    <Modal adminThemed isOpen={isOpen} onClose={onClose} maxWidth="max-w-2xl">
       <div className="pr-8">
-        <h2 className="text-xl font-bold text-white sm:text-2xl">Rejected Account Details</h2>
+        <h2 className="text-xl font-bold text-white admin-light:text-slate-900 sm:text-2xl">Rejected Account Details</h2>
         <p className="mt-1 text-sm text-slate-500">A closed registration record — read-only.</p>
       </div>
 
       <div className="mt-5 space-y-4">
         {/* Applicant identity strip — mirrors ReviewRequestModal's. */}
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.035] p-4">
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 admin-light:border-[#E2E8F0] bg-white/[0.035] admin-light:bg-[#F8FAFC] p-4">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#62A0EA]/15 text-sm font-bold text-[#8CB9F0]">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#62A0EA]/15 admin-light:bg-[#1A5FB4]/15 text-sm font-bold text-[#8CB9F0] admin-light:text-[#1A5FB4]">
               {initials}
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-white" title={request.name}>{request.name}</p>
+              <p className="truncate text-sm font-semibold text-white admin-light:text-slate-900" title={request.name}>{request.name}</p>
               <p className="truncate text-xs text-slate-500" title={request.email}>{request.email}</p>
             </div>
           </div>
           <div className="shrink-0 text-right">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Commuter Type</p>
-            <p className="text-sm font-semibold text-[#8CB9F0]">{request.commuterType}</p>
+            <p className="text-sm font-semibold text-[#8CB9F0] admin-light:text-[#1A5FB4]">{request.commuterType}</p>
           </div>
         </div>
 
@@ -78,8 +78,8 @@ export function RejectedAccountDetailsModal({ isOpen, onClose, request }: Reject
         {request.rejectionCount > 0 && (
           <div className="space-y-3 rounded-xl border border-amber-400/30 bg-amber-400/10 p-4">
             <div className="flex items-start space-x-2">
-              <AlertTriangle size={16} className="text-amber-400 mt-0.5 shrink-0" />
-              <p className="text-sm text-amber-300">
+              <AlertTriangle size={16} className="text-amber-400 admin-light:text-amber-700 mt-0.5 shrink-0" />
+              <p className="text-sm text-amber-300 admin-light:text-amber-700">
                 This applicant has been rejected{' '}
                 <span className="font-semibold">
                   {request.rejectionCount} {request.rejectionCount === 1 ? 'time' : 'times'}
@@ -91,8 +91,8 @@ export function RejectedAccountDetailsModal({ isOpen, onClose, request }: Reject
             {request.rejectionHistory.length > 0 && (
               <div className="max-h-32 space-y-2 overflow-y-auto border-t border-amber-400/20 pt-2">
                 {request.rejectionHistory.map((entry) => (
-                  <div key={`${entry.attemptNumber}-${entry.rejectedAt}`} className="text-xs text-slate-300">
-                    <span className="font-semibold text-amber-300">Attempt {entry.attemptNumber}</span>
+                  <div key={`${entry.attemptNumber}-${entry.rejectedAt}`} className="text-xs text-slate-300 admin-light:text-slate-700">
+                    <span className="font-semibold text-amber-300 admin-light:text-amber-700">Attempt {entry.attemptNumber}</span>
                     {' - '}{entry.reason}
                     <span className="ml-2 text-slate-500">{new Date(entry.rejectedAt).toLocaleDateString()}</span>
                   </div>
@@ -108,15 +108,15 @@ export function RejectedAccountDetailsModal({ isOpen, onClose, request }: Reject
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-[13rem_1fr]">
           <section className={sectionClasses}>
             <div className="mb-3 flex items-center gap-2">
-              <IdCard className="h-4 w-4 text-[#62A0EA]" />
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">ID Document</h3>
+              <IdCard className="h-4 w-4 text-[#62A0EA] admin-light:text-[#1A5FB4]" />
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 admin-light:text-slate-500">ID Document</h3>
             </div>
             {/* Click to view full size, since the thumbnail is too small to
                 actually verify text/photo details against. */}
             <button
               type="button"
               onClick={() => setIsImageExpanded(true)}
-              className="group relative block w-full cursor-zoom-in overflow-hidden rounded-lg border border-white/10"
+              className="group relative block w-full cursor-zoom-in overflow-hidden rounded-lg border border-white/10 admin-light:border-[#E2E8F0]"
               aria-label="View full-size ID image"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -130,8 +130,8 @@ export function RejectedAccountDetailsModal({ isOpen, onClose, request }: Reject
 
           <section className={sectionClasses}>
             <div className="mb-3 flex items-center gap-2">
-              <User className="h-4 w-4 text-[#62A0EA]" />
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">Applicant Details</h3>
+              <User className="h-4 w-4 text-[#62A0EA] admin-light:text-[#1A5FB4]" />
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 admin-light:text-slate-500">Applicant Details</h3>
             </div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-3">
               <div className="min-w-0">
@@ -179,11 +179,11 @@ export function RejectedAccountDetailsModal({ isOpen, onClose, request }: Reject
             bordered-panel language as the sections above) since this is the
             one thing that makes this record different from a pending one. */}
         <div className="rounded-xl border border-red-400/30 bg-red-400/10 p-4 space-y-3">
-          <div className="flex items-start space-x-2 text-red-300">
+          <div className="flex items-start space-x-2 text-red-300 admin-light:text-red-700">
             <XCircle size={16} className="mt-0.5 shrink-0" />
             <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-red-400">Rejection Reason</p>
-              <p className="text-sm text-white mt-1 wrap-break-word">{request.rejectionReason}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-red-400 admin-light:text-red-600">Rejection Reason</p>
+              <p className="text-sm text-white admin-light:text-slate-900 mt-1 wrap-break-word">{request.rejectionReason}</p>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-x-4 gap-y-3 pt-2 border-t border-red-400/20">
@@ -208,7 +208,7 @@ export function RejectedAccountDetailsModal({ isOpen, onClose, request }: Reject
         <div className="flex justify-end pt-2">
           <button
             onClick={onClose}
-            className="px-5 py-2.5 rounded-xl border border-[#1E2D45] text-slate-300 hover:bg-[#131C2E] transition-colors font-medium"
+            className="px-5 py-2.5 rounded-xl border border-[#1E2D45] admin-light:border-[#E2E8F0] text-slate-300 admin-light:text-slate-700 hover:bg-[#131C2E] admin-light:hover:bg-[#F1F5F9] transition-colors font-medium"
           >
             Close
           </button>

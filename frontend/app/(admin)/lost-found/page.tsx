@@ -282,7 +282,7 @@ export default function LostFoundPage() {
     { key: 'PENDING_CLAIMS', label: 'Claim Review', description: 'New and pending only', icon: ClipboardList, accent: 'amber' },
     { key: 'TO_RELEASE', label: 'To Be Released', description: 'Approved for handover', icon: CheckCircle2 },
     { key: 'HISTORY', label: 'History', description: 'Closed records only', icon: History },
-    { key: 'EXPIRED', label: 'Expired', description: 'Archived records', icon: Archive, accent: 'red' },
+    { key: 'EXPIRED', label: 'Archived', description: 'Expired, unclaimed items', icon: Archive, accent: 'red' },
   ];
 
   const handleOpenAddModal = () => setIsAddModalOpen(true);
@@ -524,7 +524,7 @@ export default function LostFoundPage() {
   };
 
   const activeTabMeta = tabs.find((tab) => tab.key === activeTab) ?? tabs[0];
-  const filterControlClasses = 'h-11 w-full min-w-0 appearance-none rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 pr-9 text-base text-white focus:outline-none focus:border-[#62A0EA]/50 focus:ring-1 focus:ring-[#62A0EA]/30 scheme-dark md:w-48 md:text-sm';
+  const filterControlClasses = 'h-11 w-full min-w-0 appearance-none rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 pr-9 text-base text-white admin-light:text-slate-900 focus:outline-none focus:border-[#62A0EA]/50 admin-light:focus:border-[#1A5FB4]/50 focus:ring-1 focus:ring-[#62A0EA]/30 admin-light:focus:ring-[#1A5FB4]/30 scheme-dark admin-light:scheme-light md:w-48 md:text-sm';
 
   return (
     <div className="flex h-full min-h-[32rem] min-w-0 flex-col md:min-h-0">
@@ -532,10 +532,10 @@ export default function LostFoundPage() {
           shared underline tabs with the primary action on their line, then
           one filter row. */}
       <StickyPageHeader className="mb-4 shrink-0">
-        <h1 className="text-xl font-bold text-white md:text-2xl">Lost & Found Management</h1>
+        <h1 className="text-xl font-bold text-white admin-light:text-slate-900 md:text-2xl">Lost & Found Management</h1>
       </StickyPageHeader>
 
-      <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[#1E2D45]">
+      <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[#1E2D45] admin-light:border-[#E2E8F0]">
         <div className="min-w-0 basis-full md:flex-1 md:basis-auto">
           <PageTabs
             className="border-b-0! [&>button]:min-h-11 [&>button]:flex-none"
@@ -547,7 +547,7 @@ export default function LostFoundPage() {
         <button
           type="button"
           onClick={handleOpenAddModal}
-          className="ml-auto inline-flex h-11 w-full -translate-y-1 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] px-4 sm:w-44 text-sm font-bold text-white shadow-lg shadow-[#62A0EA]/25 transition-colors hover:bg-[#4A8BD4] active:scale-[0.98]"
+          className="ml-auto inline-flex h-11 w-full -translate-y-1 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] admin-light:bg-[#1A5FB4] px-4 sm:w-44 text-sm font-bold text-white shadow-lg shadow-[#62A0EA]/25 admin-light:shadow-[#1A5FB4]/25 transition-colors hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] active:scale-[0.98]"
         >
           <Plus size={16} aria-hidden="true" />
           Add Item
@@ -567,7 +567,7 @@ export default function LostFoundPage() {
             onClick={() => setIsMobileFiltersExpanded((prev) => !prev)}
             aria-expanded={isMobileFiltersExpanded}
             aria-controls="lost-found-filters"
-            className={`inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors md:hidden ${isMobileFiltersExpanded ? 'border-[#62A0EA]/40 bg-[#62A0EA]/10 text-[#62A0EA]' : 'border-[#1E2D45] bg-[#0E1628] text-slate-300'}`}
+            className={`inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors md:hidden ${isMobileFiltersExpanded ? 'border-[#62A0EA]/40 admin-light:border-[#1A5FB4]/40 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4]' : 'border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white text-slate-300 admin-light:text-slate-700'}`}
           >
             <SlidersHorizontal size={16} aria-hidden="true" />
             Filters
@@ -593,7 +593,7 @@ export default function LostFoundPage() {
               aria-label="Filter lost items by category"
             >
               {itemCategoriesWithAll.map(cat => (
-                <option key={cat.value} value={cat.value} className="bg-[#0E1628]">
+                <option key={cat.value} value={cat.value} className="bg-[#0E1628] admin-light:bg-white">
                   {cat.label}
                 </option>
               ))}
@@ -606,7 +606,7 @@ export default function LostFoundPage() {
       {/* What the tab holds and where the list stands, kept from the old tab
           tiles and header line. */}
       <p className="mb-3 shrink-0 text-xs text-slate-500">
-        <span className="text-slate-300">{activeTabMeta.description}</span>
+        <span className="text-slate-300 admin-light:text-slate-700">{activeTabMeta.description}</span>
         <span aria-hidden="true"> · </span>
         {pageMeta.total} records
         <span aria-hidden="true"> · </span>
@@ -615,9 +615,9 @@ export default function LostFoundPage() {
 
       {actionNotice && (
         <div role="status" className="mb-4 flex shrink-0 items-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3">
-          <CheckCircle2 size={16} className="shrink-0 text-emerald-400" aria-hidden="true" />
-          <p className="text-sm text-emerald-400">{actionNotice}</p>
-          <button type="button" onClick={() => setActionNotice(null)} className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-emerald-400/70 hover:text-emerald-300">
+          <CheckCircle2 size={16} className="shrink-0 text-emerald-400 admin-light:text-emerald-700" aria-hidden="true" />
+          <p className="text-sm text-emerald-400 admin-light:text-emerald-700">{actionNotice}</p>
+          <button type="button" onClick={() => setActionNotice(null)} className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-emerald-400/70 admin-light:text-emerald-700 hover:text-emerald-300 admin-light:hover:text-emerald-800">
             <XCircle size={14} aria-hidden="true" />
             Dismiss
           </button>
@@ -632,7 +632,7 @@ export default function LostFoundPage() {
         const allOnPage = selectedOnPage === displayItems.length;
         const offPage = selectedIds.size - selectedOnPage;
         return (
-          <div className="mb-3 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-[#1E2D45] bg-[#131C2E] px-3 py-2.5">
+          <div className="mb-3 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white px-3 py-2.5">
             <SelectCheckbox
               checked={allOnPage}
               indeterminate={selectedOnPage > 0}
@@ -649,16 +649,16 @@ export default function LostFoundPage() {
               })}
             />
             <p className="text-xs text-slate-500" aria-live="polite">
-              <span className="font-semibold tabular-nums text-slate-200">{selectedIds.size}</span> selected{offPage > 0 && <> ({offPage} on other pages)</>}
+              <span className="font-semibold tabular-nums text-slate-200 admin-light:text-slate-800">{selectedIds.size}</span> selected{offPage > 0 && <> ({offPage} on other pages)</>}
             </p>
-            <button type="button" onClick={() => setSelectedIds(new Set())} disabled={isBulkReactivating} className="text-xs font-medium text-slate-400 underline-offset-2 hover:text-white hover:underline disabled:opacity-50">
+            <button type="button" onClick={() => setSelectedIds(new Set())} disabled={isBulkReactivating} className="text-xs font-medium text-slate-400 admin-light:text-slate-500 underline-offset-2 hover:text-white admin-light:hover:text-slate-900 hover:underline disabled:opacity-50">
               Clear selection
             </button>
             <button
               type="button"
               onClick={() => void handleBulkReactivate()}
               disabled={isBulkReactivating}
-              className="ml-auto inline-flex h-9 items-center justify-center gap-2 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/15 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100"
+              className="ml-auto inline-flex h-9 items-center justify-center gap-2 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-300 admin-light:text-emerald-700 transition-colors hover:bg-emerald-500/15 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100"
             >
               {isBulkReactivating
                 ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
@@ -671,9 +671,9 @@ export default function LostFoundPage() {
 
       {actionError && (
         <div role="alert" className="mb-4 flex shrink-0 items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 p-3">
-          <AlertCircle size={16} className="shrink-0 text-red-400" aria-hidden="true" />
-          <p className="text-sm text-red-400">{actionError}</p>
-          <button type="button" onClick={() => setActionError(null)} className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-red-400/70 hover:text-red-300">
+          <AlertCircle size={16} className="shrink-0 text-red-400 admin-light:text-red-600" aria-hidden="true" />
+          <p className="text-sm text-red-400 admin-light:text-red-600">{actionError}</p>
+          <button type="button" onClick={() => setActionError(null)} className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-red-400/70 admin-light:text-red-600 hover:text-red-300 admin-light:hover:text-red-700">
             <XCircle size={14} aria-hidden="true" />
             Dismiss
           </button>
@@ -685,33 +685,33 @@ export default function LostFoundPage() {
           {isLoading ? (
             <div className="grid grid-cols-2 gap-4 xl:grid-cols-3 2xl:grid-cols-4" aria-busy="true" aria-label="Loading lost items">
               {Array.from({ length: 8 }).map((_, index) => (
-                <div key={index} className="overflow-hidden rounded-lg border border-[#1E2D45] bg-[#131C2E]">
-                  <div className="aspect-4/3 w-full animate-pulse bg-[#0E1628] motion-reduce:animate-none" />
+                <div key={index} className="overflow-hidden rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white">
+                  <div className="aspect-4/3 w-full animate-pulse bg-[#0E1628] admin-light:bg-[#F1F5F9] motion-reduce:animate-none" />
                   <div className="space-y-2.5 p-3 sm:p-4">
-                    <div className="h-2.5 w-1/3 animate-pulse rounded bg-[#1A2540] motion-reduce:animate-none" />
-                    <div className="h-4 w-3/4 animate-pulse rounded bg-[#1A2540] motion-reduce:animate-none" />
-                    <div className="h-3 w-full animate-pulse rounded bg-[#1A2540]/70 motion-reduce:animate-none" />
-                    <div className="grid grid-cols-2 gap-3 border-t border-[#1E2D45] pt-3">
-                      <div className="h-6 animate-pulse rounded bg-[#1A2540]/70 motion-reduce:animate-none" />
-                      <div className="h-6 animate-pulse rounded bg-[#1A2540]/70 motion-reduce:animate-none" />
+                    <div className="h-2.5 w-1/3 animate-pulse rounded bg-[#1A2540] admin-light:bg-[#EEF2F7] motion-reduce:animate-none" />
+                    <div className="h-4 w-3/4 animate-pulse rounded bg-[#1A2540] admin-light:bg-[#EEF2F7] motion-reduce:animate-none" />
+                    <div className="h-3 w-full animate-pulse rounded bg-[#1A2540]/70 admin-light:bg-[#EEF2F7] motion-reduce:animate-none" />
+                    <div className="grid grid-cols-2 gap-3 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] pt-3">
+                      <div className="h-6 animate-pulse rounded bg-[#1A2540]/70 admin-light:bg-[#EEF2F7] motion-reduce:animate-none" />
+                      <div className="h-6 animate-pulse rounded bg-[#1A2540]/70 admin-light:bg-[#EEF2F7] motion-reduce:animate-none" />
                     </div>
                   </div>
-                  <div className="h-10 border-t border-[#1E2D45]" />
+                  <div className="h-10 border-t border-[#1E2D45] admin-light:border-[#E2E8F0]" />
                 </div>
               ))}
             </div>
           ) : listError ? (
             <div className="flex h-full min-h-72 flex-col items-center justify-center gap-3 rounded-xl border border-red-400/20 bg-red-400/5 p-8">
-              <AlertCircle size={36} className="text-red-400" aria-hidden="true" />
-              <p className="text-center text-sm font-medium text-red-400">{listError}</p>
-              <button type="button" onClick={() => void refresh()} className="flex items-center gap-2 rounded-md bg-[#62A0EA] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#4A8BD4]">
+              <AlertCircle size={36} className="text-red-400 admin-light:text-red-600" aria-hidden="true" />
+              <p className="text-center text-sm font-medium text-red-400 admin-light:text-red-600">{listError}</p>
+              <button type="button" onClick={() => void refresh()} className="flex items-center gap-2 rounded-md bg-[#62A0EA] admin-light:bg-[#1A5FB4] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F]">
                 <RefreshCw size={16} aria-hidden="true" /> Try again
               </button>
             </div>
           ) : displayItems.length === 0 ? (
-            <div className="flex h-full min-h-72 flex-col items-center justify-center rounded-xl border border-dashed border-[#1E2D45] px-4 text-center">
-              <PackageSearch size={36} className="mb-3 text-slate-600" aria-hidden="true" />
-              <h3 className="mb-1 font-semibold text-slate-300">No items found</h3>
+            <div className="flex h-full min-h-72 flex-col items-center justify-center rounded-xl border border-dashed border-[#1E2D45] admin-light:border-[#E2E8F0] px-4 text-center">
+              <PackageSearch size={36} className="mb-3 text-slate-600 admin-light:text-slate-400" aria-hidden="true" />
+              <h3 className="mb-1 font-semibold text-slate-300 admin-light:text-slate-700">No items found</h3>
               <p className="text-sm text-slate-500">Try adjusting your search or filters.</p>
             </div>
           ) : (

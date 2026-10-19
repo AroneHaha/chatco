@@ -8,12 +8,14 @@ import { RegistrationRequestsTable } from '@/components/admin/users/registration
 import { RejectedAccountsTable } from '@/components/admin/users/rejected-accounts-table';
 import { RejectedAccountDetailsModal } from '@/components/admin/users/rejected-account-details-modal';
 import { ReviewRequestModal } from '@/components/admin/users/review-request-modal';
-import { AddRegistrationModal } from '@/components/admin/users/add-registration-modal';
+import { AddRegistrationModal, type OnsiteStudentDetails } from '@/components/admin/users/add-registration-modal';
+import { RegisterAdminModal } from '@/components/admin/users/register-admin-modal';
 import { EditUserModal } from '@/components/admin/users/edit-user-modal';
 import { DeleteUserModal } from '@/components/admin/users/delete-user-modal';
 import { FeedbackModal, type FeedbackModalStaff } from '@/components/admin/users/feedback-modal';
 import { SearchBar } from '@/components/admin/ui/search-bar';
-import { Plus, UserCheck, Users, XCircle, AlertCircle, RefreshCw, CheckCircle, ChevronUp, SlidersHorizontal } from 'lucide-react';
+import { Plus, UserCheck, Users, XCircle, AlertCircle, RefreshCw, CheckCircle, ChevronUp, ChevronDown, SlidersHorizontal, UserPlus, ShieldUser } from 'lucide-react';
+import { RowActionsMenu } from '@/components/admin/ui/row-actions-menu';
 import { useUsersData } from './data/users-data';
 import type { ActiveUser, PendingRequest, RejectedUser, RejectedRequest } from './data/users-data';
 import type { UpdateUserInput } from '@/lib/admin/services/user.service';
@@ -27,6 +29,9 @@ import { ConfirmPasswordModal } from '@/components/admin/ui/confirm-password-mod
 import { PageTabs } from '@/components/admin/ui/page-tabs';
 import { DiscountApplicationsPanel } from '@/components/admin/users/discount-applications-panel';
 import { useAdminNotifications } from '@/contexts/admin-notifications-context';
+
+/** How long a success banner stays before clearing itself. */
+const SUCCESS_MESSAGE_MS = 3000;
 
 export default function UsersPage() {
   const router = useRouter();
@@ -63,6 +68,15 @@ export default function UsersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  // Every success banner (suspend, reactivate, disable, onsite registration)
+  // clears itself after a few seconds. Keyed on the message, so a newer one
+  // restarts the timer instead of being cut short by an older timer.
+  // Errors stay until dismissed.
+  useEffect(() => {
+    if (!successMessage) return;
+    const timer = setTimeout(() => setSuccessMessage(null), SUCCESS_MESSAGE_MS);
+    return () => clearTimeout(timer);
+  }, [successMessage]);
   const [isReviewProcessing, setIsReviewProcessing] = useState(false);
   const [suspensionUser, setSuspensionUser] = useState<ActiveUser | null>(null);
   const [isSuspensionProcessing, setIsSuspensionProcessing] = useState(false);
@@ -75,6 +89,7 @@ export default function UsersPage() {
 
   // Modal States
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+  const [isAdminRegisterModalOpen, setIsAdminRegisterModalOpen] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -282,6 +297,7 @@ export default function UsersPage() {
     commuterType: string;
     idImageFile: File | null;
     idImagePreview: string | null;
+    studentDetails: OnsiteStudentDetails | null;
   }): Promise<void> => {
     if (!data.idImageFile) {
       throw new Error('Please upload a valid ID image.');
@@ -310,6 +326,14 @@ export default function UsersPage() {
     formData.append('username', data.username);
     formData.append('applied_type', appliedType);
     formData.append('id_image', data.idImageFile);
+    // Same school fields student renewal sends.
+    if (data.studentDetails) {
+      formData.append('school_name', data.studentDetails.schoolName);
+      formData.append('education_level', data.studentDetails.educationLevel);
+      if (data.studentDetails.educationLevel === 'HIGH_SCHOOL') formData.append('grade_level', data.studentDetails.gradeLevel);
+      formData.append('school_year', data.studentDetails.schoolYear);
+      if (data.studentDetails.enrollmentTerm) formData.append('enrollment_term', data.studentDetails.enrollmentTerm);
+    }
 
     const res = await fetch('/api/admin/registrations', {
       method: 'POST',
@@ -331,11 +355,18 @@ export default function UsersPage() {
       throw new Error(body?.message ?? `Failed to create registration (HTTP ${res.status}).`);
     }
 
-    // Success — close the modal, refetch the pending list, show a banner.
+    // Success — close the modal, refetch the open tab, show a banner.
     handleCloseRegisterModal();
     refetch();
-    setSuccessMessage(body?.message ?? 'Onsite registration created — awaiting verification.');
-    setTimeout(() => setSuccessMessage(null), 5000);
+    if (body?.data?.email_sent === false) {
+      // The account exists, but the commuter never received the default
+      // password. A code-verified reset also clears the first-time change.
+      setActionError(
+        `The account for ${data.email} was created, but the email with the default password could not be sent. Ask the commuter to use Forgot password on the sign-in screen.`
+      );
+      return;
+    }
+    setSuccessMessage(body?.message ?? 'Onsite registration created. The commuter must set a new password at first sign-in.');
   };
 
   const handleApproveRequest = async () => {
@@ -406,7 +437,7 @@ export default function UsersPage() {
     activeTab === 'pending' ? pendingPagination !== null :
     rejectedPagination !== null;
 
-  const selectFilterClasses = 'h-11 min-w-0 w-full rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 text-base text-white focus:outline-none focus:ring-1 focus:ring-[#62A0EA]/30 scheme-dark md:w-auto md:text-sm';
+  const selectFilterClasses = 'h-11 min-w-0 w-full rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 text-base text-white admin-light:text-slate-900 focus:outline-none focus:ring-1 focus:ring-[#62A0EA]/30 admin-light:focus:ring-[#1A5FB4]/30 scheme-dark admin-light:scheme-light md:w-auto md:text-sm';
 
   // Search stays visible while tab-specific filters collapse on phones.
   const filterBar = (
@@ -419,7 +450,7 @@ export default function UsersPage() {
             onClick={() => setIsMobileFiltersExpanded((prev) => !prev)}
             aria-expanded={isMobileFiltersExpanded}
             aria-controls="user-management-filters"
-            className={`inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors md:hidden ${isMobileFiltersExpanded ? 'border-[#62A0EA]/40 bg-[#62A0EA]/10 text-[#62A0EA]' : 'border-[#1E2D45] bg-[#0E1628] text-slate-300'}`}
+            className={`inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors md:hidden ${isMobileFiltersExpanded ? 'border-[#62A0EA]/40 admin-light:border-[#1A5FB4]/40 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4]' : 'border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white text-slate-300 admin-light:text-slate-700'}`}
           >
             <SlidersHorizontal size={16} aria-hidden="true" />
             Filters
@@ -439,11 +470,11 @@ export default function UsersPage() {
               aria-label="Filter users by role"
               className={selectFilterClasses}
             >
-              <option value="" className="bg-gray-800">All Roles</option>
-              <option value="COMMUTER" className="bg-gray-800">Commuters</option>
-              <option value="CONDUCTOR" className="bg-gray-800">Conductors</option>
-              <option value="DRIVER" className="bg-gray-800">Drivers</option>
-              <option value="ADMIN" className="bg-gray-800">Admins</option>
+              <option value="" className="bg-gray-800 admin-light:bg-white">All Roles</option>
+              <option value="COMMUTER" className="bg-gray-800 admin-light:bg-white">Commuters</option>
+              <option value="CONDUCTOR" className="bg-gray-800 admin-light:bg-white">Conductors</option>
+              <option value="DRIVER" className="bg-gray-800 admin-light:bg-white">Drivers</option>
+              <option value="ADMIN" className="bg-gray-800 admin-light:bg-white">Admins</option>
             </select>
           )}
           {activeTab === 'active' && (
@@ -454,9 +485,9 @@ export default function UsersPage() {
                 aria-label="Filter by account status"
                 className={selectFilterClasses}
               >
-                <option value="" className="bg-gray-800">All Statuses</option>
-                <option value="ACTIVE" className="bg-gray-800">Active</option>
-                <option value="SUSPENDED" className="bg-gray-800">
+                <option value="" className="bg-gray-800 admin-light:bg-white">All Statuses</option>
+                <option value="ACTIVE" className="bg-gray-800 admin-light:bg-white">Active</option>
+                <option value="SUSPENDED" className="bg-gray-800 admin-light:bg-white">
                   {filters.role === 'CONDUCTOR' ? 'Disabled' : filters.role === '' ? 'Suspended / Disabled' : 'Suspended'}
                 </option>
               </select>
@@ -466,9 +497,9 @@ export default function UsersPage() {
                 aria-label="Sort users"
                 className={`${selectFilterClasses} col-span-2`}
               >
-                <option value="recent" className="bg-gray-800">Recent</option>
-                <option value="alphabetical" className="bg-gray-800">Alphabetical</option>
-                <option value="oldest" className="bg-gray-800">Oldest</option>
+                <option value="recent" className="bg-gray-800 admin-light:bg-white">Recent</option>
+                <option value="alphabetical" className="bg-gray-800 admin-light:bg-white">Alphabetical</option>
+                <option value="oldest" className="bg-gray-800 admin-light:bg-white">Oldest</option>
               </select>
             </>
           )}
@@ -494,11 +525,11 @@ export default function UsersPage() {
   return (
     <div className="flex h-full min-h-[32rem] min-w-0 flex-col md:min-h-0">
       <StickyPageHeader className="mb-4 shrink-0">
-        <h1 className="text-xl font-bold text-white md:text-2xl">User Management</h1>
+        <h1 className="text-xl font-bold text-white admin-light:text-slate-900 md:text-2xl">User Management</h1>
       </StickyPageHeader>
 
       {/* 3 Tabs — shared with Fleet Management */}
-      <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[#1E2D45]">
+      <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[#1E2D45] admin-light:border-[#E2E8F0]">
         <div className="min-w-0 basis-full md:flex-1 md:basis-auto">
           <PageTabs
             className="border-b-0! [&>button]:min-h-11 [&>button]:flex-none"
@@ -512,20 +543,34 @@ export default function UsersPage() {
             ]}
           />
         </div>
-        <button
-          onClick={handleOpenRegisterModal}
-          className="ml-auto inline-flex h-11 -translate-y-1 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] px-4 text-sm font-bold text-white shadow-lg shadow-[#62A0EA]/25 transition-colors hover:bg-[#4A8BD4]"
-        >
-          <Plus size={16} />
-          <span>Register Onsite</span>
-        </button>
+        {/* One "Register" menu for the account registration flows available here. */}
+        <div className="ml-auto shrink-0 -translate-y-1">
+          <RowActionsMenu
+            label="Register an account"
+            menuWidth={248}
+            trigger={{
+              content: (
+                <>
+                  <Plus size={16} aria-hidden="true" />
+                  <span>Register</span>
+                  <ChevronDown size={16} aria-hidden="true" />
+                </>
+              ),
+              className: (isOpen) => `inline-flex h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold text-white shadow-lg shadow-[#62A0EA]/25 admin-light:shadow-[#1A5FB4]/25 transition-colors hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] [&>svg:last-child]:transition-transform ${isOpen ? 'bg-[#4A8BD4] admin-light:bg-[#164A8F] [&>svg:last-child]:rotate-180' : 'bg-[#62A0EA] admin-light:bg-[#1A5FB4]'}`,
+            }}
+            actions={[
+              { label: 'Register onsite', hint: 'Commuter at the counter, with valid ID', icon: UserPlus, onSelect: handleOpenRegisterModal },
+              { label: 'Register admin account', hint: 'Create a new admin account', icon: ShieldUser, onSelect: () => setIsAdminRegisterModalOpen(true) },
+            ]}
+          />
+        </div>
       </div>
 
       {/* Action error banner */}
       {actionError && (
         <div className="mb-4 shrink-0 bg-red-500/10 border border-red-500/30 rounded-md p-3 flex items-center justify-between">
-          <p className="text-sm text-red-400">{actionError}</p>
-          <button onClick={() => setActionError(null)} className="text-red-400 hover:text-red-300">
+          <p className="text-sm text-red-400 admin-light:text-red-600">{actionError}</p>
+          <button onClick={() => setActionError(null)} className="text-red-400 admin-light:text-red-600 hover:text-red-300 admin-light:hover:text-red-700">
             <XCircle size={16} />
           </button>
         </div>
@@ -535,10 +580,10 @@ export default function UsersPage() {
       {successMessage && (
         <div className="mb-4 shrink-0 bg-emerald-500/10 border border-emerald-500/30 rounded-md p-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <CheckCircle size={16} className="text-emerald-400 flex-shrink-0" />
-            <p className="text-sm text-emerald-400">{successMessage}</p>
+            <CheckCircle size={16} className="text-emerald-400 admin-light:text-emerald-700 flex-shrink-0" />
+            <p className="text-sm text-emerald-400 admin-light:text-emerald-700">{successMessage}</p>
           </div>
-          <button onClick={() => setSuccessMessage(null)} className="text-emerald-400 hover:text-emerald-300">
+          <button onClick={() => setSuccessMessage(null)} className="text-emerald-400 admin-light:text-emerald-700 hover:text-emerald-300 admin-light:hover:text-emerald-800">
             <XCircle size={16} />
           </button>
         </div>
@@ -556,10 +601,10 @@ export default function UsersPage() {
           </div>
         ) : error ? (
           <div className="flex h-full min-h-72 flex-col items-center justify-center gap-3 rounded-xl border border-red-400/20 bg-red-400/5 p-8">
-            <AlertCircle size={36} className="text-red-400" />
-            <p className="text-center font-medium text-slate-200">Unable to load this table.</p>
+            <AlertCircle size={36} className="text-red-400 admin-light:text-red-600" />
+            <p className="text-center font-medium text-slate-200 admin-light:text-slate-800">Unable to load this table.</p>
             <p className="max-w-xl text-center text-sm text-slate-500">{error}</p>
-            <button onClick={refetch} className="flex items-center gap-2 rounded-md bg-[#62A0EA] px-4 py-2 text-sm font-medium text-white">
+            <button onClick={refetch} className="flex items-center gap-2 rounded-md bg-[#62A0EA] admin-light:bg-[#1A5FB4] px-4 py-2 text-sm font-medium text-white">
               <RefreshCw size={16} /> Retry
             </button>
           </div>
@@ -609,6 +654,7 @@ export default function UsersPage() {
 
       {/* Modals */}
       <AddRegistrationModal isOpen={isRegisterModalOpen} onClose={handleCloseRegisterModal} onSave={handleSaveRegistration} />
+      <RegisterAdminModal isOpen={isAdminRegisterModalOpen} onClose={() => setIsAdminRegisterModalOpen(false)} onCreated={() => refetch()} />
 
       <ReviewRequestModal
         key={selectedRequest?.id ?? 'closed-review'}

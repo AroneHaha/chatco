@@ -53,11 +53,14 @@ Exchanges credentials for a Sanctum Bearer token. The same endpoint serves all t
     "email": "juan@gmail.com",
     "role": "COMMUTER",
     "name": "Juan Dela Cruz",
-    "token": "12|Xf3…"
+    "token": "12|Xf3…",
+    "must_change_password": false
   },
   "message": "Login successful"
 }
 ```
+
+`must_change_password: true` means the account is still on its default password. The token works only for [POST /auth/set-new-password](#post-authset-new-password) and logout.
 
 **Errors**
 
@@ -108,6 +111,18 @@ Revokes **only** the token that made the request. Other platform sessions surviv
 - **Body:** none
 
 **200 OK:** `data: null`, `message: "Logged out successfully"`
+
+## POST /auth/set-new-password
+
+First-time password setup for an account created onsite with a system-generated default password (`users.must_change_password`). Login returns `must_change_password: true` for these accounts. While the flag is set, every authenticated route answers `403` with `code: "PASSWORD_CHANGE_REQUIRED"` except this endpoint and `POST /auth/logout`. Fail-closed: `EnsurePasswordChanged` is applied to the whole API group, so a new authenticated route is blocked unless it is added to its allowlist.
+
+- **Auth:** any signed-in role (the token from the default-password login)
+- **Limiter:** auth
+- **Body:** `password` (required, `StrongPassword`), `password_confirmation` (must match). No current password, since the default password is not known to the commuter. The new password must differ from the default.
+
+**200 OK:** `data: null`, `message: "Your password has been updated and your account is now active. Please sign in again."` The flag is cleared and **every** token for the account is revoked, including the one that made the request. The commuter signs in again with the new password.
+
+**422:** policy failure, mismatched confirmation, the default password reused, or the account already activated.
 
 ## GET /user
 

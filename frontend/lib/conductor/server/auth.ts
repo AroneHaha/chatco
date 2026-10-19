@@ -15,6 +15,18 @@ export interface ConductorSession {
  */
 const API_URL = process.env.API_URL || "http://localhost:8000";
 
+/**
+ * The token is valid, but the account still has to replace its system-generated
+ * default password. Middleware sends it to the Set New Password page rather than
+ * treating it as signed out.
+ */
+export class PasswordChangeRequiredError extends Error {
+  constructor() {
+    super("Password change required.");
+    this.name = "PasswordChangeRequiredError";
+  }
+}
+
 /** Verify pages against Sanctum, never the editable role cookie.
  * Service failures throw so callers can deny access without ending a session.
  */
@@ -29,7 +41,12 @@ export async function getAuthenticatedSession(
     cache: "no-store",
     signal: AbortSignal.timeout(5000),
   });
-  if (res.status === 401 || res.status === 403) return null;
+  if (res.status === 403) {
+    const body = await res.json().catch(() => null);
+    if (body?.code === "PASSWORD_CHANGE_REQUIRED") throw new PasswordChangeRequiredError();
+    return null;
+  }
+  if (res.status === 401) return null;
   if (!res.ok) throw new Error("Unable to verify session.");
 
   const body = await res.json();

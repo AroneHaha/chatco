@@ -212,42 +212,42 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
   const endedCount = logs.filter(l => l.status === 'ENDED').length;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
+    <Modal adminThemed isOpen={isOpen} onClose={onClose}>
       <div className="mb-4">
         <div className="flex items-center gap-2 mb-1">
-          <Clock size={20} className="text-[#62A0EA]" />
-          <h2 className="text-lg sm:text-xl font-bold text-white">Shift History</h2>
+          <Clock size={20} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />
+          <h2 className="text-lg sm:text-xl font-bold text-white admin-light:text-slate-900">Shift History</h2>
         </div>
-        <p className="text-xs text-slate-400">
-          Unit <span className="font-semibold text-slate-300">{vehicle.plateNumber}</span>
+        <p className="text-xs text-slate-400 admin-light:text-slate-500">
+          Unit <span className="font-semibold text-slate-300 admin-light:text-slate-700">{vehicle.plateNumber}</span>
         </p>
       </div>
 
       {/* Summary badges */}
       <div className="grid grid-cols-3 gap-2 mb-4">
-        <div className="bg-[#0E1628] border border-[#1E2D45] rounded-md p-2.5 text-center">
-          <p className="text-lg font-bold text-white">{pageMeta.total}</p>
+        <div className="bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md p-2.5 text-center">
+          <p className="text-lg font-bold text-white admin-light:text-slate-900">{pageMeta.total}</p>
           <p className="text-[10px] uppercase tracking-wider text-slate-500">Total Shifts</p>
         </div>
-        <div className="bg-[#0E1628] border border-[#1E2D45] rounded-md p-2.5 text-center">
-          <p className="text-lg font-bold text-emerald-400">{activeCount}</p>
+        <div className="bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md p-2.5 text-center">
+          <p className="text-lg font-bold text-emerald-400 admin-light:text-emerald-700">{activeCount}</p>
           <p className="text-[10px] uppercase tracking-wider text-slate-500">Active</p>
         </div>
-        <div className="bg-[#0E1628] border border-[#1E2D45] rounded-md p-2.5 text-center">
-          <p className="text-lg font-bold text-slate-400">{endedCount}</p>
+        <div className="bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md p-2.5 text-center">
+          <p className="text-lg font-bold text-slate-400 admin-light:text-slate-500">{endedCount}</p>
           <p className="text-[10px] uppercase tracking-wider text-slate-500">Ended</p>
         </div>
       </div>
 
       {error && (
         <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-md mb-3">
-          <p className="text-sm text-red-400">{error}</p>
+          <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
         </div>
       )}
 
       {recoveryMessage && (
         <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-md mb-3">
-          <p className="text-sm text-emerald-300">{recoveryMessage}</p>
+          <p className="text-sm text-emerald-300 admin-light:text-emerald-700">{recoveryMessage}</p>
         </div>
       )}
 
@@ -256,20 +256,20 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
         {isLoading ? (
           <div className="space-y-2">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="h-20 bg-[#0E1628] border border-[#1E2D45] rounded-md animate-pulse" />
+              <div key={i} className="h-20 bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md animate-pulse" />
             ))}
           </div>
         ) : logs.length === 0 ? (
           <div className="text-center py-10">
-            <Calendar size={32} className="text-slate-600 mx-auto mb-2" />
-            <p className="text-slate-400 text-sm">No shift history for this vehicle yet.</p>
+            <Calendar size={32} className="text-slate-600 admin-light:text-slate-400 mx-auto mb-2" />
+            <p className="text-slate-400 admin-light:text-slate-500 text-sm">No shift history for this vehicle yet.</p>
             <p className="text-slate-500 text-xs mt-1">Shifts will appear here once a conductor starts one on this unit.</p>
           </div>
         ) : (
           logs.map((log) => {
             const isActive = log.status === 'ACTIVE';
             return (
-              <div key={log.shift_id} className="bg-[#0E1628] border border-[#1E2D45] rounded-md p-3">
+              <div key={log.shift_id} className="bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md p-3">
                 <div className="flex items-start justify-between gap-3 mb-2">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
@@ -280,16 +280,16 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
                         {log.shift_id.slice(0, 8)}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1.5 text-xs text-slate-300">
+                    <div className="flex items-center gap-1.5 text-xs text-slate-300 admin-light:text-slate-700">
                       <User size={12} className="text-slate-500" />
                       <span>Conductor: <span className="font-medium">{log.conductor_name ?? '—'}</span></span>
                     </div>
-                    <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-0.5">
+                    <div className="flex items-center gap-1.5 text-xs text-slate-400 admin-light:text-slate-500 mt-0.5">
                       <User size={12} className="text-slate-500" />
                       <span>Driver: <span className="font-medium">{log.driver_name ?? '—'}</span></span>
                     </div>
                     {log.route?.name && (
-                      <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-0.5">
+                      <div className="flex items-center gap-1.5 text-xs text-slate-400 admin-light:text-slate-500 mt-0.5">
                         <MapPin size={12} className="text-slate-500" />
                         <span>{log.route.name}</span>
                       </div>
@@ -297,25 +297,25 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
                   </div>
                   <div className="text-right flex-shrink-0">
                     <p className="text-[10px] uppercase tracking-wider text-slate-500">Time In</p>
-                    <p className="text-xs text-slate-300 font-medium">{formatDateTime(log.time_in)}</p>
+                    <p className="text-xs text-slate-300 admin-light:text-slate-700 font-medium">{formatDateTime(log.time_in)}</p>
                     {!isActive && (
                       <>
                         <p className="text-[10px] uppercase tracking-wider text-slate-500 mt-1.5">Time Out</p>
-                        <p className="text-xs text-slate-300 font-medium">{formatDateTime(log.time_out)}</p>
+                        <p className="text-xs text-slate-300 admin-light:text-slate-700 font-medium">{formatDateTime(log.time_out)}</p>
                         <p className="text-[10px] text-slate-500 mt-1">Duration: {formatDuration(log.time_in, log.time_out)}</p>
                       </>
                     )}
                   </div>
                 </div>
                 {isActive && (
-                  <div className="mt-2 border-t border-[#1E2D45] pt-2">
+                  <div className="mt-2 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] pt-2">
                     <div className="flex items-start gap-2">
-                      <MonitorSmartphone size={14} className="mt-0.5 shrink-0 text-sky-400" />
+                      <MonitorSmartphone size={14} className="mt-0.5 shrink-0 text-sky-400 admin-light:text-sky-700" />
                       <div className="min-w-0 flex-1">
                         <p className="text-[10px] uppercase tracking-wider text-slate-500">Operating device</p>
                         {log.operating_device_id ? (
                           <>
-                            <p className="text-xs font-semibold text-slate-200">
+                            <p className="text-xs font-semibold text-slate-200 admin-light:text-slate-700">
                               {log.operating_device_type ?? 'Unknown'} · ID ending {log.operating_device_id.slice(-8)}
                             </p>
                             <p className="text-[10px] text-slate-500">
@@ -323,10 +323,10 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
                             </p>
                           </>
                         ) : (
-                          <p className="text-xs font-semibold text-amber-300">Awaiting a conductor device claim</p>
+                          <p className="text-xs font-semibold text-amber-300 admin-light:text-amber-700">Awaiting a conductor device claim</p>
                         )}
                         {log.latest_device_recovery && (
-                          <div className="mt-1 text-[10px] text-amber-300/80">
+                          <div className="mt-1 text-[10px] text-amber-300/80 admin-light:text-amber-700">
                             <p>Last Admin recovery: {formatDateTime(log.latest_device_recovery.created_at)}</p>
                             <p className="line-clamp-2">Reason: {log.latest_device_recovery.reason}</p>
                           </div>
@@ -347,7 +347,7 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
                           setError(null);
                           setRecoveryMessage(null);
                         }}
-                        className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-amber-200 transition-colors hover:bg-amber-500/20"
+                        className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-amber-200 admin-light:text-amber-800 transition-colors hover:bg-amber-500/20"
                       >
                         <ShieldAlert size={12} /> Recover lost device
                       </button>
@@ -355,8 +355,8 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
 
                     {recoveryTarget === log.shift_id && (
                       <div className="mt-3 rounded-md border border-amber-500/25 bg-amber-500/5 p-3">
-                        <p className="text-xs font-semibold text-amber-200">Emergency recovery only</p>
-                        <p className="mt-1 text-[11px] leading-4 text-slate-400">
+                        <p className="text-xs font-semibold text-amber-200 admin-light:text-amber-800">Emergency recovery only</p>
+                        <p className="mt-1 text-[11px] leading-4 text-slate-400 admin-light:text-slate-500">
                           The server cannot see cash still stored only on a lost device. This action does not change transactions or remittance.
                         </p>
                         <textarea
@@ -365,9 +365,9 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
                           maxLength={500}
                           rows={3}
                           placeholder="Explain why the device cannot perform a safe release (minimum 10 characters)."
-                          className="mt-2 w-full resize-none rounded-md border border-[#2B3A50] bg-[#07111F] px-3 py-2 text-xs text-white outline-none focus:border-amber-400"
+                          className="mt-2 w-full resize-none rounded-md border border-[#2B3A50] admin-light:border-[#E2E8F0] bg-[#07111F] admin-light:bg-white px-3 py-2 text-xs text-white admin-light:text-slate-900 outline-none focus:border-amber-400"
                         />
-                        <label className="mt-2 flex cursor-pointer items-start gap-2 text-[11px] leading-4 text-slate-300">
+                        <label className="mt-2 flex cursor-pointer items-start gap-2 text-[11px] leading-4 text-slate-300 admin-light:text-slate-700">
                           <input
                             type="checkbox"
                             checked={riskAcknowledged}
@@ -381,7 +381,7 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
                             type="button"
                             disabled={isRecovering}
                             onClick={cancelRecovery}
-                            className="rounded-md border border-white/10 px-3 py-1.5 text-[11px] text-slate-300 disabled:opacity-50"
+                            className="rounded-md border border-white/10 admin-light:border-[#E2E8F0] px-3 py-1.5 text-[11px] text-slate-300 admin-light:text-slate-700 disabled:opacity-50"
                           >
                             Cancel
                           </button>
@@ -399,9 +399,9 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
                   </div>
                 )}
                 {log.notes && (
-                  <div className="mt-2 pt-2 border-t border-[#1E2D45]">
+                  <div className="mt-2 pt-2 border-t border-[#1E2D45] admin-light:border-[#E2E8F0]">
                     <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Notes</p>
-                    <p className="text-xs text-slate-400">{log.notes}</p>
+                    <p className="text-xs text-slate-400 admin-light:text-slate-500">{log.notes}</p>
                   </div>
                 )}
               </div>
@@ -424,11 +424,11 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
         </div>
       )}
 
-      <div className="flex justify-end pt-4 mt-3 border-t border-[#1E2D45]">
+      <div className="flex justify-end pt-4 mt-3 border-t border-[#1E2D45] admin-light:border-[#E2E8F0]">
         <button
           type="button"
           onClick={onClose}
-          className="px-5 py-2.5 border border-[#1E2D45] rounded-md text-slate-300 hover:bg-[#131C2E] transition-colors"
+          className="px-5 py-2.5 border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-slate-300 admin-light:text-slate-700 hover:bg-[#131C2E] admin-light:hover:bg-white transition-colors"
         >
           Close
         </button>

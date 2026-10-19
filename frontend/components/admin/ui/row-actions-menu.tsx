@@ -1,7 +1,7 @@
 // components/admin/ui/row-actions-menu.tsx
 'use client';
 
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type SyntheticEvent } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type SyntheticEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { MoreHorizontal, type LucideIcon } from 'lucide-react';
 
@@ -11,16 +11,26 @@ export interface RowAction {
   onSelect: () => void;
   /** 'danger' renders the item red and puts a divider above it. */
   tone?: 'default' | 'danger';
+  /** Shown but not selectable (e.g. a feature that isn't built yet). */
+  disabled?: boolean;
+  /** Small second line under the label, e.g. why the item is disabled. */
+  hint?: string;
 }
 
 interface RowActionsMenuProps {
   actions: RowAction[];
   /** Accessible name for the trigger, e.g. "Actions for ABC-123". */
   label: string;
+  /** Replaces the three-dot button, for a labelled menu button such as a
+   *  page's primary "Register" action. `className` gets the open state. */
+  trigger?: { content: ReactNode; className: (isOpen: boolean) => string };
+  /** Menu width in px; defaults to the row-menu width. */
+  menuWidth?: number;
 }
 
 const MENU_WIDTH = 176;
 const GAP = 4;
+const ENABLED_ITEM = '[role="menuitem"]:not([disabled])';
 
 /**
  * Three-dot row menu for admin tables.
@@ -35,9 +45,13 @@ const GAP = 4;
  * click/double-click inside is stopped here — otherwise choosing an item
  * would also fire the row's onDoubleClick (open details).
  */
-export function RowActionsMenu({ actions, label }: RowActionsMenuProps) {
+export function RowActionsMenu({ actions, label, trigger, menuWidth = MENU_WIDTH }: RowActionsMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  // The portal leaves the page's `data-admin-theme` scope, so `admin-light:`
+  // would never match inside it. Copy the scope the trigger sits in (not the
+  // global toggle) so pages not yet light-ready keep a dark menu.
+  const [theme, setTheme] = useState<string | undefined>(undefined);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
@@ -56,13 +70,13 @@ export function RowActionsMenu({ actions, label }: RowActionsMenuProps) {
     const fitsBelow = trigger.bottom + GAP + menuHeight <= window.innerHeight;
     setPosition({
       top: fitsBelow ? trigger.bottom + GAP : Math.max(GAP, trigger.top - GAP - menuHeight),
-      left: Math.max(GAP, Math.min(trigger.right - MENU_WIDTH, window.innerWidth - MENU_WIDTH - GAP)),
+      left: Math.max(GAP, Math.min(trigger.right - menuWidth, window.innerWidth - menuWidth - GAP)),
     });
-  }, [isOpen]);
+  }, [isOpen, menuWidth]);
 
   // Focus the first item once positioned, for keyboard users.
   useEffect(() => {
-    if (position) menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
+    if (position) menuRef.current?.querySelector<HTMLButtonElement>(ENABLED_ITEM)?.focus();
   }, [position]);
 
   useEffect(() => {
@@ -85,7 +99,7 @@ export function RowActionsMenu({ actions, label }: RowActionsMenuProps) {
   }, [isOpen, close]);
 
   const onMenuKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const items = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? []);
+    const items = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>(ENABLED_ITEM) ?? []);
     const index = items.indexOf(document.activeElement as HTMLButtonElement);
     const focusAt = (i: number) => items[(i + items.length) % items.length]?.focus();
 
@@ -104,24 +118,30 @@ export function RowActionsMenu({ actions, label }: RowActionsMenuProps) {
       <button
         ref={triggerRef}
         type="button"
-        onClick={(event) => { event.stopPropagation(); if (isOpen) close(false); else setIsOpen(true); }}
+        onClick={(event) => {
+          event.stopPropagation();
+          if (isOpen) { close(false); return; }
+          setTheme(event.currentTarget.closest('[data-admin-theme]')?.getAttribute('data-admin-theme') ?? undefined);
+          setIsOpen(true);
+        }}
         onDoubleClick={stop}
-        aria-label={label}
-        title="Actions"
+        aria-label={trigger ? undefined : label}
+        title={trigger ? undefined : 'Actions'}
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-controls={isOpen ? menuId : undefined}
-        className={`rounded-md p-1.5 transition-colors ${
-          isOpen ? 'bg-[#1A2540] text-white' : 'text-slate-400 hover:bg-[#1A2540] hover:text-white'
+        className={trigger ? trigger.className(isOpen) : `rounded-md p-1.5 transition-colors ${
+          isOpen ? 'bg-[#1A2540] admin-light:bg-[#EEF2F7] text-white admin-light:text-slate-900' : 'text-slate-400 admin-light:text-slate-500 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] hover:text-white admin-light:hover:text-slate-900'
         }`}
       >
-        <MoreHorizontal size={16} />
+        {trigger ? trigger.content : <MoreHorizontal size={16} />}
       </button>
 
       {isOpen && createPortal(
         <div
           ref={menuRef}
           id={menuId}
+          data-admin-theme={theme}
           role="menu"
           aria-label={label}
           onKeyDown={onMenuKeyDown}
@@ -129,31 +149,40 @@ export function RowActionsMenu({ actions, label }: RowActionsMenuProps) {
           onDoubleClick={stop}
           onMouseDown={stop}
           style={{
-            width: MENU_WIDTH,
+            width: menuWidth,
             top: position?.top ?? 0,
             left: position?.left ?? 0,
             // Hidden for the one frame before it has been measured and placed.
             visibility: position ? 'visible' : 'hidden',
           }}
-          className="fixed z-50 rounded-lg border border-[#1E2D45] bg-[#111A2B] p-1 shadow-[0_12px_32px_rgba(0,0,0,0.45)]"
+          className="fixed z-50 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#111A2B] admin-light:bg-[#F8FAFC] p-1 shadow-[0_12px_32px_rgba(0,0,0,0.45)] admin-light:shadow-[0_12px_32px_rgba(15,23,42,0.12)]"
         >
           {actions.map((action) => {
             const isDanger = action.tone === 'danger';
             return (
               <div key={action.label}>
-                {isDanger && <div role="separator" className="my-1 h-px bg-[#1E2D45]" />}
+                {isDanger && <div role="separator" className="my-1 h-px bg-[#1E2D45] admin-light:bg-[#E2E8F0]" />}
                 <button
                   type="button"
                   role="menuitem"
+                  disabled={action.disabled}
+                  aria-disabled={action.disabled || undefined}
                   onClick={() => { close(false); action.onSelect(); }}
                   className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors focus:outline-none ${
-                    isDanger
-                      ? 'text-red-400 hover:bg-red-400/10 focus:bg-red-400/10'
-                      : 'text-slate-200 hover:bg-[#172238] focus:bg-[#172238]'
+                    action.disabled
+                      ? 'cursor-not-allowed text-slate-500'
+                      : isDanger
+                      ? 'text-red-400 admin-light:text-red-600 hover:bg-red-400/10 admin-light:hover:bg-red-50 focus:bg-red-400/10 admin-light:focus:bg-red-50'
+                      : 'text-slate-200 admin-light:text-slate-700 hover:bg-[#172238] admin-light:hover:bg-[#F1F5F9] focus:bg-[#172238] admin-light:focus:bg-[#F1F5F9]'
                   }`}
                 >
-                  <action.icon size={15} aria-hidden="true" className={isDanger ? 'text-red-400' : 'text-slate-400'} />
-                  {action.label}
+                  <action.icon size={15} aria-hidden="true" className={`shrink-0 ${action.disabled ? 'text-slate-600 admin-light:text-slate-400' : isDanger ? 'text-red-400 admin-light:text-red-600' : 'text-slate-400 admin-light:text-slate-500'}`} />
+                  {action.hint ? (
+                    <span className="min-w-0">
+                      <span className="block">{action.label}</span>
+                      <span className="block text-[11px] text-slate-500">{action.hint}</span>
+                    </span>
+                  ) : action.label}
                 </button>
               </div>
             );

@@ -33,4 +33,13 @@
   .management .divider { display: none; }
   .management .message { padding: 20px; border: 1px solid #1e2d45; border-radius: 8px; background: #0e1628; line-height: 1.8; overflow-wrap: anywhere; }
   .management .footer { padding-top: 20px; border-top: 1px solid #2a3a55; }
+
+  /* Admin light mode — only inside regions marked data-admin-theme="light". */
+  :global([data-admin-theme='light']) .management .header,
+  :global([data-admin-theme='light']) .management .footer { border-color: #e2e8f0; }
+  :global([data-admin-theme='light']) .management .category,
+  :global([data-admin-theme='light']) .management .status { color: #334155; }
+  :global([data-admin-theme='light']) .management .category svg { color: #94a3b8; }
+  :global([data-admin-theme='light']) .management .metadata { border-color: #e2e8f0; background: #f8fafc; color: #64748b; }
+  :global([data-admin-theme='light']) .management .message { border-color: #e2e8f0; background: #f8fafc; }
 }

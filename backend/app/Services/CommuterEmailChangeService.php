@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ActivityLogCategory;
 use App\Mail\EmailChangedMail;
 use App\Models\User;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -25,7 +26,10 @@ class CommuterEmailChangeService
 
     private const LIMITS = 'commuter_email_change_limits';
 
-    public function __construct(private EmailVerificationService $verification) {}
+    public function __construct(
+        private EmailVerificationService $verification,
+        private ActivityLogService $activityLog,
+    ) {}
 
     // Serialize every operation on the account, including counters. Returning
     // expected errors (rather than throwing) commits failed-attempt budgets.
@@ -240,6 +244,14 @@ class CommuterEmailChangeService
             });
         } catch (UniqueConstraintViolationException $e) {
             return $this->error('This email is already in use. Choose another address.', 422, 'duplicate_email', 'email');
+        }
+        if ($notify) {
+            $this->activityLog->record(
+                ActivityLogCategory::MEMBER,
+                'Changed their sign-in email; signed out of other devices',
+                $actor,
+                [['field' => 'Email', 'from' => $notify[0], 'to' => $notify[1]]],
+            );
         }
         // Notification delivery cannot roll back or misreport a committed change.
         if ($notify) {

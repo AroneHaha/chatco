@@ -88,18 +88,18 @@ export default function SafetyNotificationsPage() {
     }
   };
 
-  const inputClasses = "block w-full px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors";
-  const textareaClasses = "w-full bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-xs sm:text-sm p-3 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] resize-none font-mono leading-relaxed";
-  const labelClasses = "block text-xs font-medium text-slate-300 mb-1.5";
+  const inputClasses = "block w-full px-3 py-2 bg-[#0E1628] admin-light:bg-[#F8FAFC] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-white admin-light:text-slate-900 text-sm placeholder-slate-500 admin-light:placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] admin-light:focus:ring-[#1A5FB4] transition-colors";
+  const textareaClasses = "w-full bg-[#0E1628] admin-light:bg-[#F8FAFC] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-white admin-light:text-slate-900 text-xs sm:text-sm p-3 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] admin-light:focus:ring-[#1A5FB4] resize-none font-mono leading-relaxed";
+  const labelClasses = "block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5";
   const fieldHintClasses = "text-xs text-slate-500 mb-2";
-  const templateDescClasses = "text-xs text-slate-400 mt-1 break-words";
+  const templateDescClasses = "text-xs text-slate-400 admin-light:text-slate-500 mt-1 break-words";
 
   if (isLoading) {
     return (
       <div className="min-h-screen pb-12 px-4 sm:px-6">
         <div className="mx-auto w-full max-w-4xl space-y-6">
-          <div className="h-8 w-56 rounded bg-gray-700 animate-pulse mx-auto" />
-          <div className="h-96 bg-[#131C2E] border border-[#1E2D45] rounded-lg animate-pulse" />
+          <div className="h-8 w-56 rounded bg-gray-700 admin-light:bg-slate-200 animate-pulse mx-auto" />
+          <div className="h-96 bg-[#131C2E] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-lg animate-pulse" />
         </div>
       </div>
     );
@@ -109,22 +109,22 @@ export default function SafetyNotificationsPage() {
     <div className="min-h-screen pb-12 px-4 sm:px-6">
       <div className="mx-auto w-full max-w-4xl space-y-6">
         <div className="text-center">
-          <h1 className="text-2xl sm:text-3xl font-bold text-white">Safety & Notifications</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white admin-light:text-slate-900">Safety & Notifications</h1>
         </div>
 
         {error && (
           <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-center gap-2">
-            <AlertCircle size={16} className="text-red-400 flex-shrink-0" />
-            <p className="text-sm text-red-400">{error}</p>
+            <AlertCircle size={16} className="text-red-400 admin-light:text-red-600 flex-shrink-0" />
+            <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
           </div>
         )}
 
         <form onSubmit={handleSave} className="space-y-6">
 
           {/* Emergency Contacts */}
-          <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-4 sm:p-6">
+          <div className="bg-[#131C2E] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-lg p-4 sm:p-6">
             <div className="flex items-center gap-2 mb-3">
-              <PhoneCall size={16} className="text-red-400" />
+              <PhoneCall size={16} className="text-red-400 admin-light:text-red-600" />
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Emergency Contacts</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -142,21 +142,21 @@ export default function SafetyNotificationsPage() {
           </div>
 
           {/* Push Notification Templates */}
-          <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-4 sm:p-6">
+          <div className="bg-[#131C2E] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-lg p-4 sm:p-6">
             <div className="flex items-center gap-2 mb-3">
-              <MessageSquare size={16} className="text-[#62A0EA]" />
+              <MessageSquare size={16} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Push Notification Templates</p>
             </div>
-            <p className="text-xs text-slate-400 mb-4">Braced variables are filled in with live data.</p>
+            <p className="text-xs text-slate-400 admin-light:text-slate-500 mb-4">Braced variables are filled in with live data.</p>
             <div className="space-y-4">
               {templates.map((template: NotificationTemplate) => (
-                <div key={template.id} className="p-4 bg-[#0E1628] rounded-md border border-[#1E2D45]">
-                  <h3 className="text-sm sm:text-base font-semibold text-white break-words">{template.title}</h3>
+                <div key={template.id} className="p-4 bg-[#0E1628] admin-light:bg-[#F8FAFC] rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0]">
+                  <h3 className="text-sm sm:text-base font-semibold text-white admin-light:text-slate-900 break-words">{template.title}</h3>
                   <p className={templateDescClasses}>{template.description}</p>
                   <textarea value={template.content} onChange={(e) => handleTemplateChange(template.id, e.target.value)} rows={9} className={`${textareaClasses} mt-3`} />
                   <div className="mt-3 flex flex-wrap gap-2">
                     {template.variables.map((variable: string) => (
-                      <span key={variable} className="px-2 py-0.5 bg-[#62A0EA]/20 text-[#62A0EA] text-[10px] sm:text-xs rounded-full border border-[#62A0EA]/30 font-mono">{variable}</span>
+                      <span key={variable} className="px-2 py-0.5 bg-[#62A0EA]/20 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4] text-[10px] sm:text-xs rounded-full border border-[#62A0EA]/30 admin-light:border-[#1A5FB4]/30 font-mono">{variable}</span>
                     ))}
                   </div>
                 </div>
@@ -165,9 +165,9 @@ export default function SafetyNotificationsPage() {
           </div>
 
           {/* Account Registration Emails */}
-          <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-4 sm:p-6">
+          <div className="bg-[#131C2E] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-lg p-4 sm:p-6">
             <div className="flex items-center gap-2 mb-3">
-              <Mail size={16} className="text-sky-400" />
+              <Mail size={16} className="text-sky-400 admin-light:text-sky-700" />
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Account Registration Emails</p>
             </div>
 
@@ -179,23 +179,23 @@ export default function SafetyNotificationsPage() {
 
             <div className="space-y-4">
               <div className="p-4 bg-sky-400/5 rounded-md border border-sky-400/20">
-                <h3 className="text-sm sm:text-base font-semibold text-sky-400 break-words">Successful Account Creation</h3>
+                <h3 className="text-sm sm:text-base font-semibold text-sky-400 admin-light:text-sky-700 break-words">Successful Account Creation</h3>
                 <p className={templateDescClasses}>Sent after ID approval. Only the message body &mdash; header, summary, login button, and footer are added automatically.</p>
                 <textarea value={accountApprovedTemplate} onChange={(e) => { setAccountApprovedTemplate(e.target.value); setIsSaved(false); }} rows={6} className={`${textareaClasses} mt-3`} style={{ '--tw-ring-color': 'rgb(56 189 248)' } as CSSProperties} />
                 <div className="mt-3 flex flex-wrap gap-2">
                   {approvedTemplateVariables.map((variable: string) => (
-                    <span key={variable} className="px-2 py-0.5 bg-sky-400/20 text-sky-300 text-[10px] sm:text-xs rounded-full border border-sky-400/30 font-mono">{variable}</span>
+                    <span key={variable} className="px-2 py-0.5 bg-sky-400/20 text-sky-300 admin-light:text-sky-800 text-[10px] sm:text-xs rounded-full border border-sky-400/30 font-mono">{variable}</span>
                   ))}
                 </div>
               </div>
 
               <div className="p-4 bg-red-500/5 rounded-md border border-red-500/20">
-                <h3 className="text-sm sm:text-base font-semibold text-red-400 break-words">Rejected Account Creation</h3>
-                <p className={templateDescClasses}>Sent on ID rejection. <span className="font-mono text-slate-300">{'{reason}'}</span> and <span className="font-mono text-slate-300">{'{next_steps}'}</span> show as separate blocks &mdash; add them below only for inline placement instead.</p>
+                <h3 className="text-sm sm:text-base font-semibold text-red-400 admin-light:text-red-600 break-words">Rejected Account Creation</h3>
+                <p className={templateDescClasses}>Sent on ID rejection. <span className="font-mono text-slate-300 admin-light:text-slate-700">{'{reason}'}</span> and <span className="font-mono text-slate-300 admin-light:text-slate-700">{'{next_steps}'}</span> show as separate blocks &mdash; add them below only for inline placement instead.</p>
                 <textarea value={accountRejectedTemplate} onChange={(e) => { setAccountRejectedTemplate(e.target.value); setIsSaved(false); }} rows={6} className={`${textareaClasses} mt-3`} style={{ '--tw-ring-color': 'rgb(239 68 68)' } as CSSProperties} />
                 <div className="mt-3 flex flex-wrap gap-2">
                   {rejectedTemplateVariables.map((variable: string) => (
-                    <span key={variable} className="px-2 py-0.5 bg-red-500/20 text-red-300 text-[10px] sm:text-xs rounded-full border border-red-500/30 font-mono">{variable}</span>
+                    <span key={variable} className="px-2 py-0.5 bg-red-500/20 text-red-300 admin-light:text-red-700 text-[10px] sm:text-xs rounded-full border border-red-500/30 font-mono">{variable}</span>
                   ))}
                 </div>
               </div>
@@ -203,7 +203,7 @@ export default function SafetyNotificationsPage() {
           </div>
 
           <div className="flex justify-center pt-2 pb-8">
-            <button type="submit" disabled={isSaving} className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 bg-[#62A0EA] text-white font-medium rounded-lg hover:bg-[#4A8BD4] transition-colors active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+            <button type="submit" disabled={isSaving} className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white font-medium rounded-lg hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] transition-colors active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
               <Save size={18} /><span>{isSaving ? 'Saving...' : isSaved ? 'Changes Saved!' : 'Save Settings'}</span>
             </button>
           </div>

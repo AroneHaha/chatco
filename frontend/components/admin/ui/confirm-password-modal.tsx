@@ -23,13 +23,13 @@ interface ConfirmPasswordModalProps {
 const VARIANTS = {
   default: {
     iconBg: 'bg-amber-400/20',
-    icon: 'text-amber-400',
+    icon: 'text-amber-400 admin-light:text-amber-700',
     ring: 'focus:ring-amber-400',
     button: 'bg-amber-500 hover:bg-amber-600',
   },
   danger: {
     iconBg: 'bg-red-400/20',
-    icon: 'text-red-400',
+    icon: 'text-red-400 admin-light:text-red-600',
     ring: 'focus:ring-red-400',
     button: 'bg-red-600 hover:bg-red-700',
   },
@@ -80,28 +80,28 @@ export function ConfirmPasswordModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={isSubmitting ? () => {} : onClose} maxWidth="max-w-md">
+    <Modal adminThemed isOpen={isOpen} onClose={isSubmitting ? () => {} : onClose} maxWidth="max-w-md">
       <div className="flex items-center gap-3 mb-6">
         <div className={`p-2 ${accent.iconBg} rounded-lg`}>
           <AlertTriangle className={accent.icon} size={24} />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-white">{title}</h2>
-          <p className="text-sm text-slate-400">{description}</p>
+          <h2 className="text-xl font-bold text-white admin-light:text-slate-900">{title}</h2>
+          <p className="text-sm text-slate-400 admin-light:text-slate-500">{description}</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
         {error && (
           <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-md flex items-start gap-2">
-            <AlertTriangle size={16} className="text-red-400 flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-red-400">{error}</p>
+            <AlertTriangle size={16} className="text-red-400 admin-light:text-red-600 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
           </div>
         )}
 
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1.5">
-            Enter your admin password to continue <span className="text-red-400">*</span>
+          <label className="block text-sm font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">
+            Enter your admin password to continue <span className="text-red-400 admin-light:text-red-600">*</span>
           </label>
           <div className="relative">
             <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -114,27 +114,27 @@ export function ConfirmPasswordModal({
               autoComplete="current-password"
               autoFocus
               placeholder="Password"
-              className={`block w-full pl-10 pr-10 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white placeholder-slate-500 focus:outline-none focus:ring-1 ${accent.ring} transition-colors disabled:opacity-50`}
+              className={`block w-full pl-10 pr-10 py-2.5 bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-white admin-light:text-slate-900 placeholder-slate-500 admin-light:placeholder-slate-400 focus:outline-none focus:ring-1 ${accent.ring} transition-colors disabled:opacity-50`}
             />
             <button
               type="button"
               onClick={() => setShowPassword((s) => !s)}
               tabIndex={-1}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 admin-light:hover:text-slate-700"
             >
               {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
           </div>
-          <p className="text-xs text-slate-600 mt-1">This prevents accidental changes from a stray click.</p>
+          <p className="text-xs text-slate-600 admin-light:text-slate-400 mt-1">This prevents accidental changes from a stray click.</p>
         </div>
 
-        <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-[#1E2D45]">
+        <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-[#1E2D45] admin-light:border-[#E2E8F0]">
           <button
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="w-full sm:w-auto px-6 py-2.5 border border-[#1E2D45] rounded-md text-slate-300 hover:bg-[#131C2E] transition-colors active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full sm:w-auto px-6 py-2.5 border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-slate-300 admin-light:text-slate-700 hover:bg-[#131C2E] admin-light:hover:bg-white transition-colors active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancel
           </button>

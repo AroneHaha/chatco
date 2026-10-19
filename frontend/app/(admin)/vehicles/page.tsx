@@ -14,13 +14,12 @@ import { EditPersonnelModal } from '@/components/admin/vehicles/edit-personnel-m
 import { DeletePersonnelModal } from '@/components/admin/vehicles/delete-personnel-modal';
 import { CreateConductorAccountModal } from '@/components/admin/vehicles/create-conductor-account-modal';
 import { ConductorAccountSuccessModal } from '@/components/admin/vehicles/conductor-account-success-modal';
-import { HistoryTable } from '@/components/admin/vehicles/history-table';
 import { DeleteVehicleModal } from '@/components/admin/vehicles/delete-vehicle-modal';
 import { OperationResultModal } from '@/components/admin/ui/operation-result-modal';
 import { remove as removeVehicle } from '@/lib/admin/services/vehicle.service';
-import { Users, Car, Archive, AlertCircle, RefreshCw } from 'lucide-react';
+import { Users, Car, AlertCircle, RefreshCw } from 'lucide-react';
 import { useVehiclesData } from './data/vehicles-data';
-import type { FleetHistoryTab, FleetShiftHistoryRange, PersonnelRoleFilter, Vehicle, Personnel } from './data/vehicles-data';
+import type { VehiclesQueryState, PersonnelRoleFilter, PersonnelStatusFilter, Vehicle, Personnel } from './data/vehicles-data';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
 import { PageTabs } from '@/components/admin/ui/page-tabs';
 
@@ -54,39 +53,34 @@ export default function VehiclesPage() {
   
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'vehicles' | 'personnel' | 'history'>('vehicles');
-  const [historyTab, setHistoryTab] = useState<FleetHistoryTab>('shifts');
+  const [activeTab, setActiveTab] = useState<'vehicles' | 'personnel'>('vehicles');
   const [personnelRole, setPersonnelRole] = useState<PersonnelRoleFilter>('all');
-  const [shiftHistoryRange, setShiftHistoryRange] = useState<FleetShiftHistoryRange>('today');
+  const [personnelStatus, setPersonnelStatus] = useState<PersonnelStatusFilter>('ACTIVE');
   const [vehiclePage, setVehiclePage] = useState(1);
   const [personnelPage, setPersonnelPage] = useState(1);
-  const [terminatedPage, setTerminatedPage] = useState(1);
-  const [shiftPage, setShiftPage] = useState(1);
 
-  const queryState = useMemo(() => ({
+  const queryState = useMemo<VehiclesQueryState>(() => ({
     activeTab,
-    historyTab,
+    historyTab: 'shifts',
     searchQuery,
     personnelRole,
-    shiftHistoryRange,
+    personnelStatus,
+    shiftHistoryRange: 'today',
     vehiclePage,
     personnelPage,
-    terminatedPage,
-    shiftPage,
-  }), [activeTab, historyTab, searchQuery, personnelRole, shiftHistoryRange, vehiclePage, personnelPage, terminatedPage, shiftPage]);
+    terminatedPage: 1,
+    shiftPage: 1,
+  }), [activeTab, searchQuery, personnelRole, personnelStatus, vehiclePage, personnelPage]);
 
   const { data, counts, pages, isLoading, error, refetch } = useVehiclesData(queryState);
   
   const vehicles = data.vehicles;
-  const historyRecords = counts.terminatedPersonnel + counts.shiftHistoryLog;
 
   useEffect(() => {
     const id = window.setTimeout(() => {
       setSearchQuery(searchInput);
       setVehiclePage(1);
       setPersonnelPage(1);
-      setTerminatedPage(1);
-      setShiftPage(1);
     }, 350);
 
     return () => window.clearTimeout(id);
@@ -114,36 +108,26 @@ export default function VehiclesPage() {
     setPersonnelPage(1);
   };
 
-  const handleShiftHistoryRangeChange = (range: FleetShiftHistoryRange) => {
-    setShiftHistoryRange(range);
-    setShiftPage(1);
-  };
-
-  const handleHistoryTabChange = (tab: FleetHistoryTab) => {
-    setHistoryTab(tab);
-    if (tab === 'terminated') {
-      setTerminatedPage(1);
-    } else {
-      setShiftPage(1);
-    }
+  const handlePersonnelStatusChange = (status: PersonnelStatusFilter) => {
+    setPersonnelStatus(status);
+    setPersonnelPage(1);
   };
 
   const tabs = [
     { id: 'vehicles' as const, label: 'Vehicles', count: counts.vehicles, icon: Car },
     { id: 'personnel' as const, label: 'Personnel', count: counts.personnel, icon: Users },
-    { id: 'history' as const, label: 'Records', count: historyRecords, icon: Archive, accent: 'red' as const },
   ];
 
   // ─── Error State ───
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
-        <AlertCircle size={40} className="text-red-400" />
-        <p className="text-slate-300 text-center">Failed to load fleet data.</p>
+        <AlertCircle size={40} className="text-red-400 admin-light:text-red-600" />
+        <p className="text-slate-300 admin-light:text-slate-700 text-center">Failed to load fleet data.</p>
         <p className="text-slate-500 text-sm text-center">{error}</p>
         <button
           onClick={refetch}
-          className="flex items-center gap-2 px-4 py-2 bg-[#62A0EA] text-white rounded-md hover:bg-[#4A8BD4] transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white rounded-md hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] transition-colors"
         >
           <RefreshCw size={16} />
           Retry
@@ -310,7 +294,7 @@ export default function VehiclesPage() {
     <div className="flex h-full min-h-0 flex-col">
       <StickyPageHeader className="mb-3 shrink-0">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold text-white">Fleet Management</h1>
+          <h1 className="text-2xl font-bold text-white admin-light:text-slate-900">Fleet Management</h1>
         </div>
       </StickyPageHeader>
 
@@ -332,15 +316,17 @@ export default function VehiclesPage() {
           onRowDoubleClick={handleOpenDetails}
           isLoading={isLoading}
         />
-      ) : activeTab === 'personnel' ? (
+      ) : (
         <PersonnelTable 
           personnel={data.personnel}
           searchQuery={searchInput} 
           roleFilter={personnelRole}
+          statusFilter={personnelStatus}
           page={pages.personnel}
           onPageChange={setPersonnelPage}
           onSearchChange={handleSearchChange}
           onRoleFilterChange={handlePersonnelRoleChange}
+          onStatusFilterChange={handlePersonnelStatusChange}
           onAddDriver={handleOpenPersonnelModal}
           onCreateConductor={handleOpenCreateConductor}
           onEdit={handleOpenEditPersonnel}
@@ -348,26 +334,6 @@ export default function VehiclesPage() {
           onPersonnelChanged={refetch}
           driverProfiles={data.driverProfiles}
           driverRatings={data.driverRatings}
-          isLoading={isLoading}
-        />
-      ) : (
-        <HistoryTable 
-          terminatedPersonnel={data.terminatedPersonnel} 
-          shiftHistoryLog={data.shiftHistoryLog}
-          searchQuery={searchInput}
-          historyTab={historyTab}
-          onHistoryTabChange={handleHistoryTabChange}
-          shiftHistoryRange={shiftHistoryRange}
-          onShiftHistoryRangeChange={handleShiftHistoryRangeChange}
-          terminatedPage={pages.terminatedPersonnel}
-          shiftPage={pages.shiftHistoryLog}
-          onTerminatedPageChange={setTerminatedPage}
-          onShiftPageChange={setShiftPage}
-          onSearchChange={handleSearchChange}
-          counts={{
-            terminated: counts.terminatedPersonnel,
-            shifts: counts.shiftHistoryLog,
-          }}
           isLoading={isLoading}
         />
       )}

@@ -169,14 +169,14 @@ export function EditUserModal({ isOpen, onClose, onSave, editingUser }: EditUser
     }
   };
 
-  const inputClasses = "mt-1 block w-full px-3 py-2 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors";
+  const inputClasses = "mt-1 block w-full px-3 py-2 bg-[#0E1628] admin-light:bg-[#F8FAFC] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-white admin-light:text-slate-900 text-sm placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] admin-light:focus:ring-[#1A5FB4] transition-colors";
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} maxWidth={isCommuter ? 'max-w-md lg:max-w-2xl' : 'max-w-md'}>
+    <Modal adminThemed isOpen={isOpen} onClose={onClose} maxWidth={isCommuter ? 'max-w-md lg:max-w-2xl' : 'max-w-md'}>
       <div className={isCommuter ? styles.commuter : ''}>
       <div className={styles.header}>
-      <h2 className="text-lg sm:text-xl font-bold text-white mb-5">{modalTitle}</h2>
-      {isCommuter && <p className="hidden lg:block mt-1 text-sm text-slate-400">Update the commuter&apos;s profile information</p>}
+      <h2 className="text-lg sm:text-xl font-bold text-white admin-light:text-slate-900 mb-5">{modalTitle}</h2>
+      {isCommuter && <p className="hidden lg:block mt-1 text-sm text-slate-400 admin-light:text-slate-500">Update the commuter&apos;s profile information</p>}
       </div>
       {isCommuter && editingUser && (
         <div className={`hidden lg:flex items-center gap-4 mt-6 mb-6 ${styles.profile}`}>
@@ -184,8 +184,8 @@ export function EditUserModal({ isOpen, onClose, onSave, editingUser }: EditUser
             {editingUser.name.charAt(0)}
           </div>
           <div className={styles.identity}>
-            <p className={`text-lg font-bold text-white ${styles.name}`}>{editingUser.name}</p>
-            <p className="mt-1 text-sm text-slate-400 wrap-anywhere">{editingUser.email}</p>
+            <p className={`text-lg font-bold text-white admin-light:text-slate-900 ${styles.name}`}>{editingUser.name}</p>
+            <p className="mt-1 text-sm text-slate-400 admin-light:text-slate-500 wrap-anywhere">{editingUser.email}</p>
           </div>
         </div>
       )}
@@ -194,7 +194,7 @@ export function EditUserModal({ isOpen, onClose, onSave, editingUser }: EditUser
           <>
             <div className={`grid grid-cols-2 gap-3 ${styles.nameFields}`}>
               <div>
-                <label htmlFor="edit-firstName" className="block text-xs font-medium text-slate-300 mb-1.5">First Name</label>
+                <label htmlFor="edit-firstName" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">First Name</label>
                 <input
                   type="text"
                   id="edit-firstName"
@@ -207,7 +207,7 @@ export function EditUserModal({ isOpen, onClose, onSave, editingUser }: EditUser
                 />
               </div>
               <div>
-                <label htmlFor="edit-lastName" className="block text-xs font-medium text-slate-300 mb-1.5">Last Name</label>
+                <label htmlFor="edit-lastName" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">Last Name</label>
                 <input
                   type="text"
                   id="edit-lastName"
@@ -221,7 +221,7 @@ export function EditUserModal({ isOpen, onClose, onSave, editingUser }: EditUser
               </div>
             </div>
             <div>
-              <label htmlFor="edit-middleName" className="block text-xs font-medium text-slate-300 mb-1.5">Middle Name</label>
+              <label htmlFor="edit-middleName" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">Middle Name</label>
               <input
                 type="text"
                 id="edit-middleName"
@@ -236,7 +236,7 @@ export function EditUserModal({ isOpen, onClose, onSave, editingUser }: EditUser
           </>
         ) : (
           <div>
-            <label htmlFor="edit-name" className="block text-xs font-medium text-slate-300 mb-1.5">Name</label>
+            <label htmlFor="edit-name" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">Name</label>
             <input
               type="text"
               id="edit-name"
@@ -251,7 +251,7 @@ export function EditUserModal({ isOpen, onClose, onSave, editingUser }: EditUser
         )}
 
         <div>
-          <label htmlFor="edit-email" className="block text-xs font-medium text-slate-300 mb-1.5">Email (not editable)</label>
+          <label htmlFor="edit-email" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">Email (not editable)</label>
           <input
             type="email"
             id="edit-email"
@@ -266,7 +266,7 @@ export function EditUserModal({ isOpen, onClose, onSave, editingUser }: EditUser
         {isCommuter && (
           <>
             <div>
-              <label htmlFor="edit-contactNumber" className="block text-xs font-medium text-slate-300 mb-1.5">Contact Number</label>
+              <label htmlFor="edit-contactNumber" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">Contact Number</label>
               <input
                 type="tel"
                 id="edit-contactNumber"
@@ -281,7 +281,7 @@ export function EditUserModal({ isOpen, onClose, onSave, editingUser }: EditUser
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">Date of Birth</label>
+              <label className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">Date of Birth</label>
               <AdminDatePicker
                 value={formData.dateOfBirth}
                 onChange={(value) => setFormData(prev => ({ ...prev, dateOfBirth: value }))}
@@ -295,8 +295,8 @@ export function EditUserModal({ isOpen, onClose, onSave, editingUser }: EditUser
 
         {/* Conductor/Admin info note — explains why contact/DOB are absent */}
         {(isAdmin || isConductor) && !isDriver && (
-          <div className="p-3 bg-[#62A0EA]/5 border border-[#62A0EA]/20 rounded-md">
-            <p className="text-xs text-slate-400">
+          <div className="p-3 bg-[#62A0EA]/5 admin-light:bg-[#1A5FB4]/5 border border-[#62A0EA]/20 admin-light:border-[#1A5FB4]/20 rounded-md">
+            <p className="text-xs text-slate-400 admin-light:text-slate-500">
               {isAdmin
                 ? 'Admin accounts don\'t have a status or contact number. Only the name is editable here.'
                 : 'Conductor profile details (birthday, profile picture) are edited from the Fleet → Personnel tab. Only the name is editable here.'}
@@ -306,13 +306,13 @@ export function EditUserModal({ isOpen, onClose, onSave, editingUser }: EditUser
 
         {error && (
           <div className={`bg-red-500/10 border border-red-500/30 rounded-md p-3 ${styles.formError}`}>
-            <p className="text-sm text-red-400">{error}</p>
+            <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
           </div>
         )}
 
-        <div className={`flex justify-end gap-2 pt-4 border-t border-[#1E2D45] ${styles.actions}`}>
-          <button type="button" onClick={onClose} disabled={isSaving} className="px-5 py-2.5 border border-[#1E2D45] rounded-md text-slate-300 hover:bg-[#131C2E] transition-colors disabled:opacity-50">Cancel</button>
-          <button type="submit" disabled={isSaving || isDriver} className="px-5 py-2.5 bg-[#62A0EA] text-white font-medium rounded-md hover:bg-[#4A8BD4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+        <div className={`flex justify-end gap-2 pt-4 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] ${styles.actions}`}>
+          <button type="button" onClick={onClose} disabled={isSaving} className="px-5 py-2.5 border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-slate-300 admin-light:text-slate-700 hover:bg-[#131C2E] admin-light:hover:bg-[#F1F5F9] transition-colors disabled:opacity-50">Cancel</button>
+          <button type="submit" disabled={isSaving || isDriver} className="px-5 py-2.5 bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white font-medium rounded-md hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             {isSaving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>

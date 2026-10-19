@@ -10,7 +10,8 @@ import { PageTabs } from "@/components/admin/ui/page-tabs";
 import { Modal } from "@/components/shared/modal";
 import { useAnnouncements } from "@/contexts/announcements-context";
 import { useRewards } from "./use-rewards";
-import type { Announcement, AnnouncementType, Voucher } from "./types";
+import type { Announcement, Voucher } from "./types";
+import { announcementCategory } from "@/lib/shared/announcement-category";
 import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
 import { getRenewalState, RENEWAL_LABELS, type RenewalState } from "@/lib/shared/services/student-renewal.service";
@@ -19,26 +20,6 @@ const ReceiptScanModal = dynamic(
   () => import("@/components/commuter/modals/receipt-scan-modal"),
   { ssr: false }
 );
-
-const announcementConfig: Record<AnnouncementType, { label: string; color: string }> = {
-  PROMO: { label: "Promo", color: "text-amber-300 light:text-amber-700" },
-  SAFETY: { label: "Safety", color: "text-emerald-300 light:text-emerald-700" },
-  SYSTEM: { label: "System", color: "text-[#62A0EA] light:text-[#1A5FB4]" },
-  MAINTENANCE: { label: "Advisory", color: "text-red-300 light:text-red-700" },
-  CLAIM_UPDATE: { label: "Claim update", color: "text-[#99C1F1] light:text-[#1A5FB4]" },
-  SAVED_ITEM: { label: "Saved item", color: "text-[#99C1F1] light:text-[#1A5FB4]" },
-  VOUCHER: { label: "Voucher", color: "text-[#99C1F1] light:text-[#1A5FB4]" },
-  CUSTOM: { label: "Announcement", color: "text-white/60 light:text-gray-500" },
-};
-
-function announcementCategory(item: Announcement) {
-  if (item.rawType?.toUpperCase().startsWith("DISCOUNT_APPLICATION")) return { label: "Discount application", color: "text-[#99C1F1] light:text-[#1A5FB4]" };
-  if (item.rawType?.toUpperCase().startsWith("STUDENT_RENEWAL")) {
-    return { label: "Student renewal", color: "text-[#99C1F1] light:text-[#1A5FB4]" };
-  }
-  const config = announcementConfig[item.type] ?? announcementConfig.CUSTOM;
-  return { ...config, label: item.type === "CUSTOM" && item.rawType ? item.rawType : config.label };
-}
 
 function formatDate(value: string) {
   const date = new Date(value);

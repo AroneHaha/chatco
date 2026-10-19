@@ -77,7 +77,7 @@ function ExpiryLabel({ expiresAt, usable, now }: { expiresAt: string | null; usa
     <span
       title={`Expires ${expiry.toLocaleString()}`}
       className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium tabular-nums ${
-        isSoon ? 'bg-amber-400/10 text-amber-300' : 'bg-[#1A2540] text-slate-300'
+        isSoon ? 'bg-amber-400/10 text-amber-300 admin-light:text-amber-700' : 'bg-[#1A2540] admin-light:bg-slate-100 text-slate-300 admin-light:text-slate-700'
       }`}
     >
       <Clock size={12} aria-hidden="true" />
@@ -280,15 +280,15 @@ export default function VoucherGeneratorPage() {
 
         {/* Title — centered like the other Settings pages */}
         <div className="text-center">
-          <h1 className="text-2xl sm:text-3xl font-bold text-white">Voucher Generator</h1>
-          <p className="mt-1 text-sm text-slate-400">Generate and randomly distribute vouchers to eligible commuters.</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white admin-light:text-slate-900">Voucher Generator</h1>
+          <p className="mt-1 text-sm text-slate-400 admin-light:text-slate-500">Generate and randomly distribute vouchers to eligible commuters.</p>
         </div>
 
         {/* Success */}
         {successMsg && (
           <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 flex items-center justify-between">
-            <p className="text-sm text-emerald-400">{successMsg}</p>
-            <button onClick={() => setSuccessMsg(null)} className="text-emerald-400 hover:text-emerald-300"><X size={16} /></button>
+            <p className="text-sm text-emerald-400 admin-light:text-emerald-700">{successMsg}</p>
+            <button onClick={() => setSuccessMsg(null)} className="text-emerald-400 admin-light:text-emerald-700 hover:text-emerald-300 admin-light:hover:text-emerald-800"><X size={16} /></button>
           </div>
         )}
 
@@ -308,15 +308,15 @@ export default function VoucherGeneratorPage() {
                     onClick={() => setVoucherType(option.value)}
                     className={`flex items-center gap-3 rounded-lg border p-3 text-left transition-colors ${
                       isSelected
-                        ? 'border-[#62A0EA]/60 bg-[#62A0EA]/10'
-                        : 'border-[#1E2D45] bg-[#0E1628] hover:border-[#2A3D5C]'
+                        ? 'border-[#62A0EA]/60 admin-light:border-[#1A5FB4]/60 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10'
+                        : 'border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] hover:border-[#2A3D5C] admin-light:hover:border-[#CBD5E1]'
                     }`}
                   >
-                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${isSelected ? 'bg-[#62A0EA]/20 text-[#8CB9F0]' : 'bg-white/5 text-slate-500'}`}>
+                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${isSelected ? 'bg-[#62A0EA]/20 admin-light:bg-[#1A5FB4]/10 text-[#8CB9F0] admin-light:text-[#1A5FB4]' : 'bg-white/5 admin-light:bg-slate-100 text-slate-500'}`}>
                       <option.icon size={18} aria-hidden="true" />
                     </span>
                     <span className="min-w-0">
-                      <span className={`block text-sm font-semibold ${isSelected ? 'text-white' : 'text-slate-300'}`}>{option.label}</span>
+                      <span className={`block text-sm font-semibold ${isSelected ? 'text-white admin-light:text-slate-900' : 'text-slate-300 admin-light:text-slate-700'}`}>{option.label}</span>
                       <span className="block text-xs text-slate-500">{option.description}</span>
                     </span>
                   </button>
@@ -327,31 +327,31 @@ export default function VoucherGeneratorPage() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {voucherType === 'DISCOUNT' && (
                 <label className="block">
-                  <span className="mb-1.5 block text-xs font-medium text-slate-300">Discount amount</span>
+                  <span className="mb-1.5 block text-xs font-medium text-slate-300 admin-light:text-slate-700">Discount amount</span>
                   <span className="relative block">
                     <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-slate-500">₱</span>
-                    <input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} min="0.01" max="99999999.99" required className="block w-full rounded-md border border-[#1E2D45] bg-[#0E1628] py-2 pl-7 pr-3 text-sm font-semibold tabular-nums text-white focus:outline-none focus:ring-1 focus:ring-[#62A0EA]" />
+                    <input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} min="0.01" max="99999999.99" required className="block w-full rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] py-2 pl-7 pr-3 text-sm font-semibold tabular-nums text-white admin-light:text-slate-900 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] admin-light:focus:ring-[#1A5FB4]" />
                   </span>
                 </label>
               )}
               <label className="block">
-                <span className="mb-1.5 block text-xs font-medium text-slate-300">Quantity</span>
+                <span className="mb-1.5 block text-xs font-medium text-slate-300 admin-light:text-slate-700">Quantity</span>
                 <span className="relative block">
-                  <input type="number" value={quantity} onChange={e => setQuantity(e.target.value)} min="1" max="100" required className="block w-full rounded-md border border-[#1E2D45] bg-[#0E1628] py-2 pl-3 pr-14 text-sm font-semibold tabular-nums text-white focus:outline-none focus:ring-1 focus:ring-[#62A0EA]" />
+                  <input type="number" value={quantity} onChange={e => setQuantity(e.target.value)} min="1" max="100" required className="block w-full rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] py-2 pl-3 pr-14 text-sm font-semibold tabular-nums text-white admin-light:text-slate-900 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] admin-light:focus:ring-[#1A5FB4]" />
                   <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-slate-500">codes</span>
                 </span>
               </label>
             </div>
 
-            <div className="space-y-3 border-t border-[#1E2D45] pt-4">
-              <label className="flex items-center gap-2 text-sm text-slate-300">
-                <input type="checkbox" checked={hasTimeLimit} onChange={event => setHasTimeLimit(event.target.checked)} className="accent-[#62A0EA]" />
+            <div className="space-y-3 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] pt-4">
+              <label className="flex items-center gap-2 text-sm text-slate-300 admin-light:text-slate-700">
+                <input type="checkbox" checked={hasTimeLimit} onChange={event => setHasTimeLimit(event.target.checked)} className="accent-[#62A0EA] admin-light:accent-[#1A5FB4]" />
                 Set a time limit
               </label>
               {hasTimeLimit ? (
                 <label className="block sm:max-w-xs">
-                  <span className="mb-1.5 block text-xs font-medium text-slate-300">Valid for (hours)</span>
-                  <input type="number" min="24" max="87600" step="1" required value={validityHours} onChange={event => setValidityHours(event.target.value)} aria-describedby="voucher-validity-help" className="block w-full rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm font-semibold tabular-nums text-white focus:outline-none focus:ring-1 focus:ring-[#62A0EA]" />
+                  <span className="mb-1.5 block text-xs font-medium text-slate-300 admin-light:text-slate-700">Valid for (hours)</span>
+                  <input type="number" min="24" max="87600" step="1" required value={validityHours} onChange={event => setValidityHours(event.target.value)} aria-describedby="voucher-validity-help" className="block w-full rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] px-3 py-2 text-sm font-semibold tabular-nums text-white admin-light:text-slate-900 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] admin-light:focus:ring-[#1A5FB4]" />
                   <span id="voucher-validity-help" className="mt-1.5 block text-xs text-slate-500">Minimum 24 hours, starting when the vouchers are generated.</span>
                 </label>
               ) : (
@@ -359,18 +359,18 @@ export default function VoucherGeneratorPage() {
               )}
             </div>
 
-            <label className="flex items-start gap-2 text-xs text-slate-400">
-              <input type="checkbox" checked={allowDuplicates} onChange={event => setAllowDuplicates(event.target.checked)} className="mt-0.5 accent-[#62A0EA]" />
+            <label className="flex items-start gap-2 text-xs text-slate-400 admin-light:text-slate-500">
+              <input type="checkbox" checked={allowDuplicates} onChange={event => setAllowDuplicates(event.target.checked)} className="mt-0.5 accent-[#62A0EA] admin-light:accent-[#1A5FB4]" />
               Allow a commuter to receive multiple vouchers in this batch. Each commuter receives at most one by default.
             </label>
 
-            <div className="flex flex-col gap-3 border-t border-[#1E2D45] pt-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-slate-400">
+            <div className="flex flex-col gap-3 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-slate-400 admin-light:text-slate-500">
                 {qty >= 1 && qty <= 100
-                  ? <>Distributes <span className="font-semibold text-white">{qty}</span> {voucherType === 'FREE_RIDE' ? 'free-ride' : `₱${amount || '0'} discount`} {qty === 1 ? 'voucher' : 'vouchers'} to {allowDuplicates ? 'random eligible commuters' : 'different eligible commuters'}.</>
+                  ? <>Distributes <span className="font-semibold text-white admin-light:text-slate-900">{qty}</span> {voucherType === 'FREE_RIDE' ? 'free-ride' : `₱${amount || '0'} discount`} {qty === 1 ? 'voucher' : 'vouchers'} to {allowDuplicates ? 'random eligible commuters' : 'different eligible commuters'}.</>
                   : 'Quantity must be from 1 to 100.'}
               </p>
-              <button type="submit" disabled={isGenerating} className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#62A0EA] px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#4A8BD4] active:scale-95 disabled:opacity-50 sm:w-auto">
+              <button type="submit" disabled={isGenerating} className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#62A0EA] admin-light:bg-[#1A5FB4] px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] active:scale-95 disabled:opacity-50 sm:w-auto">
                 <Ticket size={16} aria-hidden="true" /> {isGenerating ? 'Distributing...' : 'Generate & Distribute'}
               </button>
             </div>
@@ -378,28 +378,28 @@ export default function VoucherGeneratorPage() {
         </SettingsSection>
 
         {/* Distribution history */}
-        <section className="overflow-hidden rounded-lg border border-[#1E2D45] bg-[#131C2E]">
-          <div className="flex items-center justify-between gap-3 border-b border-[#1E2D45] px-4 py-3 sm:px-5">
-            <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
+        <section className="overflow-hidden rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white">
+          <div className="flex items-center justify-between gap-3 border-b border-[#1E2D45] admin-light:border-[#E2E8F0] px-4 py-3 sm:px-5">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-white admin-light:text-slate-900">
               Distribution History
-              <span className="text-xs font-normal tabular-nums text-slate-400">{vouchers.length} loaded</span>
+              <span className="text-xs font-normal tabular-nums text-slate-400 admin-light:text-slate-500">{vouchers.length} loaded</span>
             </h2>
-            <button type="button" onClick={() => setHistoryRefresh(previous => previous + 1)} disabled={isLoading} title="Refresh" aria-label="Refresh vouchers" className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-[#1A2540] hover:text-white disabled:opacity-50">
+            <button type="button" onClick={() => setHistoryRefresh(previous => previous + 1)} disabled={isLoading} title="Refresh" aria-label="Refresh vouchers" className="rounded-md p-1.5 text-slate-400 admin-light:text-slate-500 transition-colors hover:bg-[#1A2540] admin-light:hover:bg-slate-100 hover:text-white admin-light:hover:text-slate-900 disabled:opacity-50">
               <RefreshCw size={16} className={isLoading ? 'motion-safe:animate-spin' : ''} />
             </button>
           </div>
-          <div className="grid grid-cols-1 gap-3 border-b border-[#1E2D45] px-4 py-3 sm:grid-cols-2 sm:px-5">
+          <div className="grid grid-cols-1 gap-3 border-b border-[#1E2D45] admin-light:border-[#E2E8F0] px-4 py-3 sm:grid-cols-2 sm:px-5">
             <label className="block">
-              <span className="mb-1.5 block text-xs font-medium text-slate-300">Voucher type</span>
-              <select value={historyType} onChange={event => setHistoryType(event.target.value as typeof historyType)} className="w-full rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#62A0EA]">
+              <span className="mb-1.5 block text-xs font-medium text-slate-300 admin-light:text-slate-700">Voucher type</span>
+              <select value={historyType} onChange={event => setHistoryType(event.target.value as typeof historyType)} className="w-full rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] px-3 py-2 text-sm text-white admin-light:text-slate-900 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] admin-light:focus:ring-[#1A5FB4]">
                 <option value="ALL">All types</option>
                 <option value="DISCOUNT">Discounted</option>
                 <option value="FREE_RIDE">Free ride</option>
               </select>
             </label>
             <label className="block">
-              <span className="mb-1.5 block text-xs font-medium text-slate-300">Date range</span>
-              <select value={dateRange} onChange={event => setDateRange(event.target.value as typeof dateRange)} className="w-full rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#62A0EA]">
+              <span className="mb-1.5 block text-xs font-medium text-slate-300 admin-light:text-slate-700">Date range</span>
+              <select value={dateRange} onChange={event => setDateRange(event.target.value as typeof dateRange)} className="w-full rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] px-3 py-2 text-sm text-white admin-light:text-slate-900 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] admin-light:focus:ring-[#1A5FB4]">
                 <option value="last_7_days">Last 7 days</option>
                 <option value="this_month">This month</option>
                 <option value="all">All</option>
@@ -409,8 +409,8 @@ export default function VoucherGeneratorPage() {
           <div ref={historyList} className="max-h-[60vh] overflow-y-auto p-4 sm:p-5" aria-busy={isLoading}>
             {vouchers.length === 0 && !isLoading && !historyError ? (
               <div className="flex flex-col items-center gap-2 py-12 text-center">
-                <Ticket size={28} className="text-slate-600" aria-hidden="true" />
-                <p className="text-sm text-slate-400">No vouchers match these filters.</p>
+                <Ticket size={28} className="text-slate-600 admin-light:text-slate-400" aria-hidden="true" />
+                <p className="text-sm text-slate-400 admin-light:text-slate-500">No vouchers match these filters.</p>
                 <p className="text-xs text-slate-500">Try a different voucher type or date range.</p>
               </div>
             ) : <ul className="space-y-3">{vouchers.map(voucher => {
@@ -421,40 +421,40 @@ export default function VoucherGeneratorPage() {
                 ? `${voucher.commuter.first_name} ${voucher.commuter.surname}`
                 : voucher.commuter_id ? `Commuter ${voucher.commuter_id}` : 'Unassigned';
               return (
-                <li key={voucher.id} className="rounded-lg border border-[#1E2D45] bg-[#0E1628] p-4">
+                <li key={voucher.id} className="rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="break-all font-mono text-sm font-semibold text-white">{voucher.code}</span>
-                        <button type="button" onClick={() => copyCode(voucher.code, voucher.id)} className="shrink-0 rounded p-1 text-slate-500 transition-colors hover:text-[#62A0EA]" title="Copy code" aria-label={`Copy ${voucher.code}`}>
-                          {copiedId === voucher.id ? <CheckCircle size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                        <span className="break-all font-mono text-sm font-semibold text-white admin-light:text-slate-900">{voucher.code}</span>
+                        <button type="button" onClick={() => copyCode(voucher.code, voucher.id)} className="shrink-0 rounded p-1 text-slate-500 transition-colors hover:text-[#62A0EA] admin-light:hover:text-[#1A5FB4]" title="Copy code" aria-label={`Copy ${voucher.code}`}>
+                          {copiedId === voucher.id ? <CheckCircle size={13} className="text-emerald-400 admin-light:text-emerald-700" /> : <Copy size={13} />}
                         </button>
                       </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400 admin-light:text-slate-500">
                         <span className="inline-flex items-center gap-1.5"><typeInfo.icon size={13} aria-hidden="true" />{typeInfo.label}</span>
                         <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${status.dot}`} />{status.label}</span>
                       </div>
                     </div>
-                    <button type="button" onClick={() => { setVoucherToDelete(voucher); setDeleteError(null); }} className="shrink-0 rounded-md p-1.5 text-slate-500 transition-colors hover:bg-red-400/10 hover:text-red-400" title="Delete" aria-label={`Delete ${voucher.code}`}>
+                    <button type="button" onClick={() => { setVoucherToDelete(voucher); setDeleteError(null); }} className="shrink-0 rounded-md p-1.5 text-slate-500 transition-colors hover:bg-red-400/10 hover:text-red-400 admin-light:hover:text-red-600" title="Delete" aria-label={`Delete ${voucher.code}`}>
                       <Trash2 size={15} />
                     </button>
                   </div>
                   <dl className="mt-4 grid grid-cols-1 gap-x-4 gap-y-3 text-xs sm:grid-cols-2">
                     <div>
                       <dt className="text-slate-500">Distributed to</dt>
-                      <dd className="mt-1 break-words font-medium text-slate-200">{recipientName}</dd>
+                      <dd className="mt-1 break-words font-medium text-slate-200 admin-light:text-slate-800">{recipientName}</dd>
                     </div>
                     <div>
                       <dt className="text-slate-500">Generated by</dt>
-                      <dd className="mt-1 break-words text-slate-200">{generatorName || (voucher.generated_by_id ? `Admin ${voucher.generated_by_id}` : voucher.type === 'REWARD' ? 'System loyalty reward' : 'Not recorded')}</dd>
+                      <dd className="mt-1 break-words text-slate-200 admin-light:text-slate-800">{generatorName || (voucher.generated_by_id ? `Admin ${voucher.generated_by_id}` : voucher.type === 'REWARD' ? 'System loyalty reward' : 'Not recorded')}</dd>
                     </div>
                     <div>
                       <dt className="text-slate-500">{voucher.generation_batch_id ? 'Distributed at' : 'Created at'}</dt>
-                      <dd className="mt-1 text-slate-200"><time dateTime={voucher.created_at}>{new Date(voucher.created_at).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}</time></dd>
+                      <dd className="mt-1 text-slate-200 admin-light:text-slate-800"><time dateTime={voucher.created_at}>{new Date(voucher.created_at).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}</time></dd>
                     </div>
                     <div>
                       <dt className="text-slate-500">Time limit</dt>
-                      <dd className="mt-1 flex flex-wrap items-center gap-2 text-slate-200">
+                      <dd className="mt-1 flex flex-wrap items-center gap-2 text-slate-200 admin-light:text-slate-800">
                         {voucher.expires_at ? <time dateTime={voucher.expires_at}>{new Date(voucher.expires_at).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}</time> : 'No time limit'}
                         <ExpiryLabel expiresAt={voucher.expires_at} usable={status.usable} now={now} />
                       </dd>
@@ -464,33 +464,33 @@ export default function VoucherGeneratorPage() {
               );
             })}</ul>}
             <div ref={historySentinel} className="flex min-h-8 flex-col items-center justify-center gap-2 pt-3 text-xs" role="status" aria-live="polite">
-              {isLoading ? <p className="text-slate-400">Loading vouchers...</p> : historyError ? (
+              {isLoading ? <p className="text-slate-400 admin-light:text-slate-500">Loading vouchers...</p> : historyError ? (
                 <>
-                  <p className="text-red-400">{historyError}</p>
-                  <button type="button" onClick={() => void fetchVouchers(nextCursor)} className="rounded-md bg-[#1A2540] px-3 py-1.5 text-slate-300 hover:text-white">Retry</button>
+                  <p className="text-red-400 admin-light:text-red-600">{historyError}</p>
+                  <button type="button" onClick={() => void fetchVouchers(nextCursor)} className="rounded-md bg-[#1A2540] admin-light:bg-slate-100 px-3 py-1.5 text-slate-300 admin-light:text-slate-700 hover:text-white admin-light:hover:text-slate-900">Retry</button>
                 </>
               ) : vouchers.length > 0 && !nextCursor ? <p className="text-slate-500">All matching vouchers loaded.</p> : null}
             </div>
           </div>
         </section>
         {generationToConfirm && (
-          <Modal isOpen onClose={closeGenerationModal}>
+          <Modal isOpen onClose={closeGenerationModal} adminThemed>
             <div className="space-y-5">
               <div className="pr-8">
-                <h2 className="text-lg font-bold text-white">Generate Vouchers</h2>
-                <p className="mt-1 text-sm text-slate-400">Confirm these details before distributing vouchers to randomly selected eligible commuters.</p>
+                <h2 className="text-lg font-bold text-white admin-light:text-slate-900">Generate Vouchers</h2>
+                <p className="mt-1 text-sm text-slate-400 admin-light:text-slate-500">Confirm these details before distributing vouchers to randomly selected eligible commuters.</p>
               </div>
-              <dl className="space-y-3 rounded-md border border-[#1E2D45] bg-[#0E1628] p-4 text-sm">
-                <div className="flex justify-between gap-4"><dt className="text-slate-400">Voucher type</dt><dd className="font-medium text-white">{generationToConfirm.type === 'FREE_RIDE' ? 'Free ride' : 'Discounted'}</dd></div>
-                {generationToConfirm.type === 'DISCOUNT' && <div className="flex justify-between gap-4"><dt className="text-slate-400">Discount per voucher</dt><dd className="font-medium text-white">₱{Number(generationToConfirm.amount).toFixed(2)}</dd></div>}
-                <div className="flex justify-between gap-4"><dt className="text-slate-400">Quantity</dt><dd className="font-medium text-white">{generationToConfirm.quantity}</dd></div>
-                <div className="flex justify-between gap-4"><dt className="text-slate-400">Time limit</dt><dd className="text-right font-medium text-white">{generationToConfirm.validity_hours === null ? 'No time limit' : `${generationToConfirm.validity_hours} hours after generation`}</dd></div>
-                <div><dt className="text-slate-400">Distribution</dt><dd className="mt-1 text-white">{generationToConfirm.allow_duplicates ? 'A commuter may receive multiple vouchers in this batch.' : 'One voucher per commuter in this batch.'}</dd></div>
+              <dl className="space-y-3 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] p-4 text-sm">
+                <div className="flex justify-between gap-4"><dt className="text-slate-400 admin-light:text-slate-500">Voucher type</dt><dd className="font-medium text-white admin-light:text-slate-900">{generationToConfirm.type === 'FREE_RIDE' ? 'Free ride' : 'Discounted'}</dd></div>
+                {generationToConfirm.type === 'DISCOUNT' && <div className="flex justify-between gap-4"><dt className="text-slate-400 admin-light:text-slate-500">Discount per voucher</dt><dd className="font-medium text-white admin-light:text-slate-900">₱{Number(generationToConfirm.amount).toFixed(2)}</dd></div>}
+                <div className="flex justify-between gap-4"><dt className="text-slate-400 admin-light:text-slate-500">Quantity</dt><dd className="font-medium text-white admin-light:text-slate-900">{generationToConfirm.quantity}</dd></div>
+                <div className="flex justify-between gap-4"><dt className="text-slate-400 admin-light:text-slate-500">Time limit</dt><dd className="text-right font-medium text-white admin-light:text-slate-900">{generationToConfirm.validity_hours === null ? 'No time limit' : `${generationToConfirm.validity_hours} hours after generation`}</dd></div>
+                <div><dt className="text-slate-400 admin-light:text-slate-500">Distribution</dt><dd className="mt-1 text-white admin-light:text-slate-900">{generationToConfirm.allow_duplicates ? 'A commuter may receive multiple vouchers in this batch.' : 'One voucher per commuter in this batch.'}</dd></div>
               </dl>
-              {generationError && <p role="alert" className="text-sm text-red-400">{generationError}</p>}
-              <div className="flex justify-end gap-2 border-t border-[#1E2D45] pt-4">
-                <button type="button" onClick={closeGenerationModal} disabled={isGenerating} className="rounded-md border border-[#1E2D45] px-5 py-2.5 text-sm text-slate-300 transition-colors hover:bg-[#131C2E] disabled:opacity-50">Cancel</button>
-                <button type="button" onClick={() => void confirmGeneration()} disabled={isGenerating} className="flex items-center gap-2 rounded-md bg-[#62A0EA] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#4A8BD4] disabled:opacity-50">
+              {generationError && <p role="alert" className="text-sm text-red-400 admin-light:text-red-600">{generationError}</p>}
+              <div className="flex justify-end gap-2 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] pt-4">
+                <button type="button" onClick={closeGenerationModal} disabled={isGenerating} className="rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] px-5 py-2.5 text-sm text-slate-300 admin-light:text-slate-700 transition-colors hover:bg-[#131C2E] admin-light:hover:bg-slate-100 disabled:opacity-50">Cancel</button>
+                <button type="button" onClick={() => void confirmGeneration()} disabled={isGenerating} className="flex items-center gap-2 rounded-md bg-[#62A0EA] admin-light:bg-[#1A5FB4] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] disabled:opacity-50">
                   <Ticket size={16} aria-hidden="true" />
                   {isGenerating ? 'Distributing...' : 'Generate & Distribute'}
                 </button>
@@ -499,20 +499,20 @@ export default function VoucherGeneratorPage() {
           </Modal>
         )}
         {voucherToDelete && (
-          <Modal isOpen onClose={closeDeleteModal}>
+          <Modal isOpen onClose={closeDeleteModal} adminThemed>
             <div className="space-y-5">
               <div className="pr-8">
-                <h2 className="text-lg font-bold text-white">Delete Voucher</h2>
-                <p className="mt-1 text-sm text-slate-400">Are you sure you want to delete this voucher?</p>
+                <h2 className="text-lg font-bold text-white admin-light:text-slate-900">Delete Voucher</h2>
+                <p className="mt-1 text-sm text-slate-400 admin-light:text-slate-500">Are you sure you want to delete this voucher?</p>
               </div>
-              <div className="space-y-1 rounded-md border border-[#1E2D45] bg-[#0E1628] p-4">
-                <p className="break-all font-mono text-sm font-semibold text-white">{voucherToDelete.code}</p>
-                <p className="text-sm text-slate-400">{voucherTypeInfo(voucherToDelete).label}</p>
-                {voucherToDelete.commuter && <p className="text-sm text-slate-400">Distributed to {voucherToDelete.commuter.first_name} {voucherToDelete.commuter.surname}</p>}
+              <div className="space-y-1 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] p-4">
+                <p className="break-all font-mono text-sm font-semibold text-white admin-light:text-slate-900">{voucherToDelete.code}</p>
+                <p className="text-sm text-slate-400 admin-light:text-slate-500">{voucherTypeInfo(voucherToDelete).label}</p>
+                {voucherToDelete.commuter && <p className="text-sm text-slate-400 admin-light:text-slate-500">Distributed to {voucherToDelete.commuter.first_name} {voucherToDelete.commuter.surname}</p>}
               </div>
-              {deleteError && <p role="alert" className="text-sm text-red-400">{deleteError}</p>}
-              <div className="flex justify-end gap-2 border-t border-[#1E2D45] pt-4">
-                <button type="button" onClick={closeDeleteModal} disabled={isDeleting} className="rounded-md border border-[#1E2D45] px-5 py-2.5 text-sm text-slate-300 transition-colors hover:bg-[#131C2E] disabled:opacity-50">Cancel</button>
+              {deleteError && <p role="alert" className="text-sm text-red-400 admin-light:text-red-600">{deleteError}</p>}
+              <div className="flex justify-end gap-2 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] pt-4">
+                <button type="button" onClick={closeDeleteModal} disabled={isDeleting} className="rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] px-5 py-2.5 text-sm text-slate-300 admin-light:text-slate-700 transition-colors hover:bg-[#131C2E] admin-light:hover:bg-slate-100 disabled:opacity-50">Cancel</button>
                 <button type="button" onClick={() => void handleDelete()} disabled={isDeleting} className="flex items-center gap-2 rounded-md bg-red-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50">
                   <Trash2 size={16} aria-hidden="true" />
                   {isDeleting ? 'Deleting...' : 'Delete Voucher'}

@@ -47,8 +47,8 @@ const isSameDay = (a: Date, b: Date) =>
 
 type Accent = { ring: string; solid: string; text: string };
 const ACCENTS: Record<'blue' | 'red', Accent> = {
-  blue: { ring: 'focus:border-[#62A0EA]/50 focus:ring-[#62A0EA]/30', solid: 'bg-[#62A0EA] light:bg-[#1A5FB4]', text: 'text-[#62A0EA] light:text-[#1A5FB4]' },
-  red: { ring: 'focus:border-red-400/50 focus:ring-red-400/30', solid: 'bg-red-400', text: 'text-red-400' },
+  blue: { ring: 'focus:border-[#62A0EA]/50 admin-light:focus:border-[#1A5FB4]/50 focus:ring-[#62A0EA]/30 admin-light:focus:ring-[#1A5FB4]/30', solid: 'bg-[#62A0EA] admin-light:bg-[#1A5FB4] light:bg-[#1A5FB4]', text: 'text-[#62A0EA] admin-light:text-[#1A5FB4] light:text-[#1A5FB4]' },
+  red: { ring: 'focus:border-red-400/50 focus:ring-red-400/30', solid: 'bg-red-400', text: 'text-red-400 admin-light:text-red-600' },
 };
 
 /**
@@ -208,10 +208,10 @@ export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'lef
         aria-label={ariaLabel}
         data-invalid={invalid || undefined}
         aria-describedby={invalid ? errorId : undefined}
-        className={`flex items-center gap-2 bg-[#0E1628] border border-[#1E2D45] light:bg-white light:border-gray-200 rounded-md text-xs pl-8 pr-2 text-left focus:outline-none ${triggerClassName ?? 'w-40 py-1.5'} ${colors.ring} transition-colors`}
+        className={`flex items-center gap-2 bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] light:bg-white light:border-gray-200 rounded-md text-xs pl-8 pr-2 text-left focus:outline-none ${triggerClassName ?? 'w-40 py-1.5'} ${colors.ring} transition-colors`}
       >
         <CalendarDays size={14} className="absolute left-2.5 text-slate-500 pointer-events-none" />
-        <span className={value ? 'text-slate-300 light:text-gray-900' : 'text-slate-500 light:text-gray-400'}>{displayLabel}</span>
+        <span className={value ? 'text-slate-300 admin-light:text-slate-700 light:text-gray-900' : 'text-slate-500 light:text-gray-400'}>{displayLabel}</span>
         {value && (
           <span
             role="button"
@@ -219,7 +219,7 @@ export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'lef
             onClick={(e) => { e.stopPropagation(); onChange(''); }}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onChange(''); } }}
             aria-label={clearLabel}
-            className="ml-auto text-slate-500 hover:text-white light:hover:text-gray-900"
+            className="ml-auto text-slate-500 hover:text-white admin-light:hover:text-slate-900 light:hover:text-gray-900"
           >
             <X size={12} />
           </span>
@@ -235,14 +235,14 @@ export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'lef
           aria-label={`${ariaLabel} calendar`}
           className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} ${
             openDirection === 'up' ? 'bottom-full mb-2' : 'top-full mt-2'
-          } z-30 w-64 rounded-xl border border-[#1E2D45] bg-[#131C2E] p-3 shadow-2xl shadow-black/50 light:border-gray-200 light:bg-white light:shadow-black/10`}
+          } z-30 w-64 rounded-xl border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white p-3 shadow-2xl shadow-black/50 light:border-gray-200 light:bg-white light:shadow-black/10`}
         >
           <div className="flex items-center justify-between mb-2">
             <button
               type="button"
               onClick={() => setViewMonth(new Date(year, month - 1, 1))}
               aria-label="Previous month"
-              className="p-1 rounded-md text-slate-400 hover:bg-[#1A2540] hover:text-white light:text-gray-500 light:hover:bg-gray-100 light:hover:text-gray-900 transition-colors"
+              className="p-1 rounded-md text-slate-400 admin-light:text-slate-500 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] hover:text-white admin-light:hover:text-slate-900 light:text-gray-500 light:hover:bg-gray-100 light:hover:text-gray-900 transition-colors"
             >
               <ChevronLeft size={16} />
             </button>
@@ -252,7 +252,7 @@ export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'lef
                   aria-label="Calendar month"
                   value={month}
                   onChange={(event) => setViewMonth(new Date(year, Number(event.target.value), 1))}
-                  className="min-w-0 rounded-md border border-[#1E2D45] bg-[#0E1628] px-1 py-1 text-xs text-white light:border-gray-200 light:bg-white light:text-gray-900 outline-none focus:border-[#62A0EA]"
+                  className="min-w-0 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F1F5F9] px-1 py-1 text-xs text-white admin-light:text-slate-900 light:border-gray-200 light:bg-white light:text-gray-900 outline-none focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4]"
                 >
                   {MONTH_NAMES.map((name, index) => <option key={name} value={index}>{name.slice(0, 3)}</option>)}
                 </select>
@@ -260,17 +260,17 @@ export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'lef
                   aria-label="Calendar year"
                   value={year}
                   onChange={(event) => setViewMonth(new Date(Number(event.target.value), month, 1))}
-                  className="min-w-0 rounded-md border border-[#1E2D45] bg-[#0E1628] px-1 py-1 text-xs text-white light:border-gray-200 light:bg-white light:text-gray-900 outline-none focus:border-[#62A0EA]"
+                  className="min-w-0 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F1F5F9] px-1 py-1 text-xs text-white admin-light:text-slate-900 light:border-gray-200 light:bg-white light:text-gray-900 outline-none focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4]"
                 >
                   {Array.from({ length: Math.max(today.getFullYear(), year) - Math.min(1900, year) + 1 }, (_, index) => Math.max(today.getFullYear(), year) - index).map((option) => <option key={option} value={option}>{option}</option>)}
                 </select>
               </div>
-            ) : <span className="text-sm font-semibold text-white light:text-gray-900">{MONTH_NAMES[month]} {year}</span>}
+            ) : <span className="text-sm font-semibold text-white admin-light:text-slate-900 light:text-gray-900">{MONTH_NAMES[month]} {year}</span>}
             <button
               type="button"
               onClick={() => setViewMonth(new Date(year, month + 1, 1))}
               aria-label="Next month"
-              className="p-1 rounded-md text-slate-400 hover:bg-[#1A2540] hover:text-white light:text-gray-500 light:hover:bg-gray-100 light:hover:text-gray-900 transition-colors"
+              className="p-1 rounded-md text-slate-400 admin-light:text-slate-500 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] hover:text-white admin-light:hover:text-slate-900 light:text-gray-500 light:hover:bg-gray-100 light:hover:text-gray-900 transition-colors"
             >
               <ChevronRight size={16} />
             </button>
@@ -299,12 +299,12 @@ export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'lef
                     !inMonth
                       ? 'text-slate-700 cursor-default light:text-gray-300'
                       : outOfBounds
-                        ? 'text-slate-600 cursor-not-allowed light:text-gray-300'
+                        ? 'text-slate-600 admin-light:text-slate-400 cursor-not-allowed light:text-gray-300'
                       : isSelected
                         ? `${colors.solid} text-white font-semibold`
                         : isToday
-                          ? `${colors.text} font-semibold hover:bg-[#1A2540] light:hover:bg-gray-100`
-                          : 'text-slate-300 hover:bg-[#1A2540] light:text-gray-700 light:hover:bg-gray-100'
+                          ? `${colors.text} font-semibold hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] light:hover:bg-gray-100`
+                          : 'text-slate-300 admin-light:text-slate-700 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] light:text-gray-700 light:hover:bg-gray-100'
                   }`}
                 >
                   {date.getDate()}
@@ -313,12 +313,12 @@ export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'lef
             })}
           </div>
 
-          <div className="flex items-center justify-between mt-3 pt-2 border-t border-[#1E2D45] light:border-gray-200">
+          <div className="flex items-center justify-between mt-3 pt-2 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] light:border-gray-200">
             <button
               type="button"
               onClick={() => selectDay(today)}
               disabled={isOutOfBounds(today)}
-              className={`text-xs font-medium ${colors.text} hover:underline disabled:cursor-not-allowed disabled:text-slate-600 disabled:no-underline`}
+              className={`text-xs font-medium ${colors.text} hover:underline disabled:cursor-not-allowed disabled:text-slate-600 admin-light:disabled:text-slate-400 disabled:no-underline`}
             >
               Today
             </button>
@@ -326,7 +326,7 @@ export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'lef
               <button
                 type="button"
                 onClick={() => { onChange(''); setIsOpen(false); }}
-                className="text-xs font-medium text-slate-500 hover:text-white light:hover:text-gray-900"
+                className="text-xs font-medium text-slate-500 hover:text-white admin-light:hover:text-slate-900 light:hover:text-gray-900"
               >
                 Clear
               </button>

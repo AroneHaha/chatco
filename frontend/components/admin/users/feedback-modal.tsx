@@ -89,18 +89,18 @@ export function FeedbackModal({ isOpen, onClose, staff }: FeedbackModalProps) {
   const canNext = (data?.pagination.currentPage ?? 1) < (data?.pagination.lastPage ?? 1);
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
+    <Modal adminThemed isOpen={isOpen} onClose={onClose}>
       {staff && (
         <div className="space-y-5">
           {/* Header */}
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <MessageSquare size={22} className="text-sky-400" />
+              <h2 className="text-xl font-bold text-white admin-light:text-slate-900 flex items-center gap-2">
+                <MessageSquare size={22} className="text-sky-400 admin-light:text-sky-700" />
                 Feedback & Ratings
               </h2>
               <div className="flex items-center gap-2 mt-2">
-                <span className="text-sm text-slate-300">{staff.name}</span>
+                <span className="text-sm text-slate-300 admin-light:text-slate-700">{staff.name}</span>
                 <Badge variant={staff.role === 'DRIVER' ? 'info' : 'success'}>
                   {staff.role === 'DRIVER' ? 'Driver' : 'Conductor'}
                 </Badge>
@@ -111,19 +111,19 @@ export function FeedbackModal({ isOpen, onClose, staff }: FeedbackModalProps) {
           {/* Loading state */}
           {isLoading && !data && (
             <div className="flex flex-col items-center justify-center py-10 gap-3">
-              <RefreshCw size={28} className="text-sky-400 animate-spin" />
-              <p className="text-sm text-slate-400">Loading feedback…</p>
+              <RefreshCw size={28} className="text-sky-400 admin-light:text-sky-700 animate-spin" />
+              <p className="text-sm text-slate-400 admin-light:text-slate-500">Loading feedback…</p>
             </div>
           )}
 
           {/* Error state */}
           {error && !isLoading && (
             <div className="flex flex-col items-center justify-center py-10 gap-3">
-              <AlertCircle size={28} className="text-red-400" />
-              <p className="text-sm text-red-400 text-center">{error}</p>
+              <AlertCircle size={28} className="text-red-400 admin-light:text-red-600" />
+              <p className="text-sm text-red-400 admin-light:text-red-600 text-center">{error}</p>
               <button
                 onClick={() => fetchFeedback(page)}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-[#1A2540] text-slate-200 rounded-md hover:bg-[#243352] transition-colors"
+                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-[#1A2540] admin-light:bg-[#EEF2F7] text-slate-200 admin-light:text-slate-800 rounded-md hover:bg-[#243352] admin-light:hover:bg-[#E2E8F0] transition-colors"
               >
                 <RefreshCw size={14} /> Retry
               </button>
@@ -143,8 +143,8 @@ export function FeedbackModal({ isOpen, onClose, staff }: FeedbackModalProps) {
                 </h3>
                 {data.feedback.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-8 gap-2">
-                    <User size={32} className="text-slate-600" />
-                    <p className="text-sm text-slate-400">No feedback submitted yet.</p>
+                    <User size={32} className="text-slate-600 admin-light:text-slate-400" />
+                    <p className="text-sm text-slate-400 admin-light:text-slate-500">No feedback submitted yet.</p>
                     <p className="text-xs text-slate-500 text-center max-w-xs">
                       Feedback appears here when commuters scan the unit QR and rate
                       their ride after a shift.
@@ -161,7 +161,7 @@ export function FeedbackModal({ isOpen, onClose, staff }: FeedbackModalProps) {
 
               {/* Pagination */}
               {data.pagination.lastPage > 1 && (
-                <div className="flex items-center justify-between pt-2 border-t border-[#1E2D45]">
+                <div className="flex items-center justify-between pt-2 border-t border-[#1E2D45] admin-light:border-[#E2E8F0]">
                   <p className="text-xs text-slate-500">
                     Showing {data.pagination.from ?? 0}–{data.pagination.to ?? 0} of{' '}
                     {data.pagination.total}
@@ -170,17 +170,17 @@ export function FeedbackModal({ isOpen, onClose, staff }: FeedbackModalProps) {
                     <button
                       onClick={() => canPrev && fetchFeedback(data.pagination.currentPage - 1)}
                       disabled={!canPrev || isLoading}
-                      className="flex items-center gap-1 px-2.5 py-1 text-xs border border-[#1E2D45] rounded-md text-slate-300 hover:bg-[#131C2E] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="flex items-center gap-1 px-2.5 py-1 text-xs border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-slate-300 admin-light:text-slate-700 hover:bg-[#131C2E] admin-light:hover:bg-[#F1F5F9] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                     >
                       <ChevronLeft size={14} /> Prev
                     </button>
-                    <span className="text-xs text-slate-400 px-1">
+                    <span className="text-xs text-slate-400 admin-light:text-slate-500 px-1">
                       {data.pagination.currentPage} / {data.pagination.lastPage}
                     </span>
                     <button
                       onClick={() => canNext && fetchFeedback(data.pagination.currentPage + 1)}
                       disabled={!canNext || isLoading}
-                      className="flex items-center gap-1 px-2.5 py-1 text-xs border border-[#1E2D45] rounded-md text-slate-300 hover:bg-[#131C2E] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="flex items-center gap-1 px-2.5 py-1 text-xs border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-slate-300 admin-light:text-slate-700 hover:bg-[#131C2E] admin-light:hover:bg-[#F1F5F9] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                     >
                       Next <ChevronRight size={14} />
                     </button>
@@ -206,15 +206,15 @@ function SummaryCard({
   const maxDist = Math.max(1, ...Object.values(distribution));
 
   return (
-    <div className="rounded-md bg-[#0E1628] border border-[#1E2D45] p-4">
+    <div className="rounded-md bg-[#0E1628] admin-light:bg-[#F8FAFC] border border-[#1E2D45] admin-light:border-[#E2E8F0] p-4">
       <div className="flex items-center gap-6">
         {/* Big average */}
         <div className="flex-shrink-0 text-center">
           <div className="flex items-center justify-center gap-1">
-            <span className="text-3xl font-bold text-white">
+            <span className="text-3xl font-bold text-white admin-light:text-slate-900">
               {averageRating.toFixed(1)}
             </span>
-            <Star size={20} className="text-amber-400 fill-amber-400" />
+            <Star size={20} className="text-amber-400 admin-light:text-amber-700 fill-amber-400" />
           </div>
           <p className="text-xs text-slate-500 mt-1">
             {totalCount} review{totalCount === 1 ? '' : 's'}
@@ -228,9 +228,9 @@ function SummaryCard({
             const pct = (count / maxDist) * 100;
             return (
               <div key={star} className="flex items-center gap-2">
-                <span className="text-xs text-slate-400 w-3 text-right">{star}</span>
-                <Star size={11} className="text-slate-500 fill-slate-600" />
-                <div className="flex-1 h-1.5 bg-[#1A2540] rounded-full overflow-hidden">
+                <span className="text-xs text-slate-400 admin-light:text-slate-500 w-3 text-right">{star}</span>
+                <Star size={11} className="text-slate-500 fill-slate-600 admin-light:fill-slate-300" />
+                <div className="flex-1 h-1.5 bg-[#1A2540] admin-light:bg-[#EEF2F7] rounded-full overflow-hidden">
                   <div
                     className="h-full bg-amber-400/70 rounded-full transition-all"
                     style={{ width: `${pct}%` }}
@@ -260,7 +260,7 @@ function FeedbackRowCard({ row }: { row: FeedbackRow }) {
     : '—';
 
   return (
-    <div className="p-3 bg-[#0E1628] rounded-md border border-[#1E2D45]">
+    <div className="p-3 bg-[#0E1628] admin-light:bg-[#F8FAFC] rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0]">
       <div className="flex items-center justify-between gap-2 mb-1.5">
         <div className="flex items-center gap-1">
           {[1, 2, 3, 4, 5].map((s) => (
@@ -269,13 +269,13 @@ function FeedbackRowCard({ row }: { row: FeedbackRow }) {
               size={13}
               className={
                 s <= row.rating
-                  ? 'text-amber-400 fill-amber-400'
-                  : 'text-slate-600 fill-slate-700'
+                  ? 'text-amber-400 admin-light:text-amber-700 fill-amber-400'
+                  : 'text-slate-600 admin-light:text-slate-400 fill-slate-700 admin-light:fill-slate-200'
               }
             />
           ))}
           {row.category && (
-            <span className="ml-2 px-2 py-0.5 text-[10px] font-semibold rounded-full bg-slate-500/20 text-slate-300 border border-slate-500/30">
+            <span className="ml-2 px-2 py-0.5 text-[10px] font-semibold rounded-full bg-slate-500/20 text-slate-300 admin-light:text-slate-700 border border-slate-500/30">
               {row.category}
             </span>
           )}
@@ -283,7 +283,7 @@ function FeedbackRowCard({ row }: { row: FeedbackRow }) {
         <span className="text-xs text-slate-500 whitespace-nowrap">{date}</span>
       </div>
       {row.comment && (
-        <p className="text-sm text-slate-300 mb-2 italic">“{row.comment}”</p>
+        <p className="text-sm text-slate-300 admin-light:text-slate-700 mb-2 italic">“{row.comment}”</p>
       )}
       <div className="flex items-center gap-3 text-xs text-slate-500">
         <span className="flex items-center gap-1">

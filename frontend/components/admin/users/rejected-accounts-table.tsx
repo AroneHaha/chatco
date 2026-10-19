@@ -60,10 +60,10 @@ export function RejectedAccountsTable({
           <img
             src={request.idImageUrl}
             alt=""
-            className="h-9 w-9 flex-shrink-0 rounded-md border border-[#1E2D45] object-cover"
+            className="h-9 w-9 flex-shrink-0 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] object-cover"
           />
           <div className="min-w-0">
-            <p className="whitespace-nowrap font-medium text-white">{value}</p>
+            <p className="whitespace-nowrap font-medium text-white admin-light:text-slate-900">{value}</p>
             <p className="whitespace-nowrap text-xs text-slate-500">{request.email}</p>
           </div>
         </div>
@@ -81,14 +81,14 @@ export function RejectedAccountsTable({
       label: 'Applied',
       headerClassName: 'px-2 sm:px-4',
       cellClassName: 'whitespace-nowrap px-2 sm:px-4',
-      render: (value: string) => <span className="text-xs text-slate-400">{formatAppliedDate(value)}</span>,
+      render: (value: string) => <span className="text-xs text-slate-400 admin-light:text-slate-500">{formatAppliedDate(value)}</span>,
     },
     {
       key: 'rejectedAt',
       label: 'Rejected On',
       headerClassName: 'px-2 sm:px-4',
       cellClassName: 'whitespace-nowrap px-2 sm:px-4',
-      render: (value: string | null) => <span className="text-xs text-slate-400">{formatAppliedDate(value)}</span>,
+      render: (value: string | null) => <span className="text-xs text-slate-400 admin-light:text-slate-500">{formatAppliedDate(value)}</span>,
     },
     {
       key: 'rejectionReason',
@@ -99,7 +99,7 @@ export function RejectedAccountsTable({
       headerClassName: 'px-2 sm:px-4',
       cellClassName: 'px-2 sm:px-4 max-w-xs truncate',
       render: (value: string) => (
-        <span className="text-xs text-slate-400 italic" title={value}>{value || 'N/A'}</span>
+        <span className="text-xs text-slate-400 admin-light:text-slate-500 italic" title={value}>{value || 'N/A'}</span>
       ),
     },
     {
@@ -109,7 +109,7 @@ export function RejectedAccountsTable({
       cellClassName: 'px-2 sm:px-4 min-w-[10rem]',
       render: (value: string | null, request: RejectedRequest) => (
         <div className="min-w-0">
-          <p className="whitespace-nowrap text-sm text-white">{value || '—'}</p>
+          <p className="whitespace-nowrap text-sm text-white admin-light:text-slate-900">{value || '—'}</p>
           {request.rejectedByEmail && (
             <p className="whitespace-nowrap text-xs text-slate-500">{request.rejectedByEmail}</p>
           )}
@@ -134,7 +134,7 @@ export function RejectedAccountsTable({
   ];
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col gap-3 rounded-lg border border-[#1E2D45] bg-[#111A2B] p-3 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
+    <div className="flex h-full min-h-0 min-w-0 flex-col gap-3 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#111A2B] admin-light:bg-white p-3 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
       {headerContent && <div className="shrink-0">{headerContent}</div>}
       <div className="relative flex-1 min-h-0">
         <DataTable
@@ -149,7 +149,7 @@ export function RejectedAccountsTable({
         />
         {isRefreshing && (
           <div className="absolute inset-0 z-10 flex items-center justify-center">
-            <div className="h-8 w-8 rounded-full border-2 border-[#1E2D45] border-t-[#62A0EA] animate-spin" />
+            <div className="h-8 w-8 rounded-full border-2 border-[#1E2D45] admin-light:border-[#E2E8F0] border-t-[#62A0EA] admin-light:border-t-[#1A5FB4] animate-spin" />
           </div>
         )}
       </div>

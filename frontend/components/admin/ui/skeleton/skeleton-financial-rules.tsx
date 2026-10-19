@@ -8,7 +8,7 @@
  */
 
 function Bar({ className }: { className: string }) {
-  return <div className={`rounded-md bg-white/[0.07] motion-safe:animate-pulse ${className}`} />;
+  return <div className={`rounded-md bg-white/[0.07] admin-light:bg-slate-200 motion-safe:animate-pulse ${className}`} />;
 }
 
 function SectionHeading() {
@@ -35,11 +35,11 @@ export function SkeletonFinancialRules() {
         </div>
 
         {/* Commuter Discount Rates */}
-        <div className="rounded-lg border border-[#1E2D45] bg-[#131C2E] p-4 sm:p-6">
+        <div className="rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white p-4 sm:p-6">
           <SectionHeading />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="flex items-center gap-3 rounded-lg border border-[#1E2D45] bg-[#0E1628] p-3">
+              <div key={i} className="flex items-center gap-3 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] p-3">
                 <Bar className="h-8 w-8 shrink-0" />
                 <div className="flex-1 space-y-1.5">
                   <Bar className="h-3.5 w-24" />
@@ -52,7 +52,7 @@ export function SkeletonFinancialRules() {
         </div>
 
         {/* Loyalty Program */}
-        <div className="rounded-lg border border-[#1E2D45] bg-[#131C2E] p-4 sm:p-6">
+        <div className="rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white p-4 sm:p-6">
           <SectionHeading />
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
             <div className="w-full space-y-2 sm:max-w-56">

@@ -52,7 +52,7 @@ export function StickyPageHeader({
 }) {
   return (
     <div
-      className={`sticky -top-4 z-30 -mx-4 -mt-4 px-4 pr-16 pt-4 pb-3 bg-[#0B1120] border-b border-white/5 md:static md:top-0 md:mx-0 md:mt-0 md:px-0 md:pt-0 md:pb-0 md:bg-transparent md:border-0 ${className}`}
+      className={`sticky -top-4 z-30 -mx-4 -mt-4 px-4 pr-16 pt-4 pb-3 bg-[#0B1120] admin-light:bg-[#F1F5F9] border-b border-white/5 admin-light:border-[#E2E8F0] md:static md:top-0 md:mx-0 md:mt-0 md:px-0 md:pt-0 md:pb-0 md:bg-transparent md:border-0 ${className}`}
     >
       {children}
     </div>

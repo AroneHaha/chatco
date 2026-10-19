@@ -27,10 +27,10 @@ function formatUSDate(iso?: string): string {
 
 function StatusBadge({ status }: { status: AnalyticsRemittance["status"] }) {
   return (
-    <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+    <span className={`text-xs font-medium ${
       status === "Remitted"
-        ? "bg-sky-400/15 text-sky-400"
-        : "bg-red-500/15 text-red-400"
+        ? "text-sky-400 admin-light:text-sky-700"
+        : "text-red-400 admin-light:text-red-600"
     }`}>
       {status}
     </span>
@@ -73,13 +73,13 @@ function ConductorShiftsModal({
     .reduce((sum, row) => sum + row.remittedAmount, 0);
 
   return (
-    <Modal isOpen={!!conductor} onClose={onClose} maxWidth="max-w-2xl">
+    <Modal isOpen={!!conductor} onClose={onClose} maxWidth="max-w-2xl" adminThemed>
       <div className="mb-5 pr-6">
-        <h2 className="text-lg font-bold text-white">{conductor}</h2>
+        <h2 className="text-lg font-bold text-white admin-light:text-slate-900">{conductor}</h2>
         <div className="flex items-baseline justify-between gap-2">
           <p className="text-xs text-slate-500">{conductorRows.length} shift{conductorRows.length === 1 ? "" : "s"} in this range</p>
           {(dateFrom || dateTo) && (
-            <span className="text-xs text-slate-400 whitespace-nowrap">
+            <span className="text-xs text-slate-400 admin-light:text-slate-500 whitespace-nowrap">
               From: {formatUSDate(dateFrom)} To: {formatUSDate(dateTo)}
             </span>
           )}
@@ -87,21 +87,21 @@ function ConductorShiftsModal({
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
-        <div className="bg-[#0E1628] rounded-lg p-2.5 border border-[#1E2D45]">
+        <div className="bg-[#0E1628] admin-light:bg-[#F1F5F9] rounded-lg p-2.5 border border-[#1E2D45] admin-light:border-[#E2E8F0]">
           <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold">Total</p>
-          <p className="text-sm font-bold text-white mt-0.5">{formatPeso(totalAmount)}</p>
+          <p className="text-sm font-bold text-white admin-light:text-slate-900 mt-0.5">{formatPeso(totalAmount)}</p>
         </div>
-        <div className="bg-[#0E1628] rounded-lg p-2.5 border border-[#1E2D45]">
+        <div className="bg-[#0E1628] admin-light:bg-[#F1F5F9] rounded-lg p-2.5 border border-[#1E2D45] admin-light:border-[#E2E8F0]">
           <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold">Cash</p>
-          <p className="text-sm font-bold text-emerald-400 mt-0.5">{formatPeso(totalCash)}</p>
+          <p className="text-sm font-bold text-emerald-400 admin-light:text-emerald-700 mt-0.5">{formatPeso(totalCash)}</p>
         </div>
-        <div className="bg-[#0E1628] rounded-lg p-2.5 border border-[#1E2D45]">
+        <div className="bg-[#0E1628] admin-light:bg-[#F1F5F9] rounded-lg p-2.5 border border-[#1E2D45] admin-light:border-[#E2E8F0]">
           <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold">GCash</p>
-          <p className="text-sm font-bold text-blue-400 mt-0.5">{formatPeso(totalGCash)}</p>
+          <p className="text-sm font-bold text-blue-400 admin-light:text-blue-700 mt-0.5">{formatPeso(totalGCash)}</p>
         </div>
-        <div className="bg-[#0E1628] rounded-lg p-2.5 border border-[#1E2D45]">
+        <div className="bg-[#0E1628] admin-light:bg-[#F1F5F9] rounded-lg p-2.5 border border-[#1E2D45] admin-light:border-[#E2E8F0]">
           <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold">Pending</p>
-          <p className="text-sm font-bold text-red-400 mt-0.5">{formatPeso(pendingAmount)}</p>
+          <p className="text-sm font-bold text-red-400 admin-light:text-red-600 mt-0.5">{formatPeso(pendingAmount)}</p>
         </div>
       </div>
 
@@ -110,29 +110,29 @@ function ConductorShiftsModal({
           stay put, and only the row list scrolls once it exceeds this box. */}
       <div className="h-[45vh] overflow-y-auto scrollbar-themed pr-1">
         {conductorRows.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-slate-600 text-xs">
+          <div className="flex items-center justify-center h-full text-slate-600 admin-light:text-slate-500 text-xs">
             No shifts for this conductor in the selected range.
           </div>
         ) : (
           <div className="space-y-2">
             {pageRows.map((row) => (
-              <div key={row.shiftId} className="bg-[#0E1628] border border-[#1E2D45] rounded-lg p-3 flex items-center justify-between gap-3">
+              <div key={row.shiftId} className="bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-lg p-3 flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-xs text-[#62A0EA] font-mono font-medium">{row.shiftId}</p>
+                  <p className="text-xs text-[#62A0EA] admin-light:text-[#1A5FB4] font-mono font-medium">{row.shiftId}</p>
                   <p className="text-xs text-slate-500 mt-0.5">{row.vehiclePlate} · {row.date}</p>
                 </div>
                 <div className="flex items-center gap-4 shrink-0">
                   <div className="text-right">
                     <p className="text-[10px] text-slate-500">Cash</p>
-                    <p className="text-xs text-emerald-400 font-semibold">{formatPeso(row.cashAmount)}</p>
+                    <p className="text-xs text-emerald-400 admin-light:text-emerald-700 font-semibold">{formatPeso(row.cashAmount)}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-[10px] text-slate-500">GCash</p>
-                    <p className="text-xs text-blue-400 font-semibold">{formatPeso(row.gcashAmount)}</p>
+                    <p className="text-xs text-blue-400 admin-light:text-blue-700 font-semibold">{formatPeso(row.gcashAmount)}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-[10px] text-slate-500">Total</p>
-                    <p className="text-xs text-white font-semibold">{formatPeso(row.remittedAmount)}</p>
+                    <p className="text-xs text-white admin-light:text-slate-900 font-semibold">{formatPeso(row.remittedAmount)}</p>
                   </div>
                   <StatusBadge status={row.status} />
                 </div>
@@ -143,22 +143,22 @@ function ConductorShiftsModal({
       </div>
 
       {conductorRows.length > 0 && (
-        <div className="flex items-center justify-between mt-4 pt-4 border-t border-[#1E2D45]">
+        <div className="flex items-center justify-between mt-4 pt-4 border-t border-[#1E2D45] admin-light:border-[#E2E8F0]">
           <p className="text-xs text-slate-500">
-            Page <span className="text-white font-medium">{safePage}</span> of <span className="text-white font-medium">{totalPages}</span>
+            Page <span className="text-white admin-light:text-slate-900 font-medium">{safePage}</span> of <span className="text-white admin-light:text-slate-900 font-medium">{totalPages}</span>
           </p>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setPage(Math.max(safePage - 1, 1))}
               disabled={safePage === 1}
-              className="px-3 py-1.5 rounded-md text-xs font-medium bg-[#0E1628] border border-[#1E2D45] text-slate-400 hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              className="px-3 py-1.5 rounded-md text-xs font-medium bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] text-slate-400 admin-light:text-slate-500 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
             >
               Previous
             </button>
             <button
               onClick={() => setPage(Math.min(safePage + 1, totalPages))}
               disabled={safePage === totalPages}
-              className="px-3 py-1.5 rounded-md text-xs font-medium bg-[#62A0EA] text-white hover:bg-[#4A8BD4] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              className="px-3 py-1.5 rounded-md text-xs font-medium bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
             >
               Next
             </button>
@@ -188,32 +188,32 @@ export function RemittanceTable({ data, dateFrom, dateTo }: RemittanceTableProps
     .reduce((sum, row) => sum + row.remittedAmount, 0);
 
   return (
-    <div className="bg-[#131C2E] border border-[#1E2D45] rounded-lg p-5 h-150 flex flex-col">
+    <div className="bg-[#131C2E] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-lg p-5 h-150 flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between mb-4 shrink-0">
-        <h3 className="text-sm font-semibold text-white">Conductor Remittance</h3>
-        <span className="text-[10px] bg-[#0E1628] text-slate-500 px-2 py-0.5 rounded">
+        <h3 className="text-sm font-semibold text-white admin-light:text-slate-900">Conductor Remittance</h3>
+        <span className="text-[10px] bg-[#0E1628] admin-light:bg-[#F1F5F9] text-slate-500 px-2 py-0.5 rounded">
           {data.length} Shifts
         </span>
       </div>
 
       {/* Mini Summary Cards */}
       <div className="grid grid-cols-4 gap-2 mb-4 shrink-0">
-        <div className="bg-[#0E1628] rounded-lg p-2.5 border border-[#1E2D45]">
+        <div className="bg-[#0E1628] admin-light:bg-[#F1F5F9] rounded-lg p-2.5 border border-[#1E2D45] admin-light:border-[#E2E8F0]">
           <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold">Total</p>
-          <p className="text-sm font-bold text-white mt-0.5">{formatPeso(totalAmount)}</p>
+          <p className="text-sm font-bold text-white admin-light:text-slate-900 mt-0.5">{formatPeso(totalAmount)}</p>
         </div>
-        <div className="bg-[#0E1628] rounded-lg p-2.5 border border-[#1E2D45]">
+        <div className="bg-[#0E1628] admin-light:bg-[#F1F5F9] rounded-lg p-2.5 border border-[#1E2D45] admin-light:border-[#E2E8F0]">
           <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold">Cash</p>
-          <p className="text-sm font-bold text-emerald-400 mt-0.5">{formatPeso(totalCash)}</p>
+          <p className="text-sm font-bold text-emerald-400 admin-light:text-emerald-700 mt-0.5">{formatPeso(totalCash)}</p>
         </div>
-        <div className="bg-[#0E1628] rounded-lg p-2.5 border border-[#1E2D45]">
+        <div className="bg-[#0E1628] admin-light:bg-[#F1F5F9] rounded-lg p-2.5 border border-[#1E2D45] admin-light:border-[#E2E8F0]">
           <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold">GCash</p>
-          <p className="text-sm font-bold text-blue-400 mt-0.5">{formatPeso(totalGCash)}</p>
+          <p className="text-sm font-bold text-blue-400 admin-light:text-blue-700 mt-0.5">{formatPeso(totalGCash)}</p>
         </div>
-        <div className="bg-[#0E1628] rounded-lg p-2.5 border border-[#1E2D45]">
+        <div className="bg-[#0E1628] admin-light:bg-[#F1F5F9] rounded-lg p-2.5 border border-[#1E2D45] admin-light:border-[#E2E8F0]">
           <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold">Pending</p>
-          <p className="text-sm font-bold text-red-400 mt-0.5">{formatPeso(pendingAmount)}</p>
+          <p className="text-sm font-bold text-red-400 admin-light:text-red-600 mt-0.5">{formatPeso(pendingAmount)}</p>
         </div>
       </div>
 
@@ -223,13 +223,13 @@ export function RemittanceTable({ data, dateFrom, dateTo }: RemittanceTableProps
           growing the card. */}
       <div className="flex-1 min-h-0 overflow-y-auto scrollbar-themed">
         {data.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-slate-600 text-xs">
+          <div className="flex items-center justify-center h-full text-slate-600 admin-light:text-slate-500 text-xs">
             No remittance data available.
           </div>
         ) : (
           <table className="w-full text-left h-full">
-            <thead className="sticky top-0 bg-[#131C2E] z-10">
-              <tr className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold border-b border-[#1E2D45]">
+            <thead className="sticky top-0 bg-[#131C2E] admin-light:bg-white z-10">
+              <tr className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold border-b border-[#1E2D45] admin-light:border-[#E2E8F0]">
                 <th className="pb-3 pr-2 font-medium">Shift ID</th>
                 <th className="pb-3 pr-2 font-medium">Conductor</th>
                 <th className="pb-3 pr-2 font-medium hidden md:table-cell">Date</th>
@@ -239,16 +239,16 @@ export function RemittanceTable({ data, dateFrom, dateTo }: RemittanceTableProps
                 <th className="pb-3 font-medium text-center">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#1E2D45]">
+            <tbody className="divide-y divide-[#1E2D45] admin-light:divide-[#E2E8F0]">
               {currentTableData.map((row) => (
                 <tr
                   key={row.shiftId}
                   onClick={() => setSelectedConductor(row.conductor)}
                   title={`View ${row.conductor}'s shift history`}
-                  className="transition-colors hover:bg-[#0E1628] cursor-pointer"
+                  className="transition-colors hover:bg-[#0E1628] admin-light:hover:bg-[#F8FAFC] cursor-pointer"
                 >
-                  <td className="py-3 pr-2 text-xs text-[#62A0EA] font-mono font-medium">{row.shiftId}</td>
-                  <td className="py-3 pr-2 text-xs text-slate-300 font-medium">
+                  <td className="py-3 pr-2 text-xs text-[#62A0EA] admin-light:text-[#1A5FB4] font-mono font-medium">{row.shiftId}</td>
+                  <td className="py-3 pr-2 text-xs text-slate-300 admin-light:text-slate-700 font-medium">
                     <span className="flex items-center gap-2">
                       {row.conductor}
                       <svg className="w-3 h-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -257,9 +257,9 @@ export function RemittanceTable({ data, dateFrom, dateTo }: RemittanceTableProps
                     </span>
                   </td>
                   <td className="py-3 pr-2 text-xs text-slate-500 hidden md:table-cell">{row.date}</td>
-                  <td className="py-3 pr-2 text-xs text-emerald-400 font-semibold text-right">{formatPeso(row.cashAmount)}</td>
-                  <td className="py-3 pr-2 text-xs text-blue-400 font-semibold text-right">{formatPeso(row.gcashAmount)}</td>
-                  <td className="py-3 pr-2 text-xs text-white font-semibold text-right">{formatPeso(row.remittedAmount)}</td>
+                  <td className="py-3 pr-2 text-xs text-emerald-400 admin-light:text-emerald-700 font-semibold text-right">{formatPeso(row.cashAmount)}</td>
+                  <td className="py-3 pr-2 text-xs text-blue-400 admin-light:text-blue-700 font-semibold text-right">{formatPeso(row.gcashAmount)}</td>
+                  <td className="py-3 pr-2 text-xs text-white admin-light:text-slate-900 font-semibold text-right">{formatPeso(row.remittedAmount)}</td>
                   <td className="py-3 text-center">
                     <StatusBadge status={row.status} />
                   </td>
@@ -271,16 +271,16 @@ export function RemittanceTable({ data, dateFrom, dateTo }: RemittanceTableProps
       </div>
 
       {/* Pagination Controls */}
-      <div className="flex items-center justify-between mt-4 pt-4 border-t border-[#1E2D45] shrink-0">
+      <div className="flex items-center justify-between mt-4 pt-4 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] shrink-0">
         <p className="text-xs text-slate-500">
-          Page <span className="text-white font-medium">{currentPage}</span> of <span className="text-white font-medium">{totalPages}</span>
+          Page <span className="text-white admin-light:text-slate-900 font-medium">{currentPage}</span> of <span className="text-white admin-light:text-slate-900 font-medium">{totalPages}</span>
         </p>
 
         <div className="flex items-center gap-2">
           <button
             onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
             disabled={currentPage === 1}
-            className="px-3 py-1.5 rounded-md text-xs font-medium bg-[#0E1628] border border-[#1E2D45] text-slate-400 hover:bg-[#1A2540] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            className="px-3 py-1.5 rounded-md text-xs font-medium bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] text-slate-400 admin-light:text-slate-500 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
           >
             Previous
           </button>
@@ -288,7 +288,7 @@ export function RemittanceTable({ data, dateFrom, dateTo }: RemittanceTableProps
           <button
             onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
             disabled={currentPage === totalPages}
-            className="px-3 py-1.5 rounded-md text-xs font-medium bg-[#62A0EA] text-white hover:bg-[#4A8BD4] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            className="px-3 py-1.5 rounded-md text-xs font-medium bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
           >
             Next
           </button>

@@ -25,14 +25,14 @@ const getStatusTextClass = (status: LostFoundItem['status']): string => {
     case 'Released':
     case 'Returned':
     case 'Closed':
-      return 'text-emerald-300';
+      return 'text-emerald-300 admin-light:text-emerald-700';
     case 'Claimed':
-      return 'text-[#8CB9F0]';
+      return 'text-[#8CB9F0] admin-light:text-[#1A5FB4]';
     case 'Expired':
     case 'Rejected':
-      return 'text-red-300';
+      return 'text-red-300 admin-light:text-red-700';
     default:
-      return 'text-amber-300';
+      return 'text-amber-300 admin-light:text-amber-700';
   }
 };
 
@@ -47,7 +47,7 @@ function Fact({ label, value, fallback }: { label: string; value: string | null 
   return (
     <div className="min-w-0">
       <dt className="text-xs font-semibold text-slate-500">{label}</dt>
-      <dd className={`mt-1 break-words text-sm ${value ? 'font-semibold text-slate-100' : 'text-slate-500'}`}>
+      <dd className={`mt-1 break-words text-sm ${value ? 'font-semibold text-slate-100 admin-light:text-slate-900' : 'text-slate-500'}`}>
         {value || fallback}
       </dd>
     </div>
@@ -57,9 +57,9 @@ function Fact({ label, value, fallback }: { label: string; value: string | null 
 /** One ledger row in the Record group: fixed label column, value beside it. */
 function RecordRow({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-baseline gap-4 border-b border-white/[0.06] py-3 last:border-b-0">
+    <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-baseline gap-4 border-b border-white/[0.06] admin-light:border-[#E2E8F0] py-3 last:border-b-0">
       <dt className="text-xs font-semibold text-slate-500">{label}</dt>
-      <dd className="min-w-0 break-words text-sm text-slate-100">{children}</dd>
+      <dd className="min-w-0 break-words text-sm text-slate-100 admin-light:text-slate-900">{children}</dd>
     </div>
   );
 }
@@ -162,7 +162,7 @@ export function ViewItemModal({
       type="button"
       onClick={() => fileInputRef.current?.click()}
       disabled={isPhotoBusy}
-      className={`flex h-full w-full flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-white/15 bg-white/[0.03] px-2 text-center text-slate-400 transition-colors hover:border-[#62A0EA] hover:text-[#8CB9F0] focus:outline-none focus-visible:border-[#62A0EA] disabled:cursor-not-allowed disabled:opacity-50 ${large ? 'lg:px-6' : ''}`}
+      className={`flex h-full w-full flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-white/15 admin-light:border-[#CBD5E1] bg-white/[0.03] admin-light:bg-[#F8FAFC] px-2 text-center text-slate-400 admin-light:text-slate-500 transition-colors hover:border-[#62A0EA] admin-light:hover:border-[#1A5FB4] hover:text-[#8CB9F0] admin-light:hover:text-[#1A5FB4] focus:outline-none focus-visible:border-[#62A0EA] admin-light:focus-visible:border-[#1A5FB4] disabled:cursor-not-allowed disabled:opacity-50 ${large ? 'lg:px-6' : ''}`}
     >
       {isUploading ? (
         <span className="h-5 w-5 rounded-full border-2 border-current border-t-transparent animate-spin" aria-hidden="true" />
@@ -188,9 +188,9 @@ export function ViewItemModal({
     if (photo) {
       const isDeleting = deletingPhotoId === photo.id;
       return (
-        <div className="group/photo relative h-full w-full overflow-hidden rounded-lg border border-white/10 bg-[#0B1628]">
+        <div className="group/photo relative h-full w-full overflow-hidden rounded-lg border border-white/10 admin-light:border-[#E2E8F0] bg-[#0B1628] admin-light:bg-[#F1F5F9]">
           {/* Opens the full-size photo, so the smaller slots can still be inspected. */}
-          <a href={photo.url} target="_blank" rel="noopener noreferrer" className="block h-full w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA]" aria-label={`Open photo ${index + 1} full size`}>
+          <a href={photo.url} target="_blank" rel="noopener noreferrer" className="block h-full w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4]" aria-label={`Open photo ${index + 1} full size`}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={photo.url}
@@ -205,7 +205,7 @@ export function ViewItemModal({
             type="button"
             onClick={() => void handleDeletePhoto(photo.id)}
             disabled={isPhotoBusy}
-            className="absolute right-1.5 top-1.5 inline-flex h-7 w-7 items-center justify-center rounded-md bg-black/60 text-white/85 transition-colors hover:bg-red-500 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-black/60"
+            className="absolute right-1.5 top-1.5 inline-flex h-7 w-7 items-center justify-center rounded-md bg-black/60 text-white/85 transition-colors hover:bg-red-500 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-black/60"
             aria-label={`Remove photo ${index + 1}`}
             title="Remove photo"
           >
@@ -220,22 +220,22 @@ export function ViewItemModal({
       );
     }
     if (index === photoCount && photoCount < MAX_PHOTOS) return addPhotoSlot(large);
-    return <div aria-hidden="true" className="h-full w-full rounded-lg border border-dashed border-white/[0.06]" />;
+    return <div aria-hidden="true" className="h-full w-full rounded-lg border border-dashed border-white/[0.06] admin-light:border-[#E2E8F0]" />;
   };
 
-  const secondaryButton = 'inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-white/10 px-5 text-sm font-semibold text-slate-300 transition-colors hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-50';
-  const primaryButton = 'inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] px-5 text-sm font-bold text-white transition-colors hover:bg-[#4A8BD4] disabled:cursor-not-allowed disabled:opacity-50';
+  const secondaryButton = 'inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-white/10 admin-light:border-[#E2E8F0] px-5 text-sm font-semibold text-slate-300 admin-light:text-slate-700 transition-colors hover:bg-white/5 admin-light:hover:bg-[#F1F5F9] hover:text-white admin-light:hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50';
+  const primaryButton = 'inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] admin-light:bg-[#1A5FB4] px-5 text-sm font-bold text-white transition-colors hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] disabled:cursor-not-allowed disabled:opacity-50';
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-5xl" rounded="rounded-xl">
+    <Modal adminThemed isOpen={isOpen} onClose={onClose} maxWidth="max-w-5xl" rounded="rounded-xl">
       <header className="pr-10">
-        <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#8CB9F0]">
+        <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#8CB9F0] admin-light:text-[#1A5FB4]">
           <PackageSearch className="h-3.5 w-3.5" aria-hidden="true" />
           Lost item
-          <span className="text-slate-600" aria-hidden="true">/</span>
-          <span className="text-slate-400">{categoryLabel}</span>
+          <span className="text-slate-600 admin-light:text-slate-400" aria-hidden="true">/</span>
+          <span className="text-slate-400 admin-light:text-slate-500">{categoryLabel}</span>
         </p>
-        <h2 className="break-words text-xl font-bold leading-tight text-white sm:text-2xl">{item.itemName}</h2>
+        <h2 className="break-words text-xl font-bold leading-tight text-white admin-light:text-slate-900 sm:text-2xl">{item.itemName}</h2>
         <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
           <span className={`text-sm font-semibold ${getStatusTextClass(item.status)}`}>{item.status}</span>
           <span className="text-xs text-slate-500">Posted {formattedDate}</span>
@@ -244,7 +244,7 @@ export function ViewItemModal({
 
       {/* Photos lead on the left, the record reads down the wider column
           beside them. One column on small screens. */}
-      <div className="mt-6 grid gap-8 border-t border-white/10 pt-6 lg:grid-cols-[18rem_minmax(0,1fr)] lg:gap-10">
+      <div className="mt-6 grid gap-8 border-t border-white/10 admin-light:border-[#E2E8F0] pt-6 lg:grid-cols-[18rem_minmax(0,1fr)] lg:gap-10">
         <section aria-labelledby="view-photos-label">
           <div className="mb-4 flex items-baseline justify-between gap-3">
             <h3 id="view-photos-label" className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Photos</h3>
@@ -265,13 +265,13 @@ export function ViewItemModal({
           <section>
             <GroupLabel>Description</GroupLabel>
             {item.description ? (
-              <p className="max-w-[65ch] whitespace-pre-line break-words text-base leading-7 text-slate-200">{item.description}</p>
+              <p className="max-w-[65ch] whitespace-pre-line break-words text-base leading-7 text-slate-200 admin-light:text-slate-800">{item.description}</p>
             ) : (
               <p className="text-sm text-slate-500">No description provided.</p>
             )}
           </section>
 
-          <section className="mt-7 border-t border-white/10 pt-6">
+          <section className="mt-7 border-t border-white/10 admin-light:border-[#E2E8F0] pt-6">
             <GroupLabel>Found on</GroupLabel>
             <dl className="grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2">
               <Fact label="Plate Number" value={item.plateNumber} fallback="Plate unavailable" />
@@ -281,7 +281,7 @@ export function ViewItemModal({
             </dl>
           </section>
 
-          <section className="mt-7 border-t border-white/10 pt-6">
+          <section className="mt-7 border-t border-white/10 admin-light:border-[#E2E8F0] pt-6">
             <GroupLabel>Record</GroupLabel>
             <dl className="-my-3">
               <RecordRow label="Reported By">
@@ -290,25 +290,25 @@ export function ViewItemModal({
               <RecordRow label="Date Posted">{formattedDate}</RecordRow>
               {item.claimedBy && (
                 <RecordRow label="Claimed By">
-                  <span className="font-semibold text-[#8CB9F0]">{item.claimedBy}</span>
+                  <span className="font-semibold text-[#8CB9F0] admin-light:text-[#1A5FB4]">{item.claimedBy}</span>
                 </RecordRow>
               )}
               {isExpired && (
                 <RecordRow label="Expired">
-                  <span className="font-semibold text-red-300">{formattedExpiry}</span>
+                  <span className="font-semibold text-red-300 admin-light:text-red-700">{formattedExpiry}</span>
                 </RecordRow>
               )}
               <RecordRow label="Item ID">
                 <span className="flex min-w-0 items-center gap-2">
-                  <span className="min-w-0 break-all font-mono text-xs text-slate-300">{item.id}</span>
+                  <span className="min-w-0 break-all font-mono text-xs text-slate-300 admin-light:text-slate-700">{item.id}</span>
                   <button
                     type="button"
                     onClick={() => void handleCopyId()}
-                    className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-white/5 hover:text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
+                    className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-white/5 admin-light:hover:bg-[#F1F5F9] hover:text-slate-200 admin-light:hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4]"
                     aria-label={isIdCopied ? 'Item ID copied' : 'Copy item ID'}
                     title={isIdCopied ? 'Copied' : 'Copy item ID'}
                   >
-                    {isIdCopied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                    {isIdCopied ? <Check className="h-3.5 w-3.5 text-emerald-400 admin-light:text-emerald-700" /> : <Copy className="h-3.5 w-3.5" />}
                   </button>
                 </span>
               </RecordRow>
@@ -320,7 +320,7 @@ export function ViewItemModal({
       {/* Pinned to the bottom of the modal's scroll area so the actions stay
           reachable on short screens. Reactivate leads only while expired;
           otherwise Edit is the one action. */}
-      <div className="sticky -bottom-4 z-10 -mx-4 -mb-4 mt-8 flex flex-col-reverse gap-2 border-t border-white/10 bg-[#1A2540] px-4 py-4 sm:-bottom-6 sm:-mx-6 sm:-mb-6 sm:flex-row sm:justify-end sm:px-6">
+      <div className="sticky -bottom-4 z-10 -mx-4 -mb-4 mt-8 flex flex-col-reverse gap-2 border-t border-white/10 admin-light:border-[#E2E8F0] bg-[#1A2540] admin-light:bg-white px-4 py-4 sm:-bottom-6 sm:-mx-6 sm:-mb-6 sm:flex-row sm:justify-end sm:px-6">
         <button type="button" onClick={onClose} className={secondaryButton}>Close</button>
         <button type="button" onClick={() => onEdit(item)} className={isExpired ? secondaryButton : primaryButton}>
           <Pencil className="h-4 w-4" />

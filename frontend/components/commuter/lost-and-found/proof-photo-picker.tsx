@@ -27,10 +27,10 @@ const SKINS = {
     helper: "mt-2 text-[11px] font-medium text-white/55 light:text-gray-500",
   },
   admin: {
-    label: "mb-1.5 block text-xs font-semibold text-slate-300",
+    label: "mb-1.5 block text-xs font-semibold text-slate-300 admin-light:text-slate-700",
     optional: "font-medium text-slate-500",
-    tile: "border-[#1E2D45] bg-[#0B1120]",
-    empty: "border-[#1E2D45] bg-[#0B1120] text-slate-500 hover:border-[#62A0EA]/60 hover:text-[#8CB9F0] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]",
+    tile: "border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0B1120] admin-light:bg-white",
+    empty: "border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0B1120] admin-light:bg-white text-slate-500 hover:border-[#62A0EA]/60 admin-light:hover:border-[#1A5FB4]/60 hover:text-[#8CB9F0] admin-light:hover:text-[#1A5FB4] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4]",
     helper: "mt-2 text-xs text-slate-500",
   },
 } as const;
@@ -115,7 +115,7 @@ export default function ProofPhotoPicker({ files, onChange, disabled = false, va
         onChange={handleFilesSelected}
       />
       {error ? (
-        <p className="mt-2 text-[11px] font-medium text-red-300 light:text-red-600">{error}</p>
+        <p className="mt-2 text-[11px] font-medium text-red-300 admin-light:text-red-700 light:text-red-600">{error}</p>
       ) : (
         <p className={skin.helper}>
           {helperText ?? `Up to ${MAX_PHOTOS} photos, such as a receipt or a picture of you with the item. JPG, PNG, or WEBP, 5 MB each.`}

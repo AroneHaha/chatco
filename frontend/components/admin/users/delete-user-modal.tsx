@@ -57,15 +57,15 @@ export function DeleteUserModal({ isOpen, onClose, onConfirm, user }: DeleteUser
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose}>
+    <Modal adminThemed isOpen={isOpen} onClose={handleClose}>
       <div className="space-y-5">
         <div className="flex items-start gap-4">
           <div className="w-12 h-12 rounded-full bg-red-500/15 flex items-center justify-center flex-shrink-0 border-2 border-red-500/25">
-            <AlertTriangle size={24} className="text-red-400" />
+            <AlertTriangle size={24} className="text-red-400 admin-light:text-red-600" />
           </div>
           <div>
-            <h2 className="text-lg sm:text-xl font-bold text-white">Delete User</h2>
-            <p className="text-sm text-slate-400 mt-1">
+            <h2 className="text-lg sm:text-xl font-bold text-white admin-light:text-slate-900">Delete User</h2>
+            <p className="text-sm text-slate-400 admin-light:text-slate-500 mt-1">
               This will soft-delete the account and lock the user out of the system.
               Their financial history (transactions, remittances) is preserved.
             </p>
@@ -73,22 +73,22 @@ export function DeleteUserModal({ isOpen, onClose, onConfirm, user }: DeleteUser
         </div>
 
         {user && (
-          <div className="bg-[#0E1628] border border-[#1E2D45] rounded-md p-4 space-y-1">
-            <p className="text-white font-medium">{user.name}</p>
-            <p className="text-sm text-slate-400">{user.email}</p>
+          <div className="bg-[#0E1628] admin-light:bg-[#F8FAFC] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md p-4 space-y-1">
+            <p className="text-white admin-light:text-slate-900 font-medium">{user.name}</p>
+            <p className="text-sm text-slate-400 admin-light:text-slate-500">{user.email}</p>
           </div>
         )}
 
         {error && (
           <div className="bg-red-500/10 border border-red-500/30 rounded-md p-3">
-            <p className="text-sm text-red-400">{error}</p>
+            <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
           </div>
         )}
 
         {/* Confirmation guard — prevents a misclick from deleting the account */}
         <div>
-          <label htmlFor="delete-user-confirm" className="block text-sm font-medium text-slate-300 mb-1.5">
-            Type <span className="font-semibold text-white">Delete</span> to continue <span className="text-red-400">*</span>
+          <label htmlFor="delete-user-confirm" className="block text-sm font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">
+            Type <span className="font-semibold text-white admin-light:text-slate-900">Delete</span> to continue <span className="text-red-400 admin-light:text-red-600">*</span>
           </label>
           <input
             id="delete-user-confirm"
@@ -98,16 +98,16 @@ export function DeleteUserModal({ isOpen, onClose, onConfirm, user }: DeleteUser
             disabled={isDeleting}
             autoComplete="off"
             placeholder="Delete"
-            className="block w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-400 transition-colors disabled:opacity-50"
+            className="block w-full px-4 py-2.5 bg-[#0E1628] admin-light:bg-[#F8FAFC] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-white admin-light:text-slate-900 placeholder-slate-500 admin-light:placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-red-400 transition-colors disabled:opacity-50"
           />
         </div>
 
-        <div className="flex justify-end gap-2 pt-2 border-t border-[#1E2D45]">
+        <div className="flex justify-end gap-2 pt-2 border-t border-[#1E2D45] admin-light:border-[#E2E8F0]">
           <button
             type="button"
             onClick={handleClose}
             disabled={isDeleting}
-            className="px-5 py-2.5 border border-[#1E2D45] rounded-md text-slate-300 hover:bg-[#131C2E] transition-colors disabled:opacity-50"
+            className="px-5 py-2.5 border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-slate-300 admin-light:text-slate-700 hover:bg-[#131C2E] admin-light:hover:bg-[#F1F5F9] transition-colors disabled:opacity-50"
           >
             Cancel
           </button>

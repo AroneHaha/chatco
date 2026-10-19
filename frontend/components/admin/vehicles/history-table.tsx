@@ -77,7 +77,7 @@ export function HistoryTable({
       cellClassName: 'min-w-0',
       render: (value: string, person: TerminatedPersonnel) => (
         <div className="min-w-0">
-          <p className="truncate font-medium text-white">{value}</p>
+          <p className="truncate font-medium text-white admin-light:text-slate-900">{value}</p>
           <p className="truncate text-xs text-slate-500">{person.contact || 'No contact recorded'}</p>
         </div>
       ),
@@ -103,7 +103,7 @@ export function HistoryTable({
       key: 'reason',
       label: 'Reason',
       render: (value: string) => (
-        <span className="block max-w-72 truncate text-xs text-slate-400" title={value}>
+        <span className="block max-w-72 truncate text-xs text-slate-400 admin-light:text-slate-500" title={value}>
           {value || 'No reason recorded'}
         </span>
       ),
@@ -133,8 +133,8 @@ export function HistoryTable({
       label: 'Role',
       // Quiet dot + label, same as the Personnel tab's Role column.
       render: (value: string) => (
-        <span className="inline-flex items-center gap-2 text-sm text-slate-300">
-          <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${value === 'Driver' ? 'bg-[#62A0EA]' : 'bg-amber-400'}`} />
+        <span className="inline-flex items-center gap-2 text-sm text-slate-300 admin-light:text-slate-700">
+          <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${value === 'Driver' ? 'bg-[#62A0EA] admin-light:bg-[#1A5FB4]' : 'bg-amber-400'}`} />
           {value}
         </span>
       ),
@@ -158,7 +158,7 @@ export function HistoryTable({
       // Dot + label instead of a pill: green while the shift is still running,
       // gray once ended, amber for any other state.
       render: (value: string) => (
-        <span className="inline-flex items-center gap-2 text-sm text-slate-300">
+        <span className="inline-flex items-center gap-2 text-sm text-slate-300 admin-light:text-slate-700">
           <span
             aria-hidden="true"
             className={`h-1.5 w-1.5 shrink-0 rounded-full ${
@@ -176,7 +176,7 @@ export function HistoryTable({
 
   return (
     <>
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 rounded-lg border border-[#1E2D45] bg-[#111A2B] p-3 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#111A2B] admin-light:bg-white p-3 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
       <div className="flex shrink-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
           <SearchBar
@@ -190,10 +190,10 @@ export function HistoryTable({
               value={shiftHistoryRange}
               onChange={(event) => onShiftHistoryRangeChange(event.target.value as FleetShiftHistoryRange)}
               aria-label="Filter shift history by date range"
-              className="h-10 rounded-lg border border-[#1E2D45] bg-[#0E1628] px-3 text-sm text-slate-200 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]/50 focus:ring-1 focus:ring-[#62A0EA]/30"
+              className="h-10 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 text-sm text-slate-200 admin-light:text-slate-700 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]/50 admin-light:focus:border-[#1A5FB4]/50 focus:ring-1 focus:ring-[#62A0EA]/30 admin-light:focus:ring-[#1A5FB4]/30"
             >
               {shiftRangeOptions.map((option) => (
-                <option key={option.value} value={option.value} className="bg-gray-800">
+                <option key={option.value} value={option.value} className="bg-gray-800 admin-light:bg-white">
                   {option.label}
                 </option>
               ))}
@@ -201,12 +201,12 @@ export function HistoryTable({
           )}
         </div>
         <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="inline-flex max-w-full overflow-x-auto rounded-lg border border-[#1E2D45] bg-[#0E1628] p-1 scrollbar-themed">
+          <div className="inline-flex max-w-full overflow-x-auto rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F1F5F9] p-1 scrollbar-themed">
             <button
               type="button"
               onClick={() => onHistoryTabChange('shifts')}
               className={`flex items-center gap-2 rounded-md px-4 py-2 text-xs font-semibold transition-colors ${
-                !isTerminated ? 'bg-[#62A0EA]/15 text-[#62A0EA]' : 'text-slate-500 hover:text-slate-300'
+                !isTerminated ? 'bg-[#62A0EA]/15 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4]' : 'text-slate-500 hover:text-slate-300 admin-light:hover:text-slate-700'
               }`}
             >
               <Clock size={14} />
@@ -217,7 +217,7 @@ export function HistoryTable({
               type="button"
               onClick={() => onHistoryTabChange('terminated')}
               className={`flex items-center gap-2 rounded-md px-4 py-2 text-xs font-semibold transition-colors ${
-                isTerminated ? 'bg-red-400/15 text-red-300' : 'text-slate-500 hover:text-slate-300'
+                isTerminated ? 'bg-red-400/15 text-red-300 admin-light:text-red-700' : 'text-slate-500 hover:text-slate-300 admin-light:hover:text-slate-700'
               }`}
             >
               <UserX size={14} />
@@ -271,17 +271,17 @@ export function HistoryTable({
         </div>
       </div>
     </div>
-    <Modal isOpen={Boolean(selectedRecord)} onClose={() => setSelectedRecord(null)}>
+    <Modal adminThemed isOpen={Boolean(selectedRecord)} onClose={() => setSelectedRecord(null)}>
       <div className="space-y-5">
         <div className="flex items-center gap-3">
           <div className="rounded-lg bg-red-400/15 p-2">
-            <UserX className="text-red-300" size={22} />
+            <UserX className="text-red-300 admin-light:text-red-700" size={22} />
           </div>
           <div className="min-w-0">
-            <h2 className="truncate text-xl font-bold text-white">
+            <h2 className="truncate text-xl font-bold text-white admin-light:text-slate-900">
               {selectedRecord ? displayValue(selectedRecord.name, 'Separated Personnel') : 'Separated Personnel'}
             </h2>
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-slate-400 admin-light:text-slate-500">
               {selectedRecord ? `${selectedRecord.role} record separated on ${selectedRecordDate}` : 'Recorded personnel separation details.'}
             </p>
           </div>
@@ -289,7 +289,7 @@ export function HistoryTable({
 
         {selectedRecord && (
           <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 rounded-md border border-[#1E2D45] bg-[#0E1628] p-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F1F5F9] p-4 sm:grid-cols-2">
               <div>
                 <p className="text-xs font-medium uppercase text-slate-500">Role</p>
                 <div className="mt-1">
@@ -306,32 +306,32 @@ export function HistoryTable({
               </div>
               <div>
                 <p className="text-xs font-medium uppercase text-slate-500">Separated Date</p>
-                <p className="mt-1 text-sm text-slate-200">{selectedRecordDate}</p>
+                <p className="mt-1 text-sm text-slate-200 admin-light:text-slate-700">{selectedRecordDate}</p>
               </div>
               <div>
                 <p className="text-xs font-medium uppercase text-slate-500">Contact</p>
-                <p className="mt-1 text-sm text-slate-200">{displayValue(selectedRecord.contact)}</p>
+                <p className="mt-1 text-sm text-slate-200 admin-light:text-slate-700">{displayValue(selectedRecord.contact)}</p>
               </div>
               <div>
                 <p className="text-xs font-medium uppercase text-slate-500">Date Joined</p>
-                <p className="mt-1 text-sm text-slate-200">{displayDate(selectedRecord.dateJoined)}</p>
+                <p className="mt-1 text-sm text-slate-200 admin-light:text-slate-700">{displayDate(selectedRecord.dateJoined)}</p>
               </div>
             </div>
 
             {selectedRecord.status === 'Terminated' && (
-              <div className="rounded-md border border-red-400/20 bg-red-400/5 p-4">
-                <p className="text-xs font-medium uppercase text-red-300">Reason for Termination</p>
-                <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-200">
+              <div className="rounded-md border border-red-400/20 admin-light:border-red-200 bg-red-400/5 p-4">
+                <p className="text-xs font-medium uppercase text-red-300 admin-light:text-red-700">Reason for Termination</p>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-200 admin-light:text-slate-700">
                   {selectedRecord.reason && selectedRecord.reason !== '-' ? selectedRecord.reason : 'No reason recorded'}
                 </p>
               </div>
             )}
 
-            <div className="flex justify-end border-t border-[#1E2D45] pt-4">
+            <div className="flex justify-end border-t border-[#1E2D45] admin-light:border-[#E2E8F0] pt-4">
               <button
                 type="button"
                 onClick={() => setSelectedRecord(null)}
-                className="rounded-md border border-[#1E2D45] px-6 py-2.5 text-sm text-slate-300 transition-colors hover:bg-[#131C2E] active:scale-[0.98]"
+                className="rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] px-6 py-2.5 text-sm text-slate-300 admin-light:text-slate-700 transition-colors hover:bg-[#131C2E] admin-light:hover:bg-white active:scale-[0.98]"
               >
                 Close
               </button>

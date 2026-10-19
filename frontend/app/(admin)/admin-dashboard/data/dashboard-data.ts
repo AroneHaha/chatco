@@ -46,7 +46,6 @@ export interface StatItem {
   label: string;
   value: string;
   icon: LucideIcon;
-  color: string;
   link: string;
 }
 
@@ -54,9 +53,6 @@ export interface SettingsModule {
   title: string;
   desc: string;
   icon: LucideIcon;
-  /** Tonal icon-badge classes, e.g. "text-sky-400 bg-sky-400/15" — same
-   * convention as StatItem.color on the quick-stats row above. */
-  color: string;
   href: string;
 }
 
@@ -92,13 +88,13 @@ export interface DashboardData {
 /* ─── Static settings modules (navigation links — not from API) ─── */
 
 const SETTINGS_MODULES: SettingsModule[] = [
-  { title: "Fare Matrix", desc: "Set base fares and distance rates.", icon: Calculator, color: "text-[#62A0EA] bg-[#62A0EA]/15", href: "/settings/fare-matrix" },
-  { title: "Financial Rules", desc: "Configure fare deductions and splits.", icon: Receipt, color: "text-sky-400 bg-sky-400/15", href: "/settings/financial-rules" },
-  { title: "Voucher Generator", desc: "Create promo codes and free ride passes.", icon: Ticket, color: "text-violet-400 bg-violet-400/15", href: "/settings/voucher-generator" },
-  { title: "Safety Notifications", desc: "Manage alert triggers and templates.", icon: Bell, color: "text-amber-400 bg-amber-400/15", href: "/settings/safety-notifications" },
-  { title: "App Configuration", desc: "General system preferences and UI.", icon: SlidersHorizontal, color: "text-pink-400 bg-pink-400/15", href: "/settings/app-configuration" },
-  { title: "Updates Center", desc: "View notifications and manage announcements.", icon: Megaphone, color: "text-indigo-400 bg-indigo-400/15", href: "/announcements" },
-  { title: "Activity Logs", desc: "Audit trail of admin and system actions.", icon: History, color: "text-teal-400 bg-teal-400/15", href: "/activity-logs" },
+  { title: "Fare Matrix", desc: "Set base fares and distance rates.", icon: Calculator, href: "/settings/fare-matrix" },
+  { title: "Financial Rules", desc: "Configure fare deductions and splits.", icon: Receipt, href: "/settings/financial-rules" },
+  { title: "Voucher Generator", desc: "Create promo codes and free ride passes.", icon: Ticket, href: "/settings/voucher-generator" },
+  { title: "Safety Notifications", desc: "Manage alert triggers and templates.", icon: Bell, href: "/settings/safety-notifications" },
+  { title: "App Configuration", desc: "General system preferences and UI.", icon: SlidersHorizontal, href: "/settings/app-configuration" },
+  { title: "Updates Center", desc: "View notifications and manage announcements.", icon: Megaphone, href: "/announcements" },
+  { title: "Activity Logs", desc: "Audit trail of admin and system actions.", icon: History, href: "/activity-logs" },
 ];
 
 /* ─── Helpers ─── */
@@ -219,10 +215,10 @@ export function useDashboardData() {
         : 0;
 
       const quickStats: StatItem[] = [
-        { label: "Total Revenue (Today)", value: formatPeso(totalFares), icon: TrendingUp, color: "text-sky-400 bg-[#62A0EA]/15", link: "/analytics" },
-        { label: "Total Rides (Today)", value: formatNumber(totalRides), icon: MapPin, color: "text-[#62A0EA] bg-[#62A0EA]/15", link: "/analytics" },
-        { label: "Active Vehicles", value: formatNumber(activeVehicles), icon: User2Icon, color: "text-violet-400 bg-violet-400/15", link: "/monitoring" },
-        { label: "Pending Remittance", value: formatPeso(pendingRemittance), icon: Banknote, color: "text-amber-400 bg-amber-400/15", link: "/remittance" },
+        { label: "Total Revenue (Today)", value: formatPeso(totalFares), icon: TrendingUp, link: "/analytics" },
+        { label: "Total Rides (Today)", value: formatNumber(totalRides), icon: MapPin, link: "/analytics" },
+        { label: "Active Vehicles", value: formatNumber(activeVehicles), icon: User2Icon, link: "/monitoring" },
+        { label: "Pending Remittance", value: formatPeso(pendingRemittance), icon: Banknote, link: "/remittance" },
       ];
 
       // ── Payment Tendencies from real split ──

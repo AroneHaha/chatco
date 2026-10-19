@@ -224,3 +224,58 @@
   .commuter .editForm .formError { grid-column: 1 / -1; }
   .commuter .editForm .actions { grid-column: 1 / -1; margin-top: 8px; }
 }
+
+/* ─── Admin light mode ──────────────────────────────────────────────
+ * The `admin-light:` Tailwind variant can't reach these module classes, so
+ * the same scope (`data-admin-theme="light"` on an ancestor, set only on
+ * light-ready pages) is matched here. Same light palette as the rest of the
+ * admin: slate text, #E2E8F0 hairlines, CHATCO Blue #1A5FB4 accents. */
+:global([data-admin-theme="light"]) .detailHeader,
+:global([data-admin-theme="light"]) .detailSectionDivider,
+:global([data-admin-theme="light"]) .detailDocument,
+:global([data-admin-theme="light"]) .detailActions { border-color: #e2e8f0; }
+:global([data-admin-theme="light"]) .detailTitle,
+:global([data-admin-theme="light"]) .detailName,
+:global([data-admin-theme="light"]) .detailSectionTitle,
+:global([data-admin-theme="light"]) .detailFields dd,
+:global([data-admin-theme="light"]) .detailContact dd { color: #0f172a; }
+:global([data-admin-theme="light"]) .detailStatus { color: #334155; }
+:global([data-admin-theme="light"]) .detailFields dt,
+:global([data-admin-theme="light"]) .detailContact dt,
+:global([data-admin-theme="light"]) .detailImageEmpty { color: #64748b; }
+:global([data-admin-theme="light"]) .detailImage { border-color: #e2e8f0; background: #f8fafc; }
+:global([data-admin-theme="light"]) .detailImageEmpty { border-color: #cbd5e1; }
+:global([data-admin-theme="light"]) .detailImageLink { color: #1a5fb4; }
+:global([data-admin-theme="light"]) .detailImageLink:hover { color: #164a8f; }
+:global([data-admin-theme="light"]) .detailEdit { background: #1a5fb4; }
+:global([data-admin-theme="light"]) .detailEdit:hover { background: #164a8f; }
+:global([data-admin-theme="light"]) .detailActions .detailSuspend { color: #dc2626; }
+:global([data-admin-theme="light"]) .detailActions .detailReactivate { border-color: rgb(26 95 180 / .25); background: rgb(26 95 180 / .08); color: #1a5fb4; }
+:global([data-admin-theme="light"]) .detailReactivate:hover { background: rgb(26 95 180 / .14); }
+:global([data-admin-theme="light"]) .detailActions button:focus-visible,
+:global([data-admin-theme="light"]) .detailImageLink:focus-visible { outline-color: #1a5fb4; }
+
+@media (min-width: 640px) {
+  :global([data-admin-theme="light"]) .detailDocument { border-left-color: #e2e8f0; }
+}
+
+@media (min-width: 1024px) {
+  :global([data-admin-theme="light"]) .commuter .header,
+  :global([data-admin-theme="light"]) .commuter .actions { border-color: #e2e8f0; }
+  :global([data-admin-theme="light"]) .commuter .profile { border-color: #e2e8f0; background: #f8fafc; }
+  :global([data-admin-theme="light"]) .commuter .avatar {
+    border-color: rgb(26 95 180 / .25);
+    background: rgb(26 95 180 / .1);
+    color: #1a5fb4;
+  }
+  :global([data-admin-theme="light"]) .commuter .information > div > svg { color: #1a5fb4; }
+  :global([data-admin-theme="light"]) .commuter .information p:first-child { color: #64748b; }
+  :global([data-admin-theme="light"]) .commuter .editAction { border-color: #1a5fb4; background: #1a5fb4; }
+  :global([data-admin-theme="light"]) .commuter .editAction:hover { border-color: #164a8f; background: #164a8f; }
+  :global([data-admin-theme="light"]) .commuter .actions button:focus-visible { outline-color: #1a5fb4; }
+  :global([data-admin-theme="light"]) .commuter .editForm > div:not(.actions):not(.formError),
+  :global([data-admin-theme="light"]) .commuter .nameFields > div { border-color: #e2e8f0; background: #f8fafc; }
+  :global([data-admin-theme="light"]) .commuter .editForm label { color: #64748b; }
+  :global([data-admin-theme="light"]) .commuter .editForm input { border-color: #cbd5e1; background: #ffffff; }
+  :global([data-admin-theme="light"]) .commuter .editForm input:focus { border-color: #1a5fb4; }
+}

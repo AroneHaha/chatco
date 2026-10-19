@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getAuthenticatedSession } from "@/lib/conductor/server/auth";
+import { getAuthenticatedSession, PasswordChangeRequiredError } from "@/lib/conductor/server/auth";
 import { getRoleDashboard } from "@/types/user";
+
+const SET_NEW_PASSWORD_PATH = "/set-new-password";
 
 export async function middleware(request: NextRequest) {
   // Decode before classifying so encoded module URLs receive the same guard.
@@ -62,16 +64,30 @@ export async function middleware(request: NextRequest) {
   }
 
   const isEntryPage = pathname === "/" || pathname === "/login" || pathname === "/signup";
-  if (!matchedGroup && !isEntryPage) {
+  const isSetNewPasswordPage = pathname === SET_NEW_PASSWORD_PATH;
+  if (!matchedGroup && !isEntryPage && !isSetNewPasswordPage) {
     return NextResponse.next();
   }
 
   try {
-    const session = await getAuthenticatedSession(request);
+    let session: Awaited<ReturnType<typeof getAuthenticatedSession>> = null;
+    let passwordChangeRequired = false;
+    try {
+      session = await getAuthenticatedSession(request);
+    } catch (error) {
+      if (!(error instanceof PasswordChangeRequiredError)) throw error;
+      passwordChangeRequired = true;
+    }
     let response: NextResponse;
 
-    if (!session) {
-      response = matchedGroup
+    if (passwordChangeRequired) {
+      // Signed in with the default password: the setup page is the only place
+      // this session may go. The backend enforces the same rule on every API call.
+      response = isSetNewPasswordPage
+        ? NextResponse.next()
+        : NextResponse.redirect(new URL(SET_NEW_PASSWORD_PATH, request.url));
+    } else if (!session) {
+      response = matchedGroup || isSetNewPasswordPage
         ? NextResponse.redirect(new URL("/login", request.url))
         : NextResponse.next();
       // Rejected/revoked tokens must not cause a landing/login redirect loop.
@@ -79,6 +95,9 @@ export async function middleware(request: NextRequest) {
         response.cookies.delete("chatco_session");
         response.cookies.delete("chatco_role");
       }
+    } else if (isSetNewPasswordPage) {
+      // The password is already set, so there is nothing left to do on this page.
+      response = NextResponse.redirect(new URL(getRoleDashboard(session.role)!, request.url));
     } else if (isEntryPage || session.role.toLowerCase() !== matchedGroup) {
       response = NextResponse.redirect(new URL(getRoleDashboard(session.role)!, request.url));
     } else {

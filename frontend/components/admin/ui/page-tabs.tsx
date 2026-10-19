@@ -24,9 +24,9 @@ interface PageTabsProps<T extends string> {
 }
 
 const ACCENTS: Record<PageTabAccent, { bar: string; icon: string; count: string }> = {
-  blue: { bar: 'bg-[#62A0EA] light:bg-[#1A5FB4]', icon: 'text-[#62A0EA] light:text-[#1A5FB4]', count: 'bg-[#62A0EA]/15 text-[#8CB9F0] light:bg-[#1A5FB4]/10 light:text-[#1A5FB4]' },
-  amber: { bar: 'bg-amber-400', icon: 'text-amber-300 light:text-amber-600', count: 'bg-amber-400/15 text-amber-200 light:text-amber-700' },
-  red: { bar: 'bg-red-400', icon: 'text-red-300 light:text-red-600', count: 'bg-red-400/15 text-red-200 light:text-red-700' },
+  blue: { bar: 'bg-[#62A0EA] admin-light:bg-[#1A5FB4] light:bg-[#1A5FB4]', icon: 'text-[#62A0EA] admin-light:text-[#1A5FB4] light:text-[#1A5FB4]', count: 'bg-[#62A0EA]/15 admin-light:bg-[#1A5FB4]/10 text-[#8CB9F0] admin-light:text-[#1A5FB4] light:bg-[#1A5FB4]/10 light:text-[#1A5FB4]' },
+  amber: { bar: 'bg-amber-400', icon: 'text-amber-300 admin-light:text-amber-700 light:text-amber-600', count: 'bg-amber-400/15 admin-light:bg-amber-500/15 text-amber-200 admin-light:text-amber-800 light:text-amber-700' },
+  red: { bar: 'bg-red-400', icon: 'text-red-300 admin-light:text-red-700 light:text-red-600', count: 'bg-red-400/15 admin-light:bg-red-500/10 text-red-200 admin-light:text-red-700 light:text-red-700' },
 };
 
 /**
@@ -60,7 +60,7 @@ export function PageTabs<T extends string>({ tabs, activeId, onChange, className
       ref={listRef}
       role="tablist"
       onKeyDown={onKeyDown}
-      className={`flex w-full shrink-0 gap-1 overflow-x-auto border-b border-[#1E2D45] light:border-gray-200 scrollbar-themed ${className}`}
+      className={`flex w-full shrink-0 gap-1 overflow-x-auto border-b border-[#1E2D45] admin-light:border-[#E2E8F0] light:border-gray-200 scrollbar-themed ${className}`}
     >
       {tabs.map((tab) => {
         const isActive = tab.id === activeId;
@@ -74,7 +74,7 @@ export function PageTabs<T extends string>({ tabs, activeId, onChange, className
             tabIndex={isActive ? 0 : -1}
             onClick={() => onChange(tab.id)}
             className={`relative flex min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap px-3 pb-3 pt-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]/50 focus-visible:rounded-md md:flex-none md:px-4 ${
-              isActive ? 'text-white light:text-gray-900' : 'text-slate-400 hover:text-slate-200 light:text-gray-500 light:hover:text-gray-900'
+              isActive ? 'text-white admin-light:text-slate-900 light:text-gray-900' : 'text-slate-400 admin-light:text-slate-500 hover:text-slate-200 admin-light:hover:text-slate-700 light:text-gray-500 light:hover:text-gray-900'
             }`}
           >
             <tab.icon size={16} aria-hidden="true" className={isActive ? accent.icon : 'text-slate-500 light:text-gray-400'} />
@@ -82,7 +82,7 @@ export function PageTabs<T extends string>({ tabs, activeId, onChange, className
             {tab.count !== undefined && (
               <span
                 className={`rounded-full px-1.5 py-px text-[11px] font-semibold tabular-nums ${
-                  isActive ? accent.count : 'bg-[#1A2540] text-slate-500 light:bg-gray-100 light:text-gray-500'
+                  isActive ? accent.count : 'bg-[#1A2540] admin-light:bg-[#EEF2F7] text-slate-500 light:bg-gray-100 light:text-gray-500'
                 }`}
               >
                 {tab.count}

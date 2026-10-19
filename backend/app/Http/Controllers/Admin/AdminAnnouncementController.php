@@ -6,6 +6,7 @@ use App\Enums\ActivityLogCategory;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Announcement\StoreAnnouncementRequest;
 use App\Http\Requests\Announcement\UpdateAnnouncementRequest;
+use App\Models\Announcement;
 use App\Services\ActivityLogService;
 use App\Services\AnnouncementService;
 use App\Traits\ApiResponse;
@@ -86,17 +87,24 @@ class AdminAnnouncementController extends Controller
 
     public function update(UpdateAnnouncementRequest $request, string $id): JsonResponse
     {
+        $fields = ['title' => 'Title', 'message' => 'Message', 'type' => 'Category', 'status' => 'Status'];
+        $before = Announcement::query()->find($id)?->only(array_keys($fields)) ?? [];
+
         try {
             $announcement = $this->announcementService->update($id, $request->validated());
         } catch (\RuntimeException $e) {
             return $this->errorResponse($e->getMessage(), 404);
         }
 
-        $this->activityLogService->record(
-            ActivityLogCategory::ANNOUNCEMENT,
-            "Updated announcement \"{$announcement->title}\"",
-            $request->user(),
-        );
+        $changes = ActivityLogService::diff($before, $announcement->only(array_keys($fields)), $fields);
+        if ($changes !== []) {
+            $this->activityLogService->record(
+                ActivityLogCategory::ANNOUNCEMENT,
+                "Updated announcement \"{$announcement->title}\": ".ActivityLogService::changedFields($changes),
+                $request->user(),
+                $changes,
+            );
+        }
 
         return $this->successResponse($announcement, 'Announcement updated');
     }

@@ -38,6 +38,7 @@ class User extends Authenticatable
         return [
             'password' => 'hashed',
             'role' => UserRole::class,
+            'must_change_password' => 'boolean',
         ];
     }
 

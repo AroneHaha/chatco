@@ -19,6 +19,9 @@ class AdminProfile extends Model
         'middle_name',
         'last_name',
         'profile_picture_url',
+        'username',
+        'contact_number',
+        'address',
     ];
 
     public function user()

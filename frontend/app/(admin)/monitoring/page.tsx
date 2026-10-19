@@ -39,19 +39,19 @@ const AdminCommuterMap = dynamic<{
 const SPEED_LIMIT_KMH = 50;
 
 function TableHeading({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <th scope="col" className={`sticky top-0 z-10 border-b border-[#26354D] bg-[#101A2B] px-5 py-3 text-xs font-medium text-slate-400 ${className}`}>{children}</th>;
+  return <th scope="col" className={`sticky top-0 z-10 border-b border-[#26354D] admin-light:border-[#E2E8F0] bg-[#101A2B] admin-light:bg-[#F8FAFC] px-5 py-3 text-xs font-medium text-slate-400 admin-light:text-slate-500 ${className}`}>{children}</th>;
 }
 
 function HistoryPagination({ page, pages, start, end, count, onChange }: {
   page: number; pages: number; start: number; end: number; count: number; onChange: (page: number) => void;
 }) {
-  const buttonClass = 'flex min-h-9 items-center gap-1.5 rounded-md border border-[#2A3A52] px-3 text-xs font-medium text-slate-300 transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] disabled:cursor-default disabled:opacity-35';
+  const buttonClass = 'flex min-h-9 items-center gap-1.5 rounded-md border border-[#2A3A52] admin-light:border-[#E2E8F0] px-3 text-xs font-medium text-slate-300 admin-light:text-slate-700 transition-colors hover:bg-white/5 admin-light:hover:bg-[#F8FAFC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4] disabled:cursor-default disabled:opacity-35';
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#1E2D45] px-5 py-4">
-      <p className="text-xs text-slate-400 tabular-nums">Showing <span className="text-slate-200">{start}–{end}</span> of {count} records</p>
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] px-5 py-4">
+      <p className="text-xs text-slate-400 admin-light:text-slate-500 tabular-nums">Showing <span className="text-slate-200 admin-light:text-slate-700">{start}–{end}</span> of {count} records</p>
       <div className="flex items-center gap-2">
         <button type="button" aria-label="Previous history page" disabled={page === 1} onClick={() => onChange(page - 1)} className={buttonClass}><ChevronLeft size={14} />Previous</button>
-        <span className="px-2 text-xs text-slate-400 tabular-nums">{page} / {pages}</span>
+        <span className="px-2 text-xs text-slate-400 admin-light:text-slate-500 tabular-nums">{page} / {pages}</span>
         <button type="button" aria-label="Next history page" disabled={page === pages} onClick={() => onChange(page + 1)} className={buttonClass}>Next<ChevronRight size={14} /></button>
       </div>
     </div>
@@ -167,9 +167,9 @@ export default function MonitoringPage() {
   // `alert` escalates a card's styling only while its count is actually
   // non-zero. A scheduled break is ordinary shift activity.
   const metrics = [
-    { title: 'Active Vehicles', hint: 'On shift today', value: activeCount.toString(), icon: MapPin, color: 'text-[#62A0EA]', alert: false },
-    { title: 'On break', hint: 'Active units with a scheduled break', value: breakCount.toString(), icon: Coffee, color: 'text-sky-400', alert: false },
-    { title: 'Active SOS', hint: 'Awaiting resolution', value: sosAlerts.length.toString(), icon: AlertTriangle, color: 'text-red-400', alert: sosAlerts.length > 0 },
+    { title: 'Active Vehicles', hint: 'On shift today', value: activeCount.toString(), icon: MapPin, color: 'text-[#62A0EA] admin-light:text-[#1A5FB4]', alert: false },
+    { title: 'On break', hint: 'Active units with a scheduled break', value: breakCount.toString(), icon: Coffee, color: 'text-sky-400 admin-light:text-sky-700', alert: false },
+    { title: 'Active SOS', hint: 'Awaiting resolution', value: sosAlerts.length.toString(), icon: AlertTriangle, color: 'text-red-400 admin-light:text-red-600', alert: sosAlerts.length > 0 },
   ];
 
   const filteredFleet = useMemo(() => {
@@ -241,11 +241,11 @@ export default function MonitoringPage() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="h-8 w-48 rounded bg-gray-700 animate-pulse" />
+        <div className="h-8 w-48 rounded bg-gray-700 admin-light:bg-slate-200 animate-pulse" />
         <SkeletonMetric count={3} />
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] 2xl:grid-cols-[minmax(0,1fr)_340px] gap-5">
           <SkeletonMap height="440px" label="Loading Monitoring Map…" />
-          <div className="hidden lg:block rounded-xl border border-[#1E2D45] bg-[#131C2E] animate-pulse" />
+          <div className="hidden lg:block rounded-xl border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white animate-pulse" />
         </div>
         <SkeletonTable rows={5} columns={6} title="Active Vehicle Tracking" />
       </div>
@@ -256,32 +256,32 @@ export default function MonitoringPage() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <AlertCircle className="h-12 w-12 text-red-400 mb-4" />
-        <h2 className="text-lg font-semibold text-white mb-2">Failed to load monitoring data</h2>
-        <p className="text-sm text-slate-400 mb-4">{error}</p>
-        <button onClick={() => refetch()} className="px-4 py-2 bg-[#62A0EA] hover:bg-[#99C1F1] text-white rounded-md text-sm font-medium transition-colors">Try Again</button>
+        <AlertCircle className="h-12 w-12 text-red-400 admin-light:text-red-600 mb-4" />
+        <h2 className="text-lg font-semibold text-white admin-light:text-slate-900 mb-2">Failed to load monitoring data</h2>
+        <p className="text-sm text-slate-400 admin-light:text-slate-500 mb-4">{error}</p>
+        <button onClick={() => refetch()} className="px-4 py-2 bg-[#62A0EA] admin-light:bg-[#1A5FB4] hover:bg-[#99C1F1] admin-light:hover:bg-[#164A8F] text-white rounded-md text-sm font-medium transition-colors">Try Again</button>
       </div>
     );
   }
 
   // Keep fleet counts together above the map, with room for labels on desktop.
   const statusStrip = (
-    <div className="mb-5 grid grid-cols-3 overflow-hidden rounded-xl border border-[#1E2D45] bg-[#101A2B] divide-x divide-[#1E2D45]">
+    <div className="mb-5 grid grid-cols-3 overflow-hidden rounded-xl border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#101A2B] admin-light:bg-[#F8FAFC] divide-x divide-[#1E2D45] admin-light:divide-[#E2E8F0]">
       {metrics.map((item) => {
         const Icon = item.icon;
-        const isRed = item.color === 'text-red-400';
+        const isRed = item.color === 'text-red-400 admin-light:text-red-600';
         return (
           <div
             key={item.title}
             title={item.hint}
             className={`flex items-center gap-3 px-3 py-3 md:px-5 lg:gap-4 lg:py-4 transition-colors ${
-              item.alert ? (isRed ? 'bg-red-400/10' : 'bg-amber-400/10') : ''
+              item.alert ? (isRed ? 'bg-red-400/10 admin-light:bg-red-50' : 'bg-amber-400/10') : ''
             }`}
           >
             <Icon size={18} className={`hidden sm:block flex-shrink-0 ${item.alert ? item.color : 'text-slate-500'}`} />
             <div className="min-w-0">
-              <p className={`text-xl font-semibold leading-tight tabular-nums lg:text-2xl ${item.alert ? item.color : 'text-white'}`}>{item.value}</p>
-              <p className="mt-1 text-[11px] font-medium text-slate-400 truncate lg:text-xs">{item.title}</p>
+              <p className={`text-xl font-semibold leading-tight tabular-nums lg:text-2xl ${item.alert ? item.color : 'text-white admin-light:text-slate-900'}`}>{item.value}</p>
+              <p className="mt-1 text-[11px] font-medium text-slate-400 admin-light:text-slate-500 truncate lg:text-xs">{item.title}</p>
             </div>
           </div>
         );
@@ -298,11 +298,11 @@ export default function MonitoringPage() {
           16px underneath. The SOS banner therefore sits below it now. */}
       <StickyPageHeader className="mb-4 md:mb-5 md:flex md:items-center md:justify-between md:gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Live Monitoring</h1>
-          <p className="mt-1.5 hidden text-sm text-slate-400 md:block">Fleet locations, emergency alerts, and safety records.</p>
+          <h1 className="text-2xl font-bold text-white admin-light:text-slate-900">Live Monitoring</h1>
+          <p className="mt-1.5 hidden text-sm text-slate-400 admin-light:text-slate-500 md:block">Fleet locations, emergency alerts, and safety records.</p>
         </div>
         <div className="hidden shrink-0 items-center gap-3 md:flex">
-          <div className="text-right text-xs text-slate-400">
+          <div className="text-right text-xs text-slate-400 admin-light:text-slate-500">
             <p className="flex items-center justify-end gap-1.5"><span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-emerald-400" />Auto-refresh · 5s</p>
             {lastFetchedAt && <p className="mt-1 text-slate-500 tabular-nums">Updated {lastFetchedAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</p>}
           </div>
@@ -318,14 +318,14 @@ export default function MonitoringPage() {
       {sosError && (
         <div className="mb-4 bg-red-500/10 border border-red-500/30 rounded-md p-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
-            <AlertTriangle size={16} className="text-red-400 flex-shrink-0" />
-            <p className="text-sm text-red-400 truncate">
+            <AlertTriangle size={16} className="text-red-400 admin-light:text-red-600 flex-shrink-0" />
+            <p className="text-sm text-red-400 admin-light:text-red-600 truncate">
               SOS feed unavailable: {sosError}
             </p>
           </div>
           <button
             onClick={() => refetchSos()}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-md text-xs font-medium transition-colors flex-shrink-0"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-300 admin-light:text-red-700 rounded-md text-xs font-medium transition-colors flex-shrink-0"
           >
             <RefreshCw size={12} /> Retry SOS
           </button>
@@ -334,10 +334,10 @@ export default function MonitoringPage() {
 
       {/* Map and shift overview share a row on large screens. */}
       <section aria-label="Live fleet and shift overview" className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] 2xl:grid-cols-[minmax(0,1fr)_340px] gap-4 lg:gap-5">
-        <div id="monitoring-map" className="order-2 flex h-[340px] min-w-0 flex-col overflow-hidden rounded-xl border border-[#1E2D45] bg-[#131C2E] sm:h-[400px] lg:order-1 lg:h-[440px] 2xl:h-[480px]">
-          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#1E2D45] px-4 py-3.5">
-            <h2 className="text-sm font-semibold text-white">Fleet map</h2>
-            <p className="text-xs text-slate-400 tabular-nums">{liveMapVehicles.length} units with GPS</p>
+        <div id="monitoring-map" className="order-2 flex h-[340px] min-w-0 flex-col overflow-hidden rounded-xl border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white sm:h-[400px] lg:order-1 lg:h-[440px] 2xl:h-[480px]">
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#1E2D45] admin-light:border-[#E2E8F0] px-4 py-3.5">
+            <h2 className="text-sm font-semibold text-white admin-light:text-slate-900">Fleet map</h2>
+            <p className="text-xs text-slate-400 admin-light:text-slate-500 tabular-nums">{liveMapVehicles.length} units with GPS</p>
           </div>
           <div className="min-h-0 flex-1 overflow-hidden">
             <AdminCommuterMap
@@ -353,25 +353,25 @@ export default function MonitoringPage() {
         <aside
           aria-label="Shift overview"
           className={`order-1 lg:order-2 flex flex-col rounded-xl border lg:h-[440px] 2xl:h-[480px] min-h-0 ${
-            sosAlerts.length > 0 ? 'bg-[#131C2E] border-red-400/30' : 'bg-[#131C2E] border-[#1E2D45]'
+            sosAlerts.length > 0 ? 'bg-[#131C2E] admin-light:bg-white border-red-400/30' : 'bg-[#131C2E] admin-light:bg-white border-[#1E2D45] admin-light:border-[#E2E8F0]'
           }`}
         >
-          <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-[#1E2D45]">
+          <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-[#1E2D45] admin-light:border-[#E2E8F0]">
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-white">Shift overview</h2>
+              <h2 className="text-sm font-bold text-white admin-light:text-slate-900">Shift overview</h2>
               {sosAlerts.length > 0 && (
                 <span className="relative flex h-2.5 w-2.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span></span>
               )}
             </div>
             <span className={`text-sm font-semibold tabular-nums ${
-              sosAlerts.length > 0 ? 'text-red-400' : 'text-slate-500'
+              sosAlerts.length > 0 ? 'text-red-400 admin-light:text-red-600' : 'text-slate-500'
             }`}>{sosAlerts.length}</span>
           </div>
 
           {sosAlerts.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center px-6 py-6">
-              <CheckCircle2 size={28} className="text-emerald-400/70 mb-2" />
-              <p className="text-sm font-semibold text-slate-300">All clear</p>
+              <CheckCircle2 size={28} className="text-emerald-400/70 admin-light:text-emerald-700 mb-2" />
+              <p className="text-sm font-semibold text-slate-300 admin-light:text-slate-700">All clear</p>
               <p className="text-xs text-slate-500 mt-1">No ongoing SOS alerts.</p>
             </div>
           ) : (
@@ -385,29 +385,29 @@ export default function MonitoringPage() {
                     id={`sos-alert-${alert.id}`}
                     className={`bg-red-400/5 border rounded-lg p-3 transition-shadow ${
                       highlightedSosId === alert.id
-                        ? 'border-[#62A0EA] ring-2 ring-[#62A0EA]/50'
-                        : 'border-red-400/25'
+                        ? 'border-[#62A0EA] admin-light:border-[#1A5FB4] ring-2 ring-[#62A0EA]/50 admin-light:ring-[#1A5FB4]/50'
+                        : 'border-red-400/25 admin-light:border-red-200'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-red-400">
+                      <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-red-400 admin-light:text-red-600">
                         <AlertTriangle size={13} /> SOS
                       </span>
                       <span className="flex items-center text-[11px] text-slate-500"><Clock size={11} className="mr-1" />{alert.time}</span>
                     </div>
-                    <p className="text-sm font-semibold text-white mt-1.5 break-words">{alert.note}</p>
-                    <p className="text-xs text-slate-300 mt-1 flex flex-wrap items-center gap-1.5">
-                      <span className="font-medium text-white">{alert.sender}</span>
+                    <p className="text-sm font-semibold text-white admin-light:text-slate-900 mt-1.5 break-words">{alert.note}</p>
+                    <p className="text-xs text-slate-300 admin-light:text-slate-700 mt-1 flex flex-wrap items-center gap-1.5">
+                      <span className="font-medium text-white admin-light:text-slate-900">{alert.sender}</span>
                       <span className="text-slate-500">· {roleLabel}</span>
                     </p>
                     <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 mt-1.5">
                       <p className="text-[11px] text-slate-500 font-mono">{alert.coordinates[0].toFixed(5)}, {alert.coordinates[1].toFixed(5)}</p>
                       {isAcknowledged ? (
-                        <span className="flex items-center gap-1 text-[11px] text-amber-400 font-medium flex-shrink-0">
+                        <span className="flex items-center gap-1 text-[11px] text-amber-400 admin-light:text-amber-700 font-medium flex-shrink-0">
                           <CheckCircle2 size={12} /> Acknowledged
                         </span>
                       ) : (
-                        <span className="flex items-center gap-1 text-[11px] text-red-400 font-medium flex-shrink-0">
+                        <span className="flex items-center gap-1 text-[11px] text-red-400 admin-light:text-red-600 font-medium flex-shrink-0">
                           <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span></span>
                           Awaiting response
                         </span>
@@ -428,24 +428,24 @@ export default function MonitoringPage() {
         </aside>
       </section>
 
-      <section aria-labelledby="fleet-heading" className="mt-5 min-w-0 overflow-hidden rounded-xl border border-[#1E2D45] bg-[#131C2E]">
-        <div className="border-b border-[#1E2D45] px-5 py-4">
+      <section aria-labelledby="fleet-heading" className="mt-5 min-w-0 overflow-hidden rounded-xl border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white">
+        <div className="border-b border-[#1E2D45] admin-light:border-[#E2E8F0] px-5 py-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 id="fleet-heading" className="text-base font-semibold text-white">Active vehicle tracking</h2>
-              <p className="mt-1 text-xs text-slate-400">Units on shift today. Select a unit to view its location.</p>
+              <h2 id="fleet-heading" className="text-base font-semibold text-white admin-light:text-slate-900">Active vehicle tracking</h2>
+              <p className="mt-1 text-xs text-slate-400 admin-light:text-slate-500">Units on shift today. Select a unit to view its location.</p>
             </div>
-            <span className="shrink-0 text-xs text-slate-400 tabular-nums">{filteredFleet.length} / {fleet.length} units</span>
+            <span className="shrink-0 text-xs text-slate-400 admin-light:text-slate-500 tabular-nums">{filteredFleet.length} / {fleet.length} units</span>
           </div>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-            <label className="flex min-w-0 flex-1 basis-full items-center gap-2.5 rounded-lg border border-[#2A3A52] bg-[#0E1628] px-3 focus-within:border-[#62A0EA] lg:max-w-sm lg:basis-0">
+            <label className="flex min-w-0 flex-1 basis-full items-center gap-2.5 rounded-lg border border-[#2A3A52] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 focus-within:border-[#62A0EA] admin-light:focus-within:border-[#1A5FB4] lg:max-w-sm lg:basis-0">
               <Search size={15} aria-hidden="true" className="shrink-0 text-slate-500" />
-              <input type="search" aria-label="Search active fleet" placeholder="Search unit, plate, crew, or route" value={fleetSearch} onChange={(event) => setFleetSearch(event.target.value)} className="min-w-0 flex-1 bg-transparent py-2 text-xs text-slate-200 outline-none placeholder:text-slate-500" />
-              {fleetSearch && <button type="button" aria-label="Clear fleet search" onClick={() => setFleetSearch('')} className="rounded p-1 text-slate-400 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"><X size={13} /></button>}
+              <input type="search" aria-label="Search active fleet" placeholder="Search unit, plate, crew, or route" value={fleetSearch} onChange={(event) => setFleetSearch(event.target.value)} className="min-w-0 flex-1 bg-transparent py-2 text-xs text-slate-200 admin-light:text-slate-700 outline-none placeholder:text-slate-500" />
+              {fleetSearch && <button type="button" aria-label="Clear fleet search" onClick={() => setFleetSearch('')} className="rounded p-1 text-slate-400 admin-light:text-slate-500 hover:text-white admin-light:hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4]"><X size={13} /></button>}
             </label>
             <div role="group" aria-label="Filter active vehicles" className="flex items-center gap-1">
-              <button type="button" aria-pressed={!filterBreakOnly} onClick={() => setFilterBreakOnly(false)} className={`min-h-9 rounded-md px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] ${!filterBreakOnly ? 'bg-white/8 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'}`}>All units <span className="ml-1 text-slate-500 tabular-nums">{fleet.length}</span></button>
-              <button type="button" aria-pressed={filterBreakOnly} onClick={() => setFilterBreakOnly(true)} className={`flex min-h-9 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] ${filterBreakOnly ? 'bg-sky-400/10 text-sky-300' : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'}`}><Coffee size={13} />On break <span className="ml-1 tabular-nums">{breakCount}</span></button>
+              <button type="button" aria-pressed={!filterBreakOnly} onClick={() => setFilterBreakOnly(false)} className={`min-h-9 rounded-md px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4] ${!filterBreakOnly ? 'bg-white/8 admin-light:bg-slate-100 text-white admin-light:text-slate-900' : 'text-slate-400 admin-light:text-slate-500 hover:bg-white/5 admin-light:hover:bg-[#F8FAFC] hover:text-slate-200 admin-light:hover:text-slate-700'}`}>All units <span className="ml-1 text-slate-500 tabular-nums">{fleet.length}</span></button>
+              <button type="button" aria-pressed={filterBreakOnly} onClick={() => setFilterBreakOnly(true)} className={`flex min-h-9 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4] ${filterBreakOnly ? 'bg-sky-400/10 text-sky-300 admin-light:text-sky-700' : 'text-slate-400 admin-light:text-slate-500 hover:bg-white/5 admin-light:hover:bg-[#F8FAFC] hover:text-slate-200 admin-light:hover:text-slate-700'}`}><Coffee size={13} />On break <span className="ml-1 tabular-nums">{breakCount}</span></button>
             </div>
           </div>
         </div>
@@ -460,27 +460,27 @@ export default function MonitoringPage() {
               <TableHeading>Status</TableHeading>
               <TableHeading className="px-2"><span className="sr-only">Map location</span></TableHeading>
             </tr></thead>
-            <tbody className="divide-y divide-[#1E2D45]">
+            <tbody className="divide-y divide-[#1E2D45] admin-light:divide-[#E2E8F0]">
               {filteredFleet.length === 0 ? (
                 <tr><td colSpan={6} className="px-5 py-12 text-center">
-                  <p className="text-sm font-medium text-slate-300">{fleet.length === 0 ? 'No vehicles on shift' : 'No matching vehicles'}</p>
+                  <p className="text-sm font-medium text-slate-300 admin-light:text-slate-700">{fleet.length === 0 ? 'No vehicles on shift' : 'No matching vehicles'}</p>
                   <p className="mt-1 text-xs text-slate-500">{fleet.length === 0 ? 'Active units will appear here when their shift starts.' : 'Try another search or switch to all units.'}</p>
                 </td></tr>
               ) : filteredFleet.map((v) => (
-                <tr key={v.id} id={`fleet-unit-${v.id}`} onClick={() => handleFocusVehicle(v)} className={`group transition-colors ${v.has_gps ? 'cursor-pointer' : ''} ${focusedVehicleId === v.id ? 'bg-[#62A0EA]/10 ring-1 ring-inset ring-[#62A0EA]/40' : v.is_on_break ? 'bg-sky-400/5 hover:bg-sky-400/10' : 'hover:bg-white/3'}`}>
-                  <td className="px-5 py-4"><p className="truncate text-sm font-semibold text-white" title={v.unit_number}>{v.unit_number}</p><p className="mt-1 truncate font-mono text-[11px] text-slate-400" title={v.plate_number}>{v.plate_number}</p></td>
+                <tr key={v.id} id={`fleet-unit-${v.id}`} onClick={() => handleFocusVehicle(v)} className={`group transition-colors ${v.has_gps ? 'cursor-pointer' : ''} ${focusedVehicleId === v.id ? 'bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 ring-1 ring-inset ring-[#62A0EA]/40 admin-light:ring-[#1A5FB4]/40' : v.is_on_break ? 'bg-sky-400/5 hover:bg-sky-400/10' : 'hover:bg-white/3 admin-light:hover:bg-[#F8FAFC]'}`}>
+                  <td className="px-5 py-4"><p className="truncate text-sm font-semibold text-white admin-light:text-slate-900" title={v.unit_number}>{v.unit_number}</p><p className="mt-1 truncate font-mono text-[11px] text-slate-400 admin-light:text-slate-500" title={v.plate_number}>{v.plate_number}</p></td>
                   <td className="px-5 py-4">
-                    <p className="truncate text-sm text-slate-200" title={v.driver_name ?? undefined}>{v.driver_name ?? 'Unassigned driver'}</p>
-                    <p className="mt-1 truncate text-xs text-slate-400" title={v.conductor_name ?? undefined}>Conductor: {v.conductor_name ?? 'Unassigned'}</p>
+                    <p className="truncate text-sm text-slate-200 admin-light:text-slate-700" title={v.driver_name ?? undefined}>{v.driver_name ?? 'Unassigned driver'}</p>
+                    <p className="mt-1 truncate text-xs text-slate-400 admin-light:text-slate-500" title={v.conductor_name ?? undefined}>Conductor: {v.conductor_name ?? 'Unassigned'}</p>
                   </td>
-                  <td className="pl-5 pr-8 py-4 text-right whitespace-nowrap"><span className={`text-sm font-semibold tabular-nums ${v.speed !== null && v.speed > SPEED_LIMIT_KMH ? 'text-red-300' : 'text-slate-200'}`}>{v.speed ?? '—'}</span>{v.speed !== null && <span className="ml-1 text-[10px] text-slate-500">km/h</span>}</td>
-                  <td className="px-5 py-4"><span className={`text-xs font-medium ${v.capacity_status === 'AVAILABLE' ? 'text-emerald-300' : v.capacity_status === 'STANDING' ? 'text-amber-300' : 'text-red-300'}`}>{v.capacity_status === 'AVAILABLE' ? 'Available' : v.capacity_status === 'STANDING' ? 'Standing' : 'Full'}</span></td>
+                  <td className="pl-5 pr-8 py-4 text-right whitespace-nowrap"><span className={`text-sm font-semibold tabular-nums ${v.speed !== null && v.speed > SPEED_LIMIT_KMH ? 'text-red-300 admin-light:text-red-700' : 'text-slate-200 admin-light:text-slate-700'}`}>{v.speed ?? '—'}</span>{v.speed !== null && <span className="ml-1 text-[10px] text-slate-500">km/h</span>}</td>
+                  <td className="px-5 py-4"><span className={`text-xs font-medium ${v.capacity_status === 'AVAILABLE' ? 'text-emerald-300 admin-light:text-emerald-700' : v.capacity_status === 'STANDING' ? 'text-amber-300 admin-light:text-amber-700' : 'text-red-300 admin-light:text-red-700'}`}>{v.capacity_status === 'AVAILABLE' ? 'Available' : v.capacity_status === 'STANDING' ? 'Standing' : 'Full'}</span></td>
                   <td className="px-5 py-4">
-                    {v.is_on_break ? <div><span className="text-xs font-medium text-sky-300">On break</span><p className="mt-1 text-[11px] text-slate-400">{formatElapsedMinutes(v.break_duration_minutes)} elapsed</p></div> : !v.has_gps ? <span className="text-xs text-slate-400">Awaiting GPS</span> : v.is_stale ? (
-                      <div><span className="text-xs font-medium text-amber-300">GPS delayed</span><p className="mt-1 text-[11px] text-slate-400">{formatElapsedMinutes(v.minutes_since_update)} ago</p></div>
-                    ) : <span className="inline-flex items-center gap-1.5 text-xs text-emerald-300"><span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-emerald-400" />Live</span>}
+                    {v.is_on_break ? <div><span className="text-xs font-medium text-sky-300 admin-light:text-sky-700">On break</span><p className="mt-1 text-[11px] text-slate-400 admin-light:text-slate-500">{formatElapsedMinutes(v.break_duration_minutes)} elapsed</p></div> : !v.has_gps ? <span className="text-xs text-slate-400 admin-light:text-slate-500">Awaiting GPS</span> : v.is_stale ? (
+                      <div><span className="text-xs font-medium text-amber-300 admin-light:text-amber-700">GPS delayed</span><p className="mt-1 text-[11px] text-slate-400 admin-light:text-slate-500">{formatElapsedMinutes(v.minutes_since_update)} ago</p></div>
+                    ) : <span className="inline-flex items-center gap-1.5 text-xs text-emerald-300 admin-light:text-emerald-700"><span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-emerald-400" />Live</span>}
                   </td>
-                  <td className="px-2 py-4"><button type="button" onClick={(event) => { event.stopPropagation(); handleFocusVehicle(v); }} disabled={!v.has_gps} aria-label={`Locate unit ${v.unit_number} on map`} title={v.has_gps ? 'Locate on map' : 'No GPS position reported'} className="flex h-8 w-8 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-[#62A0EA]/10 hover:text-[#99C1F1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] disabled:cursor-default disabled:opacity-25"><LocateFixed size={16} /></button></td>
+                  <td className="px-2 py-4"><button type="button" onClick={(event) => { event.stopPropagation(); handleFocusVehicle(v); }} disabled={!v.has_gps} aria-label={`Locate unit ${v.unit_number} on map`} title={v.has_gps ? 'Locate on map' : 'No GPS position reported'} className="flex h-8 w-8 items-center justify-center rounded-md text-slate-400 admin-light:text-slate-500 transition-colors hover:bg-[#62A0EA]/10 admin-light:hover:bg-[#1A5FB4]/10 hover:text-[#99C1F1] admin-light:hover:text-[#164A8F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4] disabled:cursor-default disabled:opacity-25"><LocateFixed size={16} /></button></td>
                 </tr>
               ))}
             </tbody>
@@ -488,16 +488,16 @@ export default function MonitoringPage() {
         </div>
       </section>
 
-      <section aria-labelledby="history-heading" className="mb-8 mt-5 min-w-0 overflow-hidden rounded-xl border border-[#1E2D45] bg-[#131C2E]">
+      <section aria-labelledby="history-heading" className="mb-8 mt-5 min-w-0 overflow-hidden rounded-xl border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white">
         <div className="flex flex-wrap items-center justify-between gap-3 px-5 pb-3 pt-5">
           <div>
-            <h2 id="history-heading" className="text-base font-semibold text-white">Safety history</h2>
-            <p className="mt-1 text-xs text-slate-400">Closed emergency alerts and recorded overspeeding incidents.</p>
+            <h2 id="history-heading" className="text-base font-semibold text-white admin-light:text-slate-900">Safety history</h2>
+            <p className="mt-1 text-xs text-slate-400 admin-light:text-slate-500">Closed emergency alerts and recorded overspeeding incidents.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <AdminDatePicker key={isSosTab ? 'sos-date' : 'overspeed-date'} triggerClassName="w-40 min-h-9 py-2" accent={isSosTab ? 'blue' : 'red'} align="right" ariaLabel={isSosTab ? 'Filter SOS history by date' : 'Filter overspeeding history by date'} value={isSosTab ? filterSosDate : filterOverspeedDate} onChange={(next) => { if (isSosTab) { setFilterSosDate(next); setSosPage(1); } else { setFilterOverspeedDate(next); setOverspeedPage(1); } }} />
             {isSosTab && (
-              <select aria-label="Filter SOS history by status" value={filterSosStatus} onChange={(event) => { setFilterSosStatus(event.target.value as typeof filterSosStatus); setSosPage(1); }} className="min-h-9 rounded-md border border-[#1E2D45] bg-[#0E1628] px-3 py-2 text-xs text-slate-300 outline-none focus-visible:border-[#62A0EA] focus-visible:ring-2 focus-visible:ring-[#62A0EA]/30 [color-scheme:dark]">
+              <select aria-label="Filter SOS history by status" value={filterSosStatus} onChange={(event) => { setFilterSosStatus(event.target.value as typeof filterSosStatus); setSosPage(1); }} className="min-h-9 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 py-2 text-xs text-slate-300 admin-light:text-slate-700 outline-none focus-visible:border-[#62A0EA] admin-light:focus-visible:border-[#1A5FB4] focus-visible:ring-2 focus-visible:ring-[#62A0EA]/30 admin-light:focus-visible:ring-[#1A5FB4]/30 [color-scheme:dark]">
                 <option value="ALL">All statuses</option>
                 <option value="CANCELLED">Cancelled</option>
                 <option value="RESOLVED">Resolved</option>
@@ -505,20 +505,20 @@ export default function MonitoringPage() {
             )}
           </div>
         </div>
-        <div role="tablist" aria-label="History logs" className="flex gap-5 border-b border-[#1E2D45] px-5" onKeyDown={(event) => {
+        <div role="tablist" aria-label="History logs" className="flex gap-5 border-b border-[#1E2D45] admin-light:border-[#E2E8F0] px-5" onKeyDown={(event) => {
           const next = event.key === 'Home' ? 'sos' : event.key === 'End' ? 'overspeed' : event.key === 'ArrowRight' || event.key === 'ArrowLeft' ? (isSosTab ? 'overspeed' : 'sos') : null;
           if (!next) return;
           event.preventDefault();
           setHistoryTab(next);
           event.currentTarget.querySelector<HTMLButtonElement>(`[id="history-tab-${next}"]`)?.focus();
         }}>
-          <button type="button" role="tab" id="history-tab-sos" aria-controls="history-panel-sos" aria-selected={isSosTab} tabIndex={isSosTab ? 0 : -1} onClick={() => setHistoryTab('sos')} className={`flex items-center gap-2 border-b-2 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA] ${isSosTab ? 'border-[#62A0EA] text-white' : 'border-transparent text-slate-400 hover:text-slate-200'}`}><Archive size={15} />SOS History<span className="ml-1 text-xs text-slate-500 tabular-nums">{filteredSosHistory.length}</span></button>
-          <button type="button" role="tab" id="history-tab-overspeed" aria-controls="history-panel-overspeed" aria-selected={!isSosTab} tabIndex={!isSosTab ? 0 : -1} onClick={() => setHistoryTab('overspeed')} className={`flex items-center gap-2 border-b-2 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA] ${!isSosTab ? 'border-red-400 text-white' : 'border-transparent text-slate-400 hover:text-slate-200'}`}><Gauge size={15} />Overspeeding<span className="ml-1 text-xs text-slate-500 tabular-nums">{data.overspeedTotal}</span></button>
+          <button type="button" role="tab" id="history-tab-sos" aria-controls="history-panel-sos" aria-selected={isSosTab} tabIndex={isSosTab ? 0 : -1} onClick={() => setHistoryTab('sos')} className={`flex items-center gap-2 border-b-2 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4] ${isSosTab ? 'border-[#62A0EA] admin-light:border-[#1A5FB4] text-white admin-light:text-slate-900' : 'border-transparent text-slate-400 admin-light:text-slate-500 hover:text-slate-200 admin-light:hover:text-slate-700'}`}><Archive size={15} />SOS History<span className="ml-1 text-xs text-slate-500 tabular-nums">{filteredSosHistory.length}</span></button>
+          <button type="button" role="tab" id="history-tab-overspeed" aria-controls="history-panel-overspeed" aria-selected={!isSosTab} tabIndex={!isSosTab ? 0 : -1} onClick={() => setHistoryTab('overspeed')} className={`flex items-center gap-2 border-b-2 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4] ${!isSosTab ? 'border-red-400 text-white admin-light:text-slate-900' : 'border-transparent text-slate-400 admin-light:text-slate-500 hover:text-slate-200 admin-light:hover:text-slate-700'}`}><Gauge size={15} />Overspeeding<span className="ml-1 text-xs text-slate-500 tabular-nums">{data.overspeedTotal}</span></button>
         </div>
 
         <div role="tabpanel" id={`history-panel-${historyTab}`} aria-labelledby={`history-tab-${historyTab}`}>
           {isSosTab ? filteredSosHistory.length === 0 ? (
-            <div className="px-5 py-12 text-center"><Archive size={24} aria-hidden="true" className="mx-auto mb-3 text-slate-500" /><p className="text-sm font-medium text-slate-300">{filterSosDate || filterSosStatus !== 'ALL' ? 'No SOS alerts match these filters' : 'No SOS history yet'}</p><p className="mt-1 text-xs text-slate-500">Resolved and cancelled alerts are recorded here.</p></div>
+            <div className="px-5 py-12 text-center"><Archive size={24} aria-hidden="true" className="mx-auto mb-3 text-slate-500" /><p className="text-sm font-medium text-slate-300 admin-light:text-slate-700">{filterSosDate || filterSosStatus !== 'ALL' ? 'No SOS alerts match these filters' : 'No SOS history yet'}</p><p className="mt-1 text-xs text-slate-500">Resolved and cancelled alerts are recorded here.</p></div>
           ) : (
             <>
               <div className="max-h-[440px] overflow-auto scrollbar-themed">
@@ -531,15 +531,15 @@ export default function MonitoringPage() {
                     <TableHeading className="w-[20%] xl:w-[18%]">Resolved by</TableHeading>
                     <TableHeading className="w-[21%] xl:w-[18%]">Closed</TableHeading>
                   </tr></thead>
-                  <tbody className="divide-y divide-[#1E2D45]">
+                  <tbody className="divide-y divide-[#1E2D45] admin-light:divide-[#E2E8F0]">
                     {currentSosData.map((log) => (
-                      <tr key={log.id} id={`sos-history-${log.id}`} className={`transition-colors ${highlightedResolvedSosId === log.id ? 'bg-[#62A0EA]/10 ring-1 ring-inset ring-[#62A0EA]/40' : 'hover:bg-white/3'}`}>
-                        <td className="px-5 py-4"><p className="truncate text-sm font-medium text-slate-200" title={log.sender}>{log.sender}</p><p className="mt-1 text-xs text-slate-400">{log.senderRole === 'CONDUCTOR' ? 'Conductor' : 'Commuter'}</p><p className="mt-1 truncate text-xs text-slate-500 xl:hidden" title={log.note}>{log.note}</p></td>
-                        <td className="hidden px-5 py-4 xl:table-cell"><p className="line-clamp-2 break-words text-xs leading-relaxed text-slate-300" title={log.note}>{log.note}</p></td>
-                        <td className="px-5 py-4 text-xs leading-relaxed text-slate-300 tabular-nums">{log.triggeredAt}</td>
-                        <td className="px-5 py-4"><span className={`text-xs font-medium ${log.status === 'CANCELLED' ? 'text-slate-400' : 'text-sky-300'}`}>{log.status === 'CANCELLED' ? 'Cancelled' : 'Resolved'}</span></td>
-                        <td className="px-5 py-4"><span className="block truncate text-sm text-slate-300" title={log.status === 'CANCELLED' ? 'Cancelled by sender' : log.resolvedBy ?? 'Resolving admin was not recorded'}>{log.status === 'CANCELLED' ? '—' : log.resolvedBy ?? 'Not recorded'}</span></td>
-                        <td className="px-5 py-4 text-xs leading-relaxed text-slate-300 tabular-nums">{log.resolvedAt}</td>
+                      <tr key={log.id} id={`sos-history-${log.id}`} className={`transition-colors ${highlightedResolvedSosId === log.id ? 'bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 ring-1 ring-inset ring-[#62A0EA]/40 admin-light:ring-[#1A5FB4]/40' : 'hover:bg-white/3 admin-light:hover:bg-[#F8FAFC]'}`}>
+                        <td className="px-5 py-4"><p className="truncate text-sm font-medium text-slate-200 admin-light:text-slate-700" title={log.sender}>{log.sender}</p><p className="mt-1 text-xs text-slate-400 admin-light:text-slate-500">{log.senderRole === 'CONDUCTOR' ? 'Conductor' : 'Commuter'}</p><p className="mt-1 truncate text-xs text-slate-500 xl:hidden" title={log.note}>{log.note}</p></td>
+                        <td className="hidden px-5 py-4 xl:table-cell"><p className="line-clamp-2 break-words text-xs leading-relaxed text-slate-300 admin-light:text-slate-700" title={log.note}>{log.note}</p></td>
+                        <td className="px-5 py-4 text-xs leading-relaxed text-slate-300 admin-light:text-slate-700 tabular-nums">{log.triggeredAt}</td>
+                        <td className="px-5 py-4"><span className={`text-xs font-medium ${log.status === 'CANCELLED' ? 'text-slate-400 admin-light:text-slate-500' : 'text-sky-300 admin-light:text-sky-700'}`}>{log.status === 'CANCELLED' ? 'Cancelled' : 'Resolved'}</span></td>
+                        <td className="px-5 py-4"><span className="block truncate text-sm text-slate-300 admin-light:text-slate-700" title={log.status === 'CANCELLED' ? 'Cancelled by sender' : log.resolvedBy ?? 'Resolving admin was not recorded'}>{log.status === 'CANCELLED' ? '—' : log.resolvedBy ?? 'Not recorded'}</span></td>
+                        <td className="px-5 py-4 text-xs leading-relaxed text-slate-300 admin-light:text-slate-700 tabular-nums">{log.resolvedAt}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -548,7 +548,7 @@ export default function MonitoringPage() {
               <HistoryPagination page={safeSosPage} pages={totalSosPages} start={(safeSosPage - 1) * ROWS_PER_PAGE + 1} end={Math.min(safeSosPage * ROWS_PER_PAGE, filteredSosHistory.length)} count={filteredSosHistory.length} onChange={goToSosPage} />
             </>
           ) : filteredOverspeedHistory.length === 0 ? (
-            <div className="px-5 py-12 text-center"><Gauge size={24} aria-hidden="true" className="mx-auto mb-3 text-slate-500" /><p className="text-sm font-medium text-slate-300">No overspeeding incidents{filterOverspeedDate ? ' for this date' : ' recorded'}</p><p className="mt-1 text-xs text-slate-500">Speed violations will appear here when detected.</p></div>
+            <div className="px-5 py-12 text-center"><Gauge size={24} aria-hidden="true" className="mx-auto mb-3 text-slate-500" /><p className="text-sm font-medium text-slate-300 admin-light:text-slate-700">No overspeeding incidents{filterOverspeedDate ? ' for this date' : ' recorded'}</p><p className="mt-1 text-xs text-slate-500">Speed violations will appear here when detected.</p></div>
           ) : (
             <>
               <div className="max-h-[440px] overflow-auto scrollbar-themed">
@@ -560,14 +560,14 @@ export default function MonitoringPage() {
                     <TableHeading className="w-[17%] text-right">Top speed</TableHeading>
                     <TableHeading className="w-[21%]">Recorded</TableHeading>
                   </tr></thead>
-                  <tbody className="divide-y divide-[#1E2D45]">
+                  <tbody className="divide-y divide-[#1E2D45] admin-light:divide-[#E2E8F0]">
                     {currentOverspeedData.map((log) => (
-                      <tr key={log.id} id={`overspeed-log-${log.id}`} className={`transition-colors ${highlightedOverspeedId === log.id ? 'bg-[#62A0EA]/10 ring-1 ring-inset ring-[#62A0EA]/40' : 'hover:bg-white/3'}`}>
-                        <td className="px-5 py-4"><span className="block truncate font-mono text-sm font-semibold text-slate-200" title={log.unit}>{log.unit}</span></td>
-                        <td className="px-5 py-4"><span className="block truncate text-sm text-slate-300" title={log.driver}>{log.driver}</span></td>
-                        <td className="px-5 py-4"><span className="block truncate text-sm text-slate-300" title={log.conductor}>{log.conductor}</span></td>
-                        <td className="px-5 py-4 text-right whitespace-nowrap"><span className="text-sm font-semibold text-red-300 tabular-nums">{log.speed}</span><span className="ml-1 text-[10px] text-slate-500">km/h</span></td>
-                        <td className="px-5 py-4"><p className="text-xs text-slate-300 tabular-nums">{log.loggedDate}</p><p className="mt-1 text-xs text-slate-400">{log.loggedAt}</p></td>
+                      <tr key={log.id} id={`overspeed-log-${log.id}`} className={`transition-colors ${highlightedOverspeedId === log.id ? 'bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 ring-1 ring-inset ring-[#62A0EA]/40 admin-light:ring-[#1A5FB4]/40' : 'hover:bg-white/3 admin-light:hover:bg-[#F8FAFC]'}`}>
+                        <td className="px-5 py-4"><span className="block truncate font-mono text-sm font-semibold text-slate-200 admin-light:text-slate-700" title={log.unit}>{log.unit}</span></td>
+                        <td className="px-5 py-4"><span className="block truncate text-sm text-slate-300 admin-light:text-slate-700" title={log.driver}>{log.driver}</span></td>
+                        <td className="px-5 py-4"><span className="block truncate text-sm text-slate-300 admin-light:text-slate-700" title={log.conductor}>{log.conductor}</span></td>
+                        <td className="px-5 py-4 text-right whitespace-nowrap"><span className="text-sm font-semibold text-red-300 admin-light:text-red-700 tabular-nums">{log.speed}</span><span className="ml-1 text-[10px] text-slate-500">km/h</span></td>
+                        <td className="px-5 py-4"><p className="text-xs text-slate-300 admin-light:text-slate-700 tabular-nums">{log.loggedDate}</p><p className="mt-1 text-xs text-slate-400 admin-light:text-slate-500">{log.loggedAt}</p></td>
                       </tr>
                     ))}
                   </tbody>

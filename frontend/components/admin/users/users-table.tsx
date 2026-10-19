@@ -102,7 +102,7 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
           : value;
         return (
           <div className="min-w-0">
-            <p className="whitespace-nowrap font-medium text-white">{displayName}</p>
+            <p className="whitespace-nowrap font-medium text-white admin-light:text-slate-900">{displayName}</p>
             <p className="whitespace-nowrap text-xs text-slate-500">{item.email}</p>
           </div>
         );
@@ -114,14 +114,14 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
         label: 'Username',
         headerClassName: 'px-2 sm:px-4',
         cellClassName: 'whitespace-nowrap px-2 sm:px-4',
-        render: (value: string | null) => <span className="text-sm text-slate-300">{value || '—'}</span>,
+        render: (value: string | null) => <span className="text-sm text-slate-300 admin-light:text-slate-700">{value || '—'}</span>,
       },
       {
         key: 'phoneNumber',
         label: 'Contact',
         headerClassName: 'px-2 sm:px-4',
         cellClassName: 'whitespace-nowrap px-2 sm:px-4',
-        render: (value: string) => <span className="text-sm text-slate-400">{value || '—'}</span>,
+        render: (value: string) => <span className="text-sm text-slate-400 admin-light:text-slate-500">{value || '—'}</span>,
       },
     ] : []),
     {
@@ -136,7 +136,7 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
         const isCommuter = role === 'COMMUTER';
         const Icon = isCommuter ? (value === 'Regular' ? UserRound : Tag) : (ROLE_ICONS[role] ?? UserRound);
         return (
-          <span className="inline-flex items-center gap-1.5 text-sm text-slate-300">
+          <span className="inline-flex items-center gap-1.5 text-sm text-slate-300 admin-light:text-slate-700">
             <Icon size={14} className="shrink-0 text-slate-500" aria-hidden="true" />
             {isCommuter ? value : (ROLE_LABELS[role] ?? role)}
           </span>
@@ -148,7 +148,7 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
       label: isRejectedTab ? 'Applied' : 'Joined',
       headerClassName: 'px-2 sm:px-4',
       cellClassName: 'whitespace-nowrap px-2 sm:px-4',
-      render: (value: string | null) => <span className="text-xs text-slate-400">{formatJoinedDate(value)}</span>,
+      render: (value: string | null) => <span className="text-xs text-slate-400 admin-light:text-slate-500">{formatJoinedDate(value)}</span>,
     },
     {
       key: 'status',
@@ -158,12 +158,12 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
       render: (_value: string, item: User) => (
         <span className="inline-flex items-center gap-1.5">
           <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT[displayStatus(item)] ?? 'bg-slate-600'}`} />
-          <span className={`text-xs font-medium ${item.status === 'Active' ? 'text-slate-300' : 'text-slate-400'}`}>{displayStatus(item)}</span>
+          <span className={`text-xs font-medium ${item.status === 'Active' ? 'text-slate-300 admin-light:text-slate-700' : 'text-slate-400 admin-light:text-slate-500'}`}>{displayStatus(item)}</span>
         </span>
       )
     },
     ...(isRejectedTab ? [{
-      key: 'rejectionReason', label: 'Reason', cellClassName: 'whitespace-nowrap', render: (value: string) => <span className="text-xs text-slate-400 italic">{value || 'N/A'}</span>
+      key: 'rejectionReason', label: 'Reason', cellClassName: 'whitespace-nowrap', render: (value: string) => <span className="text-xs text-slate-400 admin-light:text-slate-500 italic">{value || 'N/A'}</span>
     }] : []),
     {
       key: 'actions',
@@ -192,7 +192,7 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
 
   return (
     <>
-      <div className="flex h-full min-h-0 min-w-0 flex-col gap-3 rounded-lg border border-[#1E2D45] bg-[#111A2B] p-3 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
+      <div className="flex h-full min-h-0 min-w-0 flex-col gap-3 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#111A2B] admin-light:bg-white p-3 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
         {headerContent && <div className="shrink-0">{headerContent}</div>}
         <div className="relative flex-1 min-h-0">
           <DataTable
@@ -207,7 +207,7 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
           />
           {isRefreshing && (
             <div className="absolute inset-0 z-10 flex items-center justify-center">
-              <div className="h-8 w-8 rounded-full border-2 border-[#1E2D45] border-t-[#62A0EA] animate-spin" />
+              <div className="h-8 w-8 rounded-full border-2 border-[#1E2D45] admin-light:border-[#E2E8F0] border-t-[#62A0EA] admin-light:border-t-[#1A5FB4] animate-spin" />
             </div>
           )}
         </div>
@@ -227,7 +227,7 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
       </div>
 
       {/* User Details Modal */}
-      <Modal isOpen={!!selectedUser} onClose={() => onSelectUser(null)} maxWidth={selectedUser && 'role' in selectedUser && selectedUser.role === 'COMMUTER' ? 'max-w-md sm:max-w-3xl' : 'max-w-md'}>
+      <Modal adminThemed isOpen={!!selectedUser} onClose={() => onSelectUser(null)} maxWidth={selectedUser && 'role' in selectedUser && selectedUser.role === 'COMMUTER' ? 'max-w-md sm:max-w-3xl' : 'max-w-md'}>
         {selectedUser && (() => {
           const role = 'role' in selectedUser ? selectedUser.role : null;
           const roleLabel = role ? (ROLE_LABELS[role] ?? role) : 'User';
@@ -304,8 +304,8 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
 
                 {selectedUser.status === 'Suspended' && suspension && (
                   <div className="rounded-lg border border-amber-400/20 bg-amber-400/5 p-4 text-sm">
-                    <p className="font-semibold text-amber-300">{suspension.isPermanent ? 'Permanently suspended' : suspension.endsAt ? `Suspended until ${new Date(suspension.endsAt).toLocaleString()}` : 'Suspended'}</p>
-                    <p className="mt-1 wrap-break-word text-slate-300">{suspension.reason}</p>
+                    <p className="font-semibold text-amber-300 admin-light:text-amber-700">{suspension.isPermanent ? 'Permanently suspended' : suspension.endsAt ? `Suspended until ${new Date(suspension.endsAt).toLocaleString()}` : 'Suspended'}</p>
+                    <p className="mt-1 wrap-break-word text-slate-300 admin-light:text-slate-700">{suspension.reason}</p>
                   </div>
                 )}
 
@@ -322,19 +322,19 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
           return (
           <div className={`space-y-6 ${isCommuter ? styles.commuter : ''}`}>
             <div className={styles.header}>
-            <h2 className="text-xl font-bold text-white">
+            <h2 className="text-xl font-bold text-white admin-light:text-slate-900">
               {roleLabel} Details
             </h2>
-            {isCommuter && <p className="hidden lg:block mt-1 text-sm text-slate-400">Account information and access status</p>}
+            {isCommuter && <p className="hidden lg:block mt-1 text-sm text-slate-400 admin-light:text-slate-500">Account information and access status</p>}
             </div>
 
             {/* Profile Header */}
             <div className={`flex items-center gap-4 ${styles.profile}`}>
-              <div className={`w-16 h-16 rounded-full bg-sky-400/15 flex items-center justify-center text-2xl font-bold text-sky-400 border-2 border-sky-400/25 flex-shrink-0 ${styles.avatar}`}>
+              <div className={`w-16 h-16 rounded-full bg-sky-400/15 flex items-center justify-center text-2xl font-bold text-sky-400 admin-light:text-sky-700 border-2 border-sky-400/25 flex-shrink-0 ${styles.avatar}`}>
                 {selectedUser.name.charAt(0)}
               </div>
               <div className={styles.identity}>
-                <p className={`text-lg font-bold text-white ${styles.name}`}>{selectedUser.name}</p>
+                <p className={`text-lg font-bold text-white admin-light:text-slate-900 ${styles.name}`}>{selectedUser.name}</p>
                 <div className={`flex flex-wrap items-center gap-2 mt-1 ${styles.profileMeta}`}>
                   <Badge variant={selectedUser.status === 'Active' ? 'success' : selectedUser.status === 'Suspended' ? 'warning' : 'danger'}>{selectedUser.status}</Badge>
                   {role && <Badge variant="neutral">{roleLabel}</Badge>}
@@ -344,48 +344,48 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
 
             {/* Account Info Grid */}
             <div>
-            {isCommuter && <h3 className="hidden lg:flex items-center gap-2 mb-3 text-xs font-semibold uppercase tracking-wider text-slate-300"><UserRound size={14} className="text-[#62A0EA]" aria-hidden="true" />Account information</h3>}
+            {isCommuter && <h3 className="hidden lg:flex items-center gap-2 mb-3 text-xs font-semibold uppercase tracking-wider text-slate-300 admin-light:text-slate-700"><UserRound size={14} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" aria-hidden="true" />Account information</h3>}
             <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 ${styles.information}`}>
               {username && (
-                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] admin-light:bg-[#F8FAFC] border border-[#1E2D45] admin-light:border-[#E2E8F0]">
                   <AtSign size={16} className="text-slate-500" />
                   <div className="min-w-0">
                     <p className="text-xs text-slate-500 uppercase">Username</p>
-                    <p className="text-sm text-white truncate">{username}</p>
+                    <p className="text-sm text-white admin-light:text-slate-900 truncate">{username}</p>
                   </div>
                 </div>
               )}
 
-              <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+              <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] admin-light:bg-[#F8FAFC] border border-[#1E2D45] admin-light:border-[#E2E8F0]">
                 <Mail size={16} className="text-slate-500" />
                 <div className="min-w-0">
                   <p className="text-xs text-slate-500 uppercase">Email</p>
-                  <p className="text-sm text-white truncate">{selectedUser.email}</p>
+                  <p className="text-sm text-white admin-light:text-slate-900 truncate">{selectedUser.email}</p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+              <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] admin-light:bg-[#F8FAFC] border border-[#1E2D45] admin-light:border-[#E2E8F0]">
                 <Phone size={16} className="text-slate-500" />
                 <div>
                   <p className="text-xs text-slate-500 uppercase">Phone Number</p>
-                  <p className="text-sm text-white">{selectedUser.phoneNumber}</p>
+                  <p className="text-sm text-white admin-light:text-slate-900">{selectedUser.phoneNumber}</p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+              <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] admin-light:bg-[#F8FAFC] border border-[#1E2D45] admin-light:border-[#E2E8F0]">
                 <Calendar size={16} className="text-slate-500" />
                 <div>
                   <p className="text-xs text-slate-500 uppercase">Joined</p>
-                  <p className="text-sm text-white">{formatJoinedDate(createdAt)}</p>
+                  <p className="text-sm text-white admin-light:text-slate-900">{formatJoinedDate(createdAt)}</p>
                 </div>
               </div>
 
               {verifiedAt && (
-                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] border border-[#1E2D45]">
+                <div className="flex items-center gap-3 p-3 rounded-md bg-[#0E1628] admin-light:bg-[#F8FAFC] border border-[#1E2D45] admin-light:border-[#E2E8F0]">
                   <ShieldCheck size={16} className="text-slate-500" />
                   <div>
                     <p className="text-xs text-slate-500 uppercase">Verified On</p>
-                    <p className="text-sm text-white">{formatJoinedDate(verifiedAt)}</p>
+                    <p className="text-sm text-white admin-light:text-slate-900">{formatJoinedDate(verifiedAt)}</p>
                   </div>
                 </div>
               )}
@@ -395,27 +395,27 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
             {/* Action Button */}
             {selectedUser.status === 'Suspended' && 'suspension' in selectedUser && selectedUser.suspension && (
               <div className={`rounded-md border border-amber-400/20 bg-amber-400/5 p-3 text-sm ${styles.suspension}`}>
-                <p className="font-semibold text-amber-300">
+                <p className="font-semibold text-amber-300 admin-light:text-amber-700">
                   {selectedUser.suspension.isPermanent
                     ? 'Permanently suspended'
                     : selectedUser.suspension.endsAt
                       ? `Suspended until ${new Date(selectedUser.suspension.endsAt).toLocaleString()}`
                       : 'Suspended'}
                 </p>
-                <p className="mt-1 text-slate-300">{selectedUser.suspension.reason}</p>
+                <p className="mt-1 text-slate-300 admin-light:text-slate-700">{selectedUser.suspension.reason}</p>
               </div>
             )}
             <div className={`flex gap-2 ${styles.actions}`}>
               <button
                 onClick={() => { onEdit(selectedUser as ActiveUser); onSelectUser(null); }}
-                className={`flex-1 py-2.5 rounded-md text-sm font-medium bg-[#62A0EA]/10 text-[#62A0EA] border border-[#62A0EA]/20 hover:bg-[#62A0EA]/20 transition-colors ${styles.editAction}`}
+                className={`flex-1 py-2.5 rounded-md text-sm font-medium bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4] border border-[#62A0EA]/20 admin-light:border-[#1A5FB4]/20 hover:bg-[#62A0EA]/20 admin-light:hover:bg-[#1A5FB4]/20 transition-colors ${styles.editAction}`}
               >
                 Edit {roleLabel}
               </button>
               {role === 'CONDUCTOR' && selectedUser.status === 'Active' && (
                 <button
                   onClick={() => { onDisableConductor(selectedUser as ActiveUser); onSelectUser(null); }}
-                  className="flex-1 py-2.5 rounded-md text-sm font-medium transition-colors bg-red-400/10 text-red-400 border border-red-400/20 hover:bg-red-400/20"
+                  className="flex-1 py-2.5 rounded-md text-sm font-medium transition-colors bg-red-400/10 text-red-400 admin-light:text-red-600 border border-red-400/20 hover:bg-red-400/20"
                 >
                   Disable Account
                 </button>
@@ -425,8 +425,8 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
                   onClick={() => { onDeactivate(selectedUser as ActiveUser); onSelectUser(null); }}
                   className={`flex-1 py-2.5 rounded-md text-sm font-medium transition-colors ${
                     selectedUser.status === 'Active'
-                      ? 'bg-red-400/10 text-red-400 border border-red-400/20 hover:bg-red-400/20'
-                      : 'bg-sky-400/10 text-sky-400 border border-sky-400/20 hover:bg-sky-400/20'
+                      ? 'bg-red-400/10 text-red-400 admin-light:text-red-600 border border-red-400/20 hover:bg-red-400/20'
+                      : 'bg-sky-400/10 text-sky-400 admin-light:text-sky-700 border border-sky-400/20 hover:bg-sky-400/20'
                   }`}
                 >
                   {selectedUser.status === 'Active' ? 'Suspend Account' : 'Reactivate Account'}
@@ -434,12 +434,12 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
               )}
             </div>
             {role === 'CONDUCTOR' && selectedUser.status === 'Disabled' && (
-              <p className="rounded-md border border-[#1E2D45] bg-[#0E1628] p-3 text-center text-sm text-slate-400">
+              <p className="rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] p-3 text-center text-sm text-slate-400 admin-light:text-slate-500">
                 This conductor is disabled. Reset their credentials in Fleet Management to re-enable the account.
               </p>
             )}
             {role === 'DRIVER' && (
-              <p className="rounded-md border border-[#1E2D45] bg-[#0E1628] p-3 text-center text-sm text-slate-400">
+              <p className="rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] p-3 text-center text-sm text-slate-400 admin-light:text-slate-500">
                 Driver account status is managed in Fleet Management.
               </p>
             )}

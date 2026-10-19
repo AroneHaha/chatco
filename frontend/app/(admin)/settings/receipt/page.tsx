@@ -115,17 +115,17 @@ export default function ReceiptSettingsPage() {
     }
   };
 
-  const inputClasses = 'block h-11 w-full rounded-lg border border-[#23344F] bg-[#0E1628] px-3 text-base text-white placeholder-slate-500 outline-none transition-colors focus:border-[#62A0EA] focus:ring-2 focus:ring-[#62A0EA]/20 @sm:text-sm';
-  const labelClasses = 'mb-2 block text-sm font-medium text-slate-300';
-  const sectionClasses = 'min-w-0 rounded-xl border border-[#1E2D45] bg-[#111A2B] p-4 @sm:p-5';
+  const inputClasses = 'block h-11 w-full rounded-lg border border-[#23344F] admin-light:border-[#CBD5E1] bg-[#0E1628] admin-light:bg-[#F8FAFC] px-3 text-base text-white admin-light:text-slate-900 placeholder-slate-500 admin-light:placeholder-slate-400 outline-none transition-colors focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4] focus:ring-2 focus:ring-[#62A0EA]/20 admin-light:focus:ring-[#1A5FB4]/20 @sm:text-sm';
+  const labelClasses = 'mb-2 block text-sm font-medium text-slate-300 admin-light:text-slate-700';
+  const sectionClasses = 'min-w-0 rounded-xl border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#111A2B] admin-light:bg-white p-4 @sm:p-5';
 
   if (isLoading) {
     return (
       <div className="p-4 sm:p-6" role="status" aria-label="Loading receipt settings">
         <div className="mx-auto w-full max-w-5xl animate-pulse space-y-4">
-          <div className="h-7 w-48 rounded bg-[#1E2D45]" />
-          <div className="h-60 rounded-xl border border-[#1E2D45] bg-[#111A2B]" />
-          <div className="h-40 rounded-xl border border-[#1E2D45] bg-[#111A2B]" />
+          <div className="h-7 w-48 rounded bg-[#1E2D45] admin-light:bg-slate-200" />
+          <div className="h-60 rounded-xl border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#111A2B] admin-light:bg-white" />
+          <div className="h-40 rounded-xl border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#111A2B] admin-light:bg-white" />
         </div>
       </div>
     );
@@ -135,25 +135,25 @@ export default function ReceiptSettingsPage() {
     <div className="@container min-w-0 px-4 sm:px-6">
       <div className="mx-auto w-full max-w-5xl space-y-5 pt-5">
         <div className="flex items-start gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#62A0EA]/20 bg-[#62A0EA]/10 text-[#62A0EA]">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#62A0EA]/20 admin-light:border-[#1A5FB4]/20 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4]">
             <Printer size={20} aria-hidden="true" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-xl font-bold text-white">Receipt settings</h1>
-            <p className="mt-1 text-sm leading-relaxed text-slate-400">Customize the receipt passengers receive after a payment.</p>
+            <h1 className="text-xl font-bold text-white admin-light:text-slate-900">Receipt settings</h1>
+            <p className="mt-1 text-sm leading-relaxed text-slate-400 admin-light:text-slate-500">Customize the receipt passengers receive after a payment.</p>
           </div>
         </div>
 
         {error && (
           <div role="alert" className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-center gap-2">
-            <AlertCircle size={16} className="text-red-400 flex-shrink-0" />
-            <p className="text-sm text-red-400">{error}</p>
+            <AlertCircle size={16} className="text-red-400 admin-light:text-red-600 flex-shrink-0" />
+            <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
           </div>
         )}
 
-        <div role="group" aria-label="Receipt settings view" className="flex rounded-lg border border-[#1E2D45] bg-[#0E1628] p-1 @[48rem]:hidden">
+        <div role="group" aria-label="Receipt settings view" className="flex rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] p-1 @[48rem]:hidden">
           {(['settings', 'preview'] as const).map((view) => (
-            <button key={view} type="button" aria-pressed={activeView === view} aria-controls={`receipt-${view}-panel`} onClick={() => setActiveView(view)} className={`min-h-11 flex-1 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]/50 ${activeView === view ? 'bg-[#62A0EA]/15 text-[#8CB9F0]' : 'text-slate-400 hover:text-white'}`}>
+            <button key={view} type="button" aria-pressed={activeView === view} aria-controls={`receipt-${view}-panel`} onClick={() => setActiveView(view)} className={`min-h-11 flex-1 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]/50 admin-light:focus-visible:ring-[#1A5FB4]/50 ${activeView === view ? 'bg-[#62A0EA]/15 admin-light:bg-[#1A5FB4]/10 text-[#8CB9F0] admin-light:text-[#1A5FB4]' : 'text-slate-400 admin-light:text-slate-500 hover:text-white admin-light:hover:text-slate-900'}`}>
               {view === 'settings' ? 'Settings' : 'Preview'}
             </button>
           ))}
@@ -165,7 +165,7 @@ export default function ReceiptSettingsPage() {
             {/* Branding */}
             <section className={`${sectionClasses} space-y-4`} aria-labelledby="receipt-branding-title">
               <div>
-                <h2 id="receipt-branding-title" className="text-sm font-semibold text-white">Receipt header & footer</h2>
+                <h2 id="receipt-branding-title" className="text-sm font-semibold text-white admin-light:text-slate-900">Receipt header & footer</h2>
                 <p className="mt-1 text-xs leading-relaxed text-slate-500">Add your business details and a message for passengers.</p>
               </div>
               <div>
@@ -184,7 +184,7 @@ export default function ReceiptSettingsPage() {
 
             {/* Printer */}
             <section className={`${sectionClasses} space-y-4`} aria-labelledby="receipt-printer-title">
-              <h2 id="receipt-printer-title" className="text-sm font-semibold text-white">Printing</h2>
+              <h2 id="receipt-printer-title" className="text-sm font-semibold text-white admin-light:text-slate-900">Printing</h2>
               <fieldset>
                 <legend className={labelClasses}>Paper width</legend>
                 <div className="grid grid-cols-2 gap-2">
@@ -194,7 +194,7 @@ export default function ReceiptSettingsPage() {
                       type="button"
                       aria-pressed={config.paperWidth === w}
                       onClick={() => set('paperWidth', w)}
-                      className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]/50 ${config.paperWidth === w ? 'bg-[#62A0EA]/10 text-[#8CB9F0] border-[#62A0EA]/60' : 'bg-[#0E1628] text-slate-300 border-[#23344F] hover:border-[#62A0EA]/50'}`}
+                      className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]/50 admin-light:focus-visible:ring-[#1A5FB4]/50 ${config.paperWidth === w ? 'bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 text-[#8CB9F0] admin-light:text-[#1A5FB4] border-[#62A0EA]/60 admin-light:border-[#1A5FB4]/60' : 'bg-[#0E1628] admin-light:bg-[#F8FAFC] text-slate-300 admin-light:text-slate-700 border-[#23344F] admin-light:border-[#CBD5E1] hover:border-[#62A0EA]/50 admin-light:hover:border-[#1A5FB4]/50'}`}
                     >
                       {w} mm
                       {config.paperWidth === w && <Check size={14} aria-hidden="true" />}
@@ -214,10 +214,10 @@ export default function ReceiptSettingsPage() {
             {/* Details on the receipt */}
             <section className={sectionClasses} aria-labelledby="receipt-details-title">
               <div>
-                <h2 id="receipt-details-title" className="text-sm font-semibold text-white">Receipt details</h2>
+                <h2 id="receipt-details-title" className="text-sm font-semibold text-white admin-light:text-slate-900">Receipt details</h2>
                 <p className="text-xs leading-relaxed text-slate-500 mt-1">Choose what appears on each receipt.</p>
               </div>
-              <div className="mt-3 divide-y divide-[#1E2D45]">
+              <div className="mt-3 divide-y divide-[#1E2D45] admin-light:divide-[#E2E8F0]">
                 {DETAIL_TOGGLES.map((t) => (
                   <div key={t.key} className="py-3 first:pt-1 last:pb-0">
                     <ToggleRow
@@ -233,26 +233,26 @@ export default function ReceiptSettingsPage() {
           </div>
 
           {/* ── Live preview column ── */}
-          <section id="receipt-preview-panel" aria-labelledby="receipt-preview-title" className={`min-w-0 rounded-xl border border-[#1E2D45] bg-[#111A2B] @[48rem]:sticky @[48rem]:top-5 @[48rem]:block ${activeView === 'preview' ? 'block' : 'hidden'}`}>
-            <div className="flex items-center justify-between gap-2 border-b border-[#1E2D45] px-4 py-3">
-              <h2 id="receipt-preview-title" className="text-sm font-semibold text-white">Live preview</h2>
-              <span className="rounded-md bg-[#62A0EA]/10 px-2 py-1 text-xs font-medium text-[#8CB9F0]">{config.paperWidth} mm</span>
+          <section id="receipt-preview-panel" aria-labelledby="receipt-preview-title" className={`min-w-0 rounded-xl border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#111A2B] admin-light:bg-white @[48rem]:sticky @[48rem]:top-5 @[48rem]:block ${activeView === 'preview' ? 'block' : 'hidden'}`}>
+            <div className="flex items-center justify-between gap-2 border-b border-[#1E2D45] admin-light:border-[#E2E8F0] px-4 py-3">
+              <h2 id="receipt-preview-title" className="text-sm font-semibold text-white admin-light:text-slate-900">Live preview</h2>
+              <span className="rounded-md bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 px-2 py-1 text-xs font-medium text-[#8CB9F0] admin-light:text-[#1A5FB4]">{config.paperWidth} mm</span>
             </div>
-            <div className="overflow-hidden rounded-b-xl bg-[#0E1628] px-3 py-6">
+            <div className="overflow-hidden rounded-b-xl bg-[#0E1628] admin-light:bg-[#E2E8F0] px-3 py-6">
               <ReceiptPreview config={config} />
               <p className="mt-4 text-center text-xs leading-relaxed text-slate-500">Sample transaction. Updates as you edit.</p>
             </div>
           </section>
 
           {/* Save (spans full width under both columns) */}
-          <div className="sticky bottom-0 z-10 -mx-4 flex flex-col gap-3 border-t border-[#1E2D45] bg-[#0B1120] px-4 py-4 sm:-mx-6 sm:px-6 @sm:flex-row @sm:items-center @sm:justify-between @[48rem]:col-span-2">
-            <p role="status" className={`text-xs ${isSaved ? 'text-[#8CB9F0]' : 'text-slate-500'}`}>
+          <div className="sticky bottom-0 z-10 -mx-4 flex flex-col gap-3 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0B1120] admin-light:bg-[#F1F5F9] px-4 py-4 sm:-mx-6 sm:px-6 @sm:flex-row @sm:items-center @sm:justify-between @[48rem]:col-span-2">
+            <p role="status" className={`text-xs ${isSaved ? 'text-[#8CB9F0] admin-light:text-[#1A5FB4]' : 'text-slate-500'}`}>
               {isSaved ? 'Receipt settings saved.' : 'Changes apply after saving.'}
             </p>
             <button
               type="submit"
               disabled={isSaving}
-              className="flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#4A8BD4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0B1120] disabled:opacity-50 disabled:cursor-not-allowed @sm:w-auto"
+              className="flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] admin-light:bg-[#1A5FB4] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]/50 admin-light:focus-visible:ring-[#1A5FB4]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0B1120] admin-light:focus-visible:ring-offset-[#F1F5F9] disabled:opacity-50 disabled:cursor-not-allowed @sm:w-auto"
             >
               {isSaved ? <Check size={16} aria-hidden="true" /> : <Save size={16} aria-hidden="true" />}
               <span>{isSaving ? 'Saving...' : 'Save changes'}</span>
@@ -268,12 +268,12 @@ function ToggleRow({ label, hint, checked, onChange }: { label: string; hint: st
   return (
     <div className="flex items-center justify-between gap-4">
       <div className="min-w-0 flex-1">
-        <p className="text-white font-medium text-sm">{label}</p>
+        <p className="text-white admin-light:text-slate-900 font-medium text-sm">{label}</p>
         <p className="text-xs text-slate-500 mt-0.5">{hint}</p>
       </div>
       <label className="inline-flex min-h-11 shrink-0 cursor-pointer items-center">
         <input type="checkbox" role="switch" aria-label={label} checked={checked} onChange={(e) => onChange(e.target.checked)} className="sr-only peer" />
-        <span aria-hidden="true" className="relative h-6 w-11 rounded-full bg-[#23344F] transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-[#62A0EA]/50 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-[#111A2B] peer-checked:bg-[#62A0EA] peer-checked:[&>span]:translate-x-5">
+        <span aria-hidden="true" className="relative h-6 w-11 rounded-full bg-[#23344F] admin-light:bg-slate-300 transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-[#62A0EA]/50 admin-light:peer-focus-visible:ring-[#1A5FB4]/50 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-[#111A2B] admin-light:peer-focus-visible:ring-offset-white peer-checked:bg-[#62A0EA] admin-light:peer-checked:bg-[#1A5FB4] peer-checked:[&>span]:translate-x-5">
           <span className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform" />
         </span>
       </label>

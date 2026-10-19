@@ -13,8 +13,10 @@ use App\Models\CommuterProfile;
 use App\Models\User;
 use App\Rules\PhilippineMobileNumber;
 use App\Rules\StrongPassword;
+use App\Services\ActivityLogService;
 use App\Services\AuthService;
 use App\Services\EmailVerificationService;
+use App\Services\PasswordChangeService;
 use App\Services\RegistrationGuard;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -49,6 +51,8 @@ class AuthController extends Controller
         private AuthService $authService,
         private EmailVerificationService $emailVerification,
         private RegistrationGuard $registrationGuard,
+        private ActivityLogService $activityLog,
+        private PasswordChangeService $passwordChange,
     ) {}
 
     public function login(Request $request): JsonResponse
@@ -96,6 +100,10 @@ class AuthController extends Controller
             'role' => $user->role->value,
             'name' => $user->getDisplayName(),
             'token' => $result['token'],
+            // The client sends the commuter to the Set New Password page instead
+            // of their dashboard. The backend enforces it regardless (see
+            // EnsurePasswordChanged).
+            'must_change_password' => $user->must_change_password,
         ], 'Login successful');
     }
 
@@ -104,6 +112,29 @@ class AuthController extends Controller
         $this->authService->logout($request->user());
 
         return $this->successResponse(null, 'Logged out successfully');
+    }
+
+    /**
+     * POST /api/v1/auth/set-new-password — first-time setup for an account
+     * created with a system-generated default password. Reachable only while
+     * must_change_password is set (every other route returns 403
+     * PASSWORD_CHANGE_REQUIRED). Revokes every session, including this one.
+     */
+    public function setNewPassword(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'password' => ['required', 'string', 'confirmed', new StrongPassword],
+        ]);
+
+        $this->passwordChange->completeFirstTimeSetup($request->user(), $validated['password']);
+
+        $this->activityLog->record(
+            ActivityLogService::accountCategory($request->user()),
+            'Set a new password to activate the account; signed out of every device',
+            $request->user(),
+        );
+
+        return $this->successResponse(null, 'Your password has been updated and your account is now active. Please sign in again.');
     }
 
     public function user(Request $request): JsonResponse
@@ -435,8 +466,11 @@ class AuthController extends Controller
         // issued under it must not outlive it. Consume the code — one
         // successful reset per code — in the same transaction.
         DB::transaction(function () use ($user, $request, $email) {
+            // A code-verified reset is the user choosing their own password, so
+            // it also satisfies a pending first-time change.
             $user->forceFill([
                 'password' => Hash::make($request->password),
+                'must_change_password' => false,
                 'remember_token' => Str::random(60),
             ])->save();
 
@@ -444,6 +478,12 @@ class AuthController extends Controller
 
             DB::table('password_reset_tokens')->where('email', $email)->delete();
         });
+
+        $this->activityLog->record(
+            ActivityLogService::accountCategory($user),
+            'Reset their password with an email code; signed out of every device',
+            $user,
+        );
 
         return $this->successResponse(null, 'Password reset successfully. You can now log in.');
     }

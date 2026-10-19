@@ -98,7 +98,8 @@ class AdminUserManagementTest extends TestCase
 
     public function test_list_returns_paginated_users_without_secrets(): void
     {
-        [$admin, $headers] = $this->asAdmin();
+        [, $headers] = $this->asAdmin();
+        $admin = $this->makeAdmin('other.admin@gmail.com');
         $this->makeConductor();
         $commuter = $this->makeCommuter();
         $commuter->commuterProfile->update([
@@ -112,7 +113,7 @@ class AdminUserManagementTest extends TestCase
         $response->assertJsonStructure([
             'data' => ['current_page', 'data' => [['id', 'email', 'role', 'name']], 'total'],
         ]);
-        $this->assertEquals(3, $response->json('data.total')); // admin + conductor + commuter
+        $this->assertEquals(3, $response->json('data.total')); // other admin + conductor + commuter, not the requester
         $this->assertStringNotContainsStringIgnoringCase('password', $response->getContent());
         $commuterRow = collect($response->json('data.data'))->firstWhere('id', $commuter->id);
         $this->assertStringContainsString('ids/commuters/'.$commuter->id.'/valid-id.png', $commuterRow['id_image_url']);
@@ -153,6 +154,26 @@ class AdminUserManagementTest extends TestCase
         $response->assertStatus(200);
         $this->assertEquals(1, $response->json('data.total'));
         $this->assertEquals('findme@gmail.com', $response->json('data.data.0.email'));
+    }
+
+    public function test_list_leaves_out_the_signed_in_admin(): void
+    {
+        [$self, $headers] = $this->asAdmin();
+        $other = $this->makeAdmin('other.admin@gmail.com');
+
+        $response = $this->withHeaders($headers)->getJson('/api/v1/admin/users?role=ADMIN');
+
+        $response->assertStatus(200);
+        $this->assertEquals(1, $response->json('data.total'));
+        $ids = collect($response->json('data.data'))->pluck('id');
+        $this->assertTrue($ids->contains($other->id));
+        $this->assertFalse($ids->contains($self->id));
+
+        // The other admin's own view leaves them out and includes the first one.
+        $otherHeaders = ['Authorization' => "Bearer {$this->tokenFor($other)}"];
+        $this->app['auth']->forgetGuards();
+        $otherIds = collect($this->withHeaders($otherHeaders)->getJson('/api/v1/admin/users?role=ADMIN')->json('data.data'))->pluck('id');
+        $this->assertEquals([$self->id], $otherIds->all());
     }
 
     public function test_list_forbidden_for_non_admin(): void

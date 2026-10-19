@@ -74,38 +74,38 @@ export function CashDeclarationModal({ isOpen, onClose, onDeclared, record }: Ca
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={() => { if (!isSubmitting) onClose(); }} maxWidth="max-w-sm">
+    <Modal isOpen={isOpen} onClose={() => { if (!isSubmitting) onClose(); }} maxWidth="max-w-sm" adminThemed>
       <div className="flex justify-center mb-4">
-        <div className="w-14 h-14 rounded-full bg-[#62A0EA]/15 flex items-center justify-center">
-          <Banknote size={26} className="text-[#62A0EA]" />
+        <div className="w-14 h-14 rounded-full bg-[#62A0EA]/15 admin-light:bg-[#1A5FB4]/10 flex items-center justify-center">
+          <Banknote size={26} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />
         </div>
       </div>
-      <h2 className="text-lg sm:text-xl font-bold text-white text-center">Cash Declaration</h2>
-      <p className="text-xs text-slate-400 text-center mt-1 mb-5">
+      <h2 className="text-lg sm:text-xl font-bold text-white admin-light:text-slate-900 text-center">Cash Declaration</h2>
+      <p className="text-xs text-slate-400 admin-light:text-slate-500 text-center mt-1 mb-5">
         {record.conductorName} · {record.unitNumber} · {record.date}
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && (
           <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-md">
-            <p className="text-sm text-red-400">{error}</p>
+            <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
           </div>
         )}
 
-        <div className="bg-[#0E1628] border border-[#1E2D45] rounded-md p-4 space-y-2.5">
+        <div className="bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md p-4 space-y-2.5">
           <div className="flex justify-between text-sm">
-            <span className="text-slate-400 flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-400" />GCash (system-tracked)</span>
-            <span className="text-blue-400 font-bold tabular-nums">{fmtPHP(record.gcashTotal)}</span>
+            <span className="text-slate-400 admin-light:text-slate-500 flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-400" />GCash (system-tracked)</span>
+            <span className="text-blue-400 admin-light:text-blue-700 font-bold tabular-nums">{fmtPHP(record.gcashTotal)}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-slate-400 flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400" />Cash (system-tracked)</span>
-            <span className="text-emerald-400 font-bold tabular-nums">{fmtPHP(record.cashTotal)}</span>
+            <span className="text-slate-400 admin-light:text-slate-500 flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400" />Cash (system-tracked)</span>
+            <span className="text-emerald-400 admin-light:text-emerald-700 font-bold tabular-nums">{fmtPHP(record.cashTotal)}</span>
           </div>
         </div>
 
         <div>
-          <label htmlFor="cash-declared" className="block text-xs font-medium text-slate-300 mb-1.5">
-            Cash Declared (physical count) <span className="text-red-400">*</span>
+          <label htmlFor="cash-declared" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">
+            Cash Declared (physical count) <span className="text-red-400 admin-light:text-red-600">*</span>
           </label>
           <input
             id="cash-declared"
@@ -117,7 +117,7 @@ export function CashDeclarationModal({ isOpen, onClose, onDeclared, record }: Ca
             disabled={isSubmitting}
             autoFocus
             required
-            className="w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-lg font-bold tabular-nums placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] transition-colors disabled:opacity-50"
+            className="w-full px-4 py-2.5 bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-white admin-light:text-slate-900 text-lg font-bold tabular-nums placeholder-slate-500 admin-light:placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] admin-light:focus:ring-[#1A5FB4] transition-colors disabled:opacity-50"
             placeholder="0.00"
           />
           <p className="text-[11px] text-slate-500 mt-1.5">
@@ -127,30 +127,30 @@ export function CashDeclarationModal({ isOpen, onClose, onDeclared, record }: Ca
 
         {shortage > 0 && (
           <div className="flex items-center justify-between bg-red-500/10 border border-red-500/20 rounded-md px-3.5 py-2.5">
-            <span className="text-xs font-semibold text-red-400 flex items-center gap-1.5"><AlertTriangle size={13} />Shortage</span>
-            <span className="text-sm font-bold text-red-400 tabular-nums">-{fmtPHP(shortage)}</span>
+            <span className="text-xs font-semibold text-red-400 admin-light:text-red-600 flex items-center gap-1.5"><AlertTriangle size={13} />Shortage</span>
+            <span className="text-sm font-bold text-red-400 admin-light:text-red-600 tabular-nums">-{fmtPHP(shortage)}</span>
           </div>
         )}
         {overage > 0 && (
           <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/20 rounded-md px-3.5 py-2.5">
-            <span className="text-xs font-semibold text-emerald-400">Overage</span>
-            <span className="text-sm font-bold text-emerald-400 tabular-nums">+{fmtPHP(overage)}</span>
+            <span className="text-xs font-semibold text-emerald-400 admin-light:text-emerald-700">Overage</span>
+            <span className="text-sm font-bold text-emerald-400 admin-light:text-emerald-700 tabular-nums">+{fmtPHP(overage)}</span>
           </div>
         )}
 
-        <div className="flex justify-end gap-2 pt-4 border-t border-[#1E2D45]">
+        <div className="flex justify-end gap-2 pt-4 border-t border-[#1E2D45] admin-light:border-[#E2E8F0]">
           <button
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="px-5 py-2.5 border border-[#1E2D45] rounded-md text-slate-300 hover:bg-[#131C2E] transition-colors disabled:opacity-50"
+            className="px-5 py-2.5 border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-slate-300 admin-light:text-slate-700 hover:bg-[#131C2E] admin-light:hover:bg-white transition-colors disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={isSubmitting || hasInvalidAmount}
-            className="px-5 py-2.5 bg-[#62A0EA] text-white font-medium rounded-md hover:bg-[#4A8BD4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-5 py-2.5 bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white font-medium rounded-md hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitting ? 'Saving...' : 'Confirm Cash Declaration'}
           </button>

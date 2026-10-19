@@ -71,10 +71,10 @@ export function RegistrationRequestsTable({
           <img
             src={request.idImageUrl}
             alt=""
-            className="h-9 w-9 flex-shrink-0 rounded-md border border-[#1E2D45] object-cover"
+            className="h-9 w-9 flex-shrink-0 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] object-cover"
           />
           <div className="min-w-0">
-            <p className="whitespace-nowrap font-medium text-white">{value}</p>
+            <p className="whitespace-nowrap font-medium text-white admin-light:text-slate-900">{value}</p>
             <p className="whitespace-nowrap text-xs text-slate-500">{request.email}</p>
           </div>
         </div>
@@ -90,21 +90,21 @@ export function RegistrationRequestsTable({
       key: 'createdAt',
       label: 'Applied',
       cellClassName: 'whitespace-nowrap',
-      render: (value: string) => <span className="text-xs text-slate-400">{formatAppliedDate(value)}</span>,
+      render: (value: string) => <span className="text-xs text-slate-400 admin-light:text-slate-500">{formatAppliedDate(value)}</span>,
     },
     {
       key: 'waitingTime',
       label: 'Time Waiting',
       cellClassName: 'whitespace-nowrap',
       render: (_: unknown, request: PendingRequest) => (
-        <span className="text-xs text-slate-400">{formatWaitingTime(request.createdAt, now)}</span>
+        <span className="text-xs text-slate-400 admin-light:text-slate-500">{formatWaitingTime(request.createdAt, now)}</span>
       ),
     },
     {
       key: 'phoneNumber',
       label: 'Contact',
       cellClassName: 'whitespace-nowrap',
-      render: (value: string) => <span className="text-sm text-slate-400">{value || '—'}</span>,
+      render: (value: string) => <span className="text-sm text-slate-400 admin-light:text-slate-500">{value || '—'}</span>,
     },
     {
       key: 'status',
@@ -130,7 +130,7 @@ export function RegistrationRequestsTable({
   ];
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col gap-3 rounded-lg border border-[#1E2D45] bg-[#111A2B] p-3 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
+    <div className="flex h-full min-h-0 min-w-0 flex-col gap-3 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#111A2B] admin-light:bg-white p-3 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
       {headerContent && <div className="shrink-0">{headerContent}</div>}
       <div className="relative flex-1 min-h-0">
         <DataTable
@@ -145,7 +145,7 @@ export function RegistrationRequestsTable({
         />
         {isRefreshing && (
           <div className="absolute inset-0 z-10 flex items-center justify-center">
-            <div className="h-8 w-8 rounded-full border-2 border-[#1E2D45] border-t-[#62A0EA] animate-spin" />
+            <div className="h-8 w-8 rounded-full border-2 border-[#1E2D45] admin-light:border-[#E2E8F0] border-t-[#62A0EA] admin-light:border-t-[#1A5FB4] animate-spin" />
           </div>
         )}
       </div>

@@ -155,7 +155,12 @@ class StudentRenewalService
             $this->assertEligible($profile);
             $profile->update(['commuter_type' => 'REGULAR', 'applied_type' => 'REGULAR', 'student_discount_expires_at' => null]);
             DiscountApplication::where('commuter_id', $profile->id)->where('request_type', 'RENEWAL')->whereIn('status', ['PENDING', 'NEEDS_CORRECTION'])->update(['status' => 'CANCELLED', 'updated_at' => now()]);
-            $this->activity->record(ActivityLogCategory::MEMBER, 'Student voluntarily switched to Regular: '.$profile->id, $user);
+            $this->activity->record(
+                ActivityLogCategory::MEMBER,
+                'Switched from Student to Regular fare',
+                $user,
+                [['field' => 'Commuter type', 'from' => 'Student', 'to' => 'Regular']],
+            );
         }, 3);
 
         return $this->state($user->fresh());
@@ -216,7 +221,12 @@ class StudentRenewalService
                             return;
                         }
                         $profile->update(['commuter_type' => 'REGULAR', 'applied_type' => 'STUDENT']);
-                        $this->activity->record(ActivityLogCategory::MEMBER, 'Student renewal expired; converted to Regular: '.$profile->id);
+                        $this->activity->record(
+                            ActivityLogCategory::MEMBER,
+                            "Student discount of {$profile->first_name} {$profile->surname} expired without renewal; moved to Regular fare",
+                            null,
+                            [['field' => 'Commuter type', 'from' => 'Student', 'to' => 'Regular']],
+                        );
                         $this->announcements->notifyUser($profile->id, 'STUDENT_RENEWAL_DONE', 'Student discount expired', 'Your student renewal deadline has passed. Your account remains available as a Regular commuter. Submit current enrollment proof to apply again.', $profile->id);
                     }, $failures);
                 }

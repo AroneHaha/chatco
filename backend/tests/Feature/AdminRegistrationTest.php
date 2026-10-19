@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
-use App\Mail\PasswordResetCodeMail;
 use App\Models\AdminProfile;
 use App\Models\CommuterProfile;
 use App\Models\ConductorProfile;
@@ -12,7 +11,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -184,7 +182,8 @@ class AdminRegistrationTest extends TestCase
         ], ['Accept' => 'application/json']);
 
         $response->assertStatus(201)
-            ->assertJsonPath('data.account_status', 'PENDING')
+            ->assertJsonPath('data.account_status', 'APPROVED')
+            ->assertJsonPath('data.must_change_password', true)
             ->assertJsonMissingPath('data.password');
 
         $user = User::where('email', 'onsite.success@example.com')->first();
@@ -201,49 +200,102 @@ class AdminRegistrationTest extends TestCase
         $this->assertSame('Dela Cruz', $user->commuterProfile->surname);
     }
 
-    public function test_onsite_commuter_can_set_their_password_after_approval(): void
+    // ── Onsite Student: the school details renewal asks for ──────
+
+    public function test_onsite_student_requires_the_school_details(): void
     {
         Storage::fake('public');
-        Mail::fake();
-
-        $this->actingAs($this->admin)->post('/api/v1/admin/registrations', [
-            'first_name' => 'Onsite',
-            'surname' => 'Commuter',
-            'birthdate' => '1995-01-01',
-            'email' => 'onsite.setup@example.com',
-            'contact_number' => '09171112224',
-            'username' => 'onsite.setup',
-            'applied_type' => 'STUDENT',
-            'id_image' => UploadedFile::fake()->image('id.jpg', 800, 600),
-        ], ['Accept' => 'application/json'])->assertStatus(201);
-
-        $user = User::where('email', 'onsite.setup@example.com')->firstOrFail();
-
-        $this->postJson('/api/v1/auth/forgot-password', ['email' => $user->email])
-            ->assertStatus(403);
-        Mail::assertNothingSent();
 
         $this->actingAs($this->admin)
-            ->postJson("/api/v1/admin/registrations/{$user->id}/approve")
-            ->assertStatus(200);
+            ->post('/api/v1/admin/registrations', $this->onsitePayload(['applied_type' => 'STUDENT']), ['Accept' => 'application/json'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['school_name', 'education_level', 'school_year']);
 
-        $this->postJson('/api/v1/auth/forgot-password', ['email' => $user->email])
-            ->assertStatus(200);
-        Mail::assertSent(PasswordResetCodeMail::class, fn ($mail) => $mail->hasTo($user->email));
-        $code = Mail::sent(PasswordResetCodeMail::class)->first()->code;
+        $this->assertDatabaseMissing('users', ['email' => 'onsite.student@example.com']);
+    }
 
-        $this->postJson('/api/v1/auth/reset-password', [
-            'email' => $user->email,
-            'code' => $code,
-            'password' => 'CommuterSetup123!',
-            'password_confirmation' => 'CommuterSetup123!',
-        ])->assertStatus(200);
+    public function test_onsite_high_school_student_saves_an_approved_application_with_grade_level(): void
+    {
+        Storage::fake('public');
 
-        $this->assertTrue(Hash::check('CommuterSetup123!', $user->fresh()->password));
-        $this->postJson('/api/v1/auth/login', [
-            'login' => $user->email,
-            'password' => 'CommuterSetup123!',
-        ])->assertStatus(200);
+        $this->actingAs($this->admin)->post('/api/v1/admin/registrations', $this->onsitePayload([
+            'applied_type' => 'STUDENT',
+            'school_name' => '  Calumpit National High School ',
+            'education_level' => 'HIGH_SCHOOL',
+            'grade_level' => '11',
+            'school_year' => '2026-2027',
+        ]), ['Accept' => 'application/json'])->assertStatus(201);
+
+        $user = User::where('email', 'onsite.student@example.com')->firstOrFail();
+        $this->assertDatabaseHas('discount_applications', [
+            'commuter_id' => $user->id,
+            'request_type' => 'APPLICATION',
+            'requested_type' => 'STUDENT',
+            'status' => 'APPROVED',
+            'school_name' => 'Calumpit National High School',
+            'education_level' => 'HIGH_SCHOOL',
+            'grade_level' => 11,
+            'school_year' => '2026-2027',
+            'enrollment_term' => null,
+            'reviewed_by' => $this->admin->id,
+        ]);
+        $this->assertNotNull($user->commuterProfile->student_discount_expires_at);
+    }
+
+    public function test_onsite_college_student_requires_the_enrollment_term(): void
+    {
+        Storage::fake('public');
+        $payload = $this->onsitePayload([
+            'applied_type' => 'STUDENT',
+            'school_name' => 'Bulacan State University',
+            'education_level' => 'COLLEGE',
+            'grade_level' => '11', // ignored for college
+            'school_year' => '2026-2027',
+        ]);
+
+        $this->actingAs($this->admin)
+            ->post('/api/v1/admin/registrations', $payload, ['Accept' => 'application/json'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['enrollment_term']);
+
+        $payload['enrollment_term'] = '1st Semester';
+        $payload['id_image'] = UploadedFile::fake()->image('id.jpg', 800, 600);
+        $this->actingAs($this->admin)
+            ->post('/api/v1/admin/registrations', $payload, ['Accept' => 'application/json'])
+            ->assertStatus(201);
+
+        $this->assertDatabaseHas('discount_applications', [
+            'education_level' => 'COLLEGE',
+            'grade_level' => null,
+            'enrollment_term' => '1st Semester',
+            'status' => 'APPROVED',
+        ]);
+    }
+
+    public function test_onsite_non_student_ignores_school_details(): void
+    {
+        Storage::fake('public');
+
+        $this->actingAs($this->admin)->post('/api/v1/admin/registrations', $this->onsitePayload([
+            'applied_type' => 'SENIOR',
+            'school_name' => 'Should not be saved',
+        ]), ['Accept' => 'application/json'])->assertStatus(201);
+
+        $this->assertDatabaseCount('discount_applications', 0);
+    }
+
+    private function onsitePayload(array $overrides = []): array
+    {
+        return array_merge([
+            'first_name' => 'Onsite',
+            'surname' => 'Student',
+            'birthdate' => '2008-04-02',
+            'email' => 'onsite.student@example.com',
+            'contact_number' => '09171112299',
+            'username' => 'onsite.student',
+            'applied_type' => 'REGULAR',
+            'id_image' => UploadedFile::fake()->image('id.jpg', 800, 600),
+        ], $overrides);
     }
 
     // Failure-path cleanup: any failure inside the transaction must delete

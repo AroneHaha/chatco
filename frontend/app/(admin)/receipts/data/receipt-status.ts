@@ -50,10 +50,10 @@ export function statusBadge(status: string): { label: string; variant: BadgeVari
 
 /** Payment-method pill styling. Keyed the same way, with the same fail-safe. */
 const METHOD_STYLES: Record<PaymentMethod, string> = {
-  Cash: 'bg-emerald-500/15 text-emerald-400',
-  Gcash: 'bg-[#62A0EA]/15 text-[#62A0EA]',
-  Voucher: 'bg-pink-500/15 text-pink-400',
-  Unknown: 'bg-slate-500/15 text-slate-300',
+  Cash: 'bg-emerald-500/15 text-emerald-400 admin-light:text-emerald-700',
+  Gcash: 'bg-[#62A0EA]/15 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4]',
+  Voucher: 'bg-pink-500/15 text-pink-400 admin-light:text-pink-700',
+  Unknown: 'bg-slate-500/15 text-slate-300 admin-light:text-slate-700',
 };
 
 /**

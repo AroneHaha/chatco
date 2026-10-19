@@ -2,23 +2,20 @@
 
 namespace App\Http\Controllers\Commuter;
 
+use App\Enums\ActivityLogCategory;
 use App\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Commuter\ChangePasswordRequest;
-use App\Http\Requests\Commuter\ConfirmPasswordChangeRequest;
 use App\Http\Requests\Commuter\UpdateLocationRequest;
 use App\Http\Requests\Commuter\UpdateProfileRequest;
 use App\Models\CommuterLocation;
 use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\Voucher;
+use App\Services\ActivityLogService;
 use App\Services\CommuterService;
-use App\Services\EmailVerificationService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Validation\ValidationException;
 
 class CommuterController extends Controller
 {
@@ -26,7 +23,7 @@ class CommuterController extends Controller
 
     public function __construct(
         private CommuterService $commuterService,
-        private EmailVerificationService $emailVerification
+        private ActivityLogService $activityLog,
     ) {}
 
     /**
@@ -54,6 +51,9 @@ class CommuterController extends Controller
      */
     public function updateProfile(UpdateProfileRequest $request): JsonResponse
     {
+        $fields = ['contact_number' => 'Contact number', 'language_preference' => 'Language'];
+        $before = $request->user()->commuterProfile?->only(array_keys($fields)) ?? [];
+
         $payload = $this->commuterService->updateProfile(
             $request->user(),
             $request->validated(),
@@ -61,6 +61,17 @@ class CommuterController extends Controller
 
         if ($payload === null) {
             return $this->errorResponse('Commuter profile not found', 404);
+        }
+
+        // The commuter's own edit, so admins can see when and what changed.
+        $changes = ActivityLogService::diff($before, $payload['profile'], $fields);
+        if ($changes !== []) {
+            $this->activityLog->record(
+                ActivityLogCategory::MEMBER,
+                'Updated their profile: '.ActivityLogService::changedFields($changes),
+                $request->user(),
+                $changes,
+            );
         }
 
         return $this->successResponse($payload, 'Profile updated');
@@ -76,89 +87,9 @@ class CommuterController extends Controller
             return $this->errorResponse('Commuter profile not found', 404);
         }
 
+        $this->activityLog->record(ActivityLogCategory::MEMBER, 'Changed their profile photo', $request->user());
+
         return $this->successResponse($payload, 'Profile photo updated');
-    }
-
-    /**
-     * POST /api/v1/commuter/change-password/request-code
-     *
-     * Phase 1 of change-password: verifies the current password and new
-     * password policy, then emails a 6-digit code to the commuter's OWN
-     * registered address (never trusted from the request). The password is
-     * NOT changed yet — that only happens after POST .../confirm succeeds, so
-     * a hijacked session alone can never complete a password change.
-     */
-    public function requestPasswordChangeCode(ChangePasswordRequest $request): JsonResponse
-    {
-        $validated = $request->validated();
-        $user = $request->user();
-
-        // Cooldown + send, mirroring AuthController::sendRegistrationCode's
-        // pattern for this same EmailVerificationService.
-        $wait = $this->emailVerification->secondsUntilResend(
-            $user->email,
-            EmailVerificationService::PURPOSE_CHANGE_PASSWORD
-        );
-
-        if ($wait > 0) {
-            return $this->errorResponse(
-                "You just requested a code. Please wait {$wait} seconds before asking for another.",
-                429
-            );
-        }
-
-        try {
-            $this->commuterService->requestPasswordChangeCode(
-                $user,
-                $validated['current_password'],
-                $validated['password'],
-            );
-        } catch (ValidationException $e) {
-            // A bad current/new password — propagate as-is (422), not the
-            // mail-failure 502 below. Caught explicitly since it's also a
-            // \Throwable and would otherwise be swallowed by that catch.
-            throw $e;
-        } catch (\Throwable $e) {
-            Log::error('Password-change verification code failed to send', [
-                'user_id' => $user->id,
-                'error' => $e->getMessage(),
-            ]);
-
-            return $this->errorResponse(
-                'We could not send the verification code right now. Please try again in a few minutes.',
-                502
-            );
-        }
-
-        return $this->successResponse(
-            [
-                'expires_in_minutes' => EmailVerificationService::CODE_TTL_MINUTES,
-                'resend_in_seconds' => EmailVerificationService::RESEND_COOLDOWN_SECONDS,
-            ],
-            'We sent a 6-digit code to your registered email. It expires in ' . EmailVerificationService::CODE_TTL_MINUTES . ' minutes.'
-        );
-    }
-
-    /**
-     * POST /api/v1/commuter/change-password/confirm
-     *
-     * Phase 2: re-verifies current/new password plus the emailed code, and
-     * only then rotates the password. A wrong current password, a reused
-     * password, or a wrong/expired/locked code are all surfaced as a 422 by
-     * the service (on current_password / password / code respectively).
-     */
-    public function confirmPasswordChange(ConfirmPasswordChangeRequest $request): JsonResponse
-    {
-        $validated = $request->validated();
-
-        $this->commuterService->confirmPasswordChange(
-            $request->user(),
-            $validated['current_password'],
-            $validated['password'],
-            $validated['code'],
-        );
-
-        return $this->successResponse(null, 'Password updated successfully');
     }
 
     public function trips(Request $request): JsonResponse

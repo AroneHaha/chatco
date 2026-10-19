@@ -183,6 +183,37 @@ class EmailVerificationTest extends TestCase
         ])->assertStatus(400);
     }
 
+    public function test_a_spent_attempt_budget_refuses_even_the_right_code(): void
+    {
+        $code = $this->issueCode();
+
+        // Concurrent guesses reserve their slots before being checked, so a
+        // budget already used up by them must stop the next guess, right or
+        // wrong. (The old read-then-write counter only checked on a miss.)
+        DB::table('email_verification_codes')->where('email', self::EMAIL)
+            ->update(['attempts' => EmailVerificationService::MAX_ATTEMPTS]);
+
+        $this->postJson('/api/v1/auth/register/verify-code', [
+            'email' => self::EMAIL,
+            'code'  => $code,
+        ])->assertStatus(429);
+
+        $this->assertDatabaseMissing('email_verification_codes', ['email' => self::EMAIL]);
+    }
+
+    public function test_a_correct_code_does_not_spend_an_attempt(): void
+    {
+        $code = $this->issueCode();
+
+        $this->postJson('/api/v1/auth/register/verify-code', ['email' => self::EMAIL, 'code' => '000001'])->assertStatus(400);
+        $this->postJson('/api/v1/auth/register/verify-code', ['email' => self::EMAIL, 'code' => $code])->assertOk();
+
+        // Only the wrong guess is counted, as before.
+        $row = DB::table('email_verification_codes')->where('email', self::EMAIL)->first();
+        $this->assertSame(1, (int) $row->attempts);
+        $this->assertNotNull($row->verified_at);
+    }
+
     public function test_expired_code_is_rejected(): void
     {
         $code = $this->issueCode();

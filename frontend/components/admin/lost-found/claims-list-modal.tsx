@@ -50,19 +50,19 @@ interface ClaimsListModalProps {
 /** Status as coloured text + icon (no badge). Unknown values fall back to
  * neutral slate, never to a success colour. */
 function getClaimStatusMeta(claim: Claim): { label: string; className: string; icon: LucideIcon } {
-  if (claim.noShowAt) return { label: 'Did not proceed', className: 'text-slate-300', icon: CalendarX2 };
+  if (claim.noShowAt) return { label: 'Did not proceed', className: 'text-slate-300 admin-light:text-slate-700', icon: CalendarX2 };
   switch (claim.status) {
     case 'Pending':
-      return { label: 'Pending review', className: 'text-amber-300', icon: Clock3 };
+      return { label: 'Pending review', className: 'text-amber-300 admin-light:text-amber-700', icon: Clock3 };
     case 'Approved':
-      return { label: 'Approved', className: 'text-emerald-300', icon: CheckCircle2 };
+      return { label: 'Approved', className: 'text-emerald-300 admin-light:text-emerald-700', icon: CheckCircle2 };
     case 'Released':
     case 'Returned':
-      return { label: claim.status, className: 'text-[#8CB9F0]', icon: PackageCheck };
+      return { label: claim.status, className: 'text-[#8CB9F0] admin-light:text-[#1A5FB4]', icon: PackageCheck };
     case 'Rejected':
-      return { label: 'Rejected', className: 'text-red-300', icon: XCircle };
+      return { label: 'Rejected', className: 'text-red-300 admin-light:text-red-700', icon: XCircle };
     default:
-      return { label: claim.status, className: 'text-slate-300', icon: Clock3 };
+      return { label: claim.status, className: 'text-slate-300 admin-light:text-slate-700', icon: Clock3 };
   }
 }
 
@@ -85,13 +85,13 @@ function getProcessTimeline(
   releasedByName: string | null | undefined
 ): { label: string; date: string | null; tone: string; by: string | null }[] {
   return [
-    { label: 'Submitted', date: claim.claimDate, tone: 'text-slate-300', by: null },
-    { label: 'Approved', date: claim.approvedAt ?? null, tone: 'text-emerald-300', by: claim.reviewedByName ?? null },
+    { label: 'Submitted', date: claim.claimDate, tone: 'text-slate-300 admin-light:text-slate-700', by: null },
+    { label: 'Approved', date: claim.approvedAt ?? null, tone: 'text-emerald-300 admin-light:text-emerald-700', by: claim.reviewedByName ?? null },
     // A no-show is closed by the daily job, not an admin, so it has no "by".
     claim.noShowAt
-      ? { label: 'Not collected', date: claim.noShowAt, tone: 'text-slate-300', by: 'System' }
-      : { label: 'Rejected', date: claim.rejectedAt ?? null, tone: 'text-red-300', by: claim.reviewedByName ?? null },
-    { label: 'Released', date: claim.releasedAt ?? null, tone: 'text-[#8CB9F0]', by: releasedByName ?? null },
+      ? { label: 'Not collected', date: claim.noShowAt, tone: 'text-slate-300 admin-light:text-slate-700', by: 'System' }
+      : { label: 'Rejected', date: claim.rejectedAt ?? null, tone: 'text-red-300 admin-light:text-red-700', by: claim.reviewedByName ?? null },
+    { label: 'Released', date: claim.releasedAt ?? null, tone: 'text-[#8CB9F0] admin-light:text-[#1A5FB4]', by: releasedByName ?? null },
   ].filter((step) => Boolean(step.date));
 }
 
@@ -125,8 +125,8 @@ function getActionIcon(action: ClaimAction) {
 // with the move the desk usually makes.
 const actionButtonClasses: Record<ClaimAction, string> = {
   Approve: 'bg-emerald-500 text-white hover:bg-emerald-600',
-  Release: 'bg-[#62A0EA] text-white hover:bg-[#4A8BD4]',
-  Reject: 'border border-red-400/30 text-red-300 hover:bg-red-500/10 hover:text-red-200',
+  Release: 'bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F]',
+  Reject: 'border border-red-400/30 text-red-300 admin-light:text-red-700 hover:bg-red-500/10 hover:text-red-200 admin-light:hover:text-red-800',
 };
 
 // Every decision goes through a confirmation; this is what each one says.
@@ -144,7 +144,7 @@ const confirmationCopy: Record<ClaimAction, { title: string; lead: string; effec
     lead: 'Hand the item over to ',
     effect: "Only confirm once you've checked their valid ID and proof and the item is in their hands. This closes the claim and the item, moves it to History and notifies the claimant. It can't be undone.",
     confirm: 'Confirm release',
-    button: 'bg-[#62A0EA] hover:bg-[#4A8BD4]',
+    button: 'bg-[#62A0EA] admin-light:bg-[#1A5FB4] hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F]',
   },
   Reject: {
     title: 'Reject this claim?',
@@ -163,7 +163,7 @@ function Fact({ label, value }: { label: string; value: string | null | undefine
   return (
     <div className="min-w-0">
       <dt className="text-xs font-semibold text-slate-500">{label}</dt>
-      <dd className={`mt-1 break-words text-sm ${value ? 'font-semibold text-slate-100' : 'text-slate-500'}`}>{value || 'N/A'}</dd>
+      <dd className={`mt-1 break-words text-sm ${value ? 'font-semibold text-slate-100 admin-light:text-slate-900' : 'text-slate-500'}`}>{value || 'N/A'}</dd>
     </div>
   );
 }
@@ -313,9 +313,9 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
 
   // Same field treatment as the other admin forms: #1E2D45 hairline, the
   // darkest admin tone for the well, a soft Sky Blue ring on focus.
-  const inputClasses = 'block h-10 w-full rounded-md border border-[#1E2D45] bg-[#0B1120] px-3 text-sm text-white outline-none transition-colors placeholder:text-slate-600 focus:border-[#62A0EA]/50 focus:ring-1 focus:ring-[#62A0EA]/30 disabled:cursor-not-allowed disabled:opacity-60';
+  const inputClasses = 'block h-10 w-full rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0B1120] admin-light:bg-white px-3 text-sm text-white admin-light:text-slate-900 outline-none transition-colors placeholder:text-slate-600 admin-light:placeholder:text-slate-400 focus:border-[#62A0EA]/50 admin-light:focus:border-[#1A5FB4]/50 focus:ring-1 focus:ring-[#62A0EA]/30 admin-light:focus:ring-[#1A5FB4]/30 disabled:cursor-not-allowed disabled:opacity-60';
   const invalidInputClasses = 'border-red-500/50 bg-red-500/5 focus:border-red-400/60 focus:ring-red-400/30';
-  const labelClasses = 'mb-1.5 block text-xs font-semibold text-slate-300';
+  const labelClasses = 'mb-1.5 block text-xs font-semibold text-slate-300 admin-light:text-slate-700';
   const closeManualForm = () => {
     setShowManualForm(false);
     setManualError(null);
@@ -323,17 +323,17 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={() => { if (!actionInFlight.current && !confirmTarget && !approveTarget) onClose(); }} maxWidth="max-w-3xl" rounded="rounded-xl" height="h-[min(760px,88vh)]">
+    <Modal adminThemed isOpen={isOpen} onClose={() => { if (!actionInFlight.current && !confirmTarget && !approveTarget) onClose(); }} maxWidth="max-w-3xl" rounded="rounded-xl" height="h-[min(760px,88vh)]">
       <header className="flex flex-col gap-4 pr-10 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
-          <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#8CB9F0]">
+          <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#8CB9F0] admin-light:text-[#1A5FB4]">
             <ClipboardList className="h-3.5 w-3.5" aria-hidden="true" />
             Claim desk
           </p>
-          <h2 className="text-xl font-bold leading-tight text-white sm:text-2xl">Claims for Item</h2>
+          <h2 className="text-xl font-bold leading-tight text-white admin-light:text-slate-900 sm:text-2xl">Claims for Item</h2>
           <p className="mt-1 text-sm text-slate-500">
             {claims.length} claim {claims.length === 1 ? 'record' : 'records'}
-            {pendingCount > 0 && <span className="text-amber-300"> &middot; {pendingCount} awaiting review</span>}
+            {pendingCount > 0 && <span className="text-amber-300 admin-light:text-amber-700"> &middot; {pendingCount} awaiting review</span>}
           </p>
         </div>
         {/* Toggles the form below: solid Sky Blue like the other admin "add"
@@ -344,10 +344,10 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
           aria-expanded={showManualForm}
           aria-controls="walkin-form-panel"
           disabled={isSavingManual}
-          className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] active:scale-[0.98] disabled:opacity-50 ${
+          className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4] active:scale-[0.98] disabled:opacity-50 ${
             showManualForm
-              ? 'border border-[#62A0EA]/40 bg-[#62A0EA]/10 text-[#8CB9F0] hover:bg-[#62A0EA]/15'
-              : 'bg-[#62A0EA] text-white hover:bg-[#4A8BD4]'
+              ? 'border border-[#62A0EA]/40 admin-light:border-[#1A5FB4]/40 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 text-[#8CB9F0] admin-light:text-[#1A5FB4] hover:bg-[#62A0EA]/15 admin-light:hover:bg-[#1A5FB4]/15'
+              : 'bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F]'
           }`}
         >
           {showManualForm ? <X className="h-4 w-4" aria-hidden="true" /> : <UserPlus className="h-4 w-4" aria-hidden="true" />}
@@ -355,7 +355,7 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
         </button>
       </header>
 
-      {actionError && !confirmTarget && <p role="alert" className="mt-4 text-sm text-red-300">{actionError}</p>}
+      {actionError && !confirmTarget && <p role="alert" className="mt-4 text-sm text-red-300 admin-light:text-red-700">{actionError}</p>}
 
       {/* Opens in place with the same slide as the claim rows; `inert` keeps
           the closed form out of the tab order. */}
@@ -365,18 +365,18 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
         className={`grid transition-[grid-template-rows,margin] duration-300 ease-out motion-reduce:transition-none ${showManualForm ? 'mt-6 grid-rows-[1fr]' : 'mt-0 grid-rows-[0fr]'}`}
       >
         <div className="min-h-0 overflow-hidden">
-          <form onSubmit={handleManualSubmit} className="overflow-hidden rounded-xl border border-[#1E2D45] bg-[#0E1628]">
-            <div className="flex items-start gap-3 border-b border-[#1E2D45] bg-[#131C2E] px-4 py-3.5 sm:px-5">
-              <UserPlus className="mt-0.5 h-4 w-4 shrink-0 text-[#62A0EA]" aria-hidden="true" />
+          <form onSubmit={handleManualSubmit} className="overflow-hidden rounded-xl border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC]">
+            <div className="flex items-start gap-3 border-b border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white px-4 py-3.5 sm:px-5">
+              <UserPlus className="mt-0.5 h-4 w-4 shrink-0 text-[#62A0EA] admin-light:text-[#1A5FB4]" aria-hidden="true" />
               <div className="min-w-0">
-                <h3 className="text-sm font-bold text-white">Record a claimant without an account</h3>
+                <h3 className="text-sm font-bold text-white admin-light:text-slate-900">Record a claimant without an account</h3>
                 <p className="mt-0.5 text-xs leading-5 text-slate-500">Add contact details and proof before approving a handover.</p>
               </div>
             </div>
 
             <div className="space-y-5 px-4 py-4 sm:px-5">
               <div>
-                <label htmlFor="walkin-name" className={labelClasses}>Full name<span className="ml-0.5 text-red-400">*</span></label>
+                <label htmlFor="walkin-name" className={labelClasses}>Full name<span className="ml-0.5 text-red-400 admin-light:text-red-600">*</span></label>
                 <input ref={nameInputRef} id="walkin-name" required maxLength={100} autoComplete="off" value={manualForm.name} onChange={(e) => setManualForm({ ...manualForm, name: e.target.value })} disabled={isSavingManual} className={inputClasses} />
               </div>
 
@@ -413,14 +413,14 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
                     />
                   </div>
                 </div>
-                <p id="walkin-contact-help" role={isContactMissing ? 'alert' : undefined} className={`mt-2 text-xs ${isContactMissing ? 'font-medium text-red-300' : 'text-slate-500'}`}>
+                <p id="walkin-contact-help" role={isContactMissing ? 'alert' : undefined} className={`mt-2 text-xs ${isContactMissing ? 'font-medium text-red-300 admin-light:text-red-700' : 'text-slate-500'}`}>
                   {isContactMissing ? 'Enter a phone number or email address.' : 'A phone number or an email address is required.'}
                 </p>
               </fieldset>
 
               <div>
                 <div className="mb-1.5 flex items-baseline justify-between gap-3">
-                  <label htmlFor="walkin-proof" className="block text-xs font-semibold text-slate-300">Proof of ownership<span className="ml-0.5 text-red-400">*</span></label>
+                  <label htmlFor="walkin-proof" className="block text-xs font-semibold text-slate-300 admin-light:text-slate-700">Proof of ownership<span className="ml-0.5 text-red-400 admin-light:text-red-600">*</span></label>
                   <span className="text-[11px] tabular-nums text-slate-500" aria-hidden="true">{manualForm.proof.length}/500</span>
                 </div>
                 <textarea
@@ -449,13 +449,13 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
               />
             </div>
 
-            <footer className="flex flex-col-reverse gap-3 border-t border-[#1E2D45] px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <footer className="flex flex-col-reverse gap-3 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
               {manualError
-                ? <p role="alert" className="text-xs font-medium text-red-300">{manualError}</p>
+                ? <p role="alert" className="text-xs font-medium text-red-300 admin-light:text-red-700">{manualError}</p>
                 : <span className="hidden sm:block" />}
               <div className="flex justify-end gap-2">
-                <button type="button" onClick={closeManualForm} disabled={isSavingManual} className="inline-flex h-9 items-center rounded-lg border border-[#1E2D45] px-4 text-xs font-semibold text-slate-300 transition-colors hover:bg-[#1A2540] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] disabled:opacity-50">Cancel</button>
-                <button type="submit" disabled={isSavingManual} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#62A0EA] px-4 text-xs font-bold text-white transition-colors hover:bg-[#4A8BD4] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1628] active:scale-[0.98] disabled:opacity-50">
+                <button type="button" onClick={closeManualForm} disabled={isSavingManual} className="inline-flex h-9 items-center rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] px-4 text-xs font-semibold text-slate-300 admin-light:text-slate-700 transition-colors hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] hover:text-white admin-light:hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4] disabled:opacity-50">Cancel</button>
+                <button type="submit" disabled={isSavingManual} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#62A0EA] admin-light:bg-[#1A5FB4] px-4 text-xs font-bold text-white transition-colors hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1628] admin-light:focus-visible:ring-offset-white active:scale-[0.98] disabled:opacity-50">
                   {isSavingManual && <span className="h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" aria-hidden="true" />}
                   {isSavingManual ? 'Saving...' : 'Save claimant'}
                 </button>
@@ -470,7 +470,7 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
           actions) opens underneath on demand. */}
       <div className="mt-6">
         {orderedClaims.length > 0 ? (
-          <ul className="divide-y divide-[#1E2D45] overflow-hidden rounded-xl border border-[#1E2D45] bg-[#0E1628]">
+          <ul className="divide-y divide-[#1E2D45] admin-light:divide-[#E2E8F0] overflow-hidden rounded-xl border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white">
             {orderedClaims.map((claim) => {
               const actions = availableActions(claim.status);
               const isAccepted = isAcceptedStatus(claim.status);
@@ -490,23 +490,23 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
                       onClick={() => toggleClaim(claim.id)}
                       aria-expanded={isExpanded}
                       aria-controls={panelId}
-                      className={`flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA]/60 sm:gap-4 sm:px-5 ${isExpanded ? 'bg-[#131C2E]' : 'hover:bg-[#131C2E]/70'}`}
+                      className={`flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA]/60 admin-light:focus-visible:ring-[#1A5FB4]/60 sm:gap-4 sm:px-5 ${isExpanded ? 'bg-[#131C2E] admin-light:bg-[#F8FAFC]' : 'hover:bg-[#131C2E]/70 admin-light:hover:bg-[#F8FAFC]'}`}
                     >
                       <ChevronDown
-                        className={`h-4 w-4 shrink-0 text-slate-500 transition-transform duration-300 ease-out motion-reduce:transition-none ${isExpanded ? 'rotate-180 text-slate-300' : ''}`}
+                        className={`h-4 w-4 shrink-0 text-slate-500 transition-transform duration-300 ease-out motion-reduce:transition-none ${isExpanded ? 'rotate-180 text-slate-300 admin-light:text-slate-700' : ''}`}
                         aria-hidden="true"
                       />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-bold leading-tight text-white sm:text-base">{claim.claimantName}</span>
+                        <span className="block truncate text-sm font-bold leading-tight text-white admin-light:text-slate-900 sm:text-base">{claim.claimantName}</span>
                         <span className="mt-1 block truncate text-xs text-slate-500">
                           {account
                             ? `${account.name} · @${account.username}`
                             : 'Walk-in claimant, no app account'}
                         </span>
                       </span>
-                      <span className="hidden shrink-0 flex-col items-end gap-1 text-right text-xs text-slate-400 sm:flex">
+                      <span className="hidden shrink-0 flex-col items-end gap-1 text-right text-xs text-slate-400 admin-light:text-slate-500 sm:flex">
                         <span className="tabular-nums">{formatClaimDate(claim.claimDate)}</span>
-                        <span className={`inline-flex items-center gap-1 ${photos.length > 0 ? 'text-slate-300' : 'text-slate-600'}`}>
+                        <span className={`inline-flex items-center gap-1 ${photos.length > 0 ? 'text-slate-300 admin-light:text-slate-700' : 'text-slate-600 admin-light:text-slate-400'}`}>
                           <ImageIcon className="h-3.5 w-3.5" aria-hidden="true" />
                           {photos.length > 0 ? `${photos.length} proof photo${photos.length === 1 ? '' : 's'}` : 'No photos'}
                         </span>
@@ -529,7 +529,7 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
                     className={`grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none ${isExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
                   >
                     <div className="min-h-0 overflow-hidden">
-                      <div className="border-t border-[#1E2D45] bg-[#0B1120]/40">
+                      <div className="border-t border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0B1120]/40 admin-light:bg-[#F8FAFC]">
                         <div className="px-4 py-4 sm:px-5">
                           <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-3">
                             <Fact label="Submitted" value={formatClaimDate(claim.claimDate)} />
@@ -539,23 +539,23 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
                         </div>
 
                         {claim.pickupLocation && (
-                          <div className="border-t border-[#1E2D45] px-4 py-4 sm:px-5">
+                          <div className="border-t border-[#1E2D45] admin-light:border-[#E2E8F0] px-4 py-4 sm:px-5">
                             <SectionLabel>Pickup schedule</SectionLabel>
-                            <p className="text-sm font-semibold text-slate-100">
+                            <p className="text-sm font-semibold text-slate-100 admin-light:text-slate-900">
                               {claim.pickupLocation}
-                              {claim.pickupAt && <span className="font-normal text-slate-400"> &middot; {formatClaimDate(claim.pickupAt)}</span>}
+                              {claim.pickupAt && <span className="font-normal text-slate-400 admin-light:text-slate-500"> &middot; {formatClaimDate(claim.pickupAt)}</span>}
                             </p>
-                            {claim.pickupReminder && <p className="mt-1 text-xs leading-5 text-slate-400">{claim.pickupReminder}</p>}
+                            {claim.pickupReminder && <p className="mt-1 text-xs leading-5 text-slate-400 admin-light:text-slate-500">{claim.pickupReminder}</p>}
                           </div>
                         )}
 
-                        <div className="border-t border-[#1E2D45] px-4 py-4 sm:px-5">
+                        <div className="border-t border-[#1E2D45] admin-light:border-[#E2E8F0] px-4 py-4 sm:px-5">
                           <SectionLabel>Proof of ownership</SectionLabel>
                           {claim.proof
-                            ? <p className="max-w-[65ch] whitespace-pre-line break-words text-sm leading-6 text-slate-200">{claim.proof}</p>
+                            ? <p className="max-w-[65ch] whitespace-pre-line break-words text-sm leading-6 text-slate-200 admin-light:text-slate-800">{claim.proof}</p>
                             : <p className="text-sm text-slate-500">No written proof.</p>}
 
-                          <p className="mb-2 mt-4 flex items-center gap-1.5 text-xs font-semibold text-slate-400">
+                          <p className="mb-2 mt-4 flex items-center gap-1.5 text-xs font-semibold text-slate-400 admin-light:text-slate-500">
                             <ImageIcon className="h-3.5 w-3.5" aria-hidden="true" />
                             Proof photos {photos.length > 0 && <span className="tabular-nums text-slate-500">({photos.length})</span>}
                           </p>
@@ -569,7 +569,7 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
                                   rel="noopener noreferrer"
                                   title="Open full size"
                                   aria-label={`Open proof photo ${index + 1} of ${photos.length} full size`}
-                                  className="group/photo relative aspect-square overflow-hidden rounded-lg border border-[#1E2D45] bg-[#131C2E] transition-colors hover:border-[#62A0EA]/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"
+                                  className="group/photo relative aspect-square overflow-hidden rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-[#F1F5F9] transition-colors hover:border-[#62A0EA]/60 admin-light:hover:border-[#1A5FB4]/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4]"
                                 >
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
                                   <img src={photo.url} alt={`Proof photo ${index + 1}`} loading="lazy" className="h-full w-full object-cover transition-transform duration-300 ease-out group-hover/photo:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover/photo:scale-100" />
@@ -580,18 +580,18 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
                               ))}
                             </div>
                           ) : (
-                            <p className="rounded-lg border border-dashed border-[#1E2D45] px-3 py-4 text-center text-xs text-slate-500">No photos attached to this claim.</p>
+                            <p className="rounded-lg border border-dashed border-[#1E2D45] admin-light:border-[#E2E8F0] px-3 py-4 text-center text-xs text-slate-500">No photos attached to this claim.</p>
                           )}
                         </div>
 
                         {timeline.length > 0 && (
-                          <div className="border-t border-[#1E2D45] px-4 py-4 sm:px-5">
+                          <div className="border-t border-[#1E2D45] admin-light:border-[#E2E8F0] px-4 py-4 sm:px-5">
                             <SectionLabel>History</SectionLabel>
-                            <dl className="divide-y divide-[#1E2D45]">
+                            <dl className="divide-y divide-[#1E2D45] admin-light:divide-[#E2E8F0]">
                               {timeline.map((step) => (
                                 <div key={`${claim.id}-${step.label}`} className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-4 gap-y-0.5 py-2 first:pt-0 last:pb-0 sm:grid-cols-[7.5rem_minmax(0,1fr)_auto]">
                                   <dt className={`text-xs font-semibold ${step.tone}`}>{step.label}</dt>
-                                  <dd className="text-xs tabular-nums text-slate-300">{step.date ? formatClaimDate(step.date) : '-'}</dd>
+                                  <dd className="text-xs tabular-nums text-slate-300 admin-light:text-slate-700">{step.date ? formatClaimDate(step.date) : '-'}</dd>
                                   <dd className="col-start-2 text-xs text-slate-500 sm:col-start-auto sm:text-right">{step.by ? `by ${step.by}` : ''}</dd>
                                 </div>
                               ))}
@@ -600,7 +600,7 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
                         )}
 
                         {actions.length > 0 && (
-                          <footer className="flex flex-wrap justify-end gap-2 border-t border-[#1E2D45] px-4 py-3 sm:px-5">
+                          <footer className="flex flex-wrap justify-end gap-2 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] px-4 py-3 sm:px-5">
                             {[...actions].reverse().map((action) => {
                               const isPending = pendingAction?.claimId === claim.id && pendingAction.action === action;
                               return (
@@ -609,7 +609,7 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
                                   type="button"
                                   onClick={() => handleAction(claim.id, action)}
                                   disabled={pendingAction !== null}
-                                  className={`inline-flex h-9 items-center gap-2 rounded-lg px-4 text-xs font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] disabled:cursor-not-allowed disabled:opacity-50 ${actionButtonClasses[action]}`}
+                                  className={`inline-flex h-9 items-center gap-2 rounded-lg px-4 text-xs font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4] disabled:cursor-not-allowed disabled:opacity-50 ${actionButtonClasses[action]}`}
                                 >
                                   {isPending ? (
                                     <span className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin" aria-hidden="true" />
@@ -628,8 +628,8 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
             })}
           </ul>
         ) : (
-          <div className="rounded-xl border border-dashed border-white/10 px-4 py-12 text-center">
-            <p className="text-sm font-semibold text-slate-300">No claims yet</p>
+          <div className="rounded-xl border border-dashed border-white/10 admin-light:border-[#E2E8F0] px-4 py-12 text-center">
+            <p className="text-sm font-semibold text-slate-300 admin-light:text-slate-700">No claims yet</p>
             <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-slate-500">If the owner is at the office without an app account, record them with Walk-in claimant.</p>
           </div>
         )}
@@ -643,22 +643,22 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
         onConfirm={handleConfirmApproval}
       />
 
-      <Modal isOpen={isOpen && confirmTarget !== null} onClose={closeConfirmation} maxWidth="max-w-md">
+      <Modal adminThemed isOpen={isOpen && confirmTarget !== null} onClose={closeConfirmation} maxWidth="max-w-md">
         {confirmTarget && <div className="space-y-5" onKeyDown={event => {
           if (event.key === 'Escape') { event.stopPropagation(); closeConfirmation(); }
         }}>
           <div className="pr-8">
-            <h2 className="text-lg font-bold text-white">{confirmationCopy[confirmTarget.action].title}</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-300">
+            <h2 className="text-lg font-bold text-white admin-light:text-slate-900">{confirmationCopy[confirmTarget.action].title}</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-300 admin-light:text-slate-700">
               {confirmationCopy[confirmTarget.action].lead}
-              <span className="font-semibold text-white">{confirmTarget.claim.claimantName}</span>?
+              <span className="font-semibold text-white admin-light:text-slate-900">{confirmTarget.claim.claimantName}</span>?
             </p>
-            <p className="mt-2 text-xs leading-5 text-slate-400">{confirmationCopy[confirmTarget.action].effect}</p>
+            <p className="mt-2 text-xs leading-5 text-slate-400 admin-light:text-slate-500">{confirmationCopy[confirmTarget.action].effect}</p>
           </div>
-          {actionError && <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{actionError}</p>}
-          <div className="flex justify-end gap-2 border-t border-white/10 pt-4">
-            <button ref={cancelActionRef} type="button" onClick={closeConfirmation} disabled={pendingAction !== null} className="min-h-10 rounded-lg border border-white/10 px-4 text-sm font-semibold text-slate-300 hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#62A0EA] disabled:opacity-50">Cancel</button>
-            <button type="button" onClick={() => void submitAction(confirmTarget.claim.id, confirmTarget.action)} disabled={pendingAction !== null} className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#62A0EA] disabled:opacity-50 ${confirmationCopy[confirmTarget.action].button}`}>
+          {actionError && <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300 admin-light:text-red-700">{actionError}</p>}
+          <div className="flex justify-end gap-2 border-t border-white/10 admin-light:border-[#E2E8F0] pt-4">
+            <button ref={cancelActionRef} type="button" onClick={closeConfirmation} disabled={pendingAction !== null} className="min-h-10 rounded-lg border border-white/10 admin-light:border-[#E2E8F0] px-4 text-sm font-semibold text-slate-300 admin-light:text-slate-700 hover:bg-white/5 admin-light:hover:bg-[#F1F5F9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#62A0EA] admin-light:focus-visible:outline-[#1A5FB4] disabled:opacity-50">Cancel</button>
+            <button type="button" onClick={() => void submitAction(confirmTarget.claim.id, confirmTarget.action)} disabled={pendingAction !== null} className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#62A0EA] admin-light:focus-visible:outline-[#1A5FB4] disabled:opacity-50 ${confirmationCopy[confirmTarget.action].button}`}>
               {pendingAction ? <span aria-hidden="true" className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> : getActionIcon(confirmTarget.action)}
               {pendingAction ? 'Processing...' : confirmationCopy[confirmTarget.action].confirm}
             </button>

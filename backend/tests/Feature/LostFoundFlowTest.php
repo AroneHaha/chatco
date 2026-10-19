@@ -1544,6 +1544,22 @@ class LostFoundFlowTest extends TestCase
         $this->assertNotNull($item->expired_at);
     }
 
+    public function test_expire_command_writes_one_system_activity_entry_naming_the_items(): void
+    {
+        $item = $this->createItem();
+        $item->forceFill(['created_at' => now()->subDays(31)])->save();
+
+        $this->artisan('lost-items:expire')->assertExitCode(0);
+        // A second run with nothing left to expire writes nothing.
+        $this->artisan('lost-items:expire')->assertExitCode(0);
+
+        $entries = \App\Models\ActivityLog::where('category', 'LOST_FOUND')->where('actor_role', 'SYSTEM')->get();
+        $this->assertCount(1, $entries);
+        $this->assertNull($entries[0]->actor_id);
+        $this->assertStringContainsString('Archived 1 unclaimed lost item', $entries[0]->description);
+        $this->assertStringContainsString('"Blue Backpack"', $entries[0]->description);
+    }
+
     public function test_expire_command_ignores_recent_items(): void
     {
         $item = $this->createItem();

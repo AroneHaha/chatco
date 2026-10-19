@@ -79,22 +79,22 @@ export function DeletePersonnelModal({ isOpen, onClose, onConfirm, personnelData
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={isSubmitting ? () => {} : onClose}>
+    <Modal adminThemed isOpen={isOpen} onClose={isSubmitting ? () => {} : onClose}>
       <div className="flex items-center gap-3 mb-6">
         <div className="p-2 bg-red-400/20 rounded-lg">
-          <AlertTriangle className="text-red-400" size={24} />
+          <AlertTriangle className="text-red-400 admin-light:text-red-600" size={24} />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-white">Remove Personnel</h2>
-          <p className="text-sm text-slate-400">This action will deactivate the personnel account.</p>
+          <h2 className="text-xl font-bold text-white admin-light:text-slate-900">Remove Personnel</h2>
+          <p className="text-sm text-slate-400 admin-light:text-slate-500">This action will deactivate the personnel account.</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* Warning Box */}
-        <div className="p-4 bg-red-400/5 border border-red-400/20 rounded-md">
-          <p className="text-sm text-slate-300">
-            You are about to terminate <span className="font-bold text-white">{personnelData?.name}</span>
+        <div className="p-4 bg-red-400/5 border border-red-400/20 admin-light:border-red-200 rounded-md">
+          <p className="text-sm text-slate-300 admin-light:text-slate-700">
+            You are about to terminate <span className="font-bold text-white admin-light:text-slate-900">{personnelData?.name}</span>
             ({personnelData?.role}). Please provide the necessary details below.
           </p>
         </div>
@@ -102,29 +102,29 @@ export function DeletePersonnelModal({ isOpen, onClose, onConfirm, personnelData
         {/* Inline error banner — shown when the DELETE API call fails */}
         {submitError && (
           <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-md flex items-start gap-2">
-            <AlertTriangle size={16} className="text-red-400 flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-red-400">{submitError}</p>
+            <AlertTriangle size={16} className="text-red-400 admin-light:text-red-600 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-red-400 admin-light:text-red-600">{submitError}</p>
           </div>
         )}
 
         {/* Termination Type */}
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1.5">Termination Type <span className="text-red-400">*</span></label>
+          <label className="block text-sm font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">Termination Type <span className="text-red-400 admin-light:text-red-600">*</span></label>
           <select
             value={terminationType}
             onChange={(e) => setTerminationType(e.target.value)}
             disabled={isSubmitting}
-            className="block w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white focus:outline-none focus:ring-1 focus:ring-red-400 transition-colors [color-scheme:dark] disabled:opacity-50"
+            className="block w-full px-4 py-2.5 bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-white admin-light:text-slate-900 focus:outline-none focus:ring-1 focus:ring-red-400 transition-colors [color-scheme:dark] disabled:opacity-50"
           >
-            <option value="Terminated" className="bg-gray-800">Terminated</option>
-            <option value="Resigned" className="bg-gray-800">Resigned</option>
+            <option value="Terminated" className="bg-gray-800 admin-light:bg-white">Terminated</option>
+            <option value="Resigned" className="bg-gray-800 admin-light:bg-white">Resigned</option>
           </select>
         </div>
 
         {terminationType === 'Terminated' && (
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1.5">
-              Reason for Removal <span className="text-red-400">*</span>
+            <label className="block text-sm font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">
+              Reason for Removal <span className="text-red-400 admin-light:text-red-600">*</span>
             </label>
             <select
               value={reason}
@@ -134,11 +134,11 @@ export function DeletePersonnelModal({ isOpen, onClose, onConfirm, personnelData
               }}
               required
               disabled={isSubmitting}
-              className="block w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white focus:outline-none focus:ring-1 focus:ring-red-400 transition-colors [color-scheme:dark] disabled:opacity-50"
+              className="block w-full px-4 py-2.5 bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-white admin-light:text-slate-900 focus:outline-none focus:ring-1 focus:ring-red-400 transition-colors [color-scheme:dark] disabled:opacity-50"
             >
-              <option value="" className="bg-gray-800">Select a reason</option>
+              <option value="" className="bg-gray-800 admin-light:bg-white">Select a reason</option>
               {terminationReasons.map((item) => (
-                <option key={item} value={item} className="bg-gray-800">{item}</option>
+                <option key={item} value={item} className="bg-gray-800 admin-light:bg-white">{item}</option>
               ))}
             </select>
             {reason === 'Other' && (
@@ -149,17 +149,17 @@ export function DeletePersonnelModal({ isOpen, onClose, onConfirm, personnelData
                 disabled={isSubmitting}
                 rows={3}
                 placeholder="Type the specific reason..."
-                className="mt-3 block w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-400 transition-colors resize-none leading-relaxed disabled:opacity-50"
+                className="mt-3 block w-full px-4 py-2.5 bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-white admin-light:text-slate-900 placeholder-slate-500 admin-light:placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-red-400 transition-colors resize-none leading-relaxed disabled:opacity-50"
               />
             )}
-            <p className="text-xs text-slate-600 mt-1">This will be recorded in the Records & History tab.</p>
+            <p className="text-xs text-slate-600 admin-light:text-slate-400 mt-1">This will be recorded in the Records & History tab.</p>
           </div>
         )}
 
         {/* Confirmation guard */}
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1.5">
-            Type <span className="font-semibold text-white">Confirm</span> to continue <span className="text-red-400">*</span>
+          <label className="block text-sm font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">
+            Type <span className="font-semibold text-white admin-light:text-slate-900">Confirm</span> to continue <span className="text-red-400 admin-light:text-red-600">*</span>
           </label>
           <input
             type="text"
@@ -169,18 +169,18 @@ export function DeletePersonnelModal({ isOpen, onClose, onConfirm, personnelData
             disabled={isSubmitting}
             autoComplete="off"
             placeholder="Confirm"
-            className="block w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-400 transition-colors disabled:opacity-50"
+            className="block w-full px-4 py-2.5 bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-white admin-light:text-slate-900 placeholder-slate-500 admin-light:placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-red-400 transition-colors disabled:opacity-50"
           />
-          <p className="text-xs text-slate-600 mt-1">This prevents accidental personnel removals.</p>
+          <p className="text-xs text-slate-600 admin-light:text-slate-400 mt-1">This prevents accidental personnel removals.</p>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-[#1E2D45]">
+        <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-[#1E2D45] admin-light:border-[#E2E8F0]">
           <button
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="w-full sm:w-auto px-6 py-2.5 border border-[#1E2D45] rounded-md text-slate-300 hover:bg-[#131C2E] transition-colors active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full sm:w-auto px-6 py-2.5 border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-slate-300 admin-light:text-slate-700 hover:bg-[#131C2E] admin-light:hover:bg-white transition-colors active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancel
           </button>

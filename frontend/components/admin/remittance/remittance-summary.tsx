@@ -20,13 +20,13 @@ interface StatCardProps {
 
 function StatCard({ label, value, icon }: StatCardProps) {
   return (
-    <div className="relative overflow-hidden bg-[#0E1628] border border-[#1E2D45] rounded-xl p-3 flex items-center gap-4">
-      <div className="w-11 h-11 shrink-0 rounded-lg border border-[#62A0EA]/15 bg-[#62A0EA]/10 flex items-center justify-center text-[#62A0EA]">
+    <div className="relative overflow-hidden bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-xl p-3 flex items-center gap-4">
+      <div className="w-11 h-11 shrink-0 rounded-lg border border-[#62A0EA]/15 admin-light:border-[#1A5FB4]/15 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 flex items-center justify-center text-[#62A0EA] admin-light:text-[#1A5FB4]">
         {icon}
       </div>
       <div className="min-w-0">
         <p className="text-[10px] text-slate-500 uppercase tracking-wider">{label}</p>
-        <p className="text-lg font-bold truncate text-slate-100">{value}</p>
+        <p className="text-lg font-bold truncate text-slate-100 admin-light:text-slate-900">{value}</p>
       </div>
     </div>
   );
@@ -78,7 +78,7 @@ export function RemittanceSummary({ selectedDate = '', dateFrom = todayStr(), ra
     return (
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-[76px] bg-[#0E1628] border border-[#1E2D45] rounded-xl animate-pulse" />
+          <div key={i} className="h-[76px] bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-xl animate-pulse" />
         ))}
       </div>
     );

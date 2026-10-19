@@ -166,6 +166,10 @@ class ApiClient {
         if (response.status === 401) {
           void this.handleSessionEnded();
         }
+        // The backend blocks every API call until the default password is replaced.
+        if (response.status === 403 && data?.code === "PASSWORD_CHANGE_REQUIRED" && typeof window !== "undefined") {
+          window.location.href = "/set-new-password";
+        }
         // The backend 503s every commuter/conductor call while Maintenance
         // Mode covers the role (BlockDuringMaintenance). The conductor proxy
         // drops the body's `code`, so key off the status; the gate confirms

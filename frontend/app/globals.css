@@ -51,6 +51,11 @@
    on <html> by CommuterThemeProvider, only while the commuter app is mounted. */
 @custom-variant light (&:where([data-theme="light"], [data-theme="light"] *));
 
+/* Admin light mode. Scoped rather than set on <html>: the admin shell marks
+   only its themed regions with data-admin-theme="light" (AdminThemeProvider),
+   so pages not yet given admin-light: styles stay fully dark and readable. */
+@custom-variant admin-light (&:where([data-admin-theme="light"], [data-admin-theme="light"] *));
+
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
@@ -140,6 +145,9 @@ body {
 }
 .scrollbar-themed::-webkit-scrollbar-thumb:hover { background-color: #3A5480; }
 .scrollbar-themed::-webkit-scrollbar-corner { background: transparent; }
+[data-admin-theme="light"] .scrollbar-themed { scrollbar-color: #CBD5E1 transparent; }
+[data-admin-theme="light"] .scrollbar-themed::-webkit-scrollbar-thumb { background-color: #CBD5E1; }
+[data-admin-theme="light"] .scrollbar-themed::-webkit-scrollbar-thumb:hover { background-color: #94A3B8; }
 
 /* ─── Hide ALL scrollbars inside modals ─── */
 [role="dialog"] * {

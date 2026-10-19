@@ -60,47 +60,47 @@ export function SuspensionModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={() => { if (!isProcessing) onClose(); }}>
+    <Modal adminThemed isOpen={isOpen} onClose={() => { if (!isProcessing) onClose(); }}>
       <div className="space-y-5">
         <div className="flex items-start gap-3">
-          <div className="rounded-xl bg-amber-400/10 p-3 text-amber-400">
+          <div className="rounded-xl bg-amber-400/10 p-3 text-amber-400 admin-light:text-amber-700">
             <ShieldAlert size={22} />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-white">
+            <h2 className="text-xl font-bold text-white admin-light:text-slate-900">
               {suspended ? "Reactivate account" : "Suspend account"}
             </h2>
-            <p className="mt-1 text-sm text-slate-400">{user.name} - {user.email}</p>
+            <p className="mt-1 text-sm text-slate-400 admin-light:text-slate-500">{user.name} - {user.email}</p>
           </div>
         </div>
 
         {suspended ? (
           <div className="rounded-lg border border-amber-400/20 bg-amber-400/5 p-4 text-sm">
-            <p className="font-medium text-amber-300">
+            <p className="font-medium text-amber-300 admin-light:text-amber-700">
               {user.suspension?.isPermanent
                 ? "Permanently suspended"
                 : user.suspension?.endsAt
                   ? `Suspended until ${new Date(user.suspension.endsAt).toLocaleString()}`
                   : "Suspended"}
             </p>
-            <p className="mt-2 text-slate-300">{user.suspension?.reason ?? "No reason recorded for this legacy suspension."}</p>
+            <p className="mt-2 text-slate-300 admin-light:text-slate-700">{user.suspension?.reason ?? "No reason recorded for this legacy suspension."}</p>
           </div>
         ) : (
           <>
             <label className="block">
-              <span className="mb-2 block text-sm font-medium text-slate-300">Reason category</span>
+              <span className="mb-2 block text-sm font-medium text-slate-300 admin-light:text-slate-700">Reason category</span>
               <select
                 value={reasonCode}
                 onChange={(event) => setReasonCode(event.target.value as SuspendUserInput["reasonCode"])}
                 disabled={isProcessing}
-                className="w-full rounded-lg border border-[#1E2D45] bg-[#0E1628] px-3 py-2.5 text-white [color-scheme:dark]"
+                className="w-full rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] px-3 py-2.5 text-white admin-light:text-slate-900 [color-scheme:dark] admin-light:[color-scheme:light]"
               >
                 {REASONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
             </label>
 
             <label className="block">
-              <span className="mb-2 block text-sm font-medium text-slate-300">Details</span>
+              <span className="mb-2 block text-sm font-medium text-slate-300 admin-light:text-slate-700">Details</span>
               <textarea
                 value={reason}
                 onChange={(event) => { setReason(event.target.value); setReasonError(null); }}
@@ -110,34 +110,34 @@ export function SuspensionModal({
                 placeholder="Explain why this account is being suspended."
                 aria-invalid={Boolean(reasonError)}
                 aria-describedby={reasonError ? "suspension-reason-error" : undefined}
-                className={`w-full resize-none rounded-lg border bg-[#0E1628] px-3 py-2.5 text-white placeholder:text-slate-600 ${
-                  reasonError ? "border-red-500/60" : "border-[#1E2D45]"
+                className={`w-full resize-none rounded-lg border bg-[#0E1628] admin-light:bg-[#F8FAFC] px-3 py-2.5 text-white admin-light:text-slate-900 placeholder:text-slate-600 admin-light:placeholder:text-slate-400 ${
+                  reasonError ? "border-red-500/60" : "border-[#1E2D45] admin-light:border-[#E2E8F0]"
                 }`}
               />
               {reasonError && (
-                <span id="suspension-reason-error" className="mt-1.5 block text-sm text-red-400">{reasonError}</span>
+                <span id="suspension-reason-error" className="mt-1.5 block text-sm text-red-400 admin-light:text-red-600">{reasonError}</span>
               )}
             </label>
 
-            <label className="flex items-center gap-3 text-sm text-slate-300">
+            <label className="flex items-center gap-3 text-sm text-slate-300 admin-light:text-slate-700">
               <input
                 type="checkbox"
                 checked={isPermanent}
                 onChange={(event) => setIsPermanent(event.target.checked)}
                 disabled={isProcessing}
-                className="h-4 w-4 rounded border-slate-600"
+                className="h-4 w-4 rounded border-slate-600 admin-light:border-slate-300"
               />
               Permanently disable this account
             </label>
 
             {!isPermanent && (
               <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-300">Suspension duration</span>
+                <span className="mb-2 block text-sm font-medium text-slate-300 admin-light:text-slate-700">Suspension duration</span>
                 <select
                   value={duration}
                   onChange={(event) => setDuration(Number(event.target.value) as typeof duration)}
                   disabled={isProcessing}
-                  className="w-full rounded-lg border border-[#1E2D45] bg-[#0E1628] px-3 py-2.5 text-white [color-scheme:dark]"
+                  className="w-full rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] px-3 py-2.5 text-white admin-light:text-slate-900 [color-scheme:dark] admin-light:[color-scheme:light]"
                 >
                   {[1, 3, 7, 14, 30, 90].map(days => <option key={days} value={days}>{days} day{days === 1 ? "" : "s"}</option>)}
                 </select>
@@ -148,7 +148,7 @@ export function SuspensionModal({
 
         {error && (
           <div role="alert" className="rounded-md border border-red-500/30 bg-red-500/10 p-3">
-            <p className="text-sm text-red-400">{error}</p>
+            <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
           </div>
         )}
 
@@ -157,7 +157,7 @@ export function SuspensionModal({
             type="button"
             onClick={onClose}
             disabled={isProcessing}
-            className="rounded-lg border border-[#1E2D45] px-4 py-2 text-sm text-slate-300 disabled:opacity-50"
+            className="rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] px-4 py-2 text-sm text-slate-300 admin-light:text-slate-700 disabled:opacity-50"
           >
             Cancel
           </button>

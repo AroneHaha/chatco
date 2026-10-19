@@ -7,12 +7,12 @@
  */
 
 function Bar({ className }: { className: string }) {
-  return <div className={`rounded-md bg-white/[0.07] motion-safe:animate-pulse ${className}`} />;
+  return <div className={`rounded-md bg-white/[0.07] admin-light:bg-slate-200 motion-safe:animate-pulse ${className}`} />;
 }
 
 function Section({ withTimeline = false }: { withTimeline?: boolean }) {
   return (
-    <div className="rounded-lg border border-[#1E2D45] bg-[#131C2E] p-4 sm:p-6">
+    <div className="rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white p-4 sm:p-6">
       <div className="mb-4 flex items-start gap-3">
         <Bar className="h-9 w-9 shrink-0 rounded-lg" />
         <div className="space-y-2 pt-0.5">
@@ -22,7 +22,7 @@ function Section({ withTimeline = false }: { withTimeline?: boolean }) {
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {[0, 1].map((i) => (
-          <div key={i} className="flex flex-col gap-3 rounded-lg border border-[#1E2D45] bg-[#0E1628]/60 p-3">
+          <div key={i} className="flex flex-col gap-3 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628]/60 admin-light:bg-[#F8FAFC] p-3">
             <div className="flex items-start gap-3">
               <Bar className="h-8 w-8 shrink-0" />
               <div className="flex-1 space-y-1.5">

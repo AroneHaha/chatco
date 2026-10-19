@@ -74,7 +74,7 @@ export function MissingState({
   links = [],
 }: MissingStateProps) {
   return (
-    <section className="relative flex w-full items-center justify-center bg-[#071A2E] px-5 py-12 text-white sm:px-6 sm:py-16">
+    <section className="relative flex w-full items-center justify-center bg-[#0B2037] px-5 py-12 text-white sm:px-6 sm:py-16">
       <div className="mx-auto flex w-full max-w-xl flex-col gap-10">
         <div className="space-y-8">
           <div className="space-y-5 text-center">

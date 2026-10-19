@@ -27,16 +27,16 @@ function formatRelativeTime(iso: string): string {
 
 function getStyle(type: string) {
   const t = (type ?? '').toLowerCase();
-  if (['safety', 'warning', 'maintenance', 'alert', 'sos'].some((k) => t.includes(k))) {
-    return { Icon: AlertTriangle, color: 'text-amber-400', bg: 'bg-amber-500/10', label: 'Advisory' };
+  if (['safety', 'warning', 'maintenance', 'alert', 'sos', 'service', 'weather'].some((k) => t.includes(k))) {
+    return { Icon: AlertTriangle, color: 'text-amber-400 admin-light:text-amber-700', bg: 'bg-amber-500/10', label: 'Advisory' };
   }
   if (['promo', 'success', 'holiday', 'reward'].some((k) => t.includes(k))) {
-    return { Icon: CheckCircle, color: 'text-emerald-400', bg: 'bg-emerald-500/10', label: 'Promo' };
+    return { Icon: CheckCircle, color: 'text-emerald-400 admin-light:text-emerald-700', bg: 'bg-emerald-500/10', label: 'Promo' };
   }
-  if (['system', 'route', 'schedule'].some((k) => t.includes(k))) {
-    return { Icon: Info, color: 'text-blue-400', bg: 'bg-blue-500/10', label: 'System' };
+  if (['system', 'route', 'schedule', 'fare'].some((k) => t.includes(k))) {
+    return { Icon: Info, color: 'text-blue-400 admin-light:text-blue-700', bg: 'bg-blue-500/10', label: 'System' };
   }
-  return { Icon: Megaphone, color: 'text-slate-300', bg: 'bg-white/5', label: 'Announcement' };
+  return { Icon: Megaphone, color: 'text-slate-300 admin-light:text-slate-700', bg: 'bg-white/5 admin-light:bg-[#F8FAFC]', label: 'Announcement' };
 }
 
 function formatCategory(value: string): string {
@@ -111,16 +111,16 @@ export function AnnouncementDetailModal({
   const action = managementView || showUpdatesCenterLink ? relatedAction(announcement) : null;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} maxWidth={managementView ? 'max-w-lg lg:max-w-2xl' : 'max-w-lg'}>
+    <Modal isOpen={isOpen} onClose={onClose} adminThemed maxWidth={managementView ? 'max-w-lg lg:max-w-2xl' : 'max-w-lg'}>
       <div className={`space-y-4 ${managementView ? styles.management : ''}`}>
         {managementView && (
           <div className={`hidden lg:flex items-center gap-3 ${styles.header}`}>
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#62A0EA]/15 text-[#62A0EA]">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#62A0EA]/15 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4]">
               <HeaderIcon size={22} aria-hidden="true" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">{isNotification ? 'Notification Details' : 'Announcement Details'}</h2>
-              <p className="mt-1 text-sm text-slate-400">{isNotification ? 'Operational update and related record' : 'Published announcement and posting information'}</p>
+              <h2 className="text-xl font-bold text-white admin-light:text-slate-900">{isNotification ? 'Notification Details' : 'Announcement Details'}</h2>
+              <p className="mt-1 text-sm text-slate-400 admin-light:text-slate-500">{isNotification ? 'Operational update and related record' : 'Published announcement and posting information'}</p>
             </div>
           </div>
         )}
@@ -134,37 +134,37 @@ export function AnnouncementDetailModal({
           </div>
           <span className="text-[11px] text-slate-500" title={new Date(announcement.createdAt).toLocaleString()}>
             {formatRelativeTime(announcement.createdAt)}
-            {managementView && <span className="hidden lg:block mt-1 text-xs text-slate-400">{new Date(announcement.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>}
+            {managementView && <span className="hidden lg:block mt-1 text-xs text-slate-400 admin-light:text-slate-500">{new Date(announcement.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>}
           </span>
         </div>
 
         {/* Title */}
-        <h2 className={`text-lg sm:text-xl font-bold text-white leading-tight ${styles.title}`}>
+        <h2 className={`text-lg sm:text-xl font-bold text-white admin-light:text-slate-900 leading-tight ${styles.title}`}>
           {announcement.title}
         </h2>
 
         {/* Meta — author + status (admin context only) */}
-        {(announcement.createdBy || announcement.status) && (
+        {(announcement.createdBy || (announcement.status && !isNotification)) && (
           <div className={`flex flex-wrap items-center gap-3 text-[11px] text-slate-500 ${styles.metadata}`}>
             {announcement.createdBy && (
               <span>
-                Posted by <span className="text-slate-300">{announcement.createdBy}</span>
+                Posted by <span className="text-slate-300 admin-light:text-slate-700">{announcement.createdBy}</span>
               </span>
             )}
-            {announcement.status && (
+            {announcement.status && !isNotification && (
               <span data-status={announcement.status} className={`${styles.status} px-2 py-0.5 rounded-full border ${
                 announcement.status === 'ARCHIVED'
-                  ? 'border-slate-500/30 bg-slate-500/10 text-slate-400'
-                  : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+                  ? 'border-slate-500/30 admin-light:border-slate-300 bg-slate-500/10 text-slate-400 admin-light:text-slate-500'
+                  : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400 admin-light:text-emerald-700'
               }`}>
-                {isNotification ? (announcement.isRead ? 'Read' : 'Unread') : announcement.displayStatus}
+                {announcement.displayStatus}
               </span>
             )}
           </div>
         )}
 
         {/* Divider */}
-        <div className={`border-t border-white/5 ${styles.divider}`} />
+        <div className={`border-t border-white/5 admin-light:border-[#E2E8F0] ${styles.divider}`} />
 
         {/* Body — preserve whitespace + wrap long content.
             No inner max-height/scroller: capping this at 55vh made a second,
@@ -172,19 +172,20 @@ export function AnnouncementDetailModal({
             was squeezed into just over half the panel while the rest of it sat
             empty. Letting it grow lets the Modal's single scroll region use the
             full 90vh. */}
-        <div className={`text-sm text-slate-300 leading-relaxed whitespace-pre-wrap break-words ${styles.message}`}>
+        <div className={`text-sm text-slate-300 admin-light:text-slate-700 leading-relaxed whitespace-pre-wrap break-words ${styles.message}`}>
           {announcement.message}
         </div>
-        {errorMessage && <p role="alert" className="rounded-md border border-red-400/25 bg-red-400/10 p-3 text-sm text-red-300">{errorMessage}</p>}
-        {(managementView || showUpdatesCenterLink) && (
+        {errorMessage && <p role="alert" className="rounded-md border border-red-400/25 admin-light:border-red-200 bg-red-400/10 admin-light:bg-red-50 p-3 text-sm text-red-300 admin-light:text-red-700">{errorMessage}</p>}
+        {/* Notifications close with the modal's X; Done stays on announcements. */}
+        {(managementView || showUpdatesCenterLink) && (!isNotification || showUpdatesCenterLink || action) && (
           <div className={`flex flex-wrap justify-end gap-2 ${styles.footer}`}>
-            <button type="button" onClick={onClose} className="min-h-11 rounded-md border border-[#1E2D45] px-4 py-2.5 text-sm font-medium text-slate-300 transition-colors hover:bg-white/5">Done</button>
+            {!isNotification && <button type="button" onClick={onClose} className="min-h-11 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] px-4 py-2.5 text-sm font-medium text-slate-300 admin-light:text-slate-700 transition-colors hover:bg-white/5 admin-light:hover:bg-[#F8FAFC]">Done</button>}
             {showUpdatesCenterLink && (
-              <Link href={`/announcements?tab=${isNotification ? 'notifications' : 'announcements'}&updateId=${encodeURIComponent(announcement.id)}`} onClick={onClose} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[#62A0EA]/40 px-4 py-2.5 text-sm font-medium text-[#62A0EA] transition-colors hover:bg-[#62A0EA]/10">
+              <Link href={`/announcements?tab=${isNotification ? 'notifications' : 'announcements'}&updateId=${encodeURIComponent(announcement.id)}`} onClick={onClose} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[#62A0EA]/40 admin-light:border-[#1A5FB4]/40 px-4 py-2.5 text-sm font-medium text-[#62A0EA] admin-light:text-[#1A5FB4] transition-colors hover:bg-[#62A0EA]/10 admin-light:hover:bg-[#1A5FB4]/10">
                 View in Updates Center <ArrowUpRight size={15} aria-hidden="true" />
               </Link>
             )}
-            {action && <Link href={action.href} onClick={onClose} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-[#62A0EA] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#4A8BD4]">{action.label}<ArrowUpRight size={15} aria-hidden="true" /></Link>}
+            {action && <Link href={action.href} onClick={onClose} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-[#62A0EA] admin-light:bg-[#1A5FB4] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F]">{action.label}<ArrowUpRight size={15} aria-hidden="true" /></Link>}
           </div>
         )}
       </div>

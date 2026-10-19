@@ -40,6 +40,8 @@ class AdminUserController extends Controller
             'sort' => $request->query('sort', 'recent'),
             'account_status' => $request->query('account_status'),
             'active_only' => $request->boolean('active_only'),
+            // The signed-in admin manages their own account from Settings, not here.
+            'exclude_id' => $request->user()->id,
         ]);
 
         return $this->successResponse($users, 'Users retrieved');
@@ -64,6 +66,9 @@ class AdminUserController extends Controller
      */
     public function update(UpdateUserRequest $request, string $id): JsonResponse
     {
+        // Snapshot for the activity log's before/after values.
+        $before = $this->adminService->getUser($id);
+
         $user = $this->adminService->updateUser(
             $id,
             $request->validated(),
@@ -74,11 +79,23 @@ class AdminUserController extends Controller
             return $this->errorResponse('User not found', 404);
         }
 
-        $this->activityLogService->record(
-            ActivityLogCategory::MEMBER,
-            "Updated member {$user['name']}",
-            $request->user(),
-        );
+        $changes = ActivityLogService::diff($before ?? [], $user, [
+            'first_name' => 'First name',
+            'middle_name' => 'Middle name',
+            'last_name' => 'Last name',
+            'account_status' => 'Account status',
+            'contact_number' => 'Contact number',
+            'birthdate' => 'Date of birth',
+        ]);
+        // A save that changed nothing isn't an action worth an entry.
+        if ($changes !== []) {
+            $this->activityLogService->record(
+                ActivityLogCategory::MEMBER,
+                "Updated member {$user['name']}: ".ActivityLogService::changedFields($changes),
+                $request->user(),
+                $changes,
+            );
+        }
 
         return $this->successResponse($user, 'User updated');
     }
