@@ -1,5 +1,5 @@
-import { NextRequest } from "next/server";
-import { jsonError, jsonData } from "@/lib/conductor/server/response";
+import { NextRequest, NextResponse } from "next/server";
+import { jsonError } from "@/lib/conductor/server/response";
 import { proxyToLaravel } from "@/lib/conductor/server/proxy";
 
 /**
@@ -17,7 +17,9 @@ import { proxyToLaravel } from "@/lib/conductor/server/proxy";
  *   - status=RESOLVED → RESOLVED only (used for the SOS History panel)
  *
  * The Laravel response is a paginator { data: [...], links, meta }. We
- * extract the items array so the frontend receives a flat { data: [...] }.
+ * extract the items array so the frontend receives a flat { data: [...] },
+ * plus { meta: { current_page, last_page, total } } so the SOS History
+ * panel can page on the server instead of slicing one fetched batch.
  *
  * Role:ADMIN enforced at the Laravel /admin route group.
  */
@@ -41,6 +43,16 @@ export async function GET(request: NextRequest) {
     : Array.isArray((result.data as { data?: unknown[] })?.data)
     ? (result.data as { data: unknown[] }).data
     : [];
+  const paginator = (Array.isArray(result.data) ? {} : result.data ?? {}) as {
+    current_page?: number; last_page?: number; total?: number;
+  };
 
-  return jsonData(items);
+  return NextResponse.json({
+    data: items,
+    meta: {
+      current_page: Number(paginator.current_page ?? 1),
+      last_page: Number(paginator.last_page ?? 1),
+      total: Number(paginator.total ?? items.length),
+    },
+  });
 }
