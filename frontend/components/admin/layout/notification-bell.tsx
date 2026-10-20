@@ -112,10 +112,9 @@ function getNotificationStyle(type: string) {
  * The bell is role-agnostic on the client (the backend route is open to any
  * authenticated role), but it's only mounted in the admin layout today.
  */
-// Light-mode bell button per surface: on the CHATCO-blue sidebar, or on white
-// (the mobile bell floats over the page).
-const BELL_LIGHT = 'admin-light:bg-[#F8FAFC] admin-light:border-[#E2E8F0] admin-light:text-slate-600 admin-light:hover:bg-slate-100 admin-light:hover:text-slate-900 admin-light:focus-visible:ring-[#1A5FB4]';
-const BELL_LIGHT_ON_BRAND = 'admin-light:bg-white/10 admin-light:border-white/20 admin-light:text-white admin-light:hover:bg-white/20 admin-light:hover:text-white admin-light:focus-visible:ring-white';
+// Keep the control quiet on ordinary surfaces and legible on the blue sidebar.
+const BELL_LIGHT = 'admin-light:text-slate-600 admin-light:hover:bg-slate-100 admin-light:hover:text-slate-900 admin-light:focus-visible:ring-[#1A5FB4]';
+const BELL_LIGHT_ON_BRAND = 'admin-light:text-white admin-light:hover:bg-white/10 admin-light:hover:text-white admin-light:focus-visible:ring-white';
 
 export function NotificationBell({ onBrand = false }: { onBrand?: boolean }) {
   const popupId = useId();
@@ -350,13 +349,13 @@ export function NotificationBell({ onBrand = false }: { onBrand?: boolean }) {
         ref={bellRef}
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`relative w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/60 hover:bg-white/10 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] ${onBrand ? BELL_LIGHT_ON_BRAND : BELL_LIGHT}`}
+        className={`relative inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-white/60 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] ${isOpen ? 'bg-white/10 text-white' : ''} ${onBrand ? BELL_LIGHT_ON_BRAND : BELL_LIGHT}`}
         aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
         aria-expanded={isOpen}
         aria-controls={isOpen ? popupId : undefined}
         aria-haspopup="dialog"
       >
-        <Bell size={18} />
+        <Bell size={19} strokeWidth={1.8} />
         {/* Static, not animate-pulse. A permanently pulsing badge reads as a
             live alert and never settles — it also fades the digits in and out,
             which made the count hard to read. The ring separates it from the

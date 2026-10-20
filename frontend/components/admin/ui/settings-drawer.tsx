@@ -7,7 +7,7 @@ import { SkeletonFareMatrix } from './skeleton/skeleton-fare-matrix';
 import { useAdminTheme } from '@/contexts/admin-theme-context';
 import {
   X, Calculator, PiggyBank, Ticket, Gauge,
-  Shield, MessageCircleQuestion, Settings2, ArrowLeft, Printer, ChevronRight, UserRoundCog
+  Shield, MessageCircleQuestion, Settings2, ArrowLeft, Printer, ChevronRight, UserRoundCog, Moon
 } from 'lucide-react';
 
 // ─── Lazy-loaded settings page components ───
@@ -157,7 +157,7 @@ function DrawerLoader() {
 // panel over the page.
 export function SettingsDrawer({ docked = false }: { docked?: boolean }) {
   const { isSettingsOpen, activeHref, setActiveHref, closeSettingsDrawer } = useSettingsDrawer();
-  const [theme] = useAdminTheme();
+  const [theme, setTheme] = useAdminTheme();
   const pathname = usePathname();
 
   // Close drawer + reset to menu (the context resets activeHref on close)
@@ -299,6 +299,31 @@ export function SettingsDrawer({ docked = false }: { docked?: boolean }) {
                       </li>
                     );
                   })}
+                  {group.id === 'app' && (
+                    <li>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={theme === 'dark'}
+                        aria-label="Dark mode"
+                        onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                        className="group flex w-full items-center gap-3 px-5 py-3 text-left transition-colors duration-150 hover:bg-[#131C2E] admin-light:hover:bg-[#F8FAFC] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4]"
+                      >
+                        <Moon
+                          size={16}
+                          aria-hidden="true"
+                          className="shrink-0 text-slate-500 admin-light:text-slate-600 group-hover:text-slate-300 admin-light:group-hover:text-slate-900"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium text-slate-200 admin-light:text-slate-800 group-hover:text-white admin-light:group-hover:text-slate-900">Dark mode</span>
+                          <span className="mt-0.5 block truncate text-[11px] text-slate-500">Switch between dark and light appearance.</span>
+                        </span>
+                        <span aria-hidden="true" className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${theme === 'dark' ? 'bg-[#62A0EA]' : 'bg-slate-600 admin-light:bg-slate-300'}`}>
+                          <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${theme === 'dark' ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+                        </span>
+                      </button>
+                    </li>
+                  )}
                 </ul>
               </section>
             ))}

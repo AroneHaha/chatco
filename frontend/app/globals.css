@@ -108,6 +108,17 @@ body {
   color: var(--admin-text-primary);
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  html[data-admin-theme-transitioning="true"] .admin-shell,
+  html[data-admin-theme-transitioning="true"] .admin-shell *,
+  html[data-admin-theme-transitioning="true"] .admin-shell *::before,
+  html[data-admin-theme-transitioning="true"] .admin-shell *::after {
+    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, box-shadow, transform !important;
+    transition-duration: 220ms !important;
+    transition-timing-function: ease-in-out !important;
+  }
+}
+
 /* ─── Landing Page Animations ─── */
 @keyframes float-a { 0%,100%{transform:translateY(0) rotate(-6deg)} 50%{transform:translateY(-14px) rotate(-6deg)} }
 @keyframes float-b { 0%,100%{transform:translateY(0) rotate(3deg)} 50%{transform:translateY(-18px) rotate(3deg)} }
