@@ -5,7 +5,7 @@
   max-height: calc(100dvh - 32px);
   background: #071a2e;
   color: #f5f8fc;
-  border: 1px solid rgb(98 160 234 / .25);
+  border: 1px solid rgb(255 255 255 / .1);
   border-radius: 20px;
   box-shadow: 0 24px 80px rgb(0 0 0 / .3);
   scrollbar-color: #456689 #071a2e;
@@ -52,14 +52,15 @@
   transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
 }
 .input::placeholder { color: #74879e; opacity: 1; }
-.input:hover { border-color: rgb(98 160 234 / .45); }
-.input:focus { outline: none; background: #142b43; border-color: #62a0ea; box-shadow: 0 0 0 3px rgb(98 160 234 / .12); }
+.input:hover { border-color: rgb(203 213 225 / .4); }
+.input:focus { outline: none; background: #142b43; border-color: rgb(203 213 225 / .65); box-shadow: 0 0 0 1px rgb(203 213 225 / .14); }
 .input[name="password"] { padding-right: 48px; }
 .input option { background: #102439; color: white; }
 .datePicker { min-width: 0; }
 .dateTrigger.dateTrigger { display: flex; align-items: center; padding-left: 34px; text-align: left; font-weight: 400; }
 .dateTrigger > span:first-of-type { min-width: 0; }
 .input:-webkit-autofill { -webkit-text-fill-color: white; box-shadow: 0 0 0 1000px #102439 inset; }
+.input:-webkit-autofill:focus { box-shadow: 0 0 0 1000px #102439 inset, 0 0 0 1px rgb(203 213 225 / .14); }
 .fieldError { margin-top: 6px; color: #fca5a5; font-size: 12px; line-height: 1.5; }
 .invalid { border-color: #f87171; }
 .navigation {
@@ -136,7 +137,7 @@
 .resendRow { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 8px; font-size: 12px; line-height: 1.7; }
 .form [role="group"] { gap: 10px; }
 .form [role="group"] input { height: 56px; background: #102439; color: white; border: 1px solid rgb(255 255 255 / .16); border-radius: 10px; font-size: 22px; }
-.form [role="group"] input:focus { border-color: #62a0ea; }
+.form [role="group"] input:focus { border-color: rgb(203 213 225 / .65); }
 .form [role="group"] input[class*="border-red-"] { border-color: #f87171; }
 .passwordRules { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; margin-top: 12px; }
 .passwordRules li { font-size: 11px; line-height: 1.5; }
