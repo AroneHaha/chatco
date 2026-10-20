@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Commuter;
 
 use App\Rules\PhilippineMobileNumber;
+use App\Rules\UniqueContactNumber;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -29,7 +30,7 @@ class UpdateProfileRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'contact_number' => ['sometimes', 'required', 'string', new PhilippineMobileNumber],
+            'contact_number' => ['sometimes', 'required', 'string', new PhilippineMobileNumber, new UniqueContactNumber($this->user()?->id)],
             'language_preference' => ['sometimes', 'required', 'string', 'max:20'],
         ];
     }

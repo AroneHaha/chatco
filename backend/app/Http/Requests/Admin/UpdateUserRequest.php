@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Admin;
 
 use App\Rules\PhilippineMobileNumber;
+use App\Rules\UniqueContactNumber;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -33,7 +34,7 @@ class UpdateUserRequest extends FormRequest
             'middle_name'    => ['sometimes', 'nullable', 'string', 'max:100'],
             'last_name'      => ['sometimes', 'required', 'string', 'max:100'],
             'account_status' => ['sometimes', 'required', 'string', Rule::in(['ACTIVE', 'SUSPENDED'])],
-            'contact_number' => ['sometimes', 'required', 'string', new PhilippineMobileNumber],
+            'contact_number' => ['sometimes', 'required', 'string', new PhilippineMobileNumber, new UniqueContactNumber($this->route('id'))],
             'birthdate'      => ['sometimes', 'required', 'date', 'before:today'],
         ];
     }

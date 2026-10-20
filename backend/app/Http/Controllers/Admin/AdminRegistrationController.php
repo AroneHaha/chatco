@@ -13,6 +13,7 @@ use App\Mail\OnsiteAccountCreatedMail;
 use App\Models\User;
 use App\Rules\PhilippineMobileNumber;
 use App\Rules\StrongPassword;
+use App\Rules\UniqueContactNumber;
 use App\Services\ActivityLogService;
 use App\Services\AdminService;
 use App\Services\RegistrationGuard;
@@ -139,7 +140,7 @@ class AdminRegistrationController extends Controller
             'birthdate' => ['required', 'date', 'before:today'],
             'gender' => ['nullable', 'string', 'max:20'],
             'email' => ['required', 'string', 'email:rfc', 'max:255'],
-            'contact_number' => ['required', 'string', new PhilippineMobileNumber],
+            'contact_number' => ['required', 'string', new PhilippineMobileNumber, new UniqueContactNumber],
             'username' => ['required', 'string', 'max:50', 'unique:commuter_profiles,username'],
             'language_preference' => ['nullable', 'string', 'max:20'],
             'applied_type' => ['required', 'string', Rule::in(['REGULAR', 'STUDENT', 'SENIOR', 'PWD'])],
