@@ -75,10 +75,10 @@ export default function DashboardHome() {
   if (!data) return null;
 
   const {
-    recentVehicles,
-    recentLostFound,
+    recentShifts,
+    recentClaims,
     recentUsers,
-    recentAnnouncements,
+    recentNotifications,
     recentActivityLogs,
     quickStats,
     settingsModules,
@@ -109,11 +109,10 @@ export default function DashboardHome() {
       </div>
 
       <DashboardPreviewCards
-        activeVehicles={quickStats.find((stat) => stat.link === "/monitoring")?.value ?? "—"}
-        recentVehicles={recentVehicles}
-        recentLostFound={recentLostFound}
+        recentShifts={recentShifts}
+        recentClaims={recentClaims}
         recentUsers={recentUsers}
-        recentAnnouncements={recentAnnouncements}
+        recentNotifications={recentNotifications}
         recentActivityLogs={recentActivityLogs}
         activityFeed={activityFeed}
       />

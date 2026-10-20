@@ -28,6 +28,8 @@ interface RawUser {
   email: string;
   role: string;
   name: string;
+  /** Public R2 URL of the user's own profile photo. Null when none uploaded. */
+  profile_image_url: string | null;
   first_name: string | null;
   middle_name: string | null;
   suffix: string | null;
@@ -103,6 +105,8 @@ export interface AdminUser {
   email: string;
   role: UserRole;
   name: string;
+  /** Public R2 URL of the user's profile photo; null falls back to the default icon. */
+  profileImageUrl: string | null;
   firstName: string | null;
   middleName: string | null;
   suffix: string | null;
@@ -234,6 +238,7 @@ function mapUser(raw: RawUser): AdminUser {
     email: raw.email,
     role: raw.role as UserRole,
     name: raw.name,
+    profileImageUrl: raw.profile_image_url?.trim() || null,
     firstName: raw.first_name,
     middleName: raw.middle_name,
     suffix: raw.suffix ?? null,
@@ -264,7 +269,7 @@ function mapUser(raw: RawUser): AdminUser {
 }
 
 export interface SuspendUserInput {
-  reasonCode: "POLICY_VIOLATION" | "FRAUD_SUSPECTED" | "SAFETY_CONCERN" | "ABUSIVE_BEHAVIOR" | "PAYMENT_ISSUE" | "OTHER";
+  reasonCode: "POLICY_VIOLATION" | "FRAUD_SUSPECTED" | "SAFETY_CONCERN" | "INAPPROPRIATE_PROFILE_PHOTO" | "PAYMENT_ISSUE" | "OTHER";
   reason: string;
   isPermanent: boolean;
   durationDays?: 1 | 3 | 7 | 14 | 30 | 90;
@@ -393,11 +398,16 @@ export async function update(id: string, input: UpdateUserInput): Promise<AdminU
     const message = await safeMessage(res);
     if (res.status === 422) {
       const errorBody = await safeJson(res);
+      const errors: Record<string, string[]> | undefined = errorBody?.errors ?? undefined;
+      // The API's 422 message is a generic "Validation failed"; the field
+      // message (e.g. "That contact number is already in use.") is what the
+      // edit modal and page banner should show.
+      const firstFieldError = errors ? Object.values(errors)[0]?.[0] : undefined;
       throw new UserOperationError(
         "validation",
-        message,
-        undefined,
-        errorBody?.errors ?? undefined
+        firstFieldError ?? message,
+        errors ? Object.keys(errors)[0] : undefined,
+        errors
       );
     }
     throw translateError(res.status, message);

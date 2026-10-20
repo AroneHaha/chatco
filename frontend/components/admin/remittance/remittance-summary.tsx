@@ -21,7 +21,7 @@ interface StatCardProps {
 function StatCard({ label, value, icon }: StatCardProps) {
   return (
     <div className="relative overflow-hidden bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-xl p-3 flex items-center gap-4">
-      <div className="w-11 h-11 shrink-0 rounded-lg border border-[#62A0EA]/15 admin-light:border-[#1A5FB4]/15 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 flex items-center justify-center text-[#62A0EA] admin-light:text-[#1A5FB4]">
+      <div className="w-11 h-11 shrink-0 flex items-center justify-center text-[#62A0EA] admin-light:text-[#1A5FB4]">
         {icon}
       </div>
       <div className="min-w-0">
@@ -89,22 +89,22 @@ export function RemittanceSummary({ selectedDate = '', dateFrom = todayStr(), ra
       <StatCard
         label={`Passengers (${periodLabel})`}
         value={String(summary.passengers)}
-        icon={<Users size={20} />}
+        icon={<Users size={36} />}
       />
       <StatCard
         label={`Cash (${periodLabel})`}
         value={fmtPHP(summary.cash)}
-        icon={<Banknote size={20} />}
+        icon={<Banknote size={36} />}
       />
       <StatCard
         label={`GCash (${periodLabel})`}
         value={fmtPHP(summary.gcash)}
-        icon={<Smartphone size={20} />}
+        icon={<Smartphone size={36} />}
       />
       <StatCard
         label={`Total (${periodLabel})`}
         value={fmtPHP(summary.total)}
-        icon={<Wallet size={20} />}
+        icon={<Wallet size={36} />}
       />
     </div>
   );

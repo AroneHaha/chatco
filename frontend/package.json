@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",
+    "@mdi/js": "^7.4.47",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.4.0",
     "docx": "^9.7.1",
@@ -30,6 +31,7 @@
     "radix-ui": "^1.7.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "react-easy-crop": "6.2.3",
     "react-leaflet": "^5.0.0",
     "xlsx": "^0.18.5"
   },

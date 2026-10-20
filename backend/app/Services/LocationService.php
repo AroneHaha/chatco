@@ -519,14 +519,17 @@ class LocationService
     /**
      * Persisted overspeeding history for the admin monitoring module.
      * Returns one row per overspeeding episode (a shift may have several),
-     * most recent first. Recorded live by recordOverspeedAtomic() on each GPS ping.
+     * Ordered by its last update before pagination. Recorded live by
+     * recordOverspeedAtomic() on each GPS ping.
      */
-    public function getOverspeedHistory(int $perPage = 25, ?string $shiftId = null, ?string $date = null): LengthAwarePaginator
+    public function getOverspeedHistory(int $perPage = 25, ?string $shiftId = null, ?string $date = null, string $sort = 'recent'): LengthAwarePaginator
     {
+        $direction = $sort === 'oldest' ? 'asc' : 'desc';
         $paginator = OverspeedEvent::query()
             ->when($shiftId, fn ($query) => $query->where('shift_id', $shiftId))
             ->when($date, fn ($query) => $query->where('date', $date))
-            ->orderByDesc('last_logged_at')
+            ->orderBy('last_logged_at', $direction)
+            ->orderBy('id', $direction)
             ->paginate(min(max($perPage, 1), 100));
 
         $paginator->through(function (OverspeedEvent $e) {

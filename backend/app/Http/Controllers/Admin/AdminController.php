@@ -126,11 +126,13 @@ class AdminController extends Controller
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
             'shift_id' => ['sometimes', 'string', 'max:20', 'exists:shift_logs,shift_id'],
             'date' => ['sometimes', 'date_format:Y-m-d'],
+            'sort' => ['sometimes', 'in:recent,oldest'],
         ]);
         $history = $this->locationService->getOverspeedHistory(
             (int) ($validated['per_page'] ?? 25),
             $validated['shift_id'] ?? null,
             $validated['date'] ?? null,
+            $validated['sort'] ?? 'recent',
         );
 
         return $this->successResponse($history, 'Overspeeding history retrieved');

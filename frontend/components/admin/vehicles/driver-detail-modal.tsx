@@ -305,6 +305,8 @@ export function DriverDetailModal({ driver, onClose }: DriverDetailModalProps) {
                   {historyDate ? `Showing assignments for ${formatDate(historyDate)}` : 'Showing all assignments'}
                 </p>
                 <AdminDatePicker
+                  popover
+                  yearNavigation
                   value={historyDate}
                   onChange={setHistoryDate}
                   accent="blue"

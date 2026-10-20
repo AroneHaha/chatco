@@ -224,7 +224,6 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
         .leaflet-popup-content { margin: 12px 16px !important; color: #071A2E !important; line-height: 1.4 !important; }
         .leaflet-popup-tip { background: white !important; }
         .leaflet-popup-close-button { color: #071A2E !important; }
-        @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(2.5); opacity: 0; } }
       `}</style>
     </div>
   );

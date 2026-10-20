@@ -13,6 +13,7 @@ use App\Mail\OnsiteAccountCreatedMail;
 use App\Models\User;
 use App\Rules\PhilippineMobileNumber;
 use App\Rules\StrongPassword;
+use App\Rules\UniqueContactNumber;
 use App\Services\ActivityLogService;
 use App\Services\AdminService;
 use App\Services\RegistrationGuard;
@@ -34,9 +35,9 @@ use Illuminate\Validation\ValidationException;
  * Admins see PENDING commuter accounts (with uploaded valid ID), then
  * approve (granting the requested discount tier) or reject (with a reason).
  *
- * Admins can also create PENDING commuter accounts on behalf of commuters
- * who register onsite (e.g. at a terminal kiosk) — the commuter then waits
- * for admin approval before they can log in, same as self-registered users.
+ * Admins can also create APPROVED commuter accounts on behalf of commuters
+ * who register onsite (e.g. at a terminal kiosk). A generated temporary
+ * password is emailed to the commuter, who must replace it at first sign-in.
  *
  * Routes (all behind auth:sanctum + role:ADMIN):
  *   GET  /api/v1/admin/registrations                → pending()
@@ -73,6 +74,8 @@ class AdminRegistrationController extends Controller
             // just-signed-up applicant regardless of where they fall in the
             // (oldest-first) review queue.
             'id' => ['nullable', 'uuid'],
+            // Defaults to 'oldest' (the FIFO review queue) when omitted.
+            'sort' => ['nullable', Rule::in(['recent', 'oldest'])],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
@@ -103,9 +106,10 @@ class AdminRegistrationController extends Controller
 
     /**
      * POST /api/v1/admin/registrations
-     * Create a PENDING commuter account on behalf of a commuter who registered
+     * Create an APPROVED commuter account on behalf of a commuter who registered
      * onsite (e.g. at a terminal kiosk). The admin fills the form, uploads the
-     * valid ID image, and the account is created with account_status=PENDING.
+     * valid ID image, and the account can sign in with its emailed temporary
+     * password but must set a new password before accessing any other feature.
      *
      * Mirrors AuthService::register() but:
      *   - gender is optional (defaults to 'UNSPECIFIED') — the admin onsite
@@ -136,7 +140,7 @@ class AdminRegistrationController extends Controller
             'birthdate' => ['required', 'date', 'before:today'],
             'gender' => ['nullable', 'string', 'max:20'],
             'email' => ['required', 'string', 'email:rfc', 'max:255'],
-            'contact_number' => ['required', 'string', new PhilippineMobileNumber],
+            'contact_number' => ['required', 'string', new PhilippineMobileNumber, new UniqueContactNumber],
             'username' => ['required', 'string', 'max:50', 'unique:commuter_profiles,username'],
             'language_preference' => ['nullable', 'string', 'max:20'],
             'applied_type' => ['required', 'string', Rule::in(['REGULAR', 'STUDENT', 'SENIOR', 'PWD'])],

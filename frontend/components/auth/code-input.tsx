@@ -18,8 +18,8 @@ const SKINS = {
   public: {
     box: "h-14 sm:h-16 rounded-xl text-2xl font-bold",
     error: "border-red-300 bg-red-50 text-red-600 focus:ring-red-200 focus:border-red-400",
-    filled: "border-[#1A5FB4] bg-[#F0F7FF] text-[#071A2E] focus:ring-[#1A5FB4]/20",
-    empty: "border-gray-200 bg-[#F8FAFC] text-[#071A2E] focus:ring-[#1A5FB4]/20 focus:border-[#1A5FB4]",
+    filled: "border-[#1A5FB4] bg-[#F0F7FF] text-[#071A2E] focus:ring-slate-500/15",
+    empty: "border-gray-200 bg-[#F8FAFC] text-[#071A2E] focus:ring-slate-500/15 focus:border-slate-500",
   },
   admin: {
     box: "h-12 rounded-md text-xl font-semibold",

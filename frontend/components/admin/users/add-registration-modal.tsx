@@ -3,6 +3,7 @@
 
 import { useRef, useState } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
+import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
 import { Upload, Loader2, AlertCircle, UserPlus, Check } from 'lucide-react';
 import { formatContactNumberInput } from '@/lib/utils/format';
 import { StepContentWrapper } from '@/components/Stepper';
@@ -134,8 +135,13 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
+    if (!formData.birthday) {
+      setSubmitError('Select a date of birth to continue.');
+      if (stepKey !== 'details') goToStep('details');
+      return;
+    }
     // Only the current step's fields are rendered, so reaching here means the
-    // browser's required-field check passed for this step alone.
+    // browser's required-field check passed for its native inputs.
     if (!isLastStep) {
       setSubmitError(null);
       goToStep(steps[stepIndex + 1]);
@@ -323,7 +329,21 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label htmlFor="onsite-birthday" className={labelClasses}>Date of birth</label>
-                <input id="onsite-birthday" type="date" name="birthday" autoComplete="bday" value={formData.birthday} onChange={handleChange} required disabled={isSubmitting} className={`${inputClasses} scheme-dark admin-light:scheme-light`} />
+                <AdminDatePicker
+                  id="onsite-birthday"
+                  value={formData.birthday}
+                  onChange={(birthday) => {
+                    setFormData((previous) => ({ ...previous, birthday }));
+                    if (birthday) setSubmitError(null);
+                  }}
+                  ariaLabel="Date of birth"
+                  clearLabel="Clear date of birth"
+                  disabled={isSubmitting}
+                  popover
+                  yearNavigation
+                  className="w-full"
+                  triggerClassName="mt-1.5 h-11 w-full text-sm"
+                />
               </div>
               <div>
                 <label htmlFor="onsite-commuter-type" className={labelClasses}>Commuter type</label>

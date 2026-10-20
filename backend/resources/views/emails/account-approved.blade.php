@@ -62,7 +62,8 @@
     <p style="margin:0 0 10px; font-size:13px; font-weight:700; color:#0f172a;">What you can do now</p>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px;">
         @foreach ([
-            'Book a ride and pay cashless with GCash, or scan your cash receipt to log the trip.',
+            'View the available units near you, and hail one to show your current location.',
+            'Pay cashless with GCash, or scan your cash receipt to log the trip.',
             'Track your rides and earn a free ride once you complete a reward cycle.',
             'Report a lost item or raise an SOS straight from the app if you ever need help.',
         ] as $item)

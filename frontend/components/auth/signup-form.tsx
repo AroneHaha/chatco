@@ -46,6 +46,8 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
 
 const LAST_STEP = 4;
+// Same cap as RegisterRequest (max:16).
+const USERNAME_MAX = 16;
 
 const STEP_COPY: Record<number, { title: string; subtitle: string }> = {
   1: { title: "Personal Information", subtitle: "Tell us a bit about yourself" },
@@ -278,6 +280,9 @@ export default function SignupForm({ onBusyChange, initialMaintenanceMessage = n
 
     if (stepNum === LAST_STEP) {
       if (!formData.username.trim()) errors.username = ["Choose a username."];
+      // Mirrors RegisterRequest: letters, numbers, '.' and '_' only, max 16.
+      else if (!/^[A-Za-z0-9._]+$/.test(formData.username)) errors.username = ["Usernames can only use letters, numbers, periods (.) and underscores (_), with no spaces."];
+      else if (formData.username.length > USERNAME_MAX) errors.username = [`Usernames can be at most ${USERNAME_MAX} characters.`];
       if (!formData.password) {
         errors.password = ["Enter a password."];
       } else {
@@ -956,8 +961,6 @@ export default function SignupForm({ onBusyChange, initialMaintenanceMessage = n
                   </button>
                 )}
               </div>
-
-              <p className="text-xs text-gray-400">Check your spam folder if it hasn&apos;t arrived after a minute. The code expires 15 minutes after it&apos;s sent.</p>
             </div>
           </Step>
 
@@ -968,8 +971,10 @@ export default function SignupForm({ onBusyChange, initialMaintenanceMessage = n
                 <label htmlFor="username" className={labelClasses}>
                   Username *
                 </label>
-                <input id="username" name="username" type="text" value={formData.username} onChange={handleChange} className={`${inputClasses} ${errorRing("username")}`} placeholder="juandelacruz_01" />
-                {getFieldError("username") && <p className={errorClasses}>{getFieldError("username")}</p>}
+                <input id="username" name="username" type="text" value={formData.username} onChange={handleChange} maxLength={USERNAME_MAX} aria-describedby="username-hint" className={`${inputClasses} ${errorRing("username")}`} placeholder="juandelacruz_01" />
+                {getFieldError("username")
+                  ? <p className={errorClasses}>{getFieldError("username")}</p>
+                  : <p id="username-hint" className="mt-1.5 text-xs text-[#8093aa]">Up to {USERNAME_MAX} characters ({formData.username.length}/{USERNAME_MAX}).</p>}
               </div>
               <div>
                 <label htmlFor="password" className={labelClasses}>

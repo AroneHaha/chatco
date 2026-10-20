@@ -12,7 +12,7 @@ import { ViewItemModal } from '@/components/admin/lost-found/view-item-modal';
 import { ClaimsListModal } from '@/components/admin/lost-found/claims-list-modal';
 import { TablePagination } from '@/components/admin/ui/table-pagination';
 import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
-import { PageTabs, type PageTabAccent } from '@/components/admin/ui/page-tabs';
+import { PageTabs } from '@/components/admin/ui/page-tabs';
 import { SearchBar } from '@/components/admin/ui/search-bar';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
 import {
@@ -277,12 +277,12 @@ export default function LostFoundPage() {
       ];
     }),
   );
-  const tabs: { key: AdminTab; label: string; description: string; icon: typeof PackageSearch; accent?: PageTabAccent }[] = [
+  const tabs: { key: AdminTab; label: string; description: string; icon: typeof PackageSearch }[] = [
     { key: 'ALL', label: 'All Items', description: 'Open inventory', icon: PackageSearch },
-    { key: 'PENDING_CLAIMS', label: 'Claim Review', description: 'New and pending only', icon: ClipboardList, accent: 'amber' },
+    { key: 'PENDING_CLAIMS', label: 'Claim Review', description: 'New and pending only', icon: ClipboardList },
     { key: 'TO_RELEASE', label: 'To Be Released', description: 'Approved for handover', icon: CheckCircle2 },
     { key: 'HISTORY', label: 'History', description: 'Closed records only', icon: History },
-    { key: 'EXPIRED', label: 'Archived', description: 'Expired, unclaimed items', icon: Archive, accent: 'red' },
+    { key: 'EXPIRED', label: 'Archived', description: 'Expired, unclaimed items', icon: Archive },
   ];
 
   const handleOpenAddModal = () => setIsAddModalOpen(true);
@@ -541,7 +541,7 @@ export default function LostFoundPage() {
             className="border-b-0! [&>button]:min-h-11 [&>button]:flex-none"
             activeId={activeTab}
             onChange={(id) => { setActiveTab(id); setCurrentPage(1); }}
-            tabs={tabs.map(({ key, label, icon, accent }) => ({ id: key, label, icon, accent }))}
+            tabs={tabs.map(({ key, label, icon }) => ({ id: key, label, icon }))}
           />
         </div>
         <button
@@ -579,6 +579,8 @@ export default function LostFoundPage() {
           <AdminDatePicker
             accent="blue"
             align="right"
+            popover
+            yearNavigation
             ariaLabel="Filter lost items by posted date"
             value={selectedDate}
             onChange={(next) => { setSelectedDate(next); setCurrentPage(1); }}

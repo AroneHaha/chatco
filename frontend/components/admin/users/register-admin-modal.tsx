@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, Check, ImagePlus, Loader2, Mail, ShieldCheck, UserRound, X } from 'lucide-react';
 import { Modal } from '@/components/admin/ui/modal';
 import { CONTACT_NUMBER_ERROR, CONTACT_NUMBER_PATTERN, formatContactNumberInput } from '@/lib/utils/format';
+import { compressImage, IMAGE_COMPRESSION } from '@/lib/utils/compress-image';
 
 interface RegisterAdminModalProps {
   isOpen: boolean;
@@ -155,7 +156,7 @@ export function RegisterAdminModal({ isOpen, onClose, onCreated }: RegisterAdmin
     requestBody.append('contact_number', form.contactNumber.trim());
     requestBody.append('address', form.address.trim());
     requestBody.append('username', form.username.trim());
-    if (profilePicture) requestBody.append('profile_picture', profilePicture);
+    if (profilePicture) requestBody.append('profile_picture', await compressImage(profilePicture, IMAGE_COMPRESSION.avatar));
 
     try {
       const response = await fetch('/api/admin/admins', {

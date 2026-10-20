@@ -12,7 +12,6 @@ import { AddRegistrationModal, type OnsiteStudentDetails } from '@/components/ad
 import { RegisterAdminModal } from '@/components/admin/users/register-admin-modal';
 import { EditUserModal } from '@/components/admin/users/edit-user-modal';
 import { DeleteUserModal } from '@/components/admin/users/delete-user-modal';
-import { FeedbackModal, type FeedbackModalStaff } from '@/components/admin/users/feedback-modal';
 import { SearchBar } from '@/components/admin/ui/search-bar';
 import { Plus, UserCheck, Users, XCircle, AlertCircle, RefreshCw, CheckCircle, ChevronUp, ChevronDown, SlidersHorizontal, UserPlus, ShieldUser } from 'lucide-react';
 import { RowActionsMenu } from '@/components/admin/ui/row-actions-menu';
@@ -29,6 +28,7 @@ import { ConfirmPasswordModal } from '@/components/admin/ui/confirm-password-mod
 import { PageTabs } from '@/components/admin/ui/page-tabs';
 import { DiscountApplicationsPanel } from '@/components/admin/users/discount-applications-panel';
 import { useAdminNotifications } from '@/contexts/admin-notifications-context';
+import { compressImage, IMAGE_COMPRESSION } from '@/lib/utils/compress-image';
 
 /** How long a success banner stays before clearing itself. */
 const SUCCESS_MESSAGE_MS = 3000;
@@ -53,6 +53,10 @@ export default function UsersPage() {
     setFilters,
     pendingType,
     setPendingType,
+    rejectedType,
+    setRejectedType,
+    pendingSort,
+    setPendingSort,
     setPendingPage,
     setRejectedPage,
     refetch,
@@ -93,14 +97,12 @@ export default function UsersPage() {
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
 
   const [selectedRequest, setSelectedRequest] = useState<PendingRequest | null>(null);
   const [selectedRejectedRequest, setSelectedRejectedRequest] = useState<RejectedRequest | null>(null);
   const [selectedUser, setSelectedUser] = useState<ActiveUser | RejectedUser | null>(null);
   const [editingUser, setEditingUser] = useState<ActiveUser | null>(null);
   const [deletingUser, setDeletingUser] = useState<ActiveUser | null>(null);
-  const [feedbackStaff, setFeedbackStaff] = useState<FeedbackModalStaff | null>(null);
 
   // Extra filters collapse on phones; search, tabs, and registration stay visible.
   const [isMobileFiltersExpanded, setIsMobileFiltersExpanded] = useState(false);
@@ -219,21 +221,10 @@ export default function UsersPage() {
     await deleteUserApi(deletingUser.id);
   };
 
-  // ─── Feedback modal (S6-T6 revised) ────────────────────────────
-  // Double-click a CONDUCTOR or DRIVER row → open the Feedback modal.
-  // Other roles (COMMUTER, ADMIN) are ignored — the standalone admin
-  // "Feedback QR" module was removed; feedback review now lives here.
+  // Double-clicking an active user row opens the same details modal as
+  // the row's View Details action.
   const handleRowDoubleClick = (user: ActiveUser | RejectedUser): void => {
-    // Rejected rows don't have a role field — skip.
-    if (!('role' in user)) return;
-    const { id, role, name } = user as ActiveUser;
-    if (role !== 'CONDUCTOR' && role !== 'DRIVER') return;
-    setFeedbackStaff({ id, role, name });
-    setIsFeedbackModalOpen(true);
-  };
-  const handleCloseFeedbackModal = () => {
-    setIsFeedbackModalOpen(false);
-    setFeedbackStaff(null);
+    setSelectedUser(user);
   };
 
   // Suspend / Reactivate — toggles account_status via the API.
@@ -325,7 +316,7 @@ export default function UsersPage() {
     formData.append('contact_number', data.phoneNumber);
     formData.append('username', data.username);
     formData.append('applied_type', appliedType);
-    formData.append('id_image', data.idImageFile);
+    formData.append('id_image', await compressImage(data.idImageFile, IMAGE_COMPRESSION.document));
     // Same school fields student renewal sends.
     if (data.studentDetails) {
       formData.append('school_name', data.studentDetails.schoolName);
@@ -439,24 +430,44 @@ export default function UsersPage() {
 
   const selectFilterClasses = 'h-11 min-w-0 w-full rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 text-base text-white admin-light:text-slate-900 focus:outline-none focus:ring-1 focus:ring-[#62A0EA]/30 admin-light:focus:ring-[#1A5FB4]/30 scheme-dark admin-light:scheme-light md:w-auto md:text-sm';
 
+  // One "Register" menu for the account registration flows available here.
+  const renderRegisterMenu = (fullWidth: boolean) => (
+    <RowActionsMenu
+      label="Register an account"
+      menuWidth={248}
+      trigger={{
+        content: (
+          <>
+            <Plus size={16} aria-hidden="true" />
+            <span>Register</span>
+            <ChevronDown size={16} aria-hidden="true" />
+          </>
+        ),
+        className: (isOpen) => `${fullWidth ? 'flex w-full' : 'inline-flex'} h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold text-white shadow-lg shadow-[#62A0EA]/25 admin-light:shadow-[#1A5FB4]/25 transition-colors hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] [&>svg:last-child]:transition-transform ${isOpen ? 'bg-[#4A8BD4] admin-light:bg-[#164A8F] [&>svg:last-child]:rotate-180' : 'bg-[#62A0EA] admin-light:bg-[#1A5FB4]'}`,
+      }}
+      actions={[
+        { label: 'Register onsite', hint: 'Commuter at the counter, with valid ID', icon: UserPlus, onSelect: handleOpenRegisterModal },
+        { label: 'Register admin account', hint: 'Create a new admin account', icon: ShieldUser, onSelect: () => setIsAdminRegisterModalOpen(true) },
+      ]}
+    />
+  );
+
   // Search stays visible while tab-specific filters collapse on phones.
   const filterBar = (
     <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center">
       <div className="flex min-w-0 items-center gap-2 lg:w-64 lg:shrink-0">
         <SearchBar placeholder="Search users..." value={searchQuery} onChange={setSearchQuery} className="min-w-0 flex-1 [&_input]:h-11 [&_input]:text-base md:[&_input]:text-sm" />
-        {activeTab !== 'rejected' && (
-          <button
-            type="button"
-            onClick={() => setIsMobileFiltersExpanded((prev) => !prev)}
-            aria-expanded={isMobileFiltersExpanded}
-            aria-controls="user-management-filters"
-            className={`inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors md:hidden ${isMobileFiltersExpanded ? 'border-[#62A0EA]/40 admin-light:border-[#1A5FB4]/40 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4]' : 'border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white text-slate-300 admin-light:text-slate-700'}`}
-          >
-            <SlidersHorizontal size={16} aria-hidden="true" />
-            Filters
-            <ChevronUp size={14} className={isMobileFiltersExpanded ? '' : 'rotate-180'} aria-hidden="true" />
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => setIsMobileFiltersExpanded((prev) => !prev)}
+          aria-expanded={isMobileFiltersExpanded}
+          aria-controls="user-management-filters"
+          className={`inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors md:hidden ${isMobileFiltersExpanded ? 'border-[#62A0EA]/40 admin-light:border-[#1A5FB4]/40 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4]' : 'border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white text-slate-300 admin-light:text-slate-700'}`}
+        >
+          <SlidersHorizontal size={16} aria-hidden="true" />
+          Filters
+          <ChevronUp size={14} className={isMobileFiltersExpanded ? '' : 'rotate-180'} aria-hidden="true" />
+        </button>
       </div>
       <div
         id="user-management-filters"
@@ -504,10 +515,35 @@ export default function UsersPage() {
             </>
           )}
           {activeTab === 'pending' && (
+            <>
+              <select
+                value={pendingType}
+                onChange={(event) => setPendingType(event.target.value as typeof pendingType)}
+                aria-label="Filter pending registrations by commuter type"
+                className={selectFilterClasses}
+              >
+                <option value="">All Types</option>
+                <option value="REGULAR">Regular</option>
+                <option value="STUDENT">Student</option>
+                <option value="SENIOR">Senior Citizen</option>
+                <option value="PWD">PWD</option>
+              </select>
+              <select
+                value={pendingSort}
+                onChange={(event) => setPendingSort(event.target.value as typeof pendingSort)}
+                aria-label="Sort pending registrations"
+                className={selectFilterClasses}
+              >
+                <option value="oldest" className="bg-gray-800 admin-light:bg-white">Oldest</option>
+                <option value="recent" className="bg-gray-800 admin-light:bg-white">Recent</option>
+              </select>
+            </>
+          )}
+          {activeTab === 'rejected' && (
             <select
-              value={pendingType}
-              onChange={(event) => setPendingType(event.target.value as typeof pendingType)}
-              aria-label="Filter pending registrations by commuter type"
+              value={rejectedType}
+              onChange={(event) => setRejectedType(event.target.value as typeof rejectedType)}
+              aria-label="Filter rejected accounts by commuter type"
               className={`${selectFilterClasses} col-span-2`}
             >
               <option value="">All Types</option>
@@ -519,6 +555,9 @@ export default function UsersPage() {
           )}
         </div>
       </div>
+      {/* Phones: Register spans the filter column so the tab row above stays clean,
+          and collapses with the filters. */}
+      <div className={`${isMobileFiltersExpanded ? 'block' : 'hidden'} md:hidden`}>{renderRegisterMenu(true)}</div>
     </div>
   );
 
@@ -537,32 +576,16 @@ export default function UsersPage() {
             onChange={(id) => { setActiveTab(id); if (id === 'active') setSelectedUser(null); }}
             tabs={[
               { id: 'active', label: `Active ${activeRoleLabel}`, count: pagination?.total ?? activeUsers.length, icon: UserCheck },
-              { id: 'pending', label: 'Pending Verification', count: pendingTotal, icon: Users, accent: 'amber' },
-              { id: 'rejected', label: 'Rejected', count: rejectedTotal, icon: XCircle, accent: 'red' },
-              { id: 'discounts', label: 'Discount Applications', count: discountApplications.count, icon: RefreshCw, accent: 'amber' },
+              { id: 'pending', label: 'Pending Verification', count: pendingTotal, icon: Users },
+              { id: 'rejected', label: 'Rejected', count: rejectedTotal, icon: XCircle },
+              { id: 'discounts', label: 'Discount Applications', count: discountApplications.count, icon: RefreshCw },
             ]}
           />
         </div>
-        {/* One "Register" menu for the account registration flows available here. */}
-        <div className="ml-auto shrink-0 -translate-y-1">
-          <RowActionsMenu
-            label="Register an account"
-            menuWidth={248}
-            trigger={{
-              content: (
-                <>
-                  <Plus size={16} aria-hidden="true" />
-                  <span>Register</span>
-                  <ChevronDown size={16} aria-hidden="true" />
-                </>
-              ),
-              className: (isOpen) => `inline-flex h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold text-white shadow-lg shadow-[#62A0EA]/25 admin-light:shadow-[#1A5FB4]/25 transition-colors hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] [&>svg:last-child]:transition-transform ${isOpen ? 'bg-[#4A8BD4] admin-light:bg-[#164A8F] [&>svg:last-child]:rotate-180' : 'bg-[#62A0EA] admin-light:bg-[#1A5FB4]'}`,
-            }}
-            actions={[
-              { label: 'Register onsite', hint: 'Commuter at the counter, with valid ID', icon: UserPlus, onSelect: handleOpenRegisterModal },
-              { label: 'Register admin account', hint: 'Create a new admin account', icon: ShieldUser, onSelect: () => setIsAdminRegisterModalOpen(true) },
-            ]}
-          />
+        {/* Phones get Register inside each tab's collapsible filters instead
+            (filterBar, and the Discount Applications panel's own filters). */}
+        <div className="ml-auto hidden shrink-0 -translate-y-1 md:block">
+          {renderRegisterMenu(false)}
         </div>
       </div>
 
@@ -593,7 +616,7 @@ export default function UsersPage() {
           screen size, instead of a fixed height that either clips or
           leaves a gap (same approach as Remittance/Announcements). */}
       <div className="flex flex-1 min-h-0 flex-col">
-        {activeTab === 'discounts' ? <DiscountApplicationsPanel initialId={searchParams.get('applicationId') ?? undefined} onReviewed={discountApplications.refresh} /> : isLoading && !hasDataForActiveTab ? (
+        {activeTab === 'discounts' ? <DiscountApplicationsPanel initialId={searchParams.get('applicationId') ?? undefined} onReviewed={discountApplications.refresh} registerAction={renderRegisterMenu(true)} /> : isLoading && !hasDataForActiveTab ? (
           // First load of this tab — nothing on screen yet, so the full
           // card skeleton is the right call.
           <div className="h-full min-h-64 overflow-hidden rounded-lg">
@@ -684,12 +707,6 @@ export default function UsersPage() {
         isOpen={selectedRejectedRequest !== null}
         onClose={handleCloseRejectedDetails}
         request={selectedRejectedRequest}
-      />
-
-      <FeedbackModal
-        isOpen={isFeedbackModalOpen}
-        onClose={handleCloseFeedbackModal}
-        staff={feedbackStaff}
       />
 
       <SuspensionModal

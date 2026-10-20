@@ -11,7 +11,6 @@ import {
 } from '@/config/admin-nav';
 import { useSettingsDrawer } from '@/components/admin/ui/settings-drawer';
 import { AdminIdentity } from '@/components/admin/layout/admin-identity';
-import { AdminThemeToggle } from '@/components/admin/layout/admin-theme-toggle';
 import { useAdminTheme } from '@/contexts/admin-theme-context';
 import { useAdminNotifications, formatAdminBadgeCount } from '@/contexts/admin-notifications-context';
 
@@ -130,9 +129,8 @@ export function AdminBottomNav({ isMoreOpen, setIsMoreOpen, onSignOut }: AdminBo
           />
           <div className="absolute bottom-20 right-4 left-4 bg-[#1A2540] admin-light:bg-white border border-[#2A3A55] admin-light:border-[#E2E8F0] rounded-lg p-4 shadow-2xl z-50">
             <div className="-mx-1 mb-3 pb-3 border-b border-[#2A3A55] admin-light:border-[#E2E8F0]">
-              <div className="flex items-center justify-between gap-2 pr-1">
+              <div className="pr-1">
                 <AdminIdentity />
-                <AdminThemeToggle />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">

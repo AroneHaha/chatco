@@ -26,6 +26,7 @@ export interface RawRegistration {
   username: string;
   applied_type: AppliedType;
   id_image_url: string;
+  profile_image_url?: string | null;
   account_status: string;
   language_preference: string;
   // How many times this applicant's identity (email/contact) was previously
@@ -53,6 +54,8 @@ export interface PendingRegistration {
   commuterType: string;
   languagePreference: string;
   idImageUrl: string;
+  /** Public R2 profile photo, if the applicant has one; null shows the default icon. */
+  profileImageUrl: string | null;
   status: "Pending Verification";
   birthdate: string;
   gender: string;
@@ -75,6 +78,8 @@ export interface RegistrationListFilters {
   appliedType?: AppliedType | "";
   /** Look up one specific pending registration by its User.id (e.g. from a notification deep-link). */
   id?: string;
+  /** Pending list order by submission time; the backend defaults to "oldest" (FIFO). */
+  sort?: "recent" | "oldest";
   perPage?: number;
   page?: number;
 }
@@ -152,6 +157,7 @@ function mapToViewModel(r: RawRegistration): PendingRegistration {
     commuterType: TYPE_LABELS[r.applied_type] ?? "Regular",
     languagePreference: r.language_preference === "Filipino" ? "Filipino" : "English",
     idImageUrl: r.id_image_url,
+    profileImageUrl: r.profile_image_url?.trim() || null,
     status: "Pending Verification",
     birthdate: r.birthdate,
     gender: r.gender,
@@ -174,6 +180,7 @@ function buildQuery(filters: RegistrationListFilters): string {
   if (filters.search?.trim()) params.set("search", filters.search.trim());
   if (filters.appliedType) params.set("applied_type", filters.appliedType);
   if (filters.id) params.set("id", filters.id);
+  if (filters.sort) params.set("sort", filters.sort);
   params.set("per_page", String(filters.perPage ?? 10));
   params.set("page", String(filters.page ?? 1));
   return `?${params.toString()}`;

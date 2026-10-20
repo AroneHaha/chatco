@@ -517,6 +517,8 @@ export default function AnnouncementsPage() {
                     filters on the Lost & Found admin page. */}
                 <AdminDatePicker
                   accent="blue"
+                  popover
+                  yearNavigation
                   ariaLabel="Filter updates by an exact date"
                   value={selectedDate}
                   onChange={handleSelectedDateChange}

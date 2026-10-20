@@ -1572,12 +1572,37 @@ class TransactionService
     }
 
     /**
-     * Generate a unique transaction_id (e.g., "TXN-ABC123XYZ").
-     * 20 chars max to fit the varchar(30) column with room.
+     * Unambiguous characters only (no 0/O or 1/I), so a code read aloud or
+     * retyped from a printed receipt can't be misread.
+     */
+    private const TRANSACTION_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+    private const TRANSACTION_CODE_LENGTH = 8;
+
+    /** IDs handed out in this request but possibly not inserted yet (a group payment creates several). */
+    private array $issuedTransactionIds = [];
+
+    /**
+     * Generate a unique transaction_id: "TXN-" + the year (app timezone,
+     * Asia/Manila) + an 8-character code, e.g. "TXN-2026JH34217A" — 16 chars
+     * in the varchar(30) primary key. 32^8 ≈ 1.1 trillion codes per year; a
+     * primary-key lookup guards the rare collision instead of letting the
+     * insert fail. IDs issued before this format keep their old shape.
      */
     private function generateTransactionId(): string
     {
-        return 'TXN-'.strtoupper(Str::random(15));
+        $last = strlen(self::TRANSACTION_CODE_ALPHABET) - 1;
+        do {
+            $code = '';
+            for ($i = 0; $i < self::TRANSACTION_CODE_LENGTH; $i++) {
+                $code .= self::TRANSACTION_CODE_ALPHABET[random_int(0, $last)];
+            }
+            $id = 'TXN-'.now()->year.$code;
+        } while (isset($this->issuedTransactionIds[$id]) || Transaction::whereKey($id)->exists());
+
+        $this->issuedTransactionIds[$id] = true;
+
+        return $id;
     }
 
     /**

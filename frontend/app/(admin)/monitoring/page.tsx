@@ -12,7 +12,10 @@ import {
 import { useFleetPoll } from '@/lib/admin/services/monitoring.service';
 import {
   useMonitoringData,
+  SOS_HISTORY_PER_PAGE,
   type DemandZone,
+  type SafetyHistorySort,
+  type SosHistoryOutcome,
 } from './data/data-monitoring';
 import { SkeletonMetric, SkeletonTable, SkeletonMap } from '@/components/admin/ui/skeleton';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
@@ -70,24 +73,32 @@ export default function MonitoringPage() {
 
   const [overspeedPage, setOverspeedPage] = useState(1);
   const [filterOverspeedDate, setFilterOverspeedDate] = useState('');
-  // Live fleet data (real API, 5s poll)
-  const { fleet, isLoading, lastFetchedAt, error, refetch } = useFleetPoll(5000);
-  // Real SOS alerts (polls /api/admin/sos every 5s) + real overspeed feed.
-  // The hook exposes its own error/loading state — we surface it as a banner
-  // so SOS feed failures don't silently render as an empty active-alerts list.
-  const { data, error: sosError, refetch: refetchSos, acknowledgeSos, resolveSos } = useMonitoringData(overspeedPage, filterOverspeedDate);
-
-  const sosAlerts = data.sosAlerts;
-  const sosHistory = data.sosHistory;
+  const [historySort, setHistorySort] = useState<SafetyHistorySort>('recent');
 
   // Pagination States
   const [sosPage, setSosPage] = useState(1);
   const ROWS_PER_PAGE = 10;
 
-  // Filter States
+  // Filter States — SOS history date/status are sent to the server, which
+  // filters and paginates in SQL.
   const [filterSosDate, setFilterSosDate] = useState('');
-  const [filterSosStatus, setFilterSosStatus] = useState<'ALL' | 'CANCELLED' | 'RESOLVED'>('ALL');
+  const [filterSosStatus, setFilterSosStatus] = useState<SosHistoryOutcome>('ALL');
   const [filterBreakOnly, setFilterBreakOnly] = useState(false);
+
+  // Live fleet data (real API, 5s poll)
+  const { fleet, isLoading, lastFetchedAt, error, refetch } = useFleetPoll(5000);
+  // Real SOS alerts (polls /api/admin/sos every 5s) + real overspeed feed.
+  // The hook exposes its own error/loading state — we surface it as a banner
+  // so SOS feed failures don't silently render as an empty active-alerts list.
+  const { data, error: sosError, refetch: refetchSos, acknowledgeSos, resolveSos } = useMonitoringData(
+    overspeedPage,
+    filterOverspeedDate,
+    historySort,
+    { page: sosPage, date: filterSosDate, outcome: filterSosStatus },
+  );
+
+  const sosAlerts = data.sosAlerts;
+  const sosHistory = data.sosHistory;
   const [fleetSearch, setFleetSearch] = useState('');
 
   // The two history logs share one panel and switch by tab — each keeps its
@@ -114,7 +125,12 @@ export default function MonitoringPage() {
     if (resolvedSosId) {
       setHighlightedResolvedSosId(resolvedSosId);
       setHistoryTab('sos');
+      // A just-closed alert is among the newest, so it lands on the first
+      // unfiltered "Recent first" page of the server-paginated history.
       setFilterSosDate('');
+      setFilterSosStatus('ALL');
+      setSosPage(1);
+      setHistorySort('recent');
     }
     if (overspeedId) {
       setHighlightedOverspeedId(overspeedId);
@@ -123,6 +139,7 @@ export default function MonitoringPage() {
       // date filter/page so it's guaranteed to be on the page it lands on.
       setFilterOverspeedDate('');
       setOverspeedPage(1);
+      setHistorySort('recent');
     }
     router.replace('/monitoring');
     // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately mount-only: reacting to `router`/`searchParams` would re-fire after router.replace() strips the params.
@@ -204,32 +221,31 @@ export default function MonitoringPage() {
   const handleConfirmSos = (alertId: string) => { void resolveSos(alertId); };
   const handleAcknowledgeSos = (alertId: string) => { void acknowledgeSos(alertId); };
 
-  const filteredSosHistory = useMemo(() => sosHistory.filter((log) =>
-    (!filterSosDate || log.triggeredDate === filterSosDate)
-    && (filterSosStatus === 'ALL' || log.status === filterSosStatus)
-  ), [filterSosDate, filterSosStatus, sosHistory]);
   const filteredOverspeedHistory = data.overspeedHistory;
 
-  // Both history feeds re-poll every 5s and can shrink under the viewer (an SOS
-  // gets resolved, a date filter narrows). The page number is therefore clamped
-  // to the valid range on every render rather than trusted as-is — otherwise
-  // the "Next" guard (page === totalPages) never matches an out-of-range page
-  // and you can walk forward through empty tables indefinitely.
-  const totalSosPages = Math.max(1, Math.ceil(filteredSosHistory.length / ROWS_PER_PAGE));
+  // Both history feeds re-poll every 5s and can shrink under the viewer (a
+  // filter narrows). The page number is therefore clamped to the valid range
+  // on every render rather than trusted as-is — otherwise the "Next" guard
+  // (page === totalPages) never matches an out-of-range page and you can walk
+  // forward through empty tables indefinitely.
+  const totalSosPages = Math.max(1, data.sosHistoryLastPage);
   const safeSosPage = Math.min(Math.max(sosPage, 1), totalSosPages);
   const goToSosPage = (page: number) => setSosPage(Math.min(Math.max(page, 1), totalSosPages));
-  const currentSosData = filteredSosHistory.slice((safeSosPage - 1) * ROWS_PER_PAGE, safeSosPage * ROWS_PER_PAGE);
+  const currentSosData = sosHistory;
+  // SOS history is paginated on the server: when the result set shrinks
+  // below the requested page, request the last page that still has rows.
+  useEffect(() => {
+    if (sosPage > data.sosHistoryLastPage) setSosPage(Math.max(1, data.sosHistoryLastPage));
+  }, [sosPage, data.sosHistoryLastPage]);
 
   useEffect(() => {
     if (!highlightedResolvedSosId || focusedResolvedSosRef.current === highlightedResolvedSosId || historyTab !== 'sos') return;
-    const index = filteredSosHistory.findIndex((alert) => alert.id === highlightedResolvedSosId);
-    if (index >= 0) setSosPage(Math.floor(index / ROWS_PER_PAGE) + 1);
     const row = document.getElementById(`sos-history-${highlightedResolvedSosId}`);
     if (row) {
       row.scrollIntoView({ behavior: 'smooth', block: 'center' });
       focusedResolvedSosRef.current = highlightedResolvedSosId;
     }
-  }, [highlightedResolvedSosId, filteredSosHistory, safeSosPage, historyTab, isLoading]);
+  }, [highlightedResolvedSosId, sosHistory, historyTab, isLoading]);
 
   const totalOverspeedPages = Math.max(1, data.overspeedLastPage);
   const safeOverspeedPage = Math.min(Math.max(overspeedPage, 1), totalOverspeedPages);
@@ -489,35 +505,51 @@ export default function MonitoringPage() {
       </section>
 
       <section aria-labelledby="history-heading" className="mb-8 mt-5 min-w-0 overflow-hidden rounded-xl border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-5 pb-3 pt-5">
-          <div>
-            <h2 id="history-heading" className="text-base font-semibold text-white admin-light:text-slate-900">Safety history</h2>
-            <p className="mt-1 text-xs text-slate-400 admin-light:text-slate-500">Closed emergency alerts and recorded overspeeding incidents.</p>
+        <div className="px-5 pb-3 pt-5">
+          <h2 id="history-heading" className="text-base font-semibold text-white admin-light:text-slate-900">Safety history</h2>
+          <p className="mt-1 text-xs text-slate-400 admin-light:text-slate-500">Closed emergency alerts and recorded overspeeding incidents.</p>
+        </div>
+        {/* Filters sit in the tab row because they filter the active tab.
+            Below xl they drop to a toolbar under the tabs, keeping the tab
+            underline on the row's border. */}
+        <div className="border-[#1E2D45] admin-light:border-[#E2E8F0] xl:flex xl:items-center xl:justify-between xl:gap-4 xl:border-b xl:px-5">
+          <div role="tablist" aria-label="History logs" className="flex gap-5 self-stretch border-b border-[#1E2D45] admin-light:border-[#E2E8F0] px-5 xl:items-end xl:border-b-0 xl:px-0" onKeyDown={(event) => {
+            const next = event.key === 'Home' ? 'sos' : event.key === 'End' ? 'overspeed' : event.key === 'ArrowRight' || event.key === 'ArrowLeft' ? (isSosTab ? 'overspeed' : 'sos') : null;
+            if (!next) return;
+            event.preventDefault();
+            setHistoryTab(next);
+            event.currentTarget.querySelector<HTMLButtonElement>(`[id="history-tab-${next}"]`)?.focus();
+          }}>
+            <button type="button" role="tab" id="history-tab-sos" aria-controls="history-panel-sos" aria-selected={isSosTab} tabIndex={isSosTab ? 0 : -1} onClick={() => setHistoryTab('sos')} className={`flex items-center gap-2 border-b-2 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4] ${isSosTab ? 'border-[#62A0EA] admin-light:border-[#1A5FB4] text-white admin-light:text-slate-900' : 'border-transparent text-slate-400 admin-light:text-slate-500 hover:text-slate-200 admin-light:hover:text-slate-700'}`}><Archive size={15} />SOS History<span className="ml-1 text-xs text-slate-500 tabular-nums">{data.sosHistoryTotal}</span></button>
+            <button type="button" role="tab" id="history-tab-overspeed" aria-controls="history-panel-overspeed" aria-selected={!isSosTab} tabIndex={!isSosTab ? 0 : -1} onClick={() => setHistoryTab('overspeed')} className={`flex items-center gap-2 border-b-2 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4] ${!isSosTab ? 'border-red-400 text-white admin-light:text-slate-900' : 'border-transparent text-slate-400 admin-light:text-slate-500 hover:text-slate-200 admin-light:hover:text-slate-700'}`}><Gauge size={15} />Overspeeding<span className="ml-1 text-xs text-slate-500 tabular-nums">{data.overspeedTotal}</span></button>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <AdminDatePicker key={isSosTab ? 'sos-date' : 'overspeed-date'} triggerClassName="w-40 min-h-9 py-2" accent={isSosTab ? 'blue' : 'red'} align="right" ariaLabel={isSosTab ? 'Filter SOS history by date' : 'Filter overspeeding history by date'} value={isSosTab ? filterSosDate : filterOverspeedDate} onChange={(next) => { if (isSosTab) { setFilterSosDate(next); setSosPage(1); } else { setFilterOverspeedDate(next); setOverspeedPage(1); } }} />
+          <div className="flex flex-wrap items-center gap-2 border-b border-[#1E2D45] admin-light:border-[#E2E8F0] px-5 py-3 xl:border-b-0 xl:px-0 xl:py-1.5">
             {isSosTab && (
-              <select aria-label="Filter SOS history by status" value={filterSosStatus} onChange={(event) => { setFilterSosStatus(event.target.value as typeof filterSosStatus); setSosPage(1); }} className="min-h-9 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 py-2 text-xs text-slate-300 admin-light:text-slate-700 outline-none focus-visible:border-[#62A0EA] admin-light:focus-visible:border-[#1A5FB4] focus-visible:ring-2 focus-visible:ring-[#62A0EA]/30 admin-light:focus-visible:ring-[#1A5FB4]/30 [color-scheme:dark]">
+              <select aria-label="Filter SOS history by status" value={filterSosStatus} onChange={(event) => { setFilterSosStatus(event.target.value as SosHistoryOutcome); setSosPage(1); }} className="min-h-9 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 py-2 text-xs text-slate-300 admin-light:text-slate-700 outline-none focus-visible:border-[#62A0EA] admin-light:focus-visible:border-[#1A5FB4] focus-visible:ring-2 focus-visible:ring-[#62A0EA]/30 admin-light:focus-visible:ring-[#1A5FB4]/30 [color-scheme:dark] admin-light:[color-scheme:light]">
                 <option value="ALL">All statuses</option>
                 <option value="CANCELLED">Cancelled</option>
                 <option value="RESOLVED">Resolved</option>
               </select>
             )}
+            <AdminDatePicker key={isSosTab ? 'sos-date' : 'overspeed-date'} popover yearNavigation triggerClassName="w-40 min-h-9 py-2" accent={isSosTab ? 'blue' : 'red'} align="right" ariaLabel={isSosTab ? 'Filter SOS history by date' : 'Filter overspeeding history by date'} value={isSosTab ? filterSosDate : filterOverspeedDate} onChange={(next) => { if (isSosTab) { setFilterSosDate(next); setSosPage(1); } else { setFilterOverspeedDate(next); setOverspeedPage(1); } }} />
+            <select
+              aria-label="Sort safety history"
+              value={historySort}
+              onChange={(event) => {
+                setHistorySort(event.target.value as SafetyHistorySort);
+                setSosPage(1);
+                setOverspeedPage(1);
+              }}
+              className="min-h-9 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 py-2 text-xs text-slate-300 admin-light:text-slate-700 outline-none focus-visible:border-[#62A0EA] admin-light:focus-visible:border-[#1A5FB4] focus-visible:ring-2 focus-visible:ring-[#62A0EA]/30 admin-light:focus-visible:ring-[#1A5FB4]/30 [color-scheme:dark] admin-light:[color-scheme:light]"
+            >
+              <option value="recent">Recent first</option>
+              <option value="oldest">Oldest first</option>
+            </select>
           </div>
-        </div>
-        <div role="tablist" aria-label="History logs" className="flex gap-5 border-b border-[#1E2D45] admin-light:border-[#E2E8F0] px-5" onKeyDown={(event) => {
-          const next = event.key === 'Home' ? 'sos' : event.key === 'End' ? 'overspeed' : event.key === 'ArrowRight' || event.key === 'ArrowLeft' ? (isSosTab ? 'overspeed' : 'sos') : null;
-          if (!next) return;
-          event.preventDefault();
-          setHistoryTab(next);
-          event.currentTarget.querySelector<HTMLButtonElement>(`[id="history-tab-${next}"]`)?.focus();
-        }}>
-          <button type="button" role="tab" id="history-tab-sos" aria-controls="history-panel-sos" aria-selected={isSosTab} tabIndex={isSosTab ? 0 : -1} onClick={() => setHistoryTab('sos')} className={`flex items-center gap-2 border-b-2 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4] ${isSosTab ? 'border-[#62A0EA] admin-light:border-[#1A5FB4] text-white admin-light:text-slate-900' : 'border-transparent text-slate-400 admin-light:text-slate-500 hover:text-slate-200 admin-light:hover:text-slate-700'}`}><Archive size={15} />SOS History<span className="ml-1 text-xs text-slate-500 tabular-nums">{filteredSosHistory.length}</span></button>
-          <button type="button" role="tab" id="history-tab-overspeed" aria-controls="history-panel-overspeed" aria-selected={!isSosTab} tabIndex={!isSosTab ? 0 : -1} onClick={() => setHistoryTab('overspeed')} className={`flex items-center gap-2 border-b-2 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4] ${!isSosTab ? 'border-red-400 text-white admin-light:text-slate-900' : 'border-transparent text-slate-400 admin-light:text-slate-500 hover:text-slate-200 admin-light:hover:text-slate-700'}`}><Gauge size={15} />Overspeeding<span className="ml-1 text-xs text-slate-500 tabular-nums">{data.overspeedTotal}</span></button>
         </div>
 
         <div role="tabpanel" id={`history-panel-${historyTab}`} aria-labelledby={`history-tab-${historyTab}`}>
-          {isSosTab ? filteredSosHistory.length === 0 ? (
+          {isSosTab ? currentSosData.length === 0 ? (
             <div className="px-5 py-12 text-center"><Archive size={24} aria-hidden="true" className="mx-auto mb-3 text-slate-500" /><p className="text-sm font-medium text-slate-300 admin-light:text-slate-700">{filterSosDate || filterSosStatus !== 'ALL' ? 'No SOS alerts match these filters' : 'No SOS history yet'}</p><p className="mt-1 text-xs text-slate-500">Resolved and cancelled alerts are recorded here.</p></div>
           ) : (
             <>
@@ -545,7 +577,7 @@ export default function MonitoringPage() {
                   </tbody>
                 </table>
               </div>
-              <HistoryPagination page={safeSosPage} pages={totalSosPages} start={(safeSosPage - 1) * ROWS_PER_PAGE + 1} end={Math.min(safeSosPage * ROWS_PER_PAGE, filteredSosHistory.length)} count={filteredSosHistory.length} onChange={goToSosPage} />
+              <HistoryPagination page={safeSosPage} pages={totalSosPages} start={(safeSosPage - 1) * SOS_HISTORY_PER_PAGE + 1} end={(safeSosPage - 1) * SOS_HISTORY_PER_PAGE + currentSosData.length} count={data.sosHistoryTotal} onChange={goToSosPage} />
             </>
           ) : filteredOverspeedHistory.length === 0 ? (
             <div className="px-5 py-12 text-center"><Gauge size={24} aria-hidden="true" className="mx-auto mb-3 text-slate-500" /><p className="text-sm font-medium text-slate-300 admin-light:text-slate-700">No overspeeding incidents{filterOverspeedDate ? ' for this date' : ' recorded'}</p><p className="mt-1 text-xs text-slate-500">Speed violations will appear here when detected.</p></div>

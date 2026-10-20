@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents, Circle, Tooltip } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { mdiJeepney } from "@mdi/js";
+import { COMMUTER_PIN_SIZE, commuterPinHtml } from "@/components/maps/commuter-pin";
 import { formatElapsedMinutes } from "@/lib/utils/display";
 import { useRouteGeometry } from "@/hooks/use-route-geometry";
 import DynamicRouteViewport from "@/components/maps/dynamic-route-viewport";
@@ -360,11 +362,9 @@ export default function AdminCommuterMap({
 
   const commuterIcon = useMemo(() => new L.DivIcon({
     className: "custom-commuter-icon",
-    html: `<div style="position: relative; width: 20px; height: 20px;">
-              <div style="position: absolute; inset: 0; background: #1A5FB4; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 10px rgba(26,95,180,0.6); z-index: 2;"></div>
-              <div style="position: absolute; inset: -5px; background: rgba(26,95,180,0.3); border-radius: 50%; animation: admin-map-marker-pulse 2s infinite; z-index: 1;"></div>
-            </div>`,
-    iconSize: [20, 20], iconAnchor: [10, 10],
+    html: commuterPinHtml("#1A5FB4"),
+    iconSize: [COMMUTER_PIN_SIZE, COMMUTER_PIN_SIZE],
+    iconAnchor: [COMMUTER_PIN_SIZE / 2, COMMUTER_PIN_SIZE / 2],
   }), []);
 
   const getJeepneyIcon = useMemo(() => (
@@ -387,8 +387,8 @@ export default function AdminCommuterMap({
     return new L.DivIcon({
       className: "custom-jeepney-icon",
       html: `<div style="width: 44px; height: 44px; background: #071A2E; border-radius: 50%; border: ${borderStyle}; opacity: ${opacity}; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 12px rgba(0,0,0,0.5), 0 0 8px ${markerColor}40;">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${markerColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H18.75m-7.5-10.5H6.375c-.621 0-1.125.504-1.125 1.125v6.75m12-6.75h-3.375c-.621 0-1.125.504-1.125 1.125v6.75m0 0H5.625m12-6.75h-1.5m-1.5 0h-1.5" />
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="${markerColor}" aria-hidden="true">
+                  <path d="${mdiJeepney}" />
                 </svg>
               </div>`,
       iconSize: [44, 44], iconAnchor: [22, 22], popupAnchor: [0, -25],
@@ -397,15 +397,10 @@ export default function AdminCommuterMap({
 
   const hailingCommuterIcon = useMemo(() => new L.DivIcon({
     className: "custom-hailing-icon",
-    html: `
-      <div style="position: relative; width: 24px; height: 24px;">
-        <div style="position: absolute; inset: 0; background: #FF6D3A; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 10px rgba(255,109,58,0.6); z-index: 2;"></div>
-        <div style="position: absolute; inset: -5px; background: rgba(255,109,58,0.3); border-radius: 50%; animation: admin-map-marker-pulse 2s infinite; z-index: 1;"></div>
-      </div>
-    `,
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
-    popupAnchor: [0, -15],
+    html: commuterPinHtml("#FF6D3A"),
+    iconSize: [COMMUTER_PIN_SIZE, COMMUTER_PIN_SIZE],
+    iconAnchor: [COMMUTER_PIN_SIZE / 2, COMMUTER_PIN_SIZE / 2],
+    popupAnchor: [0, -(COMMUTER_PIN_SIZE / 2 + 4)],
   }), []);
 
   if (!isDomReady) return <div className="w-full h-full bg-[#050F1A] rounded-xl" />;
@@ -636,11 +631,6 @@ export default function AdminCommuterMap({
         .leaflet-tooltip-bottom:before { border-bottom-color: #071A2E !important; }
         .leaflet-tooltip-left:before { border-left-color: #071A2E !important; }
         .leaflet-tooltip-right:before { border-right-color: #071A2E !important; }
-
-        @keyframes admin-map-marker-pulse {
-          0% { transform: scale(1); opacity: 1; }
-          100% { transform: scale(2.5); opacity: 0; }
-        }
       `}</style>
     </div>
   );

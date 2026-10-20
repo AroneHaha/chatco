@@ -283,6 +283,8 @@ export function EditUserModal({ isOpen, onClose, onSave, editingUser }: EditUser
             <div>
               <label className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">Date of Birth</label>
               <AdminDatePicker
+                popover
+                yearNavigation
                 value={formData.dateOfBirth}
                 onChange={(value) => setFormData(prev => ({ ...prev, dateOfBirth: value }))}
                 ariaLabel="Date of Birth"

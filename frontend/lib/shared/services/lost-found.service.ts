@@ -37,6 +37,7 @@
  */
 
 import { api, ApiError, RequestCancelledError } from "@/lib/api/client";
+import { compressImage, compressImages } from "@/lib/utils/compress-image";
 
 // ─── Backend status enums ────────────────────────────────────────────
 
@@ -805,7 +806,7 @@ export async function replacePhoto(itemId: string, photoId: string, file: File):
 /** Shared multipart POST for the add/replace photo endpoints (see addPhoto). */
 async function uploadItemPhoto(url: string, file: File, fallbackMessage: string): Promise<LostFoundItem> {
   const formData = new FormData();
-  formData.append("image", file);
+  formData.append("image", await compressImage(file));
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -979,7 +980,7 @@ export async function claim(
   formData.append("proof", params.proof);
   if (params.contact) formData.append("claimant_contact", params.contact);
   if (params.email) formData.append("claimant_email", params.email);
-  for (const image of params.images ?? []) formData.append("images[]", image);
+  for (const image of await compressImages(params.images ?? [])) formData.append("images[]", image);
 
   try {
     const res = await fetch(`/api/lost-found/${itemId}/claim`, {

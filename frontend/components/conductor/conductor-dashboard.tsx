@@ -63,16 +63,10 @@ export default function ConductorDashboard() {
   }
 
   if (shiftStatus === "empty") {
-    return (
-      <div className="min-h-screen bg-[#050F1A] flex items-center justify-center px-6">
-        <div className="max-w-sm text-center">
-          <p className="text-white font-semibold text-base">No active shift</p>
-          <p className="text-white/40 text-sm mt-2">
-            Start a shift from unit verification to access the dashboard.
-          </p>
-        </div>
-      </div>
-    );
+    // The effect above is already redirecting to unit verification. Keep the
+    // dashboard hidden until navigation completes instead of flashing an
+    // empty-shift message on a page the conductor should not be seeing.
+    return <ConductorDashboardSkeleton />;
   }
 
   if (shiftStatus === "error" || txnStatus === "error") {

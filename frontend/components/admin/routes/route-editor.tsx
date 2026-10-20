@@ -5,6 +5,7 @@ import { CirclePlus, GitBranch, ListPlus, Loader2, LocateFixed, MapPin, Plus, Sa
 import { MapContainer, Marker, Polyline, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { AdminDatePicker } from "@/components/admin/ui/admin-date-picker";
 import type { FarePoint } from "@/lib/admin/services/fare-point.service";
 import {
   listRouteVersions,
@@ -105,7 +106,9 @@ export default function RouteEditor({ route, farePoints, onRouteChanged, onEditF
   const [waypoints, setWaypoints] = useState<RouteCoordinate[]>([]);
   const [previewGeometry, setPreviewGeometry] = useState<RouteCoordinate[]>([]);
   const [notes, setNotes] = useState("");
-  const [expiresAt, setExpiresAt] = useState("");
+  const [expiresAtDate, setExpiresAtDate] = useState("");
+  const [expiresAtTime, setExpiresAtTime] = useState("");
+  const expiresAt = expiresAtDate && expiresAtTime ? `${expiresAtDate}T${expiresAtTime}` : "";
   const [versions, setVersions] = useState<RouteVersion[]>([]);
   const [isRouting, setIsRouting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -292,6 +295,14 @@ export default function RouteEditor({ route, farePoints, onRouteChanged, onEditF
       setError("Save the current draft before publishing.");
       return;
     }
+    if (expiresAtDate && !expiresAtTime) {
+      setError("Choose a time for the temporary detour expiration.");
+      return;
+    }
+    if (expiresAt && new Date(expiresAt).getTime() <= Date.now()) {
+      setError("Choose a future date and time for the temporary detour expiration.");
+      return;
+    }
     setIsPublishing(true);
     setError(null);
     try {
@@ -302,7 +313,8 @@ export default function RouteEditor({ route, farePoints, onRouteChanged, onEditF
       const publishedMessage = expiresAt
         ? "Temporary detour published. The previous route will return automatically after expiration."
         : "Route published. Tracking and hailing will update within one minute.";
-      setExpiresAt("");
+      setExpiresAtDate("");
+      setExpiresAtTime("");
       setHasSavedDraft(false);
       await onRouteChanged();
       setVersions(await listRouteVersions(route.id));
@@ -469,12 +481,41 @@ export default function RouteEditor({ route, farePoints, onRouteChanged, onEditF
 
           <div>
             <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-white/35 admin-light:text-slate-500">Optional detour expiration</label>
-            <input type="datetime-local" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} className="w-full rounded-xl border border-white/10 admin-light:border-[#CBD5E1] bg-[#050F1A] admin-light:bg-[#F8FAFC] px-3 py-2.5 text-xs text-white admin-light:text-slate-900 outline-none focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4]" />
+            <div className="space-y-2">
+              <AdminDatePicker
+                value={expiresAtDate}
+                onChange={(date) => {
+                  setExpiresAtDate(date);
+                  if (!date) setExpiresAtTime("");
+                }}
+                ariaLabel="Detour expiration date"
+                clearLabel="Clear detour expiration"
+                disabled={isPublishing}
+                min={new Date().toLocaleDateString('en-CA')}
+                popover
+                yearNavigation
+                className="w-full"
+                triggerClassName="h-10 w-full text-xs"
+              />
+              {expiresAtDate && (
+                <div className="flex items-center gap-2">
+                  <label htmlFor="detour-expiration-time" className="shrink-0 text-xs text-white/50 admin-light:text-slate-600">Time</label>
+                  <input
+                    id="detour-expiration-time"
+                    type="time"
+                    value={expiresAtTime}
+                    onChange={(event) => setExpiresAtTime(event.target.value)}
+                    disabled={isPublishing}
+                    className="h-10 min-w-0 flex-1 rounded-xl border border-white/10 admin-light:border-[#CBD5E1] bg-[#050F1A] admin-light:bg-[#F8FAFC] px-3 text-xs text-white admin-light:text-slate-900 outline-none focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4] disabled:opacity-60 scheme-dark admin-light:scheme-light"
+                  />
+                </div>
+              )}
+            </div>
           </div>
 
           <button type="button" onClick={publish} disabled={isPublishing || !hasSavedDraft} className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-500 disabled:opacity-40">
-            {isPublishing ? <Loader2 className="animate-spin" size={16} /> : expiresAt ? <CirclePlus size={16} /> : <Send size={16} />}
-            {expiresAt ? "Publish Temporary Detour" : "Publish Permanent Route"}
+            {isPublishing ? <Loader2 className="animate-spin" size={16} /> : expiresAtDate ? <CirclePlus size={16} /> : <Send size={16} />}
+            {expiresAtDate ? "Publish Temporary Detour" : "Publish Permanent Route"}
           </button>
         </div>
       </div>

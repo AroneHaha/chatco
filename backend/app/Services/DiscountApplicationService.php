@@ -119,8 +119,13 @@ class DiscountApplicationService
     {
         $profile = $user->commuterProfile;
         abort_unless($profile, 404, 'Commuter profile not found.');
+        // One User instance throughout, so the user row and its activeSuspension
+        // load once instead of again for $profile->user and the locked copy.
+        $profile->setRelation('user', $user);
         $this->assertEligible($profile);
-        abort_unless($this->state($user)['can_submit'], 409, 'You already have an active discount request.');
+        // Cheap pre-check before the R2 upload; the locked re-check below is
+        // the real guard.
+        abort_if($this->hasBlockingRequest($profile), 409, 'You already have an active discount request.');
         // Local workflow debugging intentionally discards any proof payload,
         // so a selected file can never fall through to the remote R2 disk.
         $path = isset($data['document']) && ! app()->environment('local')
@@ -128,6 +133,10 @@ class DiscountApplicationService
         try {
             DB::transaction(function () use ($user, $profile, $data, $path) {
                 $locked = CommuterProfile::whereKey($profile->id)->lockForUpdate()->firstOrFail();
+                // Re-read only the suspension under the lock (the user row
+                // itself cannot change eligibility).
+                $user->unsetRelation('activeSuspension');
+                $locked->setRelation('user', $user);
                 $this->assertEligible($locked);
                 $active = $locked->discountApplications()->outstanding()->lockForUpdate()->first();
                 $resubmission = isset($data['application_id']);
@@ -160,7 +169,24 @@ class DiscountApplicationService
             throw $error;
         }
 
-        return $this->state($user->fresh());
+        // Submitting changes only the application, never the user or profile,
+        // so the loaded models are reused instead of $user->fresh() re-reading
+        // the user, profile and suspension.
+        return $this->state($user);
+    }
+
+    /**
+     * True when an open request stops a new submission — anything outstanding
+     * except an application sent back for correction. Same rule as state()'s
+     * can_submit, minus the eligibility part the caller has already asserted.
+     */
+    private function hasBlockingRequest(CommuterProfile $profile): bool
+    {
+        $outstanding = $profile->discountApplications()->outstanding()
+            ->orderBy('submitted_at')->first(['request_type', 'status']);
+
+        return $outstanding !== null
+            && ! ($outstanding->request_type === 'APPLICATION' && $outstanding->status === 'NEEDS_CORRECTION');
     }
 
     /**

@@ -13,6 +13,7 @@ use App\Models\CommuterProfile;
 use App\Models\User;
 use App\Rules\PhilippineMobileNumber;
 use App\Rules\StrongPassword;
+use App\Rules\UniqueContactNumber;
 use App\Services\ActivityLogService;
 use App\Services\AuthService;
 use App\Services\EmailVerificationService;
@@ -209,14 +210,14 @@ class AuthController extends Controller
      * else's inbox can't reach the admin approval queue.
      *
      * The blockers that would fail the eventual registration are checked FIRST
-     * — rejection cooldown, address already in use — so the applicant learns
+     * — rejection cooldown, email or contact number already in use — so the applicant learns
      * about them here rather than after filling in the rest of the form.
      */
     public function sendRegistrationCode(Request $request): JsonResponse
     {
         $request->validate([
             'email' => ['required', 'string', 'email:rfc', 'max:255'],
-            'contact_number' => ['nullable', 'string', new PhilippineMobileNumber],
+            'contact_number' => ['nullable', 'string', new PhilippineMobileNumber, new UniqueContactNumber],
         ]);
 
         $email = $this->normalizeEmail($request->email);
