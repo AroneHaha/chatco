@@ -49,7 +49,6 @@ export default function Footer({ compact = false }: { compact?: boolean }) {
               <li><Link href="/#how-it-works" className={linkClass}>How It Works</Link></li>
               <li><Link href="/#features" className={linkClass}>Commuter Features</Link></li>
               <li><Link href="/#platform" className={linkClass}>Why CHATCO</Link></li>
-              <li><Link href="/#safety" className={linkClass}>Safety & Support</Link></li>
               <li><Link href="/#smart-hailing" className={linkClass}>Smart Hailing</Link></li>
             </ul>
           </nav>
@@ -71,7 +70,6 @@ export default function Footer({ compact = false }: { compact?: boolean }) {
           <nav aria-label="Footer help and policies">
             <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider mb-4">Help & Policies</h2>
             <ul className="space-y-2 text-sm">
-              <li><Link href="/#about" className={linkClass}>About CHATCO</Link></li>
               <li><Link href="/#contact" className={linkClass}>Contact & Support</Link></li>
               <li><Link href="/privacy-policy" className={linkClass}>Privacy Policy</Link></li>
               <li><Link href="/terms-of-service" className={linkClass}>Terms of Service</Link></li>
