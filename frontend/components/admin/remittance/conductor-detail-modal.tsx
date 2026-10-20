@@ -337,6 +337,7 @@ export function ConductorDetailModal({ isOpen, onClose, record }: ConductorDetai
             <AdminDatePicker
               accent="blue"
               popover
+              yearNavigation
               ariaLabel="Filter shifts by date"
               value={remitDate}
               onChange={(next) => { setRemitDate(next); setRemitPage(1); }}

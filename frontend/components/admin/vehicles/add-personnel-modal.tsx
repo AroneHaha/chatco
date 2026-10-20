@@ -416,6 +416,8 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
             Birthday <span className="text-red-400 admin-light:text-red-600">*</span>
           </label>
           <AdminDatePicker
+            popover
+            yearNavigation
             value={formData.birthday}
             onChange={(value) => setFormData(prev => ({ ...prev, birthday: value }))}
             ariaLabel="Birthday"

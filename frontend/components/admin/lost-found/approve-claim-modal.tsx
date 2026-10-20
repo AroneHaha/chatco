@@ -108,9 +108,12 @@ export function ApproveClaimModal({ isOpen, claimantName, onClose, onConfirm }: 
             </span>
             <AdminDatePicker
               accent="blue"
+              popover
+              yearNavigation
               ariaLabel="Pickup date"
               value={date}
               onChange={(next) => setDate(next && next < todayISO() ? '' : next)}
+              min={todayISO()}
               triggerClassName="h-10 w-full"
               className="w-full"
             />
