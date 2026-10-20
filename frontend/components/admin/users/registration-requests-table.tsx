@@ -2,11 +2,12 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { Eye } from 'lucide-react';
-import { Badge } from '@/components/admin/ui/badge';
 import { DataTable } from '@/components/admin/ui/data-table';
+import { UserAvatar } from '@/components/admin/ui/user-avatar';
 import { TablePagination } from '@/components/admin/ui/table-pagination';
 import { RowActionsMenu } from '@/components/admin/ui/row-actions-menu';
 import type { PendingRequest } from '@/app/(admin)/users/data/users-data';
+import { CommuterTypeLabel } from './commuter-type-label';
 import type { RegistrationPagination } from '@/lib/admin/services/registration.service';
 
 function formatAppliedDate(value: string): string {
@@ -62,17 +63,23 @@ export function RegistrationRequestsTable({
   const total = pagination?.total ?? requests.length;
   const columns = [
     {
+      // Unlabelled photo column, same as the Active tab: the applicant's
+      // profile photo via next/image, or the default icon when none.
+      key: 'profileImageUrl',
+      label: '',
+      headerClassName: 'w-12 pr-0',
+      cellClassName: 'w-12 pr-0',
+      cardLead: true,
+      render: (value: string | null, request: PendingRequest) => (
+        <UserAvatar src={value} alt={`Profile photo of ${request.name}`} className="h-9 w-9" iconClassName="h-4 w-4" sizes="36px" />
+      ),
+    },
+    {
       key: 'name',
       label: 'Applicant',
       cellClassName: 'min-w-[10rem]',
       render: (value: string, request: PendingRequest) => (
         <div className="flex min-w-0 items-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={request.idImageUrl}
-            alt=""
-            className="h-9 w-9 flex-shrink-0 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] object-cover"
-          />
           <div className="min-w-0">
             <p className="whitespace-nowrap font-medium text-white admin-light:text-slate-900">{value}</p>
             <p className="whitespace-nowrap text-xs text-slate-500">{request.email}</p>
@@ -84,7 +91,7 @@ export function RegistrationRequestsTable({
       key: 'commuterType',
       label: 'Type',
       cellClassName: 'whitespace-nowrap',
-      render: (value: string) => <span className="text-sm text-slate-300 admin-light:text-slate-700">{value}</span>,
+      render: (value: string) => <CommuterTypeLabel type={value} />,
     },
     {
       key: 'createdAt',
@@ -110,7 +117,13 @@ export function RegistrationRequestsTable({
       key: 'status',
       label: 'Status',
       cellClassName: 'whitespace-nowrap',
-      render: () => <Badge variant="warning">Pending Verification</Badge>,
+      // Dot + label, same treatment as the Active tab's Status column.
+      render: () => (
+        <span className="inline-flex items-center gap-1.5">
+          <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />
+          <span className="text-xs font-medium text-slate-300 admin-light:text-slate-700">Pending Verification</span>
+        </span>
+      ),
     },
     {
       key: 'actions',

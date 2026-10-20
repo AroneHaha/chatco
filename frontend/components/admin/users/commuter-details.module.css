@@ -1,105 +1,133 @@
-.details {
+/* ─── Commuter Details: identity rail ────────────────────────────────
+ * A recessed left rail (one tone darker than the modal panel) holds the
+ * person (photo, name, status, dates) with the account actions pinned at
+ * its foot. The record (personal, contact, ID) reads on the right. Below
+ * 640px the rail becomes a top band and the actions drop to the bottom.
+ * The sheet cancels the Modal body's p-4 / sm:p-6 so the rail sits flush
+ * against the panel edge. */
+.sheet {
   display: grid;
-  gap: 24px;
+  grid-template-areas: "rail" "record" "actions";
   min-width: 0;
+  margin: -16px;
 }
 
-.detailHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  padding-right: 32px;
-  padding-bottom: 20px;
+.rail {
+  grid-area: rail;
+  display: grid;
+  align-content: start;
+  gap: 20px;
+  min-width: 0;
+  padding: 20px 56px 20px 20px;
   border-bottom: 1px solid #2a3a55;
+  border-radius: 11px 11px 0 0;
+  background: #131c2e;
 }
-
-.detailHeader > span { flex-shrink: 0; }
-.detailTitle {
-  margin-bottom: 8px;
-  font-size: 24px;
-  font-weight: 700;
-  line-height: 1.3;
-  color: #f1f5f9;
+.railIdentity { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.railIdentityText { min-width: 0; }
+.kicker {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / .45);
 }
-.detailName {
-  font-size: 22px;
+.personName {
+  margin-top: 4px;
+  font-size: 18px;
   font-weight: 600;
   line-height: 1.3;
   color: #f1f5f9;
   overflow-wrap: anywhere;
 }
-.detailStatus {
-  display: inline-flex;
+.personMeta {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px 10px;
   margin-top: 8px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   color: #cbd5e1;
 }
-
-.detailLayout {
-  display: grid;
-  gap: 24px;
-  min-width: 0;
+.personMeta > span { display: inline-flex; align-items: center; gap: 6px; }
+.personMeta > span + span::before {
+  content: "";
+  width: 1px;
+  height: 12px;
+  margin-right: 4px;
+  background: #2a3a55;
 }
-.detailSections { display: grid; gap: 20px; min-width: 0; }
-.detailSectionTitle {
-  margin-bottom: 16px;
-  font-size: 16px;
-  font-weight: 600;
-  color: #f1f5f9;
+.timeline { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.timeline dt, .field dt {
+  font-size: 11px;
+  line-height: 1.5;
+  color: #94a3b8;
 }
-.detailSectionDivider { padding-top: 20px; border-top: 1px solid #2a3a55; }
-.detailFields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.detailFields > div, .detailContact > div { min-width: 0; }
-.detailFields dt, .detailContact dt { font-size: 11px; line-height: 1.5; color: #94a3b8; }
-.detailFields dd, .detailContact dd {
-  margin-top: 4px;
+.timeline dd, .field dd {
+  margin-top: 2px;
   font-size: 13px;
   font-weight: 500;
   line-height: 1.5;
   color: #f1f5f9;
   overflow-wrap: anywhere;
 }
-.detailContact { display: grid; gap: 12px; }
-.detailContact > div { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 12px; }
-.detailContact dd { margin-top: 0; }
-.detailDates { margin-top: 20px; }
+.timeline dd.muted, .field dd.muted { font-weight: 400; color: #64748b; }
 
-.detailDocument { min-width: 0; padding-top: 20px; border-top: 1px solid #2a3a55; }
-.detailImage {
+.record { grid-area: record; display: grid; align-content: start; gap: 24px; min-width: 0; padding: 20px; }
+.recordSection + .recordSection { padding-top: 24px; border-top: 1px solid #2a3a55; }
+.sectionTitle {
+  margin-bottom: 14px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+.fieldGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 20px; }
+.field { min-width: 0; }
+.fieldRows { display: grid; gap: 10px; }
+.fieldRows > div { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 12px; align-items: baseline; }
+.fieldRows dd { margin-top: 0; }
+
+
+.idRow { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; }
+.idThumb {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 150px;
-  padding: 12px;
+  width: 200px;
+  max-width: 100%;
+  height: 128px;
+  padding: 8px;
   border: 1px solid #2a3a55;
   border-radius: 8px;
   background: #111a2b;
+  transition: border-color 150ms;
 }
-.detailImage img { width: 100%; max-height: 288px; object-fit: contain; border-radius: 4px; }
-.detailImageLink { display: inline-block; margin-top: 12px; font-size: 12px; color: #99c1f1; }
-.detailImageLink:hover { color: white; text-decoration: underline; }
-.detailImageEmpty {
-  padding: 32px 16px;
+.idThumb:hover { border-color: #62a0ea; }
+.idThumb img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 4px; }
+.idLink { font-size: 12px; font-weight: 500; color: #99c1f1; }
+.idLink:hover { color: white; text-decoration: underline; }
+.idEmpty {
+  width: 200px;
+  max-width: 100%;
+  padding: 28px 16px;
   border: 1px dashed #2a3a55;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 12px;
   text-align: center;
   color: #94a3b8;
 }
 
-.detailActions {
+.sheetActions {
+  grid-area: actions;
   display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 12px;
-  padding-top: 20px;
+  gap: 10px;
+  padding: 16px 20px 20px;
   border-top: 1px solid #2a3a55;
 }
-.detailActions button {
+.sheetActions button {
   flex: 1;
   min-height: 44px;
   padding: 10px 16px;
@@ -107,20 +135,84 @@
   border-radius: 6px;
   font-size: 13px;
   font-weight: 500;
-  transition: background-color 150ms, border-color 150ms;
+  transition: background-color 150ms, border-color 150ms, transform 100ms;
 }
-.detailEdit { background: #62a0ea; color: white; }
-.detailEdit:hover { background: #4a8bd4; }
-.detailActions .detailSuspend { border-color: rgb(248 113 113 / .25); background: rgb(248 113 113 / .1); color: #f87171; }
-.detailSuspend:hover { background: rgb(248 113 113 / .2); }
-.detailActions .detailReactivate { border-color: rgb(98 160 234 / .25); background: rgb(98 160 234 / .1); color: #99c1f1; }
-.detailReactivate:hover { background: rgb(98 160 234 / .2); }
-.detailActions button:focus-visible, .detailImageLink:focus-visible { outline: 2px solid #62a0ea; outline-offset: 3px; }
+.sheetActions button:active { transform: scale(.98); }
+.actionEdit { background: #62a0ea; color: white; }
+.actionEdit:hover { background: #4a8bd4; }
+.sheetActions .actionSuspend { border-color: #dc2626; background: #dc2626; color: white; }
+.sheetActions .actionSuspend:hover { border-color: #b91c1c; background: #b91c1c; }
+.sheetActions .actionReactivate { border-color: #059669; background: #059669; color: white; }
+.sheetActions .actionReactivate:hover { border-color: #047857; background: #047857; }
+/* Read-only sheets (Rejected Account Details): a solid neutral Close. */
+.sheetActions .actionClose { border-color: #2a3a55; background: #1a2540; color: #f1f5f9; }
+.sheetActions .actionClose:hover { border-color: #3a4d6e; background: #22304f; }
+
+/* Review Discount Application: solid approve, the decision stack in the rail
+   foot, the last reviewer's note and the proof beside its facts. */
+.sheetActions .actionApprove { border-color: #047857; background: #047857; color: white; }
+.sheetActions .actionApprove:hover { border-color: #065f46; background: #065f46; }
+/* Disabled reads as solid and muted, never as a faded see-through button. */
+.sheetActions button:disabled, .sheetActions button:disabled:hover { cursor: not-allowed; border-color: #2a3a55; background: #1e293b; color: #64748b; }
+.decisionActions { flex-direction: column; }
+.decisionActions button { flex: 0 0 auto; }
+.decisionOutcome { font-size: 12px; line-height: 1.5; color: #cbd5e1; }
+.decisionLabel { font-size: 12px; font-weight: 500; color: #cbd5e1; }
+.decisionError { font-size: 12px; line-height: 1.5; color: #fca5a5; }
+.reviewNote { font-size: 14px; line-height: 1.6; color: #fcd34d; overflow-wrap: anywhere; }
+.proofRow { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px 20px; }
+.proofFacts { flex: 1 1 180px; min-width: 0; }
+.pdfThumb { flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; color: #99c1f1; text-decoration: none; }
+
+/* Rejected Account Details: previous attempts. */
+.attemptSummary { font-size: 14px; font-weight: 500; line-height: 1.5; color: #fcd34d; }
+.attemptList { display: grid; gap: 10px; max-height: 160px; margin-top: 12px; overflow-y: auto; }
+.attemptList li {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: baseline;
+  font-size: 12px;
+  color: #cbd5e1;
+}
+.attemptList li > span:first-child { font-weight: 600; color: #f1f5f9; }
+.attemptList li > span:nth-child(2) { overflow-wrap: anywhere; }
+.attemptList time { color: #94a3b8; white-space: nowrap; }
+.idLink { cursor: pointer; }
+
+.sheetActions button:focus-visible, .idThumb:focus-visible, .idLink:focus-visible { outline: 2px solid #62a0ea; outline-offset: 3px; }
 
 @media (min-width: 640px) {
-  .detailLayout { grid-template-columns: minmax(0, 1fr) 220px; }
-  .detailDocument { padding-top: 0; padding-left: 20px; border-top: 0; border-left: 1px solid #2a3a55; }
-  .detailActions button { flex: 0 1 auto; padding-inline: 20px; }
+  .sheet {
+    grid-template-columns: 236px minmax(0, 1fr);
+    grid-template-rows: 1fr auto;
+    grid-template-areas: "rail record" "actions record";
+    margin: -24px;
+  }
+  .rail {
+    gap: 24px;
+    padding: 28px 24px 24px;
+    border-right: 1px solid #2a3a55;
+    border-bottom: 0;
+    border-radius: 11px 0 0 0;
+  }
+  .railIdentity { flex-direction: column; align-items: center; gap: 16px; text-align: center; }
+  .personMeta { justify-content: center; }
+  .personName { font-size: 20px; }
+  .timeline { grid-template-columns: minmax(0, 1fr); padding-top: 20px; border-top: 1px solid #2a3a55; }
+  .record { gap: 28px; padding: 28px; }
+  /* The first section heading shares the top row with the Modal's close button. */
+  .record > :first-child { padding-right: 36px; }
+  .recordSection + .recordSection { padding-top: 28px; }
+  .sheetActions {
+    flex-direction: column;
+    padding: 0 24px 24px;
+    border-top: 0;
+    border-right: 1px solid #2a3a55;
+    border-radius: 0 0 0 11px;
+    background: #131c2e;
+  }
+  .sheetActions button { flex: 0 0 auto; }
 }
 
 @media (min-width: 1024px) {
@@ -230,33 +322,46 @@
  * the same scope (`data-admin-theme="light"` on an ancestor, set only on
  * light-ready pages) is matched here. Same light palette as the rest of the
  * admin: slate text, #E2E8F0 hairlines, CHATCO Blue #1A5FB4 accents. */
-:global([data-admin-theme="light"]) .detailHeader,
-:global([data-admin-theme="light"]) .detailSectionDivider,
-:global([data-admin-theme="light"]) .detailDocument,
-:global([data-admin-theme="light"]) .detailActions { border-color: #e2e8f0; }
-:global([data-admin-theme="light"]) .detailTitle,
-:global([data-admin-theme="light"]) .detailName,
-:global([data-admin-theme="light"]) .detailSectionTitle,
-:global([data-admin-theme="light"]) .detailFields dd,
-:global([data-admin-theme="light"]) .detailContact dd { color: #0f172a; }
-:global([data-admin-theme="light"]) .detailStatus { color: #334155; }
-:global([data-admin-theme="light"]) .detailFields dt,
-:global([data-admin-theme="light"]) .detailContact dt,
-:global([data-admin-theme="light"]) .detailImageEmpty { color: #64748b; }
-:global([data-admin-theme="light"]) .detailImage { border-color: #e2e8f0; background: #f8fafc; }
-:global([data-admin-theme="light"]) .detailImageEmpty { border-color: #cbd5e1; }
-:global([data-admin-theme="light"]) .detailImageLink { color: #1a5fb4; }
-:global([data-admin-theme="light"]) .detailImageLink:hover { color: #164a8f; }
-:global([data-admin-theme="light"]) .detailEdit { background: #1a5fb4; }
-:global([data-admin-theme="light"]) .detailEdit:hover { background: #164a8f; }
-:global([data-admin-theme="light"]) .detailActions .detailSuspend { color: #dc2626; }
-:global([data-admin-theme="light"]) .detailActions .detailReactivate { border-color: rgb(26 95 180 / .25); background: rgb(26 95 180 / .08); color: #1a5fb4; }
-:global([data-admin-theme="light"]) .detailReactivate:hover { background: rgb(26 95 180 / .14); }
-:global([data-admin-theme="light"]) .detailActions button:focus-visible,
-:global([data-admin-theme="light"]) .detailImageLink:focus-visible { outline-color: #1a5fb4; }
+:global([data-admin-theme="light"]) .rail,
+:global([data-admin-theme="light"]) .sheetActions { border-color: #e2e8f0; background: #f8fafc; }
+:global([data-admin-theme="light"]) .recordSection + .recordSection { border-color: #e2e8f0; }
+:global([data-admin-theme="light"]) .personMeta > span + span::before { background: #cbd5e1; }
+:global([data-admin-theme="light"]) .kicker { color: #64748b; }
+:global([data-admin-theme="light"]) .personName,
+:global([data-admin-theme="light"]) .timeline dd,
+:global([data-admin-theme="light"]) .field dd { color: #0f172a; }
+:global([data-admin-theme="light"]) .timeline dd.muted,
+:global([data-admin-theme="light"]) .field dd.muted { color: #94a3b8; }
+:global([data-admin-theme="light"]) .personMeta { color: #334155; }
+:global([data-admin-theme="light"]) .timeline dt,
+:global([data-admin-theme="light"]) .field dt,
+:global([data-admin-theme="light"]) .sectionTitle,
+:global([data-admin-theme="light"]) .idEmpty { color: #64748b; }
+:global([data-admin-theme="light"]) .idThumb { border-color: #e2e8f0; background: #ffffff; }
+:global([data-admin-theme="light"]) .idThumb:hover { border-color: #1a5fb4; }
+:global([data-admin-theme="light"]) .idEmpty { border-color: #cbd5e1; }
+:global([data-admin-theme="light"]) .idLink { color: #1a5fb4; }
+:global([data-admin-theme="light"]) .idLink:hover { color: #164a8f; }
+:global([data-admin-theme="light"]) .actionEdit { background: #1a5fb4; }
+:global([data-admin-theme="light"]) .actionEdit:hover { background: #164a8f; }
+:global([data-admin-theme="light"]) .sheetActions .actionClose { border-color: #cbd5e1; background: #ffffff; color: #0f172a; }
+:global([data-admin-theme="light"]) .decisionOutcome,
+:global([data-admin-theme="light"]) .decisionLabel { color: #334155; }
+:global([data-admin-theme="light"]) .decisionError { color: #b91c1c; }
+:global([data-admin-theme="light"]) .sheetActions button:disabled { border-color: #e2e8f0; background: #f1f5f9; color: #94a3b8; }
+:global([data-admin-theme="light"]) .reviewNote { color: #92400e; }
+:global([data-admin-theme="light"]) .pdfThumb { color: #1a5fb4; }
+:global([data-admin-theme="light"]) .sheetActions .actionClose:hover { background: #f1f5f9; }
+:global([data-admin-theme="light"]) .attemptSummary { color: #b45309; }
+:global([data-admin-theme="light"]) .attemptList li { color: #334155; }
+:global([data-admin-theme="light"]) .attemptList li > span:first-child { color: #0f172a; }
+:global([data-admin-theme="light"]) .attemptList time { color: #64748b; }
+:global([data-admin-theme="light"]) .sheetActions button:focus-visible,
+:global([data-admin-theme="light"]) .idThumb:focus-visible,
+:global([data-admin-theme="light"]) .idLink:focus-visible { outline-color: #1a5fb4; }
 
 @media (min-width: 640px) {
-  :global([data-admin-theme="light"]) .detailDocument { border-left-color: #e2e8f0; }
+  :global([data-admin-theme="light"]) .timeline { border-color: #e2e8f0; }
 }
 
 @media (min-width: 1024px) {

@@ -1,9 +1,11 @@
 // components/admin/users/review-request-modal.tsx
 'use client';
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
+import { useId, useState } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
-import { AlertTriangle, LoaderCircle, ZoomIn, X, IdCard, User, FileText, GraduationCap, ExternalLink, ChevronDown, Check } from 'lucide-react';
+import { UserAvatar } from '@/components/admin/ui/user-avatar';
+import sheet from './commuter-details.module.css';
+import { AlertTriangle, LoaderCircle, ZoomIn, X, IdCard, User, FileText, ExternalLink, Check } from 'lucide-react';
 import type { PendingRequest } from '@/app/(admin)/users/data/users-data';
 import { DISCOUNT_CATEGORIES, discountStatusLabel, educationSummary, schoolYearSummary, type DiscountApplication, type RenewalStatus } from '@/lib/shared/services/student-renewal.service';
 
@@ -40,11 +42,6 @@ const OTHER_REASON = 'Other';
 // Same limit as the backend review rule for a renewal reason.
 const RENEWAL_REASON_MAX = 500;
 
-// Statuses without an entry fall back to neutral, never to success.
-const RENEWAL_STATUS_COLOR: Partial<Record<RenewalStatus, string>> = {
-  PENDING: 'text-[#8CB9F0] admin-light:text-[#1A5FB4]', NEEDS_CORRECTION: 'text-amber-300 admin-light:text-amber-700', APPROVED: 'text-emerald-400 admin-light:text-emerald-700', REJECTED: 'text-red-400 admin-light:text-red-600',
-};
-
 // The three outcomes of a renewal review, each with what it does to the
 // commuter so the admin reads the consequence before choosing, not after.
 const RENEWAL_DECISIONS = [
@@ -55,98 +52,10 @@ const RENEWAL_DECISIONS = [
 
 type RenewalDecision = typeof RENEWAL_DECISIONS[number]['value'];
 
-/**
- * Select-styled picker for the renewal decision.
- *
- * The list opens upward, over the sections above it, so choosing never
- * changes the modal's height. It cannot open downward: the picker sits at
- * the bottom of the modal's scrolling body, which would clip it. Keyboard
- * handling follows RowActionsMenu (arrows, Home/End, Esc returns focus to
- * the trigger).
- */
-function RenewalDecisionSelect({ value, onChange, options }: { value: RenewalDecision | ''; onChange: (value: RenewalDecision) => void; options: ReadonlyArray<{ value: RenewalDecision; label: string; outcome: string; confirm: string }> }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
-  const listId = useId();
-  const selected = options.find((option) => option.value === value);
-
-  // The list can open above the visible part of the scrolled modal, so bring
-  // it into view and hand focus to the current choice (or the first one).
-  useEffect(() => {
-    const list = listRef.current;
-    if (!isOpen || !list) return;
-    list.scrollIntoView({ block: 'nearest' });
-    (list.querySelector<HTMLButtonElement>('[aria-selected="true"]') ?? list.querySelector<HTMLButtonElement>('[role="option"]'))?.focus();
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const onPointerDown = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setIsOpen(false);
-    };
-    document.addEventListener('mousedown', onPointerDown);
-    return () => document.removeEventListener('mousedown', onPointerDown);
-  }, [isOpen]);
-
-  const close = () => { setIsOpen(false); triggerRef.current?.focus(); };
-
-  const onListKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const items = Array.from(listRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? []);
-    const index = items.indexOf(document.activeElement as HTMLButtonElement);
-    const focusAt = (i: number) => items[(i + items.length) % items.length]?.focus();
-
-    if (event.key === 'Escape') { event.preventDefault(); close(); }
-    else if (event.key === 'Tab') setIsOpen(false);
-    else if (event.key === 'ArrowDown') { event.preventDefault(); focusAt(index + 1); }
-    else if (event.key === 'ArrowUp') { event.preventDefault(); focusAt(index - 1); }
-    else if (event.key === 'Home') { event.preventDefault(); focusAt(0); }
-    else if (event.key === 'End') { event.preventDefault(); focusAt(items.length - 1); }
-  };
-
-  return (
-    <div ref={rootRef} className="relative">
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => setIsOpen((open) => !open)}
-        aria-label={`Decision: ${selected?.label ?? 'not selected'}`}
-        aria-haspopup="listbox"
-        aria-expanded={isOpen}
-        aria-controls={isOpen ? listId : undefined}
-        className={`flex w-full items-center justify-between gap-3 rounded-md border bg-[#0E1628] admin-light:bg-[#F8FAFC] px-3 py-2.5 text-left text-sm transition-colors focus:outline-none focus:ring-1 focus:ring-[#62A0EA] admin-light:focus:ring-[#1A5FB4] ${isOpen ? 'border-[#62A0EA] admin-light:border-[#1A5FB4]' : 'border-[#1E2D45] admin-light:border-[#E2E8F0]'}`}
-      >
-        <span className={selected ? 'font-medium text-white admin-light:text-slate-900' : 'text-slate-400 admin-light:text-slate-500'}>{selected?.label ?? 'Select a decision'}</span>
-        <ChevronDown size={16} aria-hidden="true" className={`shrink-0 text-slate-400 admin-light:text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
-
-      {isOpen && (
-        <div ref={listRef} id={listId} role="listbox" aria-label="Decision" onKeyDown={onListKeyDown} className="absolute inset-x-0 bottom-full z-10 mb-1 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#111A2B] admin-light:bg-white p-1 shadow-[0_12px_32px_rgba(0,0,0,0.45)]">
-          {options.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              role="option"
-              aria-selected={option.value === value}
-              onClick={() => { onChange(option.value); close(); }}
-              className="flex w-full items-start gap-3 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-[#172238] admin-light:hover:bg-[#F1F5F9] focus:bg-[#172238] admin-light:focus:bg-[#F1F5F9] focus:outline-none"
-            >
-              <span className="min-w-0 flex-1">
-                <span className={`block text-sm font-medium ${option.value === 'REJECTED' ? 'text-red-400 admin-light:text-red-600' : 'text-white admin-light:text-slate-900'}`}>{option.label}</span>
-                <span className="mt-0.5 block text-xs leading-relaxed text-slate-400 admin-light:text-slate-500">{option.outcome}</span>
-              </span>
-              {option.value === value && <Check size={16} aria-hidden="true" className="mt-0.5 shrink-0 text-[#62A0EA] admin-light:text-[#1A5FB4]" />}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* The chosen outcome keeps its consequence on screen. */}
-      {selected && <p className="mt-2 text-sm text-slate-400 admin-light:text-slate-500">{selected.outcome}</p>}
-    </div>
-  );
-}
+// Rail status dot; unknown statuses fall back to neutral, never to success.
+const DISCOUNT_STATUS_DOT: Partial<Record<RenewalStatus, string>> = {
+  PENDING: 'bg-amber-400', NEEDS_CORRECTION: 'bg-amber-400', APPROVED: 'bg-emerald-400', REJECTED: 'bg-red-400',
+};
 
 interface ReviewRequestModalProps {
   isOpen: boolean;
@@ -159,15 +68,21 @@ interface ReviewRequestModalProps {
    * registration. Anything but a PENDING one is shown read-only. */
   renewal?: DiscountApplication | null;
   errorMessage?: string;
+  /** The modal opened from the table row while the signed document link is
+   * still being fetched: show a placeholder and hold the decision buttons. */
+  documentLoading?: boolean;
 }
 
-export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReject, isProcessing = false, renewal = null, errorMessage }: ReviewRequestModalProps) {
+export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReject, isProcessing = false, renewal = null, errorMessage, documentLoading = false }: ReviewRequestModalProps) {
   const [selectedReason, setSelectedReason] = useState('');
   const [customReason, setCustomReason] = useState('');
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
   const [showApproveConfirm, setShowApproveConfirm] = useState(false);
   const [isImageExpanded, setIsImageExpanded] = useState(false);
   const [decision, setDecision] = useState<RenewalDecision | ''>('');
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const confirmTitleId = useId();
+  const confirmBodyId = useId();
   const rejectReasonId = useId();
 
   // Reset internal state whenever the modal is closed or a different
@@ -288,11 +203,266 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
     </section>
   );
 
+  // Full-size image lightbox — sits above the review modal (z-60 vs the
+  // modal's z-50) so it isn't clipped by the panel's own scroll area.
+  const lightbox = isImageExpanded && (
+    <div
+      className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80"
+      onClick={() => setIsImageExpanded(false)}
+    >
+      <button
+        type="button"
+        onClick={() => setIsImageExpanded(false)}
+        className="absolute top-4 right-4 rounded-md border border-[#2A3A55] bg-[#131C2E] p-2 text-slate-200 transition-colors hover:bg-[#1A2540] hover:text-white"
+        aria-label="Close full-size image"
+      >
+        <X size={22} />
+      </button>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={request.idImageUrl}
+        alt={isDiscountRequest ? 'Uploaded supporting document (full size)' : 'Uploaded ID (full size)'}
+        className="max-w-full max-h-full object-contain rounded-md shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      />
+    </div>
+  );
+
+  // Discount applications and student renewals: the identity-rail layout
+  // shared with Commuter Details and Rejected Account Details. The person and
+  // the request's timeline sit in the rail with the decision at its foot; the
+  // proof and the account details it is checked against fill the record.
+  if (isDiscountRequest) {
+    const category = DISCOUNT_CATEGORIES[renewal.requested_type];
+    const selectedDecision = decisions.find((option) => option.value === decision);
+    const reasons = isStudentProof ? RENEWAL_REASONS : REJECTION_REASONS;
+    const chooseDecision = (value: RenewalDecision) => { setDecision(value); setSelectedReason(''); setCustomReason(''); };
+    // Cancelling an approval returns the rail to its three buttons; a
+    // correction or rejection keeps its chosen reason for another try.
+    const closeConfirm = () => { setConfirmOpen(false); if (decision === 'APPROVED') setDecision(''); };
+    const confirmClass = decision === 'APPROVED' ? sheet.actionApprove : decision === 'REJECTED' ? sheet.actionSuspend : sheet.actionEdit;
+    const personal = [
+      { label: 'First name', value: request.firstName },
+      { label: 'Middle name', value: request.middleName },
+      { label: 'Last name', value: request.surname },
+      { label: 'Birthdate', value: request.birthdate ? formatDate(request.birthdate) : null },
+      { label: 'Gender', value: request.gender },
+    ];
+
+    return (
+      <Modal adminThemed isOpen={isOpen} onClose={() => { if (!isProcessing) onClose(); }} maxWidth="max-w-md sm:max-w-3xl">
+        <div className={sheet.sheet}>
+          <aside className={sheet.rail} aria-label="Commuter">
+            <div className={sheet.railIdentity}>
+              <UserAvatar src={request.profileImageUrl} alt={`Profile photo of ${request.name}`} className="h-14 w-14 sm:h-22 sm:w-22" iconClassName="h-6 w-6 sm:h-9 sm:w-9" sizes="(min-width: 640px) 88px, 56px" />
+              <div className={sheet.railIdentityText}>
+                <h2 className={sheet.kicker}>{readOnly ? (isApplication ? 'Application details' : 'Renewal details') : (isApplication ? 'Review discount application' : 'Review renewal')}</h2>
+                <p className={sheet.personName}>{request.name}</p>
+                <p className={sheet.personMeta}>
+                  <span>
+                    <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${DISCOUNT_STATUS_DOT[renewal.status] ?? 'bg-slate-500'}`} />
+                    {discountStatusLabel(renewal)}
+                  </span>
+                  <span>{isApplication ? `Wants ${category}` : 'Student renewal'}</span>
+                </p>
+              </div>
+            </div>
+
+            <dl className={sheet.timeline}>
+              <div><dt>Submitted</dt><dd>{formatDate(renewal.submitted_at)}, {formatTime(renewal.submitted_at)}</dd></div>
+              {renewal.revision > 1 && <div><dt>Attempt</dt><dd>Resubmission {renewal.revision - 1}</dd></div>}
+              {renewal.cycle_year !== null && <div><dt>Renewal cycle</dt><dd>{renewal.cycle_year}</dd></div>}
+              {renewal.correction_due_at && (
+                <div>
+                  <dt>Correction deadline</dt>
+                  <dd>{new Date(renewal.correction_due_at).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Manila' })} (PH time)</dd>
+                </div>
+              )}
+            </dl>
+          </aside>
+
+          <div className={sheet.record}>
+            {/* What the previous reviewer told the commuter, read before re-checking. */}
+            {renewal.reason && (
+              <section className={sheet.recordSection}>
+                <h3 className={sheet.sectionTitle}>Note from the last review</h3>
+                <p className={sheet.reviewNote}>{renewal.reason}</p>
+              </section>
+            )}
+
+            <section className={sheet.recordSection}>
+              <h3 className={sheet.sectionTitle}>{isStudentProof ? 'Enrollment proof' : 'Supporting document'}</h3>
+              <div className={sheet.proofRow}>
+                {documentLoading ? (
+                  <p role="status" className={sheet.idEmpty}>Loading document…</p>
+                ) : !request.idImageUrl ? (
+                  <p className={sheet.idEmpty}>No supporting document was attached.</p>
+                ) : documentIsPdf ? (
+                  // A PDF cannot be previewed inline, so it opens in a new tab.
+                  <a href={request.idImageUrl} target="_blank" rel="noreferrer" className={`${sheet.idThumb} ${sheet.pdfThumb}`}>
+                    <FileText size={26} aria-hidden="true" />
+                    <span>Open PDF</span>
+                    <ExternalLink size={14} aria-hidden="true" />
+                  </a>
+                ) : (
+                  <button type="button" onClick={() => setIsImageExpanded(true)} className={`${sheet.idThumb} cursor-zoom-in`} aria-label="View the supporting document full size">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={request.idImageUrl} alt="" />
+                  </button>
+                )}
+                <dl className={`${sheet.fieldRows} ${sheet.proofFacts}`}>
+                  <div className={sheet.field}><dt>Category</dt><dd>{category}</dd></div>
+                  {isStudentProof && <>
+                    <div className={sheet.field}><dt>School</dt><dd>{renewal.school_name || 'Not provided'}</dd></div>
+                    <div className={sheet.field}><dt>Level</dt><dd>{educationSummary(renewal)}</dd></div>
+                    <div className={sheet.field}><dt>Year / term</dt><dd>{schoolYearSummary(renewal)}</dd></div>
+                  </>}
+                </dl>
+              </div>
+            </section>
+
+            <section className={sheet.recordSection}>
+              <h3 className={sheet.sectionTitle}>Personal information</h3>
+              <dl className={sheet.fieldGrid}>
+                {personal.map(detail => (
+                  <div key={detail.label} className={sheet.field}>
+                    <dt>{detail.label}</dt>
+                    <dd className={detail.value ? undefined : sheet.muted}>{detail.value || 'Not provided'}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+
+            <section className={sheet.recordSection}>
+              <h3 className={sheet.sectionTitle}>Contact and account</h3>
+              <dl className={sheet.fieldRows}>
+                <div className={sheet.field}><dt>Username</dt><dd className={request.username ? undefined : sheet.muted}>{request.username || 'Not provided'}</dd></div>
+                <div className={sheet.field}><dt>Email</dt><dd>{request.email}</dd></div>
+                <div className={sheet.field}><dt>Phone number</dt><dd>{request.phoneNumber}</dd></div>
+              </dl>
+            </section>
+          </div>
+
+          {/* The decision sits at the foot of the rail. Choosing an outcome
+              shows what it does (and the reason field when one is sent); the
+              second button confirms it, so nothing happens on a single click. */}
+          {!readOnly && (
+            <footer className={`${sheet.sheetActions} ${sheet.decisionActions}`}>
+              {errorMessage && <p role="alert" className={sheet.decisionError}>{errorMessage}</p>}
+              {selectedDecision ? (
+                <>
+                  <p className={sheet.decisionOutcome} aria-live="polite">{selectedDecision.outcome}</p>
+                  {decisionNeedsReason && (
+                    <div>
+                      <label htmlFor={rejectReasonId} className={sheet.decisionLabel}>Reason sent to the commuter</label>
+                      <select
+                        id={rejectReasonId}
+                        value={selectedReason}
+                        onChange={(e) => setSelectedReason(e.target.value)}
+                        className="mt-1.5 block h-11 w-full rounded-md border border-[#2A3A55] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 text-sm text-white admin-light:text-slate-900 scheme-dark admin-light:scheme-light focus:outline-none focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4]"
+                      >
+                        <option value="" disabled>Select a reason...</option>
+                        {reasons.map((reason) => <option key={reason} value={reason}>{reason}</option>)}
+                        <option value={OTHER_REASON}>{OTHER_REASON}</option>
+                      </select>
+                      {isOtherReason && (
+                        <textarea
+                          value={customReason}
+                          onChange={(e) => setCustomReason(e.target.value)}
+                          rows={3}
+                          autoFocus
+                          maxLength={RENEWAL_REASON_MAX}
+                          aria-label="Other reason"
+                          placeholder={decision === 'NEEDS_CORRECTION' ? 'Describe what needs to be corrected...' : 'Describe the reason for rejection...'}
+                          className="mt-2 block w-full resize-none rounded-md border border-[#2A3A55] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 py-2.5 text-sm text-white admin-light:text-slate-900 placeholder-slate-500 admin-light:placeholder-slate-400 focus:outline-none focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4]"
+                        />
+                      )}
+                    </div>
+                  )}
+                  {/* Opens the confirmation dialog; nothing is decided here. */}
+                  <button
+                    type="button"
+                    onClick={() => setConfirmOpen(true)}
+                    disabled={(decisionNeedsReason && !effectiveReason) || documentLoading}
+                    className={confirmClass}
+                  >
+                    Continue
+                  </button>
+                  <button type="button" onClick={() => setDecision('')} className={sheet.actionClose}>Back</button>
+                </>
+              ) : (
+                <>
+                  {/* Approve sends no reason, so it goes straight to the confirmation. */}
+                  <button type="button" onClick={() => { chooseDecision('APPROVED'); setConfirmOpen(true); }} disabled={documentLoading} className={sheet.actionApprove}>{isApplication ? `Approve as ${category}` : 'Approve renewal'}</button>
+                  <button type="button" onClick={() => chooseDecision('NEEDS_CORRECTION')} className={sheet.actionClose}>Request correction</button>
+                  <button type="button" onClick={() => chooseDecision('REJECTED')} className={sheet.actionSuspend}>Reject</button>
+                </>
+              )}
+            </footer>
+          )}
+        </div>
+        {lightbox}
+
+        {/* Confirmation dialog: the decision only happens here. It sits above
+            the review modal (z-60) like the image viewer; Cancel is focused
+            first so Enter never confirms by accident. */}
+        {confirmOpen && selectedDecision && (
+          <div
+            className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 p-4"
+            onClick={closeConfirm}
+            onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); closeConfirm(); } }}
+          >
+            <div
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby={confirmTitleId}
+              aria-describedby={confirmBodyId}
+              onClick={(event) => event.stopPropagation()}
+              className="w-full max-w-sm rounded-xl border border-[#2A3A55] bg-[#1A2540] p-6 shadow-2xl admin-light:border-[#E2E8F0] admin-light:bg-white"
+            >
+              <h3 id={confirmTitleId} className="text-lg font-bold leading-snug text-white admin-light:text-slate-900">
+                {decision === 'APPROVED'
+                  ? `Approve ${request.name}'s ${isApplication ? `${category} application` : 'student renewal'}?`
+                  : decision === 'REJECTED' ? `Reject this ${requestName}?` : 'Send this back for correction?'}
+              </h3>
+              <div id={confirmBodyId} className="mt-3 space-y-3 text-sm leading-relaxed text-slate-300 admin-light:text-slate-600">
+                <p>{selectedDecision.outcome}</p>
+                {decisionNeedsReason && effectiveReason && (
+                  <div className="rounded-md border border-[#2A3A55] bg-[#131C2E] p-3 admin-light:border-[#E2E8F0] admin-light:bg-[#F8FAFC]">
+                    <p className="text-xs font-medium text-slate-400 admin-light:text-slate-500">Reason sent to {request.firstName || 'the commuter'}</p>
+                    <p className="mt-1 wrap-anywhere text-white admin-light:text-slate-900">{effectiveReason}</p>
+                  </div>
+                )}
+              </div>
+              <div className="mt-6 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  autoFocus
+                  onClick={closeConfirm}
+                  className="min-h-11 rounded-md border border-[#2A3A55] bg-[#131C2E] text-sm font-semibold text-slate-200 transition-colors hover:bg-[#0E1628] admin-light:border-[#CBD5E1] admin-light:bg-white admin-light:text-slate-700 admin-light:hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={(event) => { if (event.detail <= 1) { setConfirmOpen(false); handleDecisionConfirm(); } }}
+                  className={`min-h-11 rounded-md border text-sm font-semibold text-white transition-colors ${decision === 'APPROVED' ? 'border-[#047857] bg-[#047857] hover:bg-[#065F46]' : decision === 'REJECTED' ? 'border-red-600 bg-red-600 hover:bg-red-700' : 'border-[#62A0EA] bg-[#62A0EA] hover:bg-[#4A8BD4] admin-light:border-[#1A5FB4] admin-light:bg-[#1A5FB4] admin-light:hover:bg-[#164A8F]'}`}
+                >
+                  {selectedDecision.confirm}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
+    );
+  }
+
   return (
     <Modal adminThemed isOpen={isOpen} onClose={() => { if (!isProcessing) onClose(); }} maxWidth="max-w-2xl">
       <div className="pr-8">
-        <h2 className="text-xl font-bold text-white admin-light:text-slate-900 sm:text-2xl">{!isDiscountRequest ? 'Review Registration Request' : readOnly ? (isApplication ? 'Application Details' : 'Renewal Details') : (isApplication ? 'Review Discount Application' : 'Review Renewal')}</h2>
-        <p className="mt-1 text-sm text-slate-500">{!isDiscountRequest ? 'Verify the applicant’s details against their uploaded ID before deciding.' : readOnly ? `No review action is available for this ${requestName}.` : (isStudentProof ? 'Verify current enrollment and school year against the account details.' : 'Verify the requested category and ID/card against the account details.')}</p>
+        <h2 className="text-xl font-bold text-white admin-light:text-slate-900 sm:text-2xl">Review Registration Request</h2>
+        <p className="mt-1 text-sm text-slate-500">Verify the applicant’s details against their uploaded ID before deciding.</p>
       </div>
 
       <div className="mt-5 space-y-4">
@@ -309,36 +479,11 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
               <p className="truncate text-xs text-slate-500" title={request.email}>{request.email}</p>
             </div>
           </div>
-          {/* Every renewal is a student's, so the strip carries the one thing
-              that differs between them: where the application stands. */}
-          {isDiscountRequest ? (
-            <div className="shrink-0 text-right">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Status</p>
-              <p className={`text-sm font-semibold ${RENEWAL_STATUS_COLOR[renewal.status] ?? 'text-slate-300 admin-light:text-slate-700'}`}>{discountStatusLabel(renewal)}</p>
-            </div>
-          ) : (
-            <div className="shrink-0 text-right">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Commuter Type</p>
-              <p className="text-sm font-semibold text-[#8CB9F0] admin-light:text-[#1A5FB4]">{request.commuterType}</p>
-            </div>
-          )}
-        </div>
-
-        {/* What the previous reviewer told the commuter, kept above the
-            documents so a returning admin reads it before re-checking. */}
-        {isDiscountRequest && (renewal.reason || renewal.correction_due_at) && (
-          <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm">
-            {renewal.reason && <>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-300 admin-light:text-amber-700">Review Note</p>
-              <p className="mt-1 wrap-break-word text-slate-200 admin-light:text-slate-800">{renewal.reason}</p>
-            </>}
-            {renewal.correction_due_at && (
-              <p className={`text-amber-300 admin-light:text-amber-700 ${renewal.reason ? 'mt-3' : ''}`}>
-                Correction deadline: {new Date(renewal.correction_due_at).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Manila' })} (Philippine time)
-              </p>
-            )}
+          <div className="shrink-0 text-right">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Commuter Type</p>
+            <p className="text-sm font-semibold text-[#8CB9F0] admin-light:text-[#1A5FB4]">{request.commuterType}</p>
           </div>
-        )}
+        </div>
 
         {/* Repeat-applicant warning — this identity (email/contact) has been
             rejected before. Helps the admin spot applicants nearing the
@@ -374,17 +519,19 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
             and the data an admin cross-checks it against sit in one glance
             instead of a long single-column scroll. A renewal gets a wider
             document column: the proof is the thing being judged. */}
-        <div className={`grid grid-cols-1 gap-4 ${isDiscountRequest ? 'sm:grid-cols-[15rem_1fr]' : 'sm:grid-cols-[13rem_1fr]'}`}>
+        <div className={`grid grid-cols-1 gap-4 sm:grid-cols-[13rem_1fr]`}>
           <section className={sectionClasses}>
             <div className="mb-3 flex items-center gap-2">
-              {isDiscountRequest ? <FileText className="h-4 w-4 text-[#62A0EA] admin-light:text-[#1A5FB4]" /> : <IdCard className="h-4 w-4 text-[#62A0EA] admin-light:text-[#1A5FB4]" />}
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 admin-light:text-slate-500">{isDiscountRequest ? (isStudentProof ? 'Enrollment Proof' : 'Supporting Document') : 'ID Document'}</h3>
+              <IdCard className="h-4 w-4 text-[#62A0EA] admin-light:text-[#1A5FB4]" />
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 admin-light:text-slate-500">ID Document</h3>
             </div>
             {/* A REGULAR applicant may register without an ID while the
                 "Force Valid ID Upload" setting is off. */}
-            {!request.idImageUrl ? (
+            {documentLoading ? (
+              <div role="status" className="flex aspect-3/4 w-full items-center justify-center rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-[#F1F5F9] text-xs text-slate-500">Loading document…</div>
+            ) : !request.idImageUrl ? (
               <p className="rounded-lg border border-dashed border-white/10 admin-light:border-[#E2E8F0] px-4 py-10 text-center text-sm text-slate-400 admin-light:text-slate-500">
-                {isDiscountRequest ? 'No supporting document was attached to this application.' : 'No ID uploaded. ID upload was optional for this registration.'}
+                No ID uploaded. ID upload was optional for this registration.
               </p>
             ) : documentIsPdf ? (
               // A PDF cannot be previewed inline, so it keeps the image's
@@ -404,62 +551,20 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
               type="button"
               onClick={() => setIsImageExpanded(true)}
               className="group relative block w-full cursor-zoom-in overflow-hidden rounded-lg border border-white/10 admin-light:border-[#E2E8F0]"
-              aria-label={isDiscountRequest ? 'View full-size supporting document' : 'View full-size ID image'}
+              aria-label="View full-size ID image"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={request.idImageUrl} alt={isDiscountRequest ? 'Uploaded supporting document' : 'Uploaded ID'} className="aspect-3/4 w-full object-cover" />
+              <img src={request.idImageUrl} alt="Uploaded ID" className="aspect-3/4 w-full object-cover" />
               <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/40">
                 <ZoomIn size={20} className="text-white opacity-0 transition-opacity group-hover:opacity-100" />
               </div>
             </button>
-            <p className="mt-2 text-center text-xs text-slate-500">{isDiscountRequest ? 'Uploaded proof · tap to enlarge' : 'Uploaded Valid ID · tap to enlarge'}</p>
+            <p className="mt-2 text-center text-xs text-slate-500">Uploaded Valid ID · tap to enlarge</p>
             </>
             )}
           </section>
 
-          {isDiscountRequest ? (
-            <div className="min-w-0 space-y-4">
-              {/* What the commuter claimed, next to the proof it is checked
-                  against. The school name wraps instead of truncating because
-                  it has to be read in full. */}
-              <section className={sectionClasses}>
-                <div className="mb-3 flex items-center gap-2">
-                  {isStudentProof ? <GraduationCap className="h-4 w-4 text-[#62A0EA] admin-light:text-[#1A5FB4]" /> : <IdCard className="h-4 w-4 text-[#62A0EA] admin-light:text-[#1A5FB4]" />}
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 admin-light:text-slate-500">{isStudentProof ? 'Enrollment Details' : 'Application Details'}</h3>
-                  {renewal.revision > 1 && <span className="ml-auto text-xs text-slate-400 admin-light:text-slate-500">Resubmission {renewal.revision - 1}</span>}
-                </div>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-                  <div className="col-span-2"><p className={fieldLabelClasses}>Requested category</p><p className={fieldValueClasses}>{DISCOUNT_CATEGORIES[renewal.requested_type]}</p></div>
-                  {isStudentProof && <>
-                  <div className="col-span-2 min-w-0">
-                    <p className={fieldLabelClasses}>School</p>
-                    <p className="mt-1 wrap-break-word text-sm font-medium text-white admin-light:text-slate-900">{renewal.school_name}</p>
-                  </div>
-                  <div className="min-w-0">
-                    <p className={fieldLabelClasses}>Level</p>
-                    <p className={fieldValueClasses} title={educationSummary(renewal)}>{educationSummary(renewal)}</p>
-                  </div>
-                  <div className="min-w-0">
-                    <p className={fieldLabelClasses}>School Year / Term</p>
-                    <p className={fieldValueClasses} title={schoolYearSummary(renewal)}>{schoolYearSummary(renewal)}</p>
-                  </div>
-                  </>}
-                  {renewal.cycle_year !== null && <>
-                  <div className="min-w-0">
-                    <p className={fieldLabelClasses}>Renewal Cycle</p>
-                    <p className={fieldValueClasses}>{renewal.cycle_year}</p>
-                  </div>
-                  </>}
-                  <div className="min-w-0">
-                    <p className={fieldLabelClasses}>Submitted</p>
-                    <p className={fieldValueClasses}>{formatDate(renewal.submitted_at)}</p>
-                    <p className="text-xs text-slate-400 admin-light:text-slate-500">{formatTime(renewal.submitted_at)}</p>
-                  </div>
-                </div>
-              </section>
-              {detailsSection}
-            </div>
-          ) : detailsSection}
+          {detailsSection}
         </div>
 
         {/* Sits with the decision controls, not at the top of the modal: a
@@ -470,7 +575,7 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
             Reject/Approve become Cancel/Confirm in place, so the confirm
             lands where the admin just clicked and both buttons always share
             the same width. Only the text on the left changes per step. */}
-        {!isDiscountRequest && (
+        {(
           <div className="space-y-3 pt-2">
             {showRejectConfirm && (
               <div>
@@ -586,83 +691,9 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
           </div>
         )}
 
-        {/* Renewal decision — one picker instead of a button per outcome. Each
-            choice states what it does to the commuter, the reason field only
-            appears for the two outcomes that send one, and a single button
-            carries the chosen action. Picking an outcome and then pressing
-            that button is the confirmation, so there is no second prompt. */}
-        {isDiscountRequest && !readOnly && (
-          <div className="border-t border-white/10 admin-light:border-[#E2E8F0] pt-4">
-            <p className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-400 admin-light:text-slate-500">Decision</p>
-            <RenewalDecisionSelect options={decisions} value={decision} onChange={setDecision} />
-
-            {decisionNeedsReason && (
-              <div className="mt-4">
-                <label htmlFor="renewal-reason" className="text-sm font-medium text-slate-200 admin-light:text-slate-800">Reason sent to the commuter</label>
-                <select
-                  id="renewal-reason"
-                  value={selectedReason}
-                  onChange={(e) => setSelectedReason(e.target.value)}
-                  className="mt-2 block w-full rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] px-3 py-2.5 text-sm text-white admin-light:text-slate-900 transition-colors scheme-dark admin-light:scheme-light focus:outline-none focus:ring-1 focus:ring-[#62A0EA] admin-light:focus:ring-[#1A5FB4]"
-                >
-                  <option value="" disabled className="bg-gray-800 admin-light:bg-white">Select a reason...</option>
-                  {(isStudentProof ? RENEWAL_REASONS : REJECTION_REASONS).map((reason) => (
-                    <option key={reason} value={reason} className="bg-gray-800 admin-light:bg-white">{reason}</option>
-                  ))}
-                  <option value={OTHER_REASON} className="bg-gray-800 admin-light:bg-white">{OTHER_REASON}</option>
-                </select>
-                {isOtherReason && (
-                  <textarea
-                    value={customReason}
-                    onChange={(e) => setCustomReason(e.target.value)}
-                    rows={2}
-                    autoFocus
-                    maxLength={RENEWAL_REASON_MAX}
-                    aria-label="Other reason"
-                    placeholder={decision === 'NEEDS_CORRECTION' ? 'Describe what needs to be corrected...' : 'Describe the reason for rejection...'}
-                    className="mt-2 block w-full resize-none rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] px-3 py-2.5 text-sm text-white admin-light:text-slate-900 placeholder-slate-500 admin-light:placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] admin-light:focus:ring-[#1A5FB4]"
-                  />
-                )}
-              </div>
-            )}
-
-            <div className="mt-4 flex justify-end">
-              <button
-                onClick={handleDecisionConfirm}
-                disabled={!decision || (decisionNeedsReason && !effectiveReason)}
-                className={`w-full rounded-md px-5 py-2.5 font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto ${decision === 'REJECTED' ? 'bg-red-600 hover:bg-red-700' : 'bg-[#62A0EA] admin-light:bg-[#1A5FB4] hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F]'}`}
-              >
-                {decisions.find((option) => option.value === decision)?.confirm ?? 'Confirm Decision'}
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Full-size ID image lightbox — sits above the review modal (z-60 vs
-          the modal's z-50) so it isn't clipped by the panel's own scroll area. */}
-      {isImageExpanded && (
-        <div
-          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80"
-          onClick={() => setIsImageExpanded(false)}
-        >
-          <button
-            type="button"
-            onClick={() => setIsImageExpanded(false)}
-            className="absolute top-4 right-4 p-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
-            aria-label="Close full-size image"
-          >
-            <X size={24} />
-          </button>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={request.idImageUrl}
-            alt={isDiscountRequest ? 'Uploaded supporting document (full size)' : 'Uploaded ID (full size)'}
-            className="max-w-full max-h-full object-contain rounded-md shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
+      {lightbox}
     </Modal>
   );
 }

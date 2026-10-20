@@ -3,11 +3,12 @@
 
 import type { ReactNode } from 'react';
 import { Eye } from 'lucide-react';
-import { Badge } from '@/components/admin/ui/badge';
 import { DataTable } from '@/components/admin/ui/data-table';
+import { UserAvatar } from '@/components/admin/ui/user-avatar';
 import { TablePagination } from '@/components/admin/ui/table-pagination';
 import { RowActionsMenu } from '@/components/admin/ui/row-actions-menu';
 import type { RejectedRequest } from '@/app/(admin)/users/data/users-data';
+import { CommuterTypeLabel } from './commuter-type-label';
 import type { RegistrationPagination } from '@/lib/admin/services/registration.service';
 
 function formatAppliedDate(value: string | null): string {
@@ -50,18 +51,24 @@ export function RejectedAccountsTable({
 
   const columns = [
     {
+      // Unlabelled photo column, same as the Active tab: the applicant's
+      // profile photo via next/image, or the default icon when none.
+      key: 'profileImageUrl',
+      label: '',
+      headerClassName: 'w-12 pl-2 pr-0 sm:pl-4',
+      cellClassName: 'w-12 pl-2 pr-0 sm:pl-4',
+      cardLead: true,
+      render: (value: string | null, request: RejectedRequest) => (
+        <UserAvatar src={value} alt={`Profile photo of ${request.name}`} className="h-9 w-9" iconClassName="h-4 w-4" sizes="36px" />
+      ),
+    },
+    {
       key: 'name',
       label: 'Applicant',
       headerClassName: 'px-2 sm:px-4',
       cellClassName: 'px-2 sm:px-4 min-w-[10rem]',
       render: (value: string, request: RejectedRequest) => (
         <div className="flex min-w-0 items-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={request.idImageUrl}
-            alt=""
-            className="h-9 w-9 flex-shrink-0 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] object-cover"
-          />
           <div className="min-w-0">
             <p className="whitespace-nowrap font-medium text-white admin-light:text-slate-900">{value}</p>
             <p className="whitespace-nowrap text-xs text-slate-500">{request.email}</p>
@@ -74,7 +81,7 @@ export function RejectedAccountsTable({
       label: 'Type',
       headerClassName: 'px-2 sm:px-4',
       cellClassName: 'whitespace-nowrap px-2 sm:px-4',
-      render: (value: string) => <Badge variant="info">{value}</Badge>,
+      render: (value: string) => <CommuterTypeLabel type={value} />,
     },
     {
       key: 'createdAt',

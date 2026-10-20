@@ -1347,7 +1347,7 @@ class AdminService
             ->when($filters['search'] ?? null, function (Builder $query, string $search) {
                 $this->applySearch($query, trim($search));
             })
-            ->with(['commuterProfile:id,first_name,middle_name,surname,birthdate,gender,email,contact_number,commuter_type,applied_type,account_status,id_image_url,verified_at,rejection_reason,username,language_preference'])
+            ->with(['commuterProfile:id,first_name,middle_name,surname,birthdate,gender,email,contact_number,commuter_type,applied_type,account_status,id_image_url,profile_image_url,verified_at,rejection_reason,username,language_preference'])
             ->orderBy('users.created_at', $direction)
             // created_at has second precision; the id tie-breaker keeps
             // same-second sign-ups in a fixed order so paging never repeats
@@ -1384,6 +1384,7 @@ class AdminService
                 'username' => $c?->username,
                 'applied_type' => $c?->applied_type,
                 'id_image_url' => $this->registrationIdUrl($c?->id_image_url),
+                'profile_image_url' => $c?->profile_image_url,
                 'account_status' => $c?->account_status,
                 'language_preference' => $c?->language_preference,
                 'verified_at' => $c?->verified_at?->toIso8601String(),
@@ -1430,7 +1431,7 @@ class AdminService
                     ->orWhere('contact_number', 'like', $term)
                     ->orWhere('rejection_reason', 'like', $term));
             })
-            ->with(['commuterProfile:id,first_name,middle_name,surname,birthdate,gender,email,contact_number,commuter_type,applied_type,account_status,id_image_url,verified_at,rejection_reason,username,language_preference'])
+            ->with(['commuterProfile:id,first_name,middle_name,surname,birthdate,gender,email,contact_number,commuter_type,applied_type,account_status,id_image_url,profile_image_url,verified_at,rejection_reason,username,language_preference'])
             ->orderBy('updated_at', 'desc') // most recently rejected first
             ->paginate($perPage);
 
@@ -1480,6 +1481,7 @@ class AdminService
                 'username' => $c?->username,
                 'applied_type' => $c?->applied_type,
                 'id_image_url' => $this->registrationIdUrl($c?->id_image_url),
+                'profile_image_url' => $c?->profile_image_url,
                 'account_status' => $c?->account_status,
                 'language_preference' => $c?->language_preference,
                 'verified_at' => $c?->verified_at?->toIso8601String(),

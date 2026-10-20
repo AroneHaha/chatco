@@ -52,6 +52,8 @@ export interface ActiveUser {
   commuterType: string;
   languagePreference: string;
   idImageUrl: string;
+  /** Public R2 profile photo (any role, drivers included); null shows the default icon. */
+  profileImageUrl: string | null;
   /** Self-chosen login username — commuters only. Null for other roles. */
   username: string | null;
   /** ISO timestamp the commuter's account was verified/approved. Null otherwise. */
@@ -121,6 +123,9 @@ export interface UseUsersDataReturn {
   setFilters: (f: Partial<UsersTabFilters>) => void;
   pendingType: registrationService.AppliedType | "";
   setPendingType: (type: registrationService.AppliedType | "") => void;
+  /** Rejected tab: applied commuter type filter ("" = all). */
+  rejectedType: registrationService.AppliedType | "";
+  setRejectedType: (type: registrationService.AppliedType | "") => void;
   pendingSort: PendingSort;
   setPendingSort: (sort: PendingSort) => void;
   setPendingPage: (page: number) => void;
@@ -145,6 +150,7 @@ function mapToActiveUser(u: AdminUser): ActiveUser {
     commuterType: u.commuterTypeLabel,
     languagePreference: "English",
     idImageUrl: u.idImageUrl ?? "",
+    profileImageUrl: u.profileImageUrl,
     username: u.username,
     verifiedAt: u.verifiedAt,
     role: u.role,
@@ -167,6 +173,7 @@ interface RawDriver {
   last_name: string;
   contact: string | null;
   license_number: string | null;
+  profile_picture_url: string | null;
   status: string | null;
   created_at: string | null;
 }
@@ -186,6 +193,7 @@ function mapDriverToActiveUser(d: RawDriver): ActiveUser {
     commuterType: d.license_number ?? "—",
     languagePreference: "English",
     idImageUrl: "",
+    profileImageUrl: d.profile_picture_url?.trim() || null,
     username: null,
     verifiedAt: null,
     role: "DRIVER",
@@ -207,6 +215,7 @@ export function useUsersData(activeTab: "active" | "pending" | "rejected" | "dis
   const [pendingPage, setPendingPageState] = useState(1);
   const [rejectedPage, setRejectedPageState] = useState(1);
   const [pendingType, setPendingTypeState] = useState<registrationService.AppliedType | "">("");
+  const [rejectedType, setRejectedTypeState] = useState<registrationService.AppliedType | "">("");
   const [pendingSort, setPendingSortState] = useState<PendingSort>("oldest");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -346,6 +355,7 @@ export function useUsersData(activeTab: "active" | "pending" | "rejected" | "dis
         search: filters.search,
         page: rejectedPage,
         perPage: filters.perPage,
+        appliedType: rejectedType,
       });
       if (sequence !== requestSequence.current) return;
       // Store the full page response as-is — the Rejected tab's table and
@@ -361,7 +371,7 @@ export function useUsersData(activeTab: "active" | "pending" | "rejected" | "dis
     } finally {
       if (sequence === requestSequence.current) setIsLoading(false);
     }
-  }, [filters.search, filters.perPage, rejectedPage]);
+  }, [filters.search, filters.perPage, rejectedPage, rejectedType]);
 
   /**
    * Load registration totals independently of the selected tab. Inactive
@@ -515,6 +525,11 @@ export function useUsersData(activeTab: "active" | "pending" | "rejected" | "dis
     setPendingPageState(1);
   }, []);
 
+  const setRejectedType = useCallback((type: registrationService.AppliedType | "") => {
+    setRejectedTypeState(type);
+    setRejectedPageState(1);
+  }, []);
+
   const setPendingSort = useCallback((sort: PendingSort) => {
     setPendingSortState(sort);
     setPendingPageState(1);
@@ -541,6 +556,8 @@ export function useUsersData(activeTab: "active" | "pending" | "rejected" | "dis
     setFilters,
     pendingType,
     setPendingType,
+    rejectedType,
+    setRejectedType,
     pendingSort,
     setPendingSort,
     setPendingPage,

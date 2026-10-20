@@ -479,6 +479,31 @@ class AdminRegistrationTest extends TestCase
 
     // ── POST  /admin/registrations/{id}/reject ───────────────────
 
+    public function test_rejected_list_filters_by_applied_type(): void
+    {
+        foreach (['STUDENT' => 'rej.student', 'PWD' => 'rej.pwd'] as $type => $username) {
+            $pending = $this->seedPendingCommuter([
+                'email' => "{$username}@example.com",
+                'username' => $username,
+                'applied_type' => $type,
+            ]);
+            $this->actingAs($this->admin)
+                ->postJson("/api/v1/admin/registrations/{$pending->id}/reject", ['rejection_reason' => 'ID image is unreadable.'])
+                ->assertOk();
+        }
+
+        $this->actingAs($this->admin)
+            ->getJson('/api/v1/admin/registrations/rejected?applied_type=PWD')
+            ->assertOk()
+            ->assertJsonPath('data.total', 1)
+            ->assertJsonPath('data.data.0.applied_type', 'PWD');
+
+        $this->actingAs($this->admin)
+            ->getJson('/api/v1/admin/registrations/rejected')
+            ->assertOk()
+            ->assertJsonPath('data.total', 2);
+    }
+
     public function test_reject_sets_status_rejected_and_records_reason(): void
     {
         $pending = $this->seedPendingCommuter([

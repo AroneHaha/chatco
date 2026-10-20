@@ -26,6 +26,7 @@ export interface RawRegistration {
   username: string;
   applied_type: AppliedType;
   id_image_url: string;
+  profile_image_url?: string | null;
   account_status: string;
   language_preference: string;
   // How many times this applicant's identity (email/contact) was previously
@@ -53,6 +54,8 @@ export interface PendingRegistration {
   commuterType: string;
   languagePreference: string;
   idImageUrl: string;
+  /** Public R2 profile photo, if the applicant has one; null shows the default icon. */
+  profileImageUrl: string | null;
   status: "Pending Verification";
   birthdate: string;
   gender: string;
@@ -154,6 +157,7 @@ function mapToViewModel(r: RawRegistration): PendingRegistration {
     commuterType: TYPE_LABELS[r.applied_type] ?? "Regular",
     languagePreference: r.language_preference === "Filipino" ? "Filipino" : "English",
     idImageUrl: r.id_image_url,
+    profileImageUrl: r.profile_image_url?.trim() || null,
     status: "Pending Verification",
     birthdate: r.birthdate,
     gender: r.gender,
