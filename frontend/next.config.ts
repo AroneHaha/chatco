@@ -1,5 +1,11 @@
 import type { NextConfig } from "next";
 
+// Profile photos live in the public R2 bucket. Allowing exactly that host and
+// its /profiles/ prefix lets next/image serve small cached WebP/AVIF copies
+// (a 36px table avatar instead of the 800px upload) without turning the
+// optimizer into an open proxy for any other bucket.
+const r2PublicUrl = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ? new URL(process.env.NEXT_PUBLIC_R2_PUBLIC_URL) : null;
+
 const nextConfig: NextConfig = {
   turbopack: {
     // Pin the workspace root to this `frontend/` directory. Otherwise Next
@@ -14,6 +20,9 @@ const nextConfig: NextConfig = {
   // screenshots hold fine UI text and need 90 to stay crisp.
   images: {
     qualities: [75, 90],
+    remotePatterns: r2PublicUrl
+      ? [{ protocol: r2PublicUrl.protocol === "http:" ? "http" : "https", hostname: r2PublicUrl.hostname, pathname: "/profiles/**" }]
+      : [],
   },
 };
 

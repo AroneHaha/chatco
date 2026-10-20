@@ -89,6 +89,8 @@ export interface VehiclePerson {
   /** Full display name ("First Last"). */
   name: string;
   contact: string | null;
+  /** Public R2 profile photo; null shows the default icon. */
+  photoUrl: string | null;
 }
 
 /** A route relation in the frontend view-model. */
@@ -230,6 +232,7 @@ function mapPerson(raw: RawPerson | null | undefined): VehiclePerson | null {
     lastName,
     name: `${firstName} ${lastName}`.trim(),
     contact: raw.contact ?? null,
+    photoUrl: raw.profile_picture_url?.trim() || null,
   };
 }
 
