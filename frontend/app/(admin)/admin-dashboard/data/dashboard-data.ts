@@ -6,14 +6,18 @@ import {
   SlidersHorizontal, User2Icon, Megaphone, History, type LucideIcon,
 } from "lucide-react";
 import type { AnalyticsData } from "@/lib/admin/services/analytics.service";
+import { formatPeso } from "@/lib/utils/display";
 import { listForAdmin as listActivityLogs, type ActivityLog } from "@/lib/shared/services/activity-log.service";
 
 /* ─── INTERFACES (keep — used by components) ─── */
 
-export interface VehicleItem {
-  unit: string;
+export interface RecentShift {
+  id: string;
+  conductor: string;
   driver: string;
-  status: "Active" | "Maintenance";
+  unit: string;
+  status: "Active" | "Completed";
+  timeIn: string;
 }
 
 export interface RecentClaim {
@@ -86,7 +90,7 @@ export interface AlertItem {
 }
 
 export interface DashboardData {
-  recentVehicles: VehicleItem[];
+  recentShifts: RecentShift[];
   recentClaims: RecentClaim[];
   recentUsers: UserItem[];
   recentNotifications: NotificationItem[];
@@ -132,22 +136,13 @@ const SETTINGS_MODULES: SettingsModule[] = [
 
 /* ─── Helpers ─── */
 
-function formatPeso(amount: number): string {
-  return new Intl.NumberFormat("en-PH", {
-    style: "currency",
-    currency: "PHP",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
 function formatNumber(value: number): string {
   return new Intl.NumberFormat("en-PH").format(value);
 }
 
 /* ─── Data Hook (real API — no mock) ─── */
 
-const ACTIVITY_PREVIEW_LIMIT = 10;
+const ACTIVITY_PREVIEW_LIMIT = 5;
 /** Notifications shown in the dashboard box: one featured + four listed. */
 const NOTIFICATION_PREVIEW_LIMIT = 5;
 
@@ -175,7 +170,7 @@ export function useDashboardData() {
     setIsLoading(true);
     setError(null);
     try {
-      // Fetch analytics + vehicles + users + recent lost-item claims in parallel.
+      // Fetch analytics + recent shifts + users + recent lost-item claims in parallel.
       // The "Recent Users" card needs the actual /admin/users list (all
       // roles, sorted by created_at DESC) — NOT /admin/registrations,
       // which only returns PENDING commuters. We request per_page=3 so
@@ -183,12 +178,12 @@ export function useDashboardData() {
       //
       // Response shapes:
       //  - analytics:    { data: { totals, payment_split, ... } } (flat obj)
-      //  - vehicles:     { data: { data: [...], current_page, ... } } (paginator)
+      //  - shifts:       { data: { data: [...], current_page, ... } } (paginator)
       //  - users:        { data: { data: [...], current_page, ... } } (paginator)
       //  - recent-claims: { data: [...] } (newest claims with matching item details)
-      const [analyticsRes, vehiclesRes, usersRes, recentClaimsRes, notificationsRes, activityPage] = await Promise.all([
+      const [analyticsRes, shiftsRes, usersRes, recentClaimsRes, notificationsRes, activityPage] = await Promise.all([
         fetch("/api/admin/analytics?pickup_period=week", { headers: { Accept: "application/json" } }),
-        fetch("/api/admin/vehicles?per_page=3", { headers: { Accept: "application/json" } }),
+        fetch("/api/admin/shift-logs?per_page=3", { headers: { Accept: "application/json" } }).catch(() => null),
         // users + lost-items + notifications + activity-logs are best-effort:
         // if any fails (e.g. permission edge case), we still render the rest
         // of the dashboard instead of throwing the whole thing into the
@@ -206,10 +201,9 @@ export function useDashboardData() {
 
       if (generation !== generationRef.current) return;
       if (!analyticsRes.ok) throw new Error("Failed to load analytics");
-      if (!vehiclesRes.ok) throw new Error("Failed to load vehicles");
 
       const analyticsJson = await analyticsRes.json();
-      const vehiclesJson = await vehiclesRes.json();
+      const shiftsJson = shiftsRes?.ok ? await shiftsRes.json() : { data: { data: [] } };
       const usersJson = usersRes?.ok ? await usersRes.json() : { data: { data: [] } };
       const recentClaimsJson = recentClaimsRes?.ok ? await recentClaimsRes.json() : { data: [] };
       const notificationsJson = notificationsRes?.ok ? await notificationsRes.json() : { data: { data: [] } };
@@ -226,9 +220,9 @@ export function useDashboardData() {
       // So the full shape is: { data: { data: [...items], current_page, ... } }
       // We need to extract the inner array. Use Array.isArray guards so the
       // hook also tolerates a bare-array response if the backend ever changes.
-      const vehiclesRaw = vehiclesJson.data;
-      const vehiclesData = Array.isArray(vehiclesRaw) ? vehiclesRaw :
-                           Array.isArray(vehiclesRaw?.data) ? vehiclesRaw.data : [];
+      const shiftsRaw = shiftsJson.data;
+      const shiftsData = Array.isArray(shiftsRaw) ? shiftsRaw :
+                         Array.isArray(shiftsRaw?.data) ? shiftsRaw.data : [];
 
       const usersRaw = usersJson.data;
       const usersData = Array.isArray(usersRaw) ? usersRaw :
@@ -265,13 +259,19 @@ export function useDashboardData() {
         cash: grandTotal > 0 ? Math.round((cashTotal / grandTotal) * 100) : 0,
       };
 
-      // ── Recent Vehicles (map API → VehicleItem) ──
-      const recentVehicles: VehicleItem[] = (vehiclesData as Record<string, unknown>[]).slice(0, 3).map(v => {
-        const driver = v.driver as Record<string, unknown> | null;
+      // ── Recent Shifts (map API → RecentShift) ──
+      const recentShifts: RecentShift[] = (shiftsData as Record<string, unknown>[]).slice(0, 3).map(shift => {
+        const conductor = shift.conductor as Record<string, unknown> | null;
+        const driver = shift.driver as Record<string, unknown> | null;
+        const personName = (person: Record<string, unknown> | null, fallback: unknown) =>
+          person ? `${person.first_name ?? ''} ${person.last_name ?? ''}`.trim() || '—' : String(fallback ?? '—');
         return {
-          unit: String(v.plate_number ?? "—"),
-          driver: driver ? `${driver.first_name ?? ''} ${driver.last_name ?? ''}`.trim() || '—' : 'Unassigned',
-          status: v.status === 'MAINTENANCE' ? 'Maintenance' : 'Active',
+          id: String(shift.shift_id ?? ''),
+          conductor: personName(conductor, shift.conductor_name),
+          driver: personName(driver, shift.driver_name),
+          unit: String(shift.unit_number ?? '—'),
+          status: shift.status === 'ACTIVE' ? 'Active' : 'Completed',
+          timeIn: String(shift.time_in ?? ''),
         };
       });
 
@@ -289,13 +289,17 @@ export function useDashboardData() {
           default: return 'User';
         }
       };
-      const recentUsers: UserItem[] = (usersData as Record<string, unknown>[]).slice(0, 3).map(u => ({
-        name: String(u.name ?? u.email ?? 'Unknown'),
-        role: roleLabel(u.role),
-        status: u.account_status === 'SUSPENDED' || u.account_status === 'DISABLED' ? 'Inactive' : 'Active',
-        imageUrl: typeof u.profile_image_url === 'string' ? u.profile_image_url : '',
-        createdAt: String(u.created_at ?? ''),
-      }));
+      const recentUsers: UserItem[] = (usersData as Record<string, unknown>[]).slice(0, 3).map(u => {
+        const profileImageUrl = [u.profile_image_url, u.profile_picture_url]
+          .find((value): value is string => typeof value === 'string' && value.trim().length > 0);
+        return {
+          name: String(u.name ?? u.email ?? 'Unknown'),
+          role: roleLabel(u.role),
+          status: u.account_status === 'SUSPENDED' || u.account_status === 'DISABLED' ? 'Inactive' : 'Active',
+          imageUrl: profileImageUrl ?? '',
+          createdAt: String(u.created_at ?? ''),
+        };
+      });
 
       // ── Recent Lost & Found claims ──
       const recentClaims = mapRecentClaims(recentClaimsJson.data);
@@ -329,7 +333,7 @@ export function useDashboardData() {
       }));
 
       setData({
-        recentVehicles,
+        recentShifts,
         recentClaims,
         recentUsers,
         recentNotifications,

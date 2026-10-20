@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { useEffect, useRef } from "react";
 import { ArrowUpRight, ImageIcon, UserRound } from "lucide-react";
 import { formatDateTime } from "@/lib/utils/format";
 import { getActivityLogCategoryLabel } from "@/lib/shared/services/activity-log.service";
-import type { VehicleItem, RecentClaim, UserItem, NotificationItem, ActivityLogItem, DashboardActivityFeed } from "@/app/(admin)/admin-dashboard/data/dashboard-data";
+import type { RecentShift, RecentClaim, UserItem, NotificationItem, ActivityLogItem, DashboardActivityFeed } from "@/app/(admin)/admin-dashboard/data/dashboard-data";
 
 function formatCategory(category: string): string {
   return category.toLowerCase().split("_").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
@@ -61,8 +60,7 @@ function formatNotificationTime(iso: string): string {
 }
 
 interface DashboardPreviewCardsProps {
-  activeVehicles: string;
-  recentVehicles: VehicleItem[];
+  recentShifts: RecentShift[];
   recentClaims: RecentClaim[];
   recentUsers: UserItem[];
   recentNotifications: NotificationItem[];
@@ -81,22 +79,8 @@ function PreviewHeader({ title, href, detail }: { title: string; href: string; d
   );
 }
 
-export function DashboardPreviewCards({ activeVehicles, recentVehicles, recentClaims, recentUsers, recentNotifications, recentActivityLogs, activityFeed }: DashboardPreviewCardsProps) {
-  const activityScrollRef = useRef<HTMLDivElement>(null);
-  const { isLoading: isLoadingActivity, hasMore: hasMoreActivity, error: activityError, loadMore: loadMoreActivity } = activityFeed;
-  useEffect(() => {
-    const list = activityScrollRef.current;
-    if (!list || !hasMoreActivity || isLoadingActivity || activityError) return;
-    // A short page or a larger viewport can leave no scrollbar. Fetch enough
-    // to fill the pane, rather than making further pages unreachable.
-    const fillPane = () => {
-      if (list.clientHeight > 0 && list.scrollHeight <= list.clientHeight + 1) void loadMoreActivity();
-    };
-    fillPane();
-    const observer = new ResizeObserver(fillPane);
-    observer.observe(list);
-    return () => observer.disconnect();
-  }, [recentActivityLogs, hasMoreActivity, isLoadingActivity, activityError, loadMoreActivity]);
+export function DashboardPreviewCards({ recentShifts, recentClaims, recentUsers, recentNotifications, recentActivityLogs, activityFeed }: DashboardPreviewCardsProps) {
+  const { isLoading: isLoadingActivity, error: activityError, loadMore: loadMoreActivity } = activityFeed;
   const [latestNotification, ...olderNotifications] = recentNotifications;
   // These are previews of three recent accounts/items, not system-wide totals.
   const roleCounts = Array.from(new Set(recentUsers.map((user) => user.role))).map((role) => ({
@@ -107,71 +91,73 @@ export function DashboardPreviewCards({ activeVehicles, recentVehicles, recentCl
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <section aria-label="Recent vehicles" className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white lg:col-span-5">
-          <PreviewHeader title="Vehicles" href="/vehicles" />
-          <div className="flex flex-1 flex-col px-5 pb-5">
-            <div className="flex flex-wrap items-end justify-between gap-4 py-6">
-              <div>
-                <p className="text-5xl font-semibold leading-none tracking-tight text-white admin-light:text-slate-900 tabular-nums">{activeVehicles}</p>
-                <p className="mt-2 text-xs text-white/60 admin-light:text-slate-600">Active vehicles across the fleet</p>
-              </div>
-              <Link href="/monitoring" className="flex items-center gap-1 text-xs text-[#62A0EA] admin-light:text-[#1A5FB4] hover:text-[#99C1F1] admin-light:hover:text-[#164A8F] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#62A0EA] admin-light:focus-visible:outline-[#1A5FB4]">
-                Open tracking <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
-              </Link>
-            </div>
-            <div className="mt-auto border-t border-[#1E2D45] admin-light:border-[#E2E8F0] pt-4">
-              <p className="mb-3 text-[10px] font-medium uppercase tracking-wider text-white/40 admin-light:text-slate-500">Recent vehicles</p>
-              {recentVehicles.length === 0 ? <p className="text-xs text-white/45 admin-light:text-slate-500">No recent vehicles.</p> : (
-                <ul className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                  {recentVehicles.map((vehicle, index) => (
-                    <li key={`${vehicle.unit}-${index}`} className="min-w-0 border-l-2 border-[#2A3A55] admin-light:border-[#CBD5E1] pl-3">
-                      <p className="truncate text-sm font-semibold text-white/90 admin-light:text-slate-800" title={vehicle.unit}>{vehicle.unit}</p>
-                      <p className="mt-1 truncate text-[11px] text-white/45 admin-light:text-slate-500" title={vehicle.driver}>{vehicle.driver}</p>
-                      <p className={`mt-2 text-[11px] ${vehicle.status === "Active" ? "text-[#62A0EA] admin-light:text-[#1A5FB4]" : "text-amber-300 admin-light:text-amber-700"}`}>{vehicle.status}</p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <section aria-label="Recent activity logs" className="min-h-0 min-w-0 overflow-hidden rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white lg:relative lg:col-span-7">
-          {/* Let Vehicles set the desktop row height; the timeline fills that
-              space and scrolls rather than stretching both cards. */}
-          <div className="flex min-h-0 flex-col lg:absolute lg:inset-0">
-            <PreviewHeader title="Activity Logs" href="/activity-logs" detail="Today" />
-            <div ref={activityScrollRef} role="region" aria-label="Recent activity timeline" aria-busy={isLoadingActivity} tabIndex={0} onScroll={(event) => {
-              const list = event.currentTarget;
-              if (hasMoreActivity && !isLoadingActivity && !activityError && list.scrollHeight - list.scrollTop - list.clientHeight <= 48) void loadMoreActivity();
-            }} className="scrollbar-themed min-h-0 max-h-80 overflow-y-auto overscroll-contain px-5 py-4 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#62A0EA] admin-light:focus-visible:outline-[#1A5FB4] lg:max-h-none lg:flex-1">
-              <ol className="space-y-2">
-                {recentActivityLogs.map((log, index) => {
-                  const timestamp = formatDateTime(log.createdAt, "Asia/Manila");
+        <section aria-label="Recent shifts" className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white lg:col-span-5">
+          <PreviewHeader title="Recent Shifts" href="/remittance" />
+          <div className="flex flex-1 flex-col px-5 pb-5 pt-4">
+            {recentShifts.length === 0 ? <p className="text-xs text-white/45 admin-light:text-slate-500">No recent shifts.</p> : (
+              <ul className="grid flex-1 grid-cols-1 gap-4 sm:grid-cols-3">
+                {recentShifts.map((shift) => {
+                  const timestamp = shift.timeIn ? formatDateTime(shift.timeIn, "Asia/Manila") : null;
                   return (
-                    <li key={log.id} className={`relative grid grid-cols-1 gap-x-5 gap-y-2 overflow-hidden rounded-md py-2 pl-6 pr-3 sm:grid-cols-[minmax(0,1fr)_9rem] ${index === 0 ? "bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10" : index % 2 === 1 ? "bg-[#1A2540]/45 admin-light:bg-[#F1F5F9]" : ""}`}>
-                      {index < recentActivityLogs.length - 1 && <span aria-hidden="true" className="absolute top-6 bottom-2 left-[11px] border-l border-dashed border-[#40516D] admin-light:border-[#CBD5E1]" />}
-                      <span aria-hidden="true" className={`absolute top-4 left-[7px] h-[9px] w-[9px] rounded-full border ${index === 0 ? "border-[#62A0EA] admin-light:border-[#1A5FB4] bg-[#62A0EA] admin-light:bg-[#1A5FB4]" : "border-[#64748B] admin-light:border-[#94A3B8] bg-[#131C2E] admin-light:bg-white"}`} />
-                      <p className={`min-w-0 break-words text-sm leading-6 ${index === 0 ? "font-medium text-white admin-light:text-slate-900" : "text-white/85 admin-light:text-slate-800"}`}>{log.description}</p>
-                      <div className="min-w-0 text-xs leading-5 sm:border-l sm:border-[#2A3A55] admin-light:sm:border-[#CBD5E1] sm:pl-3 sm:text-right">
-                        <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 sm:justify-end">
-                          <span className={`min-w-0 break-words ${index === 0 ? "text-[#62A0EA] admin-light:text-[#1A5FB4]" : "text-white/45 admin-light:text-slate-500"}`}>{getActivityLogCategoryLabel(log.category)}</span>
-                          <time dateTime={log.createdAt} title={`${timestamp.full} (Philippine time)`} className={`whitespace-nowrap tabular-nums ${index === 0 ? "font-medium text-[#62A0EA] admin-light:text-[#1A5FB4]" : "text-white/60 admin-light:text-slate-600"}`}>{timestamp.time}</time>
-                        </p>
-                        <p className="mt-1 break-words text-white/60 admin-light:text-slate-600">{log.by}</p>
-                      </div>
+                    <li key={shift.id} className="min-w-0 border-l-2 border-[#2A3A55] admin-light:border-[#CBD5E1] pl-3">
+                      <p className="truncate text-sm font-semibold text-white/90 admin-light:text-slate-800" title={shift.id}>{shift.id || "Shift"}</p>
+                      <p className="mt-1 truncate text-[11px] text-white/65 admin-light:text-slate-600" title={shift.conductor}>{shift.conductor}</p>
+                      <p className="truncate text-[11px] text-white/45 admin-light:text-slate-500" title={`${shift.driver} · ${shift.unit}`}>{shift.driver} · {shift.unit}</p>
+                      <p className={`mt-2 text-[11px] ${shift.status === "Active" ? "text-[#62A0EA] admin-light:text-[#1A5FB4]" : "text-emerald-300 admin-light:text-emerald-700"}`}>
+                        {shift.status}{timestamp ? ` · ${timestamp.full}` : ""}
+                      </p>
                     </li>
                   );
                 })}
-              </ol>
-              {isLoadingActivity && <p role="status" className="mt-3 text-sm text-white/45 admin-light:text-slate-500">Loading activity…</p>}
-              {activityError && <div role="alert" className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
-                <p className="text-white/60 admin-light:text-slate-600">{activityError}</p>
-                <button type="button" onClick={() => void loadMoreActivity()} className="text-[#62A0EA] admin-light:text-[#1A5FB4] hover:text-[#99C1F1] admin-light:hover:text-[#164A8F] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#62A0EA] admin-light:focus-visible:outline-[#1A5FB4]">Try again</button>
-              </div>}
-              {!isLoadingActivity && !activityError && recentActivityLogs.length === 0 && <p className="text-sm text-white/45 admin-light:text-slate-500">No activity today.</p>}
-              {!isLoadingActivity && !activityError && !hasMoreActivity && recentActivityLogs.length > 0 && <p className="mt-4 text-xs text-white/35 admin-light:text-slate-400">No more activity today.</p>}
+              </ul>
+            )}
+          </div>
+        </section>
+
+        <section aria-label="Recent activity logs" className="min-w-0 overflow-hidden rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white lg:col-span-7">
+          <PreviewHeader title="Activity Logs" href="/activity-logs" detail="Today" />
+          <div className="px-5 pb-4 pt-3">
+            <div className="overflow-x-auto">
+              <table aria-busy={isLoadingActivity} className="w-full min-w-[520px] table-fixed text-left text-xs">
+                <thead>
+                  <tr className="border-b border-[#2A3A55] admin-light:border-[#E2E8F0] text-[10px] uppercase tracking-wider text-white/40 admin-light:text-slate-500">
+                    <th scope="col" className="w-[48%] pb-2 pr-4 font-medium">Activity</th>
+                    <th scope="col" className="w-[20%] pb-2 pr-3 font-medium">Category</th>
+                    <th scope="col" className="w-[20%] pb-2 pr-3 font-medium">By</th>
+                    <th scope="col" className="w-[12%] pb-2 text-right font-medium">Time</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#1E2D45] admin-light:divide-[#E2E8F0]">
+                  {recentActivityLogs.slice(0, 5).map((log) => {
+                    const timestamp = formatDateTime(log.createdAt, "Asia/Manila");
+                    return (
+                      <tr key={log.id} className="h-10 text-white/80 admin-light:text-slate-700">
+                        <td className="max-w-0 py-2 pr-4">
+                          <p className="truncate" title={log.description}>{log.description}</p>
+                        </td>
+                        <td className="max-w-0 py-2 pr-3 text-white/50 admin-light:text-slate-500">
+                          <p className="truncate" title={getActivityLogCategoryLabel(log.category)}>{getActivityLogCategoryLabel(log.category)}</p>
+                        </td>
+                        <td className="max-w-0 py-2 pr-3 text-white/60 admin-light:text-slate-600">
+                          <p className="truncate" title={log.by}>{log.by}</p>
+                        </td>
+                        <td className="py-2 text-right tabular-nums text-white/55 admin-light:text-slate-500">
+                          <time dateTime={log.createdAt} title={timestamp.full + " (Philippine time)"}>{timestamp.time}</time>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {!isLoadingActivity && !activityError && recentActivityLogs.length === 0 && (
+                    <tr><td colSpan={4} className="py-5 text-center text-white/45 admin-light:text-slate-500">No activity today.</td></tr>
+                  )}
+                </tbody>
+              </table>
             </div>
+            {isLoadingActivity && <p role="status" className="mt-2 text-xs text-white/45 admin-light:text-slate-500">Loading activity…</p>}
+            {activityError && <div role="alert" className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <p className="text-white/60 admin-light:text-slate-600">{activityError}</p>
+              <button type="button" onClick={() => void loadMoreActivity()} className="text-[#62A0EA] admin-light:text-[#1A5FB4] hover:text-[#99C1F1] admin-light:hover:text-[#164A8F] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#62A0EA] admin-light:focus-visible:outline-[#1A5FB4]">Try again</button>
+            </div>}
           </div>
         </section>
       </div>
