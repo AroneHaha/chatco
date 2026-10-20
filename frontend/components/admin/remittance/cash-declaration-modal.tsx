@@ -1,13 +1,38 @@
 // components/admin/remittance/cash-declaration-modal.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useId } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
-import { Banknote, AlertTriangle } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Check, Clock } from 'lucide-react';
 import type { RemittanceRecord } from '@/app/(admin)/remittance/data/remittance-data';
 
 const fmtPHP = (n: number) =>
   `₱${n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+// Always show times on the corridor's clock (Philippine time), whatever the
+// admin's device is set to.
+const PH = 'Asia/Manila';
+// A completed remittance's time_in/time_out are uncast DB timestamps
+// ("2026-10-20 06:02:00", app timezone Asia/Manila, no offset), while
+// remittance_due_at arrives as ISO with an offset. Pin the bare form to
+// +08:00 (Manila has no DST): Safari can't parse it at all, and other
+// browsers would read it in the device's own timezone.
+const BARE_TIMESTAMP = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/;
+const toDate = (value?: string | null) => {
+  if (!value) return null;
+  const date = new Date(BARE_TIMESTAMP.test(value) ? `${value.replace(' ', 'T')}+08:00` : value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+const fmtDay = (date: Date) => date.toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: PH });
+const fmtClock = (date: Date) => date.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: PH });
+const sameDay = (a: Date, b: Date) => fmtDay(a) === fmtDay(b);
+
+function fmtDuration(start: Date, end: Date): string | null {
+  const minutes = Math.round((end.getTime() - start.getTime()) / 60_000);
+  if (minutes < 0) return null;
+  const hours = Math.floor(minutes / 60);
+  return hours > 0 ? `${hours}h ${minutes % 60}m` : `${minutes}m`;
+}
 
 interface CashDeclarationModalProps {
   isOpen: boolean;
@@ -25,16 +50,23 @@ interface CashDeclarationModalProps {
  * place cash gets declared now — the conductor's End-of-Day flow only
  * submits (see components/conductor/remittance/ConfirmModal.tsx), leaving
  * the remittance PENDING until an admin counts the physical cash here.
+ *
+ * Laid out around the one comparison being made: the system's expected cash
+ * beside the cash physically counted, with the difference under them. The
+ * declaration is only sent from the confirmation dialog.
  */
 export function CashDeclarationModal({ isOpen, onClose, onDeclared, record }: CashDeclarationModalProps) {
   const [cashDeclared, setCashDeclared] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const confirmTitleId = useId();
 
   useEffect(() => {
     if (isOpen && record) {
       setCashDeclared(record.cashTotal.toFixed(2));
       setError(null);
+      setConfirmOpen(false);
     }
   }, [isOpen, record]);
 
@@ -44,11 +76,16 @@ export function CashDeclarationModal({ isOpen, onClose, onDeclared, record }: Ca
   const shortage = Math.max(0, record.cashTotal - declaredAmount);
   const overage = Math.max(0, declaredAmount - record.cashTotal);
   const hasInvalidAmount = declaredAmount < 0 || cashDeclared.trim() === '';
+  const outcome = shortage > 0 ? 'Shortage' : overage > 0 ? 'Overage' : 'Settled';
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (hasInvalidAmount) return;
+  const timeIn = toDate(record.timeIn);
+  const timeOut = toDate(record.timeOut);
+  const dueAt = toDate(record.dueAt);
+  const duration = timeIn && timeOut ? fmtDuration(timeIn, timeOut) : null;
+  const isOverdue = record.remittanceStatus === 'Overdue';
 
+  const submit = async () => {
+    if (hasInvalidAmount || isSubmitting) return;
     setIsSubmitting(true);
     setError(null);
     try {
@@ -64,98 +101,179 @@ export function CashDeclarationModal({ isOpen, onClose, onDeclared, record }: Ca
         throw new Error(msg);
       }
 
+      setConfirmOpen(false);
       onDeclared();
       onClose();
     } catch (err) {
+      // Back to the form so the admin sees the error beside the amount.
+      setConfirmOpen(false);
       setError(err instanceof Error ? err.message : 'Failed to record cash declaration');
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!hasInvalidAmount) setConfirmOpen(true);
+  };
+
+  const differenceTone = shortage > 0
+    ? 'text-red-400 admin-light:text-red-600'
+    : overage > 0 ? 'text-emerald-400 admin-light:text-emerald-700' : 'text-slate-200 admin-light:text-slate-800';
+  const differenceValue = shortage > 0 ? `−${fmtPHP(shortage)}` : overage > 0 ? `+${fmtPHP(overage)}` : fmtPHP(0);
+  const label = 'text-[11px] font-semibold uppercase tracking-widest text-slate-400 admin-light:text-slate-500';
+
   return (
-    <Modal isOpen={isOpen} onClose={() => { if (!isSubmitting) onClose(); }} maxWidth="max-w-sm" adminThemed>
-      <div className="flex justify-center mb-4">
-        <div className="w-14 h-14 rounded-full bg-[#62A0EA]/15 admin-light:bg-[#1A5FB4]/10 flex items-center justify-center">
-          <Banknote size={26} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />
+    <Modal isOpen={isOpen} onClose={() => { if (!isSubmitting) onClose(); }} maxWidth="max-w-md sm:max-w-xl" adminThemed>
+      <header className="border-b border-[#2A3A55] pb-5 pr-8 admin-light:border-[#E2E8F0]">
+        <p className={label}>Cash declaration</p>
+        <h2 className="mt-1 text-xl font-bold leading-snug text-white wrap-anywhere admin-light:text-slate-900">{record.conductorName}</h2>
+        <p className="mt-0.5 text-sm text-slate-300 admin-light:text-slate-600">
+          Unit {record.unitNumber}{record.driverName ? ` · Driver ${record.driverName}` : ''}
+        </p>
+
+        {/* When the shift ran and when the cash was due. */}
+        <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-[auto_auto_1fr] sm:gap-6">
+          <div>
+            <dt className="text-xs text-slate-400 admin-light:text-slate-500">Shift date</dt>
+            <dd className="mt-0.5 text-sm font-medium text-white admin-light:text-slate-900">{timeIn ? fmtDay(timeIn) : record.date || '—'}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-slate-400 admin-light:text-slate-500">Time in → time out</dt>
+            <dd className="mt-0.5 flex items-center gap-1.5 text-sm font-medium tabular-nums text-white admin-light:text-slate-900">
+              {timeIn ? fmtClock(timeIn) : '—'}
+              <ArrowRight size={13} aria-label="to" className="text-slate-500" />
+              {timeOut ? `${fmtClock(timeOut)}${timeIn && !sameDay(timeIn, timeOut) ? ` (${fmtDay(timeOut)})` : ''}` : '—'}
+              {duration && <span className="font-normal text-slate-400 admin-light:text-slate-500">({duration})</span>}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-slate-400 admin-light:text-slate-500">{isOverdue ? 'Overdue since' : 'Due by'}</dt>
+            <dd className={`mt-0.5 flex items-center gap-1.5 text-sm font-medium tabular-nums ${isOverdue ? 'text-amber-300 admin-light:text-amber-700' : 'text-white admin-light:text-slate-900'}`}>
+              <Clock size={13} aria-hidden="true" className="shrink-0" />
+              {dueAt ? `${fmtClock(dueAt)}${timeOut && !sameDay(dueAt, timeOut) ? `, ${fmtDay(dueAt)}` : ''}` : '—'}
+            </dd>
+          </div>
+        </dl>
+      </header>
+
+      <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+        {/* Expected beside counted: the comparison the admin is making. */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="rounded-lg border border-[#2A3A55] bg-[#131C2E] p-4 admin-light:border-[#E2E8F0] admin-light:bg-[#F8FAFC]">
+            <p className={label}>Expected cash</p>
+            <p className="mt-2 text-2xl font-bold tabular-nums text-white admin-light:text-slate-900">{fmtPHP(record.cashTotal)}</p>
+            <p className="mt-1 text-xs text-slate-400 admin-light:text-slate-500">Cash fares the system tracked</p>
+          </div>
+          <div className="rounded-lg border border-[#62A0EA] bg-[#131C2E] p-4 admin-light:border-[#1A5FB4] admin-light:bg-white">
+            <label htmlFor="cash-declared" className={label}>Cash counted</label>
+            <div className="mt-2 flex items-center gap-1 rounded-md border border-[#2A3A55] bg-[#0E1628] px-3 focus-within:border-[#62A0EA] admin-light:border-[#CBD5E1] admin-light:bg-white admin-light:focus-within:border-[#1A5FB4]">
+              <span aria-hidden="true" className="text-xl font-bold text-slate-400 admin-light:text-slate-500">₱</span>
+              <input
+                id="cash-declared"
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0"
+                value={cashDeclared}
+                onChange={(e) => setCashDeclared(e.target.value)}
+                disabled={isSubmitting}
+                autoFocus
+                required
+                aria-describedby="cash-declared-help"
+                className="h-11 w-full min-w-0 bg-transparent text-2xl font-bold tabular-nums text-white outline-none placeholder:text-slate-600 disabled:cursor-not-allowed disabled:text-slate-500 admin-light:text-slate-900"
+                placeholder="0.00"
+              />
+            </div>
+            <p id="cash-declared-help" className="mt-1 text-xs text-slate-400 admin-light:text-slate-500">Physical cash handed over</p>
+          </div>
         </div>
-      </div>
-      <h2 className="text-lg sm:text-xl font-bold text-white admin-light:text-slate-900 text-center">Cash Declaration</h2>
-      <p className="text-xs text-slate-400 admin-light:text-slate-500 text-center mt-1 mb-5">
-        {record.conductorName} · {record.unitNumber} · {record.date}
-      </p>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {error && (
-          <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-md">
-            <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
+        <dl className="divide-y divide-[#2A3A55] rounded-lg border border-[#2A3A55] admin-light:divide-[#E2E8F0] admin-light:border-[#E2E8F0]">
+          <div className="flex items-center justify-between gap-3 px-4 py-3">
+            <dt className={`flex items-center gap-1.5 text-sm font-semibold ${differenceTone}`}>
+              {shortage > 0 ? <AlertTriangle size={14} aria-hidden="true" /> : <Check size={14} aria-hidden="true" />}
+              {shortage > 0 ? 'Shortage' : overage > 0 ? 'Overage' : 'Exact match'}
+            </dt>
+            <dd className={`text-base font-bold tabular-nums ${differenceTone}`}>{differenceValue}</dd>
           </div>
-        )}
+          <div className="flex items-center justify-between gap-3 px-4 py-3">
+            <dt className="text-sm text-slate-400 admin-light:text-slate-500">GCash fares (not counted)</dt>
+            <dd className="text-sm font-medium tabular-nums text-slate-200 admin-light:text-slate-700">{fmtPHP(record.gcashTotal)}</dd>
+          </div>
+        </dl>
 
-        <div className="bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md p-4 space-y-2.5">
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-400 admin-light:text-slate-500 flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-400" />GCash (system-tracked)</span>
-            <span className="text-blue-400 admin-light:text-blue-700 font-bold tabular-nums">{fmtPHP(record.gcashTotal)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-400 admin-light:text-slate-500 flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400" />Cash (system-tracked)</span>
-            <span className="text-emerald-400 admin-light:text-emerald-700 font-bold tabular-nums">{fmtPHP(record.cashTotal)}</span>
-          </div>
-        </div>
+        {error && <p role="alert" className="text-sm text-red-400 admin-light:text-red-600">{error}</p>}
 
-        <div>
-          <label htmlFor="cash-declared" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">
-            Cash Declared (physical count) <span className="text-red-400 admin-light:text-red-600">*</span>
-          </label>
-          <input
-            id="cash-declared"
-            type="number"
-            step="0.01"
-            min="0"
-            value={cashDeclared}
-            onChange={(e) => setCashDeclared(e.target.value)}
-            disabled={isSubmitting}
-            autoFocus
-            required
-            className="w-full px-4 py-2.5 bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-white admin-light:text-slate-900 text-lg font-bold tabular-nums placeholder-slate-500 admin-light:placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] admin-light:focus:ring-[#1A5FB4] transition-colors disabled:opacity-50"
-            placeholder="0.00"
-          />
-          <p className="text-[11px] text-slate-500 mt-1.5">
-            Enter the cash actually handed over. The system-tracked total is {fmtPHP(record.cashTotal)}.
-          </p>
-        </div>
-
-        {shortage > 0 && (
-          <div className="flex items-center justify-between bg-red-500/10 border border-red-500/20 rounded-md px-3.5 py-2.5">
-            <span className="text-xs font-semibold text-red-400 admin-light:text-red-600 flex items-center gap-1.5"><AlertTriangle size={13} />Shortage</span>
-            <span className="text-sm font-bold text-red-400 admin-light:text-red-600 tabular-nums">-{fmtPHP(shortage)}</span>
-          </div>
-        )}
-        {overage > 0 && (
-          <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/20 rounded-md px-3.5 py-2.5">
-            <span className="text-xs font-semibold text-emerald-400 admin-light:text-emerald-700">Overage</span>
-            <span className="text-sm font-bold text-emerald-400 admin-light:text-emerald-700 tabular-nums">+{fmtPHP(overage)}</span>
-          </div>
-        )}
-
-        <div className="flex justify-end gap-2 pt-4 border-t border-[#1E2D45] admin-light:border-[#E2E8F0]">
+        <div className="flex flex-col-reverse gap-2 border-t border-[#2A3A55] pt-4 sm:flex-row sm:justify-end admin-light:border-[#E2E8F0]">
           <button
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="px-5 py-2.5 border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-slate-300 admin-light:text-slate-700 hover:bg-[#131C2E] admin-light:hover:bg-white transition-colors disabled:opacity-50"
+            className="min-h-11 rounded-md border border-[#2A3A55] bg-[#131C2E] px-5 text-sm font-medium text-slate-200 transition-colors hover:bg-[#0E1628] disabled:cursor-not-allowed disabled:text-slate-500 admin-light:border-[#CBD5E1] admin-light:bg-white admin-light:text-slate-700 admin-light:hover:bg-slate-50"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={isSubmitting || hasInvalidAmount}
-            className="px-5 py-2.5 bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white font-medium rounded-md hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="min-h-11 rounded-md border border-[#62A0EA] bg-[#62A0EA] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#4A8BD4] disabled:cursor-not-allowed disabled:border-[#2A3A55] disabled:bg-[#1E293B] disabled:text-slate-500 admin-light:border-[#1A5FB4] admin-light:bg-[#1A5FB4] admin-light:hover:bg-[#164A8F] admin-light:disabled:border-[#E2E8F0] admin-light:disabled:bg-[#F1F5F9] admin-light:disabled:text-slate-400"
           >
-            {isSubmitting ? 'Saving...' : 'Confirm Cash Declaration'}
+            Record declaration
           </button>
         </div>
       </form>
+
+      {/* Confirmation: the declaration is only sent from here. Sits above the
+          modal (z-60); Cancel is focused first so Enter never confirms. */}
+      {confirmOpen && (
+        <div
+          className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => { if (!isSubmitting) setConfirmOpen(false); }}
+          onKeyDown={(event) => { if (event.key === 'Escape' && !isSubmitting) { event.stopPropagation(); setConfirmOpen(false); } }}
+        >
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby={confirmTitleId}
+            onClick={(event) => event.stopPropagation()}
+            className="w-full max-w-sm rounded-xl border border-[#2A3A55] bg-[#1A2540] p-6 shadow-2xl admin-light:border-[#E2E8F0] admin-light:bg-white"
+          >
+            <h3 id={confirmTitleId} className="text-lg font-bold leading-snug text-white admin-light:text-slate-900">
+              Record {fmtPHP(declaredAmount)} for {record.conductorName}?
+            </h3>
+            <p className="mt-1 text-sm text-slate-400 admin-light:text-slate-500">
+              {timeIn ? fmtDay(timeIn) : record.date} · Unit {record.unitNumber}
+            </p>
+            <dl className="mt-4 space-y-2 rounded-md border border-[#2A3A55] bg-[#131C2E] p-3 text-sm admin-light:border-[#E2E8F0] admin-light:bg-[#F8FAFC]">
+              <div className="flex justify-between gap-3"><dt className="text-slate-400 admin-light:text-slate-500">Expected</dt><dd className="font-medium tabular-nums text-white admin-light:text-slate-900">{fmtPHP(record.cashTotal)}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="text-slate-400 admin-light:text-slate-500">Counted</dt><dd className="font-medium tabular-nums text-white admin-light:text-slate-900">{fmtPHP(declaredAmount)}</dd></div>
+              <div className="flex justify-between gap-3 border-t border-[#2A3A55] pt-2 admin-light:border-[#E2E8F0]"><dt className={`font-semibold ${differenceTone}`}>{outcome === 'Settled' ? 'Exact match' : outcome}</dt><dd className={`font-bold tabular-nums ${differenceTone}`}>{differenceValue}</dd></div>
+            </dl>
+            <p className="mt-3 text-sm text-slate-300 admin-light:text-slate-600">The remittance will be marked <span className="font-semibold text-white admin-light:text-slate-900">{outcome}</span>.</p>
+            <div className="mt-6 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setConfirmOpen(false)}
+                disabled={isSubmitting}
+                className="min-h-11 rounded-md border border-[#2A3A55] bg-[#131C2E] text-sm font-semibold text-slate-200 transition-colors hover:bg-[#0E1628] disabled:cursor-not-allowed disabled:text-slate-500 admin-light:border-[#CBD5E1] admin-light:bg-white admin-light:text-slate-700 admin-light:hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={(event) => { if (event.detail <= 1) void submit(); }}
+                disabled={isSubmitting}
+                className="min-h-11 rounded-md border border-[#62A0EA] bg-[#62A0EA] text-sm font-semibold text-white transition-colors hover:bg-[#4A8BD4] disabled:cursor-not-allowed disabled:border-[#2A3A55] disabled:bg-[#1E293B] disabled:text-slate-500 admin-light:border-[#1A5FB4] admin-light:bg-[#1A5FB4] admin-light:hover:bg-[#164A8F]"
+              >
+                {isSubmitting ? 'Saving...' : 'Record declaration'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Modal>
   );
 }

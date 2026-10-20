@@ -104,7 +104,7 @@ export default function RemittancePage() {
     };
   }, []);
   // Mobile-only collapse: the search/date/dropdown filter row hides behind a
-  // toggle so just the summary cards stay visible on small screens — same
+  // toggle while the summary cards remain visible — same
   // pattern as the conductor dashboard's MobileDashboardCard and the admin
   // Lost & Found page.
   const [isMobileFiltersExpanded, setIsMobileFiltersExpanded] = useState(true);
@@ -149,9 +149,14 @@ export default function RemittancePage() {
       </StickyPageHeader>
 
       <div className="flex shrink-0 flex-col gap-4 mb-4">
-        {/* Mobile-only collapse: summary cards AND the filter row both hide
-            behind the toggle below, so a collapsed state actually reads as
-            "collapsed" instead of leaving the cards permanently visible.
+        <RemittanceSummary
+          selectedDate={selectedDate}
+          dateFrom={rangeStart}
+          rangeLabel={RANGE_OPTIONS.find((option) => option.value === rangePreset)?.label ?? 'Today'}
+        />
+
+        {/* Mobile-only collapse for filters. The summary cards stay visible
+            regardless of the collapsed state.
             The md:!max-h-none override means this never collapses at md:
             and up (same breakpoint the toggle button itself disappears at,
             below).
@@ -182,12 +187,6 @@ export default function RemittancePage() {
           style={{ maxHeight: isMobileFiltersExpanded ? '700px' : '0px' }}
         >
           <div className="flex flex-col gap-4">
-            <RemittanceSummary
-              selectedDate={selectedDate}
-              dateFrom={rangeStart}
-              rangeLabel={RANGE_OPTIONS.find((option) => option.value === rangePreset)?.label ?? 'Today'}
-            />
-
             {/* Search + date (left) — range/status/conductor/driver dropdowns (right, shorter) */}
             <div className="flex flex-col md:flex-row md:flex-wrap md:items-center gap-3 w-full">
               <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
@@ -204,10 +203,13 @@ export default function RemittancePage() {
                 <AdminDatePicker
                   accent="blue"
                   popover
+                  yearNavigation
                   ariaLabel="Filter remittances by date"
+                  clearLabel="Clear date"
                   value={selectedDate}
                   onChange={handlePickDate}
-                  triggerClassName="w-full py-2"
+                  max={todayStr()}
+                  triggerClassName="h-9.5 w-full text-sm"
                   className="w-full md:w-48"
                 />
               </div>
