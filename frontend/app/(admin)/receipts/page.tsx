@@ -2,12 +2,11 @@
 'use client';
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { DataTable } from '@/components/admin/ui/data-table';
-import { Badge } from '@/components/admin/ui/badge';
+import { ReceiptsLedger, type DayStats } from '@/components/admin/receipts/receipts-ledger';
 import { SearchBar } from '@/components/admin/ui/search-bar';
-import { CalendarDays, Download, Wallet, Ticket, Banknote, ChevronLeft, ChevronRight, ChevronDown, AlertCircle, AlertTriangle, RefreshCw, ReceiptText, Smartphone, Coins, SlidersHorizontal } from 'lucide-react';
+import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
+import { Download, Wallet, ChevronLeft, ChevronRight, ChevronDown, AlertCircle, AlertTriangle, RefreshCw, ReceiptText, Smartphone, Coins, SlidersHorizontal } from 'lucide-react';
 import { useReceiptsData, type Receipt, type PaymentMethod } from '@/app/(admin)/receipts/data/receipts-data';
-import { statusBadge, methodStyle } from '@/app/(admin)/receipts/data/receipt-status';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
 import { exportReport, type ReportFormat } from '@/lib/utils/export-report';
 import { formatPeso } from '@/lib/utils/display';
@@ -188,173 +187,24 @@ export default function ReceiptsPage() {
     activeRangeLabel,
   ].filter(Boolean).join(' | ');
 
-  const columns = [
-    {
-      key: 'id',
-      label: 'Receipt',
-      headerClassName: 'w-[18%] px-2 sm:px-3',
-      cellClassName: 'px-2 sm:px-3 min-w-0',
-      render: (value: string, row: Receipt) => (
-        <div className="min-w-0 leading-tight">
-          <span className="block truncate font-mono text-[11px] text-slate-400 admin-light:text-slate-500" title={value}>{value}</span>
-          {row.multiplePaymentReference && (
-            <span className="block truncate font-mono text-[9px] text-blue-400 admin-light:text-blue-700" title={row.multiplePaymentReference}>{row.multiplePaymentReference}</span>
-          )}
-        </div>
-      ),
-    },
-    {
-      key: 'commuterName',
-      label: 'Commuter',
-      headerClassName: 'w-[20%] px-2 sm:px-3',
-      cellClassName: 'px-2 sm:px-3 min-w-0',
-      render: (value: string, row: Receipt) => (
-        <div className="min-w-0 leading-tight">
-          <p className="truncate text-xs text-slate-200 admin-light:text-slate-700" title={value}>{value}</p>
-          <p
-            className="truncate text-[9px] text-slate-500"
-            title={row.paidBy ? `${row.commuterRole} | Paid by: ${row.paidBy}` : row.commuterRole}
-          >
-            {row.commuterRole}
-            {row.paidBy && <span className="text-blue-400 admin-light:text-blue-700"> | Paid by: {row.paidBy}</span>}
-          </p>
-        </div>
-      ),
-    },
-    {
-      key: 'plateNumber',
-      label: 'Vehicle / Route',
-      headerClassName: 'w-[20%] px-2 sm:px-3',
-      cellClassName: 'px-2 sm:px-3 min-w-0',
-      render: (value: string, row: Receipt) => (
-        <div className="min-w-0 leading-tight">
-          <p className="truncate text-xs font-medium text-slate-200 admin-light:text-slate-700" title={value}>{value}</p>
-          <p className="truncate text-[9px] text-slate-500" title={row.route}>{row.route}</p>
-        </div>
-      ),
-    },
-    {
-      key: 'fare',
-      label: 'Fare / Payment',
-      headerClassName: 'w-[16%] px-2 sm:px-3',
-      cellClassName: 'px-2 sm:px-3',
-      render: (value: number, row: Receipt) => (
-        <div className="space-y-0.5 leading-tight">
-          <p className="text-xs font-semibold text-slate-200 admin-light:text-slate-700">{formatPeso(value)}</p>
-          {row.discountAmount > 0 && <p className="text-[9px] text-emerald-400 admin-light:text-emerald-700">-{formatPeso(row.discountAmount)} discount</p>}
-          <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0 text-[9px] font-medium ${methodStyle(row.paymentMethod)}`}>
-            {row.paymentMethod === 'Gcash' && <Wallet size={9} />}
-            {row.paymentMethod === 'Voucher' && <Ticket size={9} />}
-            {row.paymentMethod === 'Cash' && <Banknote size={9} />}
-            {row.paymentMethod}
-          </span>
-        </div>
-      ),
-    },
-    {
-      key: 'status',
-      label: 'Status',
-      headerClassName: 'w-[13%] px-2 sm:px-3',
-      cellClassName: 'px-2 sm:px-3',
-      render: (value: string, row: Receipt) => {
-        const { label, variant } = statusBadge(value);
-        return (
-          <div className="space-y-0.5 leading-tight">
-            <Badge variant={variant}>{label}</Badge>
-            {row.reconciliationStatus === 'REFUND_REQUIRED' && (
-              <p className="text-[9px] font-semibold text-amber-300 admin-light:text-amber-700" title={row.reconciliationReason ?? undefined}>
-                Refund required
-              </p>
-            )}
-          </div>
-        );
-      },
-    },
-    {
-      key: 'date',
-      label: 'Recorded',
-      headerClassName: 'w-[13%] px-2 sm:px-3',
-      cellClassName: 'px-2 sm:px-3',
-      render: (value: string, row: Receipt) => (
-        <div className="leading-tight">
-          <p className="text-[11px] text-slate-300 admin-light:text-slate-700">{value}</p>
-          <p className="text-[9px] text-slate-500">{row.time}</p>
-        </div>
-      ),
-    },
-  ];
-
-  const renderMobileReceipt = (receipt: Receipt) => {
-    const { label, variant } = statusBadge(receipt.status);
-
-    return (
-      <article
-        key={`${receipt.id}-${receipt.date}-${receipt.time}`}
-        className="rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F1F5F9] p-2.5 text-xs text-slate-300 admin-light:text-slate-700"
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="break-all font-mono text-[11px] leading-tight text-slate-300 admin-light:text-slate-700">{receipt.id}</p>
-            {receipt.multiplePaymentReference && (
-              <p className="mt-0.5 break-all font-mono text-[9px] leading-tight text-blue-400 admin-light:text-blue-700">
-                {receipt.multiplePaymentReference}
-              </p>
-            )}
-          </div>
-          <Badge variant={variant}>{label}</Badge>
-        </div>
-
-        <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
-          <div className="min-w-0">
-            <p className="text-[9px] uppercase text-slate-500">Commuter</p>
-            <p className="break-words text-[11px] font-medium leading-tight text-slate-100 admin-light:text-slate-900">{receipt.commuterName}</p>
-            <p className="break-words text-[9px] leading-tight text-slate-500">
-              {receipt.commuterRole}
-              {receipt.paidBy && <span className="text-blue-400 admin-light:text-blue-700"> | Paid by: {receipt.paidBy}</span>}
-            </p>
-          </div>
-
-          <div className="min-w-0 text-right">
-            <p className="text-[9px] uppercase text-slate-500">Fare</p>
-            <p className="text-[11px] font-semibold leading-tight text-slate-100 admin-light:text-slate-900">{formatPeso(receipt.fare)}</p>
-            {receipt.discountAmount > 0 && (
-              <p className="text-[9px] leading-tight text-emerald-400 admin-light:text-emerald-700">-{formatPeso(receipt.discountAmount)} discount</p>
-            )}
-          </div>
-
-          <div className="min-w-0">
-            <p className="text-[9px] uppercase text-slate-500">Vehicle / Route</p>
-            <p className="break-words text-[11px] font-medium leading-tight text-slate-100 admin-light:text-slate-900">{receipt.plateNumber}</p>
-            <p className="break-words text-[9px] leading-tight text-slate-500">{receipt.route}</p>
-          </div>
-
-          <div className="min-w-0 text-right">
-            <p className="text-[9px] uppercase text-slate-500">Payment</p>
-            <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0 text-[9px] font-medium ${methodStyle(receipt.paymentMethod)}`}>
-              {receipt.paymentMethod === 'Gcash' && <Wallet size={9} />}
-              {receipt.paymentMethod === 'Voucher' && <Ticket size={9} />}
-              {receipt.paymentMethod === 'Cash' && <Banknote size={9} />}
-              {receipt.paymentMethod}
-            </span>
-            <p className="mt-0.5 text-[9px] leading-tight text-slate-500">
-              {receipt.date} | {receipt.time}
-            </p>
-          </div>
-        </div>
-
-        {receipt.reconciliationStatus === 'REFUND_REQUIRED' && (
-          <p className="mt-2 rounded-md bg-amber-500/10 px-2 py-1 text-[9px] font-semibold text-amber-300 admin-light:text-amber-700">
-            Refund required
-          </p>
-        )}
-      </article>
-    );
-  };
+  // Per-day count and settled total for the ledger's day headings, over the
+  // whole filtered set (not just this page) and settled rows only, the same
+  // rule as the summary line.
+  const dayStats = useMemo(() => {
+    const stats = new Map<string, DayStats>();
+    for (const item of filteredData) {
+      const day = stats.get(item.date) ?? { count: 0, settledTotal: 0 };
+      day.count += 1;
+      if (item.status === 'Completed') day.settledTotal += item.fare;
+      stats.set(item.date, day);
+    }
+    return stats;
+  }, [filteredData]);
 
   // ─── Initial Loading State (Skeleton) ───
   if (isLoading) {
     return (
-      <div className="space-y-6 animate-pulse">
+      <div className="space-y-6" role="status" aria-label="Loading receipts">
         {/* Skeleton Summary Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
           {[...Array(4)].map((_, i) => (
@@ -406,12 +256,7 @@ export default function ReceiptsPage() {
              background poll, so there's no manual refresh control here —
              just a quiet indicator while a refresh is in flight. ── */}
       <StickyPageHeader className="flex flex-wrap items-center justify-between gap-3 mb-4 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-lg bg-[#62A0EA]/15 admin-light:bg-[#1A5FB4]/10 flex items-center justify-center shrink-0">
-            <ReceiptText size={22} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />
-          </div>
-          <h1 className="text-2xl font-bold text-white admin-light:text-slate-900 leading-tight">Fare Receipts</h1>
-        </div>
+        <h1 className="text-2xl font-bold text-white admin-light:text-slate-900 leading-tight">Fare Receipts</h1>
         <div className="flex items-center gap-2">
           {isRefreshing && (
             <span className="flex items-center gap-1.5 text-xs text-[#62A0EA] admin-light:text-[#1A5FB4]">
@@ -464,13 +309,13 @@ export default function ReceiptsPage() {
 
       {/* ── Summary Cards ── */}
       {reconciliationRequired.length > 0 && (
-        <div className="mb-4 flex shrink-0 items-start gap-3 rounded-xl border border-amber-400/40 bg-amber-500/10 p-3 text-amber-100 admin-light:text-amber-900">
+        <div className="mb-4 flex shrink-0 items-start gap-3 rounded-lg border border-amber-700 bg-[#2A2111] p-3 text-amber-100 admin-light:border-amber-300 admin-light:bg-amber-50 admin-light:text-amber-900">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-300 admin-light:text-amber-700" />
           <div>
             <p className="text-sm font-semibold">
               {reconciliationRequired.length} late GCash {reconciliationRequired.length === 1 ? 'payment requires' : 'payments require'} refund review
             </p>
-            <p className="mt-1 text-xs text-amber-100/75 admin-light:text-amber-800">
+            <p className="mt-1 text-xs text-amber-200 admin-light:text-amber-800">
               PayMongo confirmed payment after local cancellation. These rides are blocked from rewards until reconciliation is resolved.
             </p>
           </div>
@@ -479,8 +324,8 @@ export default function ReceiptsPage() {
 
       <div className="grid shrink-0 grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <div className="bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-xl p-3 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg border border-[#62A0EA]/15 admin-light:border-[#1A5FB4]/15 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 flex items-center justify-center shrink-0">
-            <ReceiptText size={18} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center text-[#62A0EA] admin-light:text-[#1A5FB4]">
+            <ReceiptText size={36} />
           </div>
           <div className="min-w-0">
             <p className="text-[10px] text-slate-500 uppercase tracking-wider">Receipts Shown</p>
@@ -488,8 +333,8 @@ export default function ReceiptsPage() {
           </div>
         </div>
         <div className="bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-xl p-3 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg border border-[#62A0EA]/15 admin-light:border-[#1A5FB4]/15 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 flex items-center justify-center shrink-0">
-            <Wallet size={18} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center text-[#62A0EA] admin-light:text-[#1A5FB4]">
+            <Wallet size={36} />
           </div>
           <div className="min-w-0">
             <p className="text-[10px] text-slate-500 uppercase tracking-wider">Settled Fares</p>
@@ -497,8 +342,8 @@ export default function ReceiptsPage() {
           </div>
         </div>
         <div className="bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-xl p-3 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg border border-[#62A0EA]/15 admin-light:border-[#1A5FB4]/15 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 flex items-center justify-center shrink-0">
-            <Coins size={18} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center text-[#62A0EA] admin-light:text-[#1A5FB4]">
+            <Coins size={36} />
           </div>
           <div className="min-w-0">
             <p className="text-[10px] text-slate-500 uppercase tracking-wider">Cash Settled</p>
@@ -506,8 +351,8 @@ export default function ReceiptsPage() {
           </div>
         </div>
         <div className="bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-xl p-3 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg border border-[#62A0EA]/15 admin-light:border-[#1A5FB4]/15 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 flex items-center justify-center shrink-0">
-            <Smartphone size={18} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center text-[#62A0EA] admin-light:text-[#1A5FB4]">
+            <Smartphone size={36} />
           </div>
           <div className="min-w-0">
             <p className="text-[10px] text-slate-500 uppercase tracking-wider">GCash Settled</p>
@@ -595,18 +440,19 @@ export default function ReceiptsPage() {
               ))}
             </select>
 
-            <div className="relative w-full xl:w-48">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <CalendarDays className="h-4 w-4 text-slate-400 admin-light:text-slate-500" />
-              </div>
-              <input
-                type="date"
-                value={specificDate}
-                onChange={(e) => handlePickDate(e.target.value)}
-                aria-label="Show transactions on a specific date"
-                className="block w-full h-9.5 pl-10 pr-3 bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-lg text-white admin-light:text-slate-900 text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] admin-light:focus:ring-[#1A5FB4] focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4] scheme-dark admin-light:scheme-light"
-              />
-            </div>
+            {/* Same picker as sign-up: jump by year and month instead of
+                paging; no future days, since receipts can't be dated ahead. */}
+            <AdminDatePicker
+              value={specificDate}
+              onChange={handlePickDate}
+              ariaLabel="Show transactions on a specific date"
+              clearLabel="Clear date"
+              yearNavigation
+              align="right"
+              max={toLocalISODate(new Date())}
+              className="w-full xl:w-48"
+              triggerClassName="h-9.5 w-full text-sm"
+            />
 
             <div className="hidden flex-wrap gap-2 xl:flex">
               {RANGE_OPTIONS.map((opt) => (
@@ -630,37 +476,13 @@ export default function ReceiptsPage() {
       {/* Table card — fills whatever vertical space is left below the
           header/summary/filters, on every screen size, instead of a fixed
           height that either clips or leaves a gap. */}
-      <div className="flex flex-1 min-h-0 flex-col bg-[#0B1220] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-xl p-3 sm:p-4">
+      <div className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-lg border border-[#1E2D45] bg-[#0B1220] admin-light:border-[#E2E8F0] admin-light:bg-white">
         <div className="flex-1 min-h-0">
-          <div className="hidden h-full sm:block">
-            <DataTable
-              data={paginatedData}
-              columns={columns}
-              searchQuery=""
-              emptyMessage="No receipts match your filters."
-              height="100%"
-              stickyHeader
-              allowHorizontalScroll={false}
-              tableClassName="table-fixed"
-              density="compact"
-            />
-          </div>
-
-          <div className="flex h-full flex-col overflow-y-auto rounded-lg border border-[#23344F] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white p-2 sm:hidden scrollbar-themed">
-            {paginatedData.length === 0 ? (
-              <div className="flex min-h-0 flex-1 items-center justify-center px-4 text-center">
-                <p className="text-sm text-slate-500">No receipts match your filters.</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {paginatedData.map(renderMobileReceipt)}
-              </div>
-            )}
-          </div>
+          <ReceiptsLedger rows={paginatedData} dayStats={dayStats} emptyMessage="No receipts match your filters." />
         </div>
 
       {/* Pagination Controls */}
-      <div className="shrink-0 flex flex-col sm:flex-row justify-between items-center mt-3 pt-3 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] gap-4 text-xs text-slate-400 admin-light:text-slate-500">
+      <div className="shrink-0 flex flex-col sm:flex-row justify-between items-center px-3 py-3 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] gap-4 text-xs text-slate-400 admin-light:text-slate-500">
         <div>
           Showing {paginatedData.length > 0 ? (safeCurrentPage - 1) * ROWS_PER_PAGE + 1 : 0} to{' '}
           {(safeCurrentPage - 1) * ROWS_PER_PAGE + paginatedData.length} of{' '}
@@ -672,12 +494,12 @@ export default function ReceiptsPage() {
             onClick={() => goToPage(safeCurrentPage - 1)}
             disabled={safeCurrentPage === 1}
             aria-label="Previous page"
-            className="p-2 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="p-2 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] disabled:cursor-not-allowed disabled:text-slate-600 admin-light:disabled:text-slate-300 transition-colors"
           >
             <ChevronLeft size={16} />
           </button>
 
-          <span className="px-4 py-2 bg-[#62A0EA]/20 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4] rounded-md font-medium text-xs">
+          <span className="px-3 font-medium text-xs text-slate-300 admin-light:text-slate-700">
             Page {safeCurrentPage} of {totalPages}
           </span>
 
@@ -685,7 +507,7 @@ export default function ReceiptsPage() {
             onClick={() => goToPage(safeCurrentPage + 1)}
             disabled={safeCurrentPage === totalPages}
             aria-label="Next page"
-            className="p-2 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="p-2 rounded-md bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] disabled:cursor-not-allowed disabled:text-slate-600 admin-light:disabled:text-slate-300 transition-colors"
           >
             <ChevronRight size={16} />
           </button>
