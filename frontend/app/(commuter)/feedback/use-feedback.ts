@@ -37,7 +37,7 @@ export interface FeedbackCrewData {
 }
 
 export type ScanStatus =
-  | "scanning" // camera/manual entry in progress
+  | "scanning" // camera scan in progress
   | "verifying" // validate() in flight
   | "resolving" // scan() in flight
   | "resolved" // crew info ready — show feedback form
@@ -52,6 +52,11 @@ export type ScanErrorCode = QrFeedbackErrorCode;
 export interface ScanError {
   code: ScanErrorCode;
   message: string;
+  /**
+   * The unit the QR identified, from the labels printed in it. Set once the
+   * QR parsed, so a `no_crew_today` screen can name the unit it checked.
+   */
+  unit?: { unitNumber: string | null; plateNumber: string | null };
 }
 
 /**
@@ -163,22 +168,30 @@ export function useFeedback(initialToken?: string) {
 
   // ─── Scan flow ──────────────────────────────────────────────
   /**
-   * Called by the QrScanner when the permanent unit-QR is decoded (camera
-   * or manual). Parses the QR's JSON payload to extract the vehicleId, then
+   * Called by the QrScanner when the camera decodes the permanent unit-QR.
+   * Parses the QR's JSON payload to extract the vehicleId, then
    * resolves today's driver + conductor via POST /qr/scan-public.
    *
    * No signature/expiry check — the QR is permanent by design. The crew
    * shown depends on who is assigned to the unit TODAY (the daily
    * assignment recorded when the conductor logged in for the day).
    */
+  // The last decoded QR, so "Check again" on the no-crew screen can re-run
+  // the lookup without making the commuter rescan the same jeepney.
+  const lastRawRef = useRef<string | null>(null);
+
   const handleToken = useCallback(async (raw: string) => {
     setScanError(null);
+    lastRawRef.current = raw;
 
     // 1. Parse the permanent unit-QR JSON → extract vehicleId.
     //    Fail fast (no network) if it isn't a Chatco unit-QR.
     let vehicleId: string;
+    let unit: ScanError["unit"];
     try {
-      vehicleId = parseUnitQr(raw);
+      const parsed = parseUnitQr(raw);
+      vehicleId = parsed.vehicleId;
+      unit = { unitNumber: parsed.unitNumber, plateNumber: parsed.plateNumber };
     } catch (err) {
       const code: ScanErrorCode =
         err instanceof QrFeedbackError ? err.code : "invalid_format";
@@ -220,10 +233,15 @@ export function useFeedback(initialToken?: string) {
         err instanceof Error
           ? err.message
           : "Unable to resolve crew for this unit.";
-      setScanError({ code, message });
+      setScanError({ code, message, unit });
       setScanStatus("error");
     }
   }, []);
+
+  /** Re-run the lookup for the last scanned QR (crew may have just clocked in). */
+  const retryLastScan = useCallback(() => {
+    if (lastRawRef.current) void handleToken(lastRawRef.current);
+  }, [handleToken]);
 
   // Consume the token passed in from the nav-bar scan modal exactly once —
   // a ref guard rather than an empty dep array so it still fires if the
@@ -336,6 +354,7 @@ export function useFeedback(initialToken?: string) {
     scanError,
     crew,
     handleToken,
+    retryLastScan,
     resetForNewScan,
     // form state
     rating,

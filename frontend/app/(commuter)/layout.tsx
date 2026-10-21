@@ -2,8 +2,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { usePathname } from "next/navigation";
+import { useCallback, useState } from "react";
 import { Calculator } from "lucide-react";
 import { RequireRole, useAuth } from "@/contexts/auth-context";
 import { AnnouncementsProvider, useAnnouncements } from "@/contexts/announcements-context";
@@ -11,7 +11,7 @@ import { RewardsProvider, useRewardsData } from "@/contexts/rewards-context";
 import { CommuterThemeProvider } from "@/contexts/commuter-theme-context";
 import MaintenanceGate from "@/components/shared/maintenance-gate";
 import { getCommuterTypeLabel } from "@/types";
-import { QrScanner } from "@/components/commuter/feedback/qr-scanner";
+import { FeedbackScanModal } from "@/components/commuter/feedback/feedback-scan-modal";
 import CommuterDock from "@/components/commuter/commuter-dock";
 import CommuterProfileModal from "@/components/commuter/commuter-profile-modal";
 import CommuterFareModal from "@/components/commuter/commuter-fare-modal";
@@ -31,18 +31,14 @@ function rewardsBadgeLabel(unread: number, vouchers: number): string {
 
 function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
   const { commuterProfile, isLoading: authLoading } = useAuth();
   // The Feedback tab opens the QR scanner as an overlay instead of routing to
-  // /feedback directly — scanning/manual entry doesn't need a full page, and
-  // this way it can be launched from wherever the commuter already is. Once a
-  // token is captured, it still routes to /feedback (unchanged) for the
-  // verify/resolve step and the driver+conductor rating form.
+  // /feedback directly — scanning doesn't need a full page, and
+  // this way it can be launched from wherever the commuter already is. What
+  // happens after a scan (in place at lg+, or via /feedback) is owned by
+  // FeedbackScanModal.
   const [showFeedbackScan, setShowFeedbackScan] = useState(false);
-  const handleFeedbackToken = (token: string) => {
-    setShowFeedbackScan(false);
-    router.push(`/feedback?token=${encodeURIComponent(token)}`);
-  };
+  const closeFeedbackScan = useCallback(() => setShowFeedbackScan(false), []);
   // The Rewards tab covers both announcements and vouchers, so its badge is
   // the sum of the two things worth opening it for: updates you haven't read,
   // and free-ride vouchers you can redeem right now (one per 10 cashless
@@ -245,15 +241,7 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
       <StudentRenewalReminder />
 
       {/* --- FEEDBACK QR SCAN MODAL --- */}
-      {/* No backdrop-click-to-close — a live camera stream is running, same
-          convention as the GCash scan modal. */}
-      {showFeedbackScan && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-sm max-h-[88vh] rounded-2xl border border-white/10 light:border-gray-200 shadow-2xl overflow-hidden">
-            <QrScanner variant="modal" onToken={handleFeedbackToken} onCancel={() => setShowFeedbackScan(false)} />
-          </div>
-        </div>
-      )}
+      {showFeedbackScan && <FeedbackScanModal onClose={closeFeedbackScan} />}
     </div>
   );
 }

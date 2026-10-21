@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useFeedback } from "./use-feedback";
 import { QrScanner } from "@/components/commuter/feedback/qr-scanner";
 import { CrewRatingSection } from "@/components/commuter/feedback/crew-rating-section";
+import { NoCrewOnDuty } from "@/components/commuter/feedback/no-crew-on-duty";
+import { errorMessageForCode, errorTitleForCode } from "@/components/commuter/feedback/scan-error-copy";
 import { AlertTriangle, Check, RotateCcw } from "lucide-react";
 
 /**
@@ -12,10 +14,12 @@ import { AlertTriangle, Check, RotateCcw } from "lucide-react";
  * wired to the real backend).
  *
  * State machine (driven by `scanStatus` from useFeedback):
- *   scanning   → QrScanner component (camera + manual entry)
+ *   scanning   → QrScanner component (camera)
  *   verifying  → spinner ("Verifying QR signature…")
  *   resolving  → spinner ("Resolving today's crew…")
- *   error      → typed error message + "Try again" button
+ *   error      → no_crew_today: the scanned unit with a vacant crew roster
+ *                + "Check again" / "Scan another unit"
+ *                anything else: typed error message + "Try again" button
  *   resolved   → driver card + rating/tags/comment form (existing UI)
  *
  * On submit success (real POST /commuter/feedback → 201), shows the
@@ -40,6 +44,7 @@ function FeedbackContent() {
     scanError,
     crew,
     handleToken,
+    retryLastScan,
     resetForNewScan,
     rating,
     hoverRating,
@@ -122,7 +127,23 @@ function FeedbackContent() {
     );
   }
 
-  // ─── 3. ERROR STATE — typed message + retry ─────────────────
+  // ─── 3a. NO CREW ON DUTY — not a failure, so not the red error card ──
+  // The QR was genuine; nobody has started a shift on the unit today. The
+  // commuter needs to know which unit was read, why there's no one to rate,
+  // and that rechecking is worthwhile if they're on board before clock-in.
+  if (scanStatus === "error" && scanError?.code === "no_crew_today") {
+    return (
+      <NoCrewOnDuty
+        unitNumber={scanError.unit?.unitNumber ?? null}
+        plateNumber={scanError.unit?.plateNumber ?? null}
+        onCheckAgain={retryLastScan}
+        onScanAnother={resetForNewScan}
+        onClose={() => router.push("/dashboard")}
+      />
+    );
+  }
+
+  // ─── 3b. ERROR STATE — typed message + retry ────────────────
   if (scanStatus === "error" && scanError) {
     return (
       <div className="h-full w-full bg-[#050F1A] light:bg-[#F8FAFC] flex flex-col items-center justify-center p-6 pb-24 lg:pb-6">
@@ -440,54 +461,4 @@ function CrewMemberRow({
       )}
     </div>
   );
-}
-
-// ─── Error message helpers (kept local — switch on stable codes) ──
-
-function errorTitleForCode(code: string): string {
-  switch (code) {
-    case "invalid_format":
-      return "Not a Unit QR";
-    case "invalid_signature":
-      return "Invalid QR";
-    case "expired":
-      return "QR Expired";
-    case "malformed":
-      return "Unreadable QR";
-    case "no_crew_today":
-      return "No Active Crew";
-    case "forbidden":
-      return "Not Allowed";
-    case "unauthenticated":
-      return "Session Expired";
-    case "validation":
-      return "Invalid Token";
-    case "network":
-    default:
-      return "Connection Error";
-  }
-}
-
-function errorMessageForCode(code: string, fallback: string): string {
-  switch (code) {
-    case "invalid_format":
-      return "This QR is not a Chatco unit QR. Scan the feedback QR posted inside the jeepney.";
-    case "invalid_signature":
-      return "This QR is invalid or has been tampered with. Ask the operator to issue a new one.";
-    case "expired":
-      return "This QR has expired. Ask the operator to issue a fresh one for this unit.";
-    case "malformed":
-      return "The QR couldn't be read. Try re-scanning, or use manual entry to paste the token.";
-    case "no_crew_today":
-      return "This unit has no active crew today. Feedback is only available during or after a ride.";
-    case "forbidden":
-      return "Only commuter accounts can submit ride feedback.";
-    case "unauthenticated":
-      return "Your session has expired. Please log in again.";
-    case "validation":
-      return fallback || "The QR token didn't pass validation.";
-    case "network":
-    default:
-      return "We couldn't reach the backend. Check your connection and try again.";
-  }
 }
