@@ -4,6 +4,8 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import type { NearbyVehicle, GpsStatus } from "@/lib/shared/geo/nearby-detector";
 import { useAuth } from "@/contexts/auth-context";
+import { CommuterGreeting } from "@/components/commuter/commuter-greeting";
+import { HailRangeHint } from "@/components/commuter/hail-range-hint";
 import { createHail, cancelHail, isOutsideRadiusError } from "@/lib/commuter/services/hail.service";
 import { useHoldToConfirm } from "@/hooks/use-hold-to-confirm";
 import { ApiError, NetworkError } from "@/lib/api/client";
@@ -233,6 +235,10 @@ export default function CommuterHome() {
     }
   }, [isHailing, gpsStatus, nearbyVehicles.length, stopHail]);
 
+  // GPS works but no unit is within range: the hail buttons carry a "?" that
+  // explains why, in place of the old standalone banner.
+  const isOutOfRange = gpsStatus === "available" && !canHail && !isHailing;
+
   // ─── Derive display values from auth context ────────────────────────
   const displayName = commuterProfile?.firstName ?? user?.email?.split("@")[0] ?? "Commuter";
   const commuterType = commuterProfile?.commuterType ?? "REGULAR";
@@ -338,18 +344,6 @@ export default function CommuterHome() {
             </div>
           )}
 
-          {gpsStatus === "available" && !canHail && (
-            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4">
-              <div className="flex items-center gap-2">
-                <svg className="w-5 h-5 text-yellow-400 light:text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-                </svg>
-                <span className="text-sm font-semibold text-yellow-400 light:text-amber-600">You are outside the conductor service radius</span>
-              </div>
-              <p className="text-xs text-white/40 light:text-gray-500 mt-1.5">Move within 1km of a conductor unit to see ETA and hail. Vehicle locations are still visible on the map.</p>
-            </div>
-          )}
-
     </>
   );
 
@@ -359,8 +353,6 @@ export default function CommuterHome() {
             </div>
   ) : null;
 
-  const commuterTypeLabel =
-    commuterType === "REGULAR" ? "Regular" : commuterType === "STUDENT" ? "Student" : commuterType === "SENIOR_CITIZEN" ? "Senior Citizen" : commuterType === "PWD" ? "PWD" : commuterType;
 
   return (
     <div className="relative h-full w-full bg-[#050F1A]">
@@ -372,17 +364,15 @@ export default function CommuterHome() {
       {/* ========================================== */}
       {/* --- MOBILE UI (Hidden on Desktop) --- */}
       {/* ========================================== */}
-      <div className="lg:hidden absolute top-0 inset-x-0 z-20 p-4 flex items-center justify-between pointer-events-none">
-        <div className="pointer-events-auto bg-black/40 backdrop-blur-md rounded-2xl px-4 py-3 border border-white/10 light:bg-white/90 light:border-gray-200">
-          <h1 className="text-white light:text-gray-900 font-bold text-base">
-            Good morning, {displayName}!
-          </h1>
-          <span className="text-[10px] font-semibold text-[#62A0EA] bg-[#62A0EA]/10 light:text-[#1A5FB4] light:bg-[#1A5FB4]/10 px-2 py-0.5 rounded-full mt-1 inline-block">
-            {commuterType === "REGULAR" ? "Regular" : commuterType === "STUDENT" ? "Student" : commuterType === "SENIOR_CITIZEN" ? "Senior Citizen" : commuterType === "PWD" ? "PWD" : commuterType}
-          </span>
-        </div>
-        <div className="pointer-events-auto w-10 h-10 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold shadow-lg border-2 border-white/20 light:border-[#DAEEFF]">
-          {displayName[0]}
+      <div className="lg:hidden absolute top-0 inset-x-0 z-20 p-4 pointer-events-none">
+        {/* Solid card, not a see-through one — it sits over a busy map. */}
+        <div className="pointer-events-auto flex w-full rounded-2xl border border-white/10 bg-[#071A2E] py-2 pl-2 pr-4 shadow-lg shadow-black/30 light:border-gray-200 light:bg-white light:shadow-black/10">
+          <CommuterGreeting
+            variant="mobile"
+            name={displayName}
+            commuterType={commuterType}
+            photoUrl={commuterProfile?.profileImageUrl}
+          />
         </div>
       </div>
 
@@ -432,6 +422,7 @@ export default function CommuterHome() {
           <span className="block text-center text-[10px] font-extrabold text-white mt-2 drop-shadow-lg uppercase tracking-wider">
             {hailPending ? (isHailing ? "Cancelling…" : "Sending…") : isHailing ? "Cancel" : canHail ? hailIdleLabel : gpsStatus === "loading" ? "Locating..." : gpsStatus === "denied" ? "No GPS" : "Too Far"}
           </span>
+          {isOutOfRange && <HailRangeHint placement="above" className="-top-1 -right-1" />}
         </div>
         <div
           className="h-16 flex flex-col items-center justify-center cursor-pointer flex-shrink-0"
@@ -493,18 +484,6 @@ export default function CommuterHome() {
                 <span className="text-[10px] text-white/40 light:text-gray-500">{nearestVehicle.plateNumber}</span>
                 <span className="text-[10px] text-white/50 light:text-gray-500">{(nearestVehicle.distanceInMeters / 1000).toFixed(1)} km away</span>
               </div>
-            </div>
-          )}
-
-          {gpsStatus === "available" && !canHail && (
-            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 mb-3">
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-yellow-400 light:text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-                </svg>
-                <span className="text-xs font-semibold text-yellow-400 light:text-amber-600">Outside service radius</span>
-              </div>
-              <p className="text-[10px] text-white/40 light:text-gray-500 mt-1">Move within 1km of a conductor unit to hail.</p>
             </div>
           )}
 
@@ -578,18 +557,13 @@ export default function CommuterHome() {
       {/* --- DESKTOP UI (Hidden on Mobile) --- */}
       {/* ========================================== */}
       <div className="hidden lg:flex xl:hidden absolute right-4 top-4 bottom-4 w-80 z-20 bg-[#071A2E]/95 backdrop-blur-xl rounded-2xl border border-white/10 light:bg-white/95 light:border-gray-200 shadow-2xl flex-col overflow-hidden">
-        <div className="p-6 border-b border-white/10 light:border-gray-200 flex items-center justify-between">
-          <div>
-            <h1 className="text-white light:text-gray-900 font-bold text-lg">
-              Good morning, {displayName}!
-            </h1>
-            <span className="text-xs font-semibold text-[#62A0EA] bg-[#62A0EA]/10 light:text-[#1A5FB4] light:bg-[#1A5FB4]/10 px-2 py-0.5 rounded-full mt-1 inline-block">
-              {commuterType === "REGULAR" ? "Regular" : commuterType === "STUDENT" ? "Student" : commuterType === "SENIOR_CITIZEN" ? "Senior Citizen" : commuterType === "PWD" ? "PWD" : commuterType}
-            </span>
-          </div>
-          <div className="w-11 h-11 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold shadow-lg border-2 border-white/20 light:border-[#DAEEFF] text-base">
-            {displayName[0]}
-          </div>
+        <div className="px-6 py-4 border-b border-white/10 light:border-gray-200">
+          <CommuterGreeting
+            variant="panel"
+            name={displayName}
+            commuterType={commuterType}
+            photoUrl={commuterProfile?.profileImageUrl}
+          />
         </div>
         <div className="flex-1 p-6 overflow-y-auto space-y-6">
           {/* GCash Pay Card — Desktop */}
@@ -657,6 +631,7 @@ export default function CommuterHome() {
         </div>
         <div className="p-6 border-t border-white/10 light:border-gray-200">
           {desktopHailError}
+          <div className="relative">
           <button
             {...hailButtonProps}
             disabled={hailPending || (!isHailing && !canHail)}
@@ -697,6 +672,8 @@ export default function CommuterHome() {
               )}
             </span>
           </button>
+          {isOutOfRange && <HailRangeHint placement="above" className="right-3 top-1/2 -translate-y-1/2" />}
+          </div>
         </div>
       </div>
 
@@ -715,16 +692,13 @@ export default function CommuterHome() {
       <div className="hidden xl:flex absolute top-4 left-1/2 -translate-x-1/2 z-20 flex-col items-center gap-3 max-w-[calc(100%-2rem)] pointer-events-none">
         <div className="pointer-events-auto flex items-center divide-x divide-white/10 bg-[#071A2E]/95 backdrop-blur-xl rounded-2xl border border-white/10 light:divide-gray-200 light:bg-white/95 light:border-gray-200 shadow-2xl shadow-black/10">
           {/* Identity */}
-          <div className="flex items-center gap-3 px-4 py-3 min-w-0">
-            <div className="w-10 h-10 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold shadow-lg border-2 border-white/20 light:border-[#DAEEFF] flex-shrink-0">
-              {displayName[0]}
-            </div>
-            <div className="min-w-0 max-w-[12rem]">
-              <h1 className="text-white light:text-gray-900 font-bold text-sm leading-tight truncate">Good morning, {displayName}!</h1>
-              <span className="text-[10px] font-semibold text-[#62A0EA] bg-[#62A0EA]/10 light:text-[#1A5FB4] light:bg-[#1A5FB4]/10 px-2 py-0.5 rounded-full mt-1 inline-block">
-                {commuterTypeLabel}
-              </span>
-            </div>
+          <div className="min-w-0 max-w-[22rem] px-4 py-3">
+            <CommuterGreeting
+              variant="bar"
+              name={displayName}
+              commuterType={commuterType}
+              photoUrl={commuterProfile?.profileImageUrl}
+            />
           </div>
 
           {/* GCash pay + history */}
@@ -780,7 +754,7 @@ export default function CommuterHome() {
           </div>
 
           {/* Hail */}
-          <div className="flex items-center px-4 py-3">
+          <div className="relative flex items-center px-4 py-3">
             <button
               {...hailButtonProps}
               disabled={hailPending || (!isHailing && !canHail)}
@@ -821,6 +795,7 @@ export default function CommuterHome() {
                 )}
               </span>
             </button>
+            {isOutOfRange && <HailRangeHint placement="below" className="top-1.5 right-2" />}
           </div>
         </div>
 
