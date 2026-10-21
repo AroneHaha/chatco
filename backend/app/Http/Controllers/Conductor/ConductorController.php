@@ -159,9 +159,10 @@ class ConductorController extends Controller
     }
 
     /**
-     * GET /api/conductor/ratings?shift_id=…
+     * GET /api/conductor/ratings?scope=all_time (numeric summaries), or ?shift_id=…
      *
-     * Feedback for one of the conductor's shifts — powers the metrics page.
+     * All-time summaries power the metrics page without requiring an active shift.
+     * The existing shift lookup still returns feedback for one crewed shift.
      * Each row carries BOTH the driver rating and the (independent) conductor
      * rating; the frontend splits each into a DRIVER + CONDUCTOR entry. Scoped
      * to the authenticated conductor in the service (a conductor can only read
@@ -169,6 +170,13 @@ class ConductorController extends Controller
      */
     public function ratings(Request $request): JsonResponse
     {
+        if ($request->query('scope') === 'all_time') {
+            return $this->successResponse(
+                $this->feedbackService->summarizeForConductor($request->user()),
+                'All-time ratings retrieved',
+            );
+        }
+
         $shiftId = $request->query('shift_id');
         if (! $shiftId) {
             return $this->errorResponse('shift_id query parameter is required.', 422);

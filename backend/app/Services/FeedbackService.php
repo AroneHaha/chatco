@@ -210,18 +210,20 @@ class FeedbackService
         ];
     }
 
-    /**
-     * List all feedback for a single shift, scoped to the authenticated
-     * conductor (a conductor may only read feedback for shifts they crewed).
-     *
-     * Powers GET /conductor/ratings — the conductor metrics page. Each row
-     * carries BOTH the driver rating (rating/comment) and the independent
-     * conductor rating (conductor_rating/conductor_comment); the frontend
-     * splits each into a DRIVER + CONDUCTOR entry.
-     *
-     * @param  User  $conductor  The authenticated conductor (auth()->user()).
-     * @return array<int, array<string, mixed>>
-     */
+    /** All-time numeric summaries for the caller's crewed shifts, without comments. */
+    public function summarizeForConductor(User $conductor): array
+    {
+        // Crew snapshots keep historical ratings attached to their conductor,
+        // even after a shift ends or the vehicle/driver assignment changes.
+        $query = Feedback::where('conductor_id', $conductor->id);
+
+        return [
+            'conductor' => $this->summarize((clone $query)->whereNotNull('conductor_rating'), 'conductor_rating'),
+            'driver' => $this->summarize($query, 'rating'),
+        ];
+    }
+
+    /** List feedback for one shift, scoped to its authenticated conductor. */
     public function listForShift(string $shiftId, User $conductor): array
     {
         return Feedback::where('shift_id', $shiftId)

@@ -59,6 +59,7 @@ export const CONDUCTOR_API = {
   },
   ratings: (shiftId: string) =>
     `/api/conductor/ratings?shift_id=${encodeURIComponent(shiftId)}`,
+  ratingsSummary: "/api/conductor/ratings?scope=all_time",
   hails: "/api/conductor/hails",
   hailAccept: (id: string) =>
     `/api/conductor/hails/${encodeURIComponent(id)}/accept`,
