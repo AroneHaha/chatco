@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { Camera, X, AlertTriangle, RotateCcw } from 'lucide-react';
+import { Camera, CameraOff, X, RotateCcw } from 'lucide-react';
 
 interface QrScannerProps {
   /**
@@ -42,7 +42,7 @@ interface QrScannerProps {
 export function QrScanner({ onToken, onCancel, variant = 'page' }: QrScannerProps) {
   const containerId = 'feedback-qr-reader';
   const scannerRef = useRef<Html5Qrcode | null>(null);
-  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraError, setCameraError] = useState<{ title: string; message: string } | null>(null);
   const [isStarting, setIsStarting] = useState(true);
   // Bumped by "Try again" on a camera error to re-run the start effect.
   const [cameraAttempt, setCameraAttempt] = useState(0);
@@ -109,10 +109,19 @@ export function QrScanner({ onToken, onCancel, variant = 'page' }: QrScannerProp
         // Common cases: permission denied, no camera, insecure context (http://)
         setCameraError(
           /permission|denied/i.test(message)
-            ? 'Camera access is blocked. Allow access in your browser settings, then try again.'
+            ? {
+                title: 'Camera access blocked',
+                message: 'Allow camera access in your browser settings, then try again.',
+              }
             : /notfound|not found|no camera/i.test(message)
-              ? 'No camera found on this device. Use a phone to scan the QR inside the jeepney.'
-              : "We couldn't open your camera. Close other apps using it, then try again."
+              ? {
+                  title: 'No camera detected',
+                  message: 'Use a phone with a camera to scan the QR inside the jeepney.',
+                }
+              : {
+                  title: 'Camera unavailable',
+                  message: 'Close other apps using your camera, then try again.',
+                }
         );
         setIsStarting(false);
       }
@@ -130,20 +139,22 @@ export function QrScanner({ onToken, onCancel, variant = 'page' }: QrScannerProp
   // (header treatment, outer sizing) differs.
   const body = (
     <div className="space-y-3">
-      <div className="relative w-full aspect-square bg-[#071A2E] rounded-2xl overflow-hidden border border-white/10 light:bg-gray-100 light:border-gray-200">
+      <div className={`relative w-full aspect-square ${cameraError ? 'min-h-72' : ''} bg-[#071A2E] rounded-2xl overflow-hidden border border-white/10 light:bg-gray-100 light:border-gray-200`}>
         {/* html5-qrcode mounts the video element here */}
         <div id={containerId} className="w-full h-full" />
 
         {/* Scan frame overlay — visual hint only, the library uses its
             own qrbox for actual detection. */}
-        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-          <div className="relative w-48 h-48">
-            <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-[#62A0EA] rounded-tl-lg" />
-            <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-[#62A0EA] rounded-tr-lg" />
-            <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-[#62A0EA] rounded-bl-lg" />
-            <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-[#62A0EA] rounded-br-lg" />
+        {!cameraError && (
+          <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+            <div className="relative w-48 h-48">
+              <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-[#62A0EA] rounded-tl-lg" />
+              <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-[#62A0EA] rounded-tr-lg" />
+              <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-[#62A0EA] rounded-bl-lg" />
+              <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-[#62A0EA] rounded-br-lg" />
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Loading overlay while the camera is starting */}
         {isStarting && !cameraError && (
@@ -154,27 +165,29 @@ export function QrScanner({ onToken, onCancel, variant = 'page' }: QrScannerProp
             </div>
           </div>
         )}
-      </div>
 
-      {cameraError && (
-        <div role="alert" className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 flex items-start gap-2">
-          <AlertTriangle
-            size={16}
-            className="text-amber-400 flex-shrink-0 mt-0.5 light:text-amber-600"
-          />
-          <div className="flex-1 min-w-0">
-            <p className="text-amber-300 text-xs light:text-amber-800">{cameraError}</p>
-            <button
-              type="button"
-              onClick={() => setCameraAttempt((n) => n + 1)}
-              className="mt-1 inline-flex items-center gap-1 text-amber-400 text-xs font-semibold light:text-amber-700 hover:underline"
-            >
-              <RotateCcw size={12} />
-              Try again
-            </button>
+        {cameraError && (
+          <div className="absolute inset-0 overflow-y-auto bg-[#071A2E] px-5 py-6 light:bg-gray-50">
+            <div className="mx-auto flex min-h-full max-w-64 flex-col items-center justify-center text-center">
+              <div aria-hidden="true" className="mb-4 flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[#62A0EA]/20 bg-[#62A0EA]/10 text-[#99C1F1] light:border-[#1A5FB4]/15 light:bg-[#1A5FB4]/5 light:text-[#1A5FB4]">
+                <CameraOff size={24} strokeWidth={1.5} />
+              </div>
+              <div role="alert">
+                <h3 className="text-lg font-semibold leading-snug tracking-tight text-white light:text-gray-900">{cameraError.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-white/55 light:text-gray-500">{cameraError.message}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCameraAttempt((n) => n + 1)}
+                className="mt-5 inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-[#1A5FB4] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#164A8F] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#62A0EA] light:focus-visible:outline-[#1A5FB4]"
+              >
+                <RotateCcw size={16} aria-hidden="true" />
+                Try again
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       <p className="text-center text-white/30 text-[11px] light:text-gray-500">
         The QR is printed inside the jeepney unit, near the conductor.
