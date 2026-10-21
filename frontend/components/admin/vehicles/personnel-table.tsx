@@ -5,11 +5,12 @@ import { useState } from "react";
 import { DataTable } from "@/components/admin/ui/data-table";
 import { TablePagination } from "@/components/admin/ui/table-pagination";
 import { SearchBar } from "@/components/admin/ui/search-bar";
-import { ChevronDown, Edit, Eye, IdCard, Trash, Plus, UserPlus } from "lucide-react";
+import { ChevronDown, Edit, Eye, IdCard, Star, Trash, Plus, UserPlus } from "lucide-react";
 import { formatLogDate } from "@/lib/utils/format";
 import type { PageMeta, Personnel, PersonnelRoleFilter, PersonnelStatusFilter } from "@/app/(admin)/vehicles/data/vehicles-data";
 import { DriverDetailModal } from "@/components/admin/vehicles/driver-detail-modal";
 import { ConductorDetailModal } from "@/components/admin/vehicles/conductor-detail-modal";
+import { FeedbackModal, type FeedbackModalStaff } from "@/components/admin/users/feedback-modal";
 import { SkeletonTable } from "@/components/admin/ui/skeleton";
 import { RowActionsMenu } from "@/components/admin/ui/row-actions-menu";
 import { UserAvatar } from "@/components/admin/ui/user-avatar";
@@ -57,6 +58,7 @@ export function PersonnelTable({
 }: PersonnelTableProps) {
   const [selectedDriver, setSelectedDriver] = useState<Personnel | null>(null);
   const [selectedConductor, setSelectedConductor] = useState<Personnel | null>(null);
+  const [feedbackStaff, setFeedbackStaff] = useState<FeedbackModalStaff | null>(null);
 
   // The detail modals hold the conductor's Reset Credentials / Disable
   // Account actions. Row double-click still opens them; the explicit button
@@ -141,8 +143,18 @@ export function PersonnelTable({
       ) : (
         <RowActionsMenu
           label={`Actions for ${row.name}`}
+          menuWidth={200}
           actions={[
             { label: "View Details", icon: Eye, onSelect: () => openDetails(row) },
+            {
+              label: "Ratings & Feedback",
+              icon: Star,
+              onSelect: () => setFeedbackStaff({
+                id: row.id,
+                role: row.role === "Driver" ? "DRIVER" : "CONDUCTOR",
+                name: row.name,
+              }),
+            },
             { label: "Edit", icon: Edit, onSelect: () => onEdit(row) },
             { label: "Remove", icon: Trash, onSelect: () => onDelete(row), tone: "danger" },
           ]}
@@ -251,6 +263,13 @@ export function PersonnelTable({
         conductor={selectedConductor}
         onClose={() => setSelectedConductor(null)}
         onChanged={onPersonnelChanged}
+      />
+
+      {/* Commuter ratings + comments for this driver/conductor */}
+      <FeedbackModal
+        isOpen={feedbackStaff !== null}
+        onClose={() => setFeedbackStaff(null)}
+        staff={feedbackStaff}
       />
     </>
   );

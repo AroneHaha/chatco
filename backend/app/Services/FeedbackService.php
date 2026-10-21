@@ -12,6 +12,7 @@ use App\Support\Qr\QrTokenException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Pagination\Cursor;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -142,7 +143,7 @@ class FeedbackService
      *
      * @throws FeedbackException If the conductor profile doesn't exist.
      */
-    public function listForConductor(string $conductorId, int $perPage = 10): array
+    public function listForConductor(string $conductorId, int $perPage = 10, ?int $rating = null, bool $cursorMode = false, ?Cursor $cursor = null): array
     {
         if (! ConductorProfile::where('id', $conductorId)->exists()) {
             throw new FeedbackException('Conductor not found');
@@ -153,7 +154,7 @@ class FeedbackService
         $query = Feedback::where('conductor_id', $conductorId)
             ->whereNotNull('conductor_rating');
 
-        return $this->buildListResponse($query, $perPage, 'CONDUCTOR', $conductorId, 'conductor');
+        return $this->buildListResponse($query, $perPage, 'CONDUCTOR', $conductorId, 'conductor', $rating, $cursorMode, $cursor);
     }
 
     /**
@@ -164,7 +165,7 @@ class FeedbackService
      *
      * @throws FeedbackException If the driver doesn't exist.
      */
-    public function listForDriver(string $driverId, int $perPage = 10): array
+    public function listForDriver(string $driverId, int $perPage = 10, ?int $rating = null, bool $cursorMode = false, ?Cursor $cursor = null): array
     {
         if (! Driver::where('id', $driverId)->exists()) {
             throw new FeedbackException('Driver not found');
@@ -172,7 +173,7 @@ class FeedbackService
 
         $query = Feedback::where('driver_id', $driverId);
 
-        return $this->buildListResponse($query, $perPage, 'DRIVER', $driverId);
+        return $this->buildListResponse($query, $perPage, 'DRIVER', $driverId, 'driver', $rating, $cursorMode, $cursor);
     }
 
     /**
@@ -255,17 +256,87 @@ class FeedbackService
      *
      * The paginator is mapped to a plain array so the controller can hand it
      * straight to successResponse() without further shaping.
+     *
+     * $rating narrows only the paginated rows (the admin modal's star
+     * filter); the summary always covers every rating so the breakdown the
+     * filter is chosen from stays complete.
+     *
+     * $cursorMode switches to keyset pagination (ORDER BY created_at DESC,
+     * id DESC) for the admin modal's infinite scroll. Later batches ($cursor
+     * set) skip the summary aggregate entirely and return summary=null.
      */
-    private function buildListResponse(Builder $query, int $perPage, string $role, string $staffId, string $ratee = 'driver'): array
-    {
+    private function buildListResponse(
+        Builder $query,
+        int $perPage,
+        string $role,
+        string $staffId,
+        string $ratee = 'driver',
+        ?int $rating = null,
+        bool $cursorMode = false,
+        ?Cursor $cursor = null,
+    ): array {
         // For the conductor listing, the relevant score lives in the
         // conductor_* columns. We aggregate over those and expose them under
         // the canonical rating/category/comment keys so the admin modal +
         // conductor metrics render the CONDUCTOR's own rating, not the driver's.
         $ratingColumn = $ratee === 'conductor' ? 'conductor_rating' : 'rating';
+        $staff = ['id' => $staffId, 'role' => $role];
 
-        // Aggregate in SQL without loading feedback rows or their relations.
-        // The rating column is selected only from this private whitelist.
+        if ($cursorMode) {
+            $summary = $cursor === null ? $this->summarize($query, $ratingColumn) : null;
+            $this->applyRatingFilter($query, $ratingColumn, $rating);
+
+            // No COUNT query; the (staff_id, created_at) indexes serve the
+            // keyset range, so every batch costs the same at any depth.
+            $paginator = $query
+                ->with(['vehicle:id,unit_number,plate_number', 'commuter:id,first_name,surname'])
+                ->orderByDesc('created_at')
+                ->orderByDesc('id')
+                ->cursorPaginate($perPage, ['*'], 'cursor', $cursor);
+
+            return [
+                'staff' => $staff,
+                'summary' => $summary,
+                'feedback' => $this->presentListItems($paginator->items(), $ratee),
+                'pagination' => [
+                    'per_page' => $paginator->perPage(),
+                    'next_cursor' => $paginator->nextCursor()?->encode(),
+                    'has_more' => $paginator->hasMorePages(),
+                ],
+            ];
+        }
+
+        $summary = $this->summarize($query, $ratingColumn);
+        $this->applyRatingFilter($query, $ratingColumn, $rating);
+
+        $paginator = $query
+            ->with(['vehicle:id,unit_number,plate_number', 'commuter:id,first_name,surname'])
+            ->orderByDesc('created_at')
+            ->paginate($perPage);
+
+        /** @var LengthAwarePaginator $paginator */
+        return [
+            'staff' => $staff,
+            'summary' => $summary,
+            'feedback' => $this->presentListItems($paginator->items(), $ratee),
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+                'from' => $paginator->firstItem(),
+                'to' => $paginator->lastItem(),
+            ],
+        ];
+    }
+
+    /**
+     * average_rating, total_count and the 5→1 distribution over every
+     * rating, aggregated in SQL without loading rows or relations. The
+     * rating column comes only from internal, fixed column names.
+     */
+    private function summarize(Builder $query, string $ratingColumn): array
+    {
         $aggregate = (clone $query)
             ->toBase()
             ->selectRaw(implode(', ', [
@@ -279,22 +350,33 @@ class FeedbackService
             ->first();
 
         $total = (int) ($aggregate->total_count ?? 0);
-        $summary = [
+
+        return [
             'average_rating' => $total > 0 ? round((float) $aggregate->average_rating, 2) : 0.0,
             'total_count' => $total,
             'distribution' => collect(range(5, 1))->mapWithKeys(fn (int $star): array => [
                 (string) $star => (int) ($aggregate->{"rating_{$star}"} ?? 0),
             ])->all(),
         ];
+    }
 
-        $paginator = $query
-            ->with(['vehicle:id,unit_number,plate_number', 'commuter:id,first_name,surname'])
-            ->orderByDesc('created_at')
-            ->paginate($perPage);
+    private function applyRatingFilter(Builder $query, string $ratingColumn, ?int $rating): void
+    {
+        if ($rating !== null) {
+            $query->where($ratingColumn, $rating);
+        }
+    }
 
-        // Remap the conductor columns onto rating/category/comment so the
-        // response shape stays identical for both driver and conductor.
-        $items = collect($paginator->items())->map(function (Feedback $f) use ($ratee) {
+    /**
+     * Remap the conductor columns onto rating/category/comment so the
+     * response shape stays identical for both driver and conductor.
+     *
+     * @param  array<int, Feedback>  $items
+     * @return array<int, Feedback>
+     */
+    private function presentListItems(array $items, string $ratee): array
+    {
+        return collect($items)->map(function (Feedback $f) use ($ratee) {
             if ($ratee === 'conductor') {
                 $f->setAttribute('rating', $f->conductor_rating);
                 $f->setAttribute('category', $f->conductor_category);
@@ -303,24 +385,6 @@ class FeedbackService
 
             return $f;
         })->all();
-
-        /** @var LengthAwarePaginator $paginator */
-        return [
-            'staff' => [
-                'id' => $staffId,
-                'role' => $role,
-            ],
-            'summary' => $summary,
-            'feedback' => $items,
-            'pagination' => [
-                'current_page' => $paginator->currentPage(),
-                'per_page' => $paginator->perPage(),
-                'total' => $paginator->total(),
-                'last_page' => $paginator->lastPage(),
-                'from' => $paginator->firstItem(),
-                'to' => $paginator->lastItem(),
-            ],
-        ];
     }
 
     /**

@@ -296,27 +296,53 @@ Terminal — **422** `"Alert is already resolved"` if called twice. Works from e
 
 ### GET /admin/feedback
 
-Staff performance review — opened from User Management by double-clicking a driver or conductor row, not a standalone module. Replaced the old "Feedback QR" admin page entirely.
+Staff performance review — the **Ratings & Feedback** row action in Fleet Management > Personnel, not a standalone module. Replaced the old "Feedback QR" admin page entirely.
 
 - **Limiter:** conductor-read (60/min)
+- **Service:** `FeedbackService::listForConductor` / `listForDriver`
 
-**Query:** exactly one of `conductor_id` / `driver_id` (if both are sent, `conductor_id` wins); `per_page` (default 10, max 50).
+**Query:**
 
-**422** `"Either conductor_id or driver_id is required."` if neither is sent. **404** `"Conductor not found"` / `"Driver not found"` if the ID doesn't exist.
+| Param | Notes |
+|---|---|
+| `conductor_id` / `driver_id` | Exactly one (if both are sent, `conductor_id` wins). |
+| `per_page` | Default 10, max 50. |
+| `rating` | Optional `1`–`5`. Narrows the **rows** to one star level; `summary` still covers every rating. |
+| `pagination` | `page` (default) or `cursor`. |
+| `cursor` | Cursor mode only: the previous batch's `next_cursor`. Omit for the first batch. |
+| `page` | Page mode only. |
+
+**422** `"Either conductor_id or driver_id is required."` if neither is sent; a `rating` outside 1–5; or an invalid/tampered `cursor` (`errors.cursor`). **404** `"Conductor not found"` / `"Driver not found"` if the ID doesn't exist.
 
 **For a conductor,** only rows that carry a `conductor_rating` are counted (older rows predating the driver/conductor rating split have it `null`) — the conductor's own score, category and comment are remapped onto the generic `rating`/`category`/`comment` keys in the response so both calls share one shape.
 
-**200 OK**
+Rows are newest first.
+
+**200 OK — page mode**
 
 ```json
 {
-  "staff": { "id": "…", "...": "the conductor or driver's own identity, not detailed here" },
+  "staff": { "id": "…", "role": "CONDUCTOR" },
   "summary": { "average_rating": 4.6, "total_count": 82, "distribution": { "5": 60, "4": 15, "3": 5, "2": 1, "1": 1 } },
-  "feedback": { "current_page": 1, "data": [ { "rating": 5, "category": "Safe driving", "comment": "…", "vehicle": {"unit_number": "U-07"}, "commuter": {"first_name": "Juan"} } ], "...": "standard paginator fields" }
+  "feedback": [ { "id": "…", "rating": 5, "category": "Safe driving", "comment": "…", "created_at": "…", "vehicle": { "unit_number": "U-07", "plate_number": "…" }, "commuter": { "first_name": "Juan", "surname": "…" } } ],
+  "pagination": { "current_page": 1, "per_page": 10, "total": 82, "last_page": 9, "from": 1, "to": 10 }
 }
 ```
 
-`summary` is computed with one aggregate SQL query (`COUNT`/`AVG`/`SUM(CASE…)` per star) run against the **same filtered query** as the paginated rows, not by loading every row into PHP — so `average_rating`/`distribution` reflect the full history, not just the current page.
+**200 OK — cursor mode** (`pagination=cursor`, used by the admin modal's infinite scroll)
+
+```json
+{
+  "staff": { "id": "…", "role": "CONDUCTOR" },
+  "summary": { "...": "first batch only; null when a cursor is sent" },
+  "feedback": [ "…same row shape…" ],
+  "pagination": { "per_page": 10, "next_cursor": "eyJjcmVhdGVkX2F0Ijo…", "has_more": true }
+}
+```
+
+Cursor mode is keyset pagination on `(created_at DESC, id DESC)`: no `COUNT` query per batch, the same cost at any depth (served by the `(conductor_id|driver_id, created_at)` indexes), and no repeated or skipped rows when new feedback arrives mid-scroll. `next_cursor` is `null` and `has_more` is `false` on the last batch.
+
+`summary` is computed with one aggregate SQL query (`COUNT`/`AVG`/`SUM(CASE…)` per star) against the staff member's full history, not by loading every row into PHP — so `average_rating`/`distribution` never depend on the current page, batch or `rating` filter.
 
 ---
 
