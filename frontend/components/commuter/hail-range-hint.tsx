@@ -3,10 +3,24 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { CircleQuestionMark, MapPinOff } from "lucide-react";
 
+const HAIL_HINT_COPY = {
+  "out-of-range": {
+    title: "Outside service radius",
+    message: "Move within 1 km of a conductor unit to see ETA and hail. Vehicle locations are still visible on the map.",
+  },
+  denied: {
+    title: "Location access denied",
+    message: "Allow location access for CHATCO in your browser settings and turn on your device's location services to see ETA and hail.",
+  },
+  unavailable: {
+    title: "Location unavailable",
+    message: "Turn on your device's GPS or location services and allow your browser to use your location to see ETA and hail.",
+  },
+};
+
 /**
- * The "?" on the hail button while the commuter is outside every unit's
- * service radius, explaining why hailing is off. Replaces the standalone
- * banner that used to sit on the dashboard.
+ * The "?" on the hail button explains unavailable location access or why
+ * the commuter is outside every unit's service radius.
  *
  * Hover shows it on pointer devices (Tailwind's `hover:` only applies where
  * hover exists); a tap toggles it on touch screens, where there is no hover.
@@ -16,16 +30,19 @@ import { CircleQuestionMark, MapPinOff } from "lucide-react";
  */
 export function HailRangeHint({
   placement,
+  reason = "out-of-range",
   className = "",
 }: {
   /** Which side of the badge the explanation opens on. */
   placement: "above" | "below";
+  reason?: keyof typeof HAIL_HINT_COPY;
   /** Positions the badge on its hail button, e.g. `-top-1 -right-1`. */
   className?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const rootRef = useRef<HTMLSpanElement>(null);
   const tipId = useId();
+  const { title, message } = HAIL_HINT_COPY[reason];
 
   // A tapped-open hint closes on a tap elsewhere or Escape.
   useEffect(() => {
@@ -71,11 +88,10 @@ export function HailRangeHint({
       >
         <span className="flex items-center gap-2 text-sm font-semibold normal-case tracking-normal text-white light:text-gray-900">
           <MapPinOff className="h-4 w-4 shrink-0 text-amber-400 light:text-amber-600" aria-hidden="true" />
-          Outside service radius
+          {title}
         </span>
         <span className="mt-1.5 block text-xs font-normal normal-case leading-relaxed tracking-normal text-white/65 light:text-gray-600">
-          Move within 1 km of a conductor unit to see ETA and hail. Vehicle
-          locations are still visible on the map.
+          {message}
         </span>
       </span>
     </span>

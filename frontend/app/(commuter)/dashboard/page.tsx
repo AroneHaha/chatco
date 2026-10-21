@@ -235,9 +235,12 @@ export default function CommuterHome() {
     }
   }, [isHailing, gpsStatus, nearbyVehicles.length, stopHail]);
 
-  // GPS works but no unit is within range: the hail buttons carry a "?" that
-  // explains why, in place of the old standalone banner.
-  const isOutOfRange = gpsStatus === "available" && !canHail && !isHailing;
+  // Explain why hailing is unavailable; an ongoing hail can still be cancelled.
+  const hailHintReason = isHailing ? null
+    : gpsStatus === "denied" ? "denied"
+    : gpsStatus === "unavailable" ? "unavailable"
+    : gpsStatus === "available" && !canHail ? "out-of-range"
+    : null;
 
   // ─── Derive display values from auth context ────────────────────────
   const displayName = commuterProfile?.firstName ?? user?.email?.split("@")[0] ?? "Commuter";
@@ -298,30 +301,6 @@ export default function CommuterHome() {
                 <span className="text-sm text-white/60 light:text-gray-600">Locating you...</span>
                 <p className="text-[10px] text-white/30 light:text-gray-400 mt-0.5">Waiting for GPS signal</p>
               </div>
-            </div>
-          )}
-
-          {gpsStatus === "denied" && (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
-              <div className="flex items-center gap-2">
-                <svg className="w-5 h-5 text-red-400 light:text-red-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-                </svg>
-                <span className="text-sm font-semibold text-red-400 light:text-red-600">Location access denied</span>
-              </div>
-              <p className="text-xs text-white/40 light:text-gray-500 mt-1.5">Enable location permission to see ETA and hail vehicles.</p>
-            </div>
-          )}
-
-          {gpsStatus === "unavailable" && (
-            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4">
-              <div className="flex items-center gap-2">
-                <svg className="w-5 h-5 text-yellow-400 light:text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-                </svg>
-                <span className="text-sm font-semibold text-yellow-400 light:text-amber-600">Location unavailable</span>
-              </div>
-              <p className="text-xs text-white/40 light:text-gray-500 mt-1.5">GPS is not available on this device.</p>
             </div>
           )}
 
@@ -420,9 +399,9 @@ export default function CommuterHome() {
             )}
           </button>
           <span className="block text-center text-[10px] font-extrabold text-white mt-2 drop-shadow-lg uppercase tracking-wider">
-            {hailPending ? (isHailing ? "Cancelling…" : "Sending…") : isHailing ? "Cancel" : canHail ? hailIdleLabel : gpsStatus === "loading" ? "Locating..." : gpsStatus === "denied" ? "No GPS" : "Too Far"}
+            {hailPending ? (isHailing ? "Cancelling…" : "Sending…") : isHailing ? "Cancel" : canHail ? hailIdleLabel : gpsStatus === "loading" ? "Locating..." : gpsStatus === "denied" || gpsStatus === "unavailable" ? "No GPS" : "Too Far"}
           </span>
-          {isOutOfRange && <HailRangeHint placement="above" className="-top-1 -right-1" />}
+          {hailHintReason && <HailRangeHint reason={hailHintReason} placement="above" className="-top-1 -right-1" />}
         </div>
         <div
           className="h-16 flex flex-col items-center justify-center cursor-pointer flex-shrink-0"
@@ -444,30 +423,6 @@ export default function CommuterHome() {
             <div className="bg-white/5 border border-white/10 light:bg-gray-50 light:border-gray-200 rounded-xl p-3 mb-3 flex items-center gap-2.5">
               <div className="w-4 h-4 rounded-full border-2 border-[#62A0EA] border-t-transparent animate-spin flex-shrink-0" />
               <span className="text-xs text-white/50 light:text-gray-500">Locating you...</span>
-            </div>
-          )}
-
-          {gpsStatus === "denied" && (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 mb-3">
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-red-400 light:text-red-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-                </svg>
-                <span className="text-xs font-semibold text-red-400 light:text-red-600">Location access denied</span>
-              </div>
-              <p className="text-[10px] text-white/40 light:text-gray-500 mt-1">Enable location to see ETA and hail vehicles.</p>
-            </div>
-          )}
-
-          {gpsStatus === "unavailable" && (
-            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 mb-3">
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-yellow-400 light:text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-                </svg>
-                <span className="text-xs font-semibold text-yellow-400 light:text-amber-600">Location unavailable</span>
-              </div>
-              <p className="text-[10px] text-white/40 light:text-gray-500 mt-1">GPS is not available on this device.</p>
             </div>
           )}
 
@@ -672,7 +627,7 @@ export default function CommuterHome() {
               )}
             </span>
           </button>
-          {isOutOfRange && <HailRangeHint placement="above" className="right-3 top-1/2 -translate-y-1/2" />}
+          {hailHintReason && <HailRangeHint reason={hailHintReason} placement="above" className="right-3 top-1/2 -translate-y-1/2" />}
           </div>
         </div>
       </div>
@@ -795,7 +750,7 @@ export default function CommuterHome() {
                 )}
               </span>
             </button>
-            {isOutOfRange && <HailRangeHint placement="below" className="top-1.5 right-2" />}
+            {hailHintReason && <HailRangeHint reason={hailHintReason} placement="below" className="top-1.5 right-2" />}
           </div>
         </div>
 
