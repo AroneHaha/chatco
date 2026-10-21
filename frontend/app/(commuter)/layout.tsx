@@ -13,6 +13,7 @@ import MaintenanceGate from "@/components/shared/maintenance-gate";
 import { getCommuterTypeLabel } from "@/types";
 import { FeedbackScanModal } from "@/components/commuter/feedback/feedback-scan-modal";
 import CommuterDock from "@/components/commuter/commuter-dock";
+import { CommuterAvatar } from "@/components/commuter/commuter-avatar";
 import CommuterProfileModal from "@/components/commuter/commuter-profile-modal";
 import CommuterFareModal from "@/components/commuter/commuter-fare-modal";
 import StudentRenewalReminder from "@/components/commuter/student-renewal-reminder";
@@ -66,7 +67,6 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
   });
 
   // Derive user info from auth context
-  const userInitial = commuterProfile?.firstName?.[0] ?? "?";
   const userName = commuterProfile
     ? `${commuterProfile.firstName} ${commuterProfile.surname}`
     : authLoading ? "Loading..." : "Guest";
@@ -139,7 +139,12 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
 
         <div className="p-4 border-t border-white/10 light:border-gray-200">
           <div className="flex items-center gap-3 px-2">
-            <div className="w-9 h-9 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold text-sm border-2 border-white/20 light:border-[#DAEEFF]">{userInitial}</div>
+            <CommuterAvatar
+              src={commuterProfile?.profileImageUrl}
+              className="w-9 h-9"
+              iconClassName="w-[18px] h-[18px]"
+              sizes="36px"
+            />
             <div className="min-w-0">
               <p className="text-sm font-semibold text-white light:text-gray-900 truncate">{userName}</p>
               <p className="text-[10px] text-white/40 light:text-gray-500">{userTypeLabel}</p>
@@ -230,7 +235,7 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
         items={navItemsWithBadges}
         pathname={pathname}
         onFeedbackClick={() => setShowFeedbackScan(true)}
-        userInitial={userInitial}
+        userPhotoUrl={commuterProfile?.profileImageUrl ?? null}
         userName={userName}
         userTypeLabel={userTypeLabel}
       />

@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
             languagePreference: backend.profile.language_preference ?? "English",
             accountStatus: backend.profile.account_status ?? "ACTIVE",
             idImageUrl: backend.profile.id_image_url ?? null,
+            profileImageUrl: backend.profile.profile_image_url ?? null,
             verifiedAt: backend.profile.verified_at ?? null,
             createdAt: backend.profile.created_at ?? new Date().toISOString(),
             updatedAt: backend.profile.updated_at ?? undefined,

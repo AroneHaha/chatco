@@ -449,6 +449,10 @@ class AuthTest extends TestCase
         $response->assertStatus(200);
         $this->assertEquals('COMMUTER', $response->json('data.user.role'));
         $this->assertEquals('Jose', $response->json('data.profile.first_name'));
+        // No photo uploaded yet: the key is present and null, so the app
+        // shell shows the default avatar.
+        $response->assertJsonPath('data.profile.profile_image_url', null);
+        $this->assertArrayHasKey('profile_image_url', $response->json('data.profile'));
     }
 
     public function test_commuter_login_cross_platform_session_isolation(): void
