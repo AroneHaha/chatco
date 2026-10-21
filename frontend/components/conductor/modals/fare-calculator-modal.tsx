@@ -1677,7 +1677,6 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
               Amount: <span className="text-white font-semibold">{formatCurrency(gcashInitiation.amount)}</span>
             </p>
             <div className="flex items-center justify-center gap-2">
-              <div className={`w-2 h-2 rounded-full animate-pulse ${gcashStatus === "expired" ? "bg-amber-400" : "bg-blue-400"}`} />
               <p className={`text-xs font-medium ${gcashStatus === "expired" ? "text-amber-400/90" : "text-blue-400/70"}`}>
                 {gcashStatus === "processing" ? "Payment processing…" :
                  gcashStatus === "paid" ? "Payment successful!" :
