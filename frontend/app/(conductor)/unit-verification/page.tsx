@@ -201,7 +201,6 @@ export default function ConductorLoginPage() {
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-white">{selectedUnit.unitNumber}</p>
-                  <p className="text-[11px] text-white/35 font-medium">{selectedUnit.route}</p>
                 </div>
               </div>
             )}

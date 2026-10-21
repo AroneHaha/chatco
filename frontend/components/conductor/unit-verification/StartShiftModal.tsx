@@ -73,13 +73,6 @@ export default function StartShiftModal({
               <span className="text-white/40">Unit</span>
               <span className="text-white font-semibold">{unit.unitNumber}</span>
             </div>
-            <div className="h-px bg-white/[0.06]" />
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-white/40">Route</span>
-              <span className="text-white font-semibold text-right max-w-[180px] truncate">
-                {unit.route}
-              </span>
-            </div>
           </div>
 
           <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3.5 py-2.5">

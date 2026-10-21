@@ -6,11 +6,6 @@ import { Modal } from '@/components/admin/ui/modal';
 import { Info, User, UserCheck } from 'lucide-react';
 import type { Vehicle } from '@/app/(admin)/vehicles/data/vehicles-data';
 
-interface Route {
-  id: string;
-  name: string;
-}
-
 interface EditVehicleModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -36,7 +31,7 @@ const STATUS_TO_LARAVEL: Record<Vehicle['status'], string> = {
 /**
  * Edit Vehicle modal.
  *
- * Only the vehicle's own attributes (unit number, plate, route, status) are
+ * Only the vehicle's own attributes (unit number, plate, status) are
  * editable. Driver and conductor are shown as READ-ONLY current-assignment
  * info — they are managed exclusively by the conductor login / EOD workflow
  * to preserve a single source of truth and prevent conflicting manual edits.
@@ -45,7 +40,6 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
   const [formData, setFormData] = useState({
     unit_number: '',
     plate_number: '',
-    route_id: '',
     status: 'ACTIVE' as string,
   });
 
@@ -53,37 +47,24 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
   const [currentDriverName, setCurrentDriverName] = useState<string | null>(null);
   const [currentConductorName, setCurrentConductorName] = useState<string | null>(null);
 
-  const [routes, setRoutes] = useState<Route[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLoadingMeta, setIsLoadingMeta] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
-  // Fetch only the route options. The table row already carries the vehicle
-  // fields and read-only assignment names from the paged vehicle API response.
+  // The table row already carries the vehicle fields and read-only
+  // assignment names from the paged vehicle API response.
   useEffect(() => {
     if (!isOpen || !editingVehicle) return;
 
-    setIsLoadingMeta(true);
     setError(null);
+    setFieldErrors({});
     setFormData({
       unit_number: editingVehicle.unitNumber === '-' ? '' : editingVehicle.unitNumber,
       plate_number: editingVehicle.plateNumber === '-' ? '' : editingVehicle.plateNumber,
-      route_id: editingVehicle.routeId,
       status: STATUS_TO_LARAVEL[editingVehicle.status] ?? 'ACTIVE',
     });
     setCurrentDriverName(editingVehicle.driver);
     setCurrentConductorName(editingVehicle.conductor);
-
-    fetch('/api/admin/routes')
-      .then(r => r.json())
-      .then((routesRes) => {
-        setRoutes(routesRes.data ?? []);
-      }).catch(() => {
-        setError('Failed to load form data. Please try again.');
-      }).finally(() => {
-        setIsLoadingMeta(false);
-      });
   }, [isOpen, editingVehicle]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -106,13 +87,6 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
       return;
     }
 
-    // Client-side guard: route_id is required.
-    if (!formData.route_id) {
-      setError('Please select a route for this vehicle.');
-      setFieldErrors({ route_id: ['Please select a route.'] });
-      return;
-    }
-
     setIsSubmitting(true);
     setError(null);
     setFieldErrors({});
@@ -121,8 +95,9 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
       const requestBody = {
         unit_number: formData.unit_number,
         plate_number: formData.plate_number,
-        route_id: formData.route_id,
         status: formData.status,
+        // route_id is intentionally NOT sent, so the vehicle's stored route
+        // is left unchanged (the update endpoint is a partial update).
         // NOTE: driver_id and conductor_id are intentionally NOT sent.
         // Assignment is managed exclusively by the conductor login / EOD
         // workflow — manual admin editing is disabled to preserve a single
@@ -187,7 +162,7 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
             value={formData.unit_number}
             onChange={handleChange}
             required
-            disabled={isLoadingMeta || isSubmitting}
+            disabled={isSubmitting}
             placeholder="e.g., UNIT-011"
             className={`${inputClasses} ${fieldErrors.unit_number ? 'border-red-500/50' : ''}`}
           />
@@ -207,7 +182,7 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
             value={formData.plate_number}
             onChange={handleChange}
             required
-            disabled={isLoadingMeta || isSubmitting}
+            disabled={isSubmitting}
             placeholder="e.g., NAA 0011"
             className={`${inputClasses} ${fieldErrors.plate_number ? 'border-red-500/50' : ''}`}
           />
@@ -217,37 +192,13 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
         </div>
 
         <div>
-          <label htmlFor="edit-route_id" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">
-            Route <span className="text-red-400 admin-light:text-red-600">*</span>
-          </label>
-          <select
-            id="edit-route_id"
-            name="route_id"
-            value={formData.route_id}
-            onChange={handleChange}
-            required
-            disabled={isLoadingMeta || isSubmitting}
-            className={`${inputClasses} [color-scheme:dark] ${fieldErrors.route_id ? 'border-red-500/50' : ''}`}
-          >
-            <option value="" disabled className="bg-gray-800 admin-light:bg-white">Select Route...</option>
-            {routes.map(r => (
-              <option key={r.id} value={r.id} className="bg-gray-800 admin-light:bg-white">{r.name}</option>
-            ))}
-          </select>
-          {fieldErrors.route_id && (
-            <p className="text-xs text-red-400 admin-light:text-red-600 mt-1">{fieldErrors.route_id[0]}</p>
-          )}
-          {routes.length === 0 && <p className="text-xs text-amber-400 admin-light:text-amber-700 mt-1">No routes available. Create a route first.</p>}
-        </div>
-
-        <div>
           <label htmlFor="edit-status" className="block text-xs font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">Vehicle Status</label>
           <select
             id="edit-status"
             name="status"
             value={formData.status}
             onChange={handleChange}
-            disabled={isLoadingMeta || isSubmitting}
+            disabled={isSubmitting}
             className={`${inputClasses} [color-scheme:dark]`}
           >
             <option value="ACTIVE" className="bg-gray-800 admin-light:bg-white">Operating</option>
@@ -307,10 +258,10 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
           </button>
           <button
             type="submit"
-            disabled={isSubmitting || isLoadingMeta}
+            disabled={isSubmitting}
             className="px-5 py-2.5 bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white font-medium rounded-md hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isSubmitting ? 'Saving...' : isLoadingMeta ? 'Loading...' : 'Update Vehicle'}
+            {isSubmitting ? 'Saving...' : 'Update Vehicle'}
           </button>
         </div>
       </form>
