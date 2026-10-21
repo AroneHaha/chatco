@@ -421,14 +421,18 @@ class ConductorController extends Controller
             'group_id' => $result['group_id'] ?? null,
             'multiple_payment_reference' => $result['multiple_payment_reference'] ?? null,
             'receipts' => $result['receipts'] ?? [],
+            // An existing PENDING/PROCESSING payment is returned instead of a
+            // new one, so the client needs its actual status.
+            'status' => $result['transaction']->status->value,
+            'confirmation_delayed' => $result['confirmation_delayed'] ?? false,
         ], 'GCash fare initiated', 201);
     }
 
     /**
      * GET /api/conductor/payments/gcash/pending
      *
-     * The conductor's resumable PENDING GCash transaction for their active
-     * shift, or null. Lets the frontend re-display the SAME QR + details
+     * The conductor's resumable PENDING or PROCESSING GCash transaction for
+     * their active shift, or null. Lets the frontend re-display the SAME QR + details
      * after the conductor navigated away or refreshed mid-payment, instead
      * of minting a duplicate. Stale rows are lazily expired by the lookup,
      * so a QR past its TTL is never offered for resume.
@@ -455,6 +459,8 @@ class ConductorController extends Controller
             'group_id' => $result['group_id'] ?? null,
             'multiple_payment_reference' => $result['multiple_payment_reference'] ?? null,
             'receipts' => $result['receipts'] ?? [],
+            'status' => $transaction->status->value,
+            'confirmation_delayed' => $result['confirmation_delayed'] ?? false,
         ], 'Pending GCash payment found');
     }
 

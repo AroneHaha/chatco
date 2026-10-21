@@ -124,6 +124,9 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
   // only after the grace window elapses without a resolution.
   const [gcashInitiation, setGcashInitiation] = useState<GcashInitiation | null>(null);
   const [gcashStatus, setGcashStatus] = useState<GcashPaymentStatus | null>(null);
+  /** PROCESSING past the backend's delay threshold — display-only; the
+   *  payment stays open because GCash can still settle it. */
+  const [gcashConfirmationDelayed, setGcashConfirmationDelayed] = useState(false);
   const [gcashError, setGcashError] = useState<string | null>(null);
   const [isInitiatingGcash, setIsInitiatingGcash] = useState(false);
   const [isCancellingGcash, setIsCancellingGcash] = useState(false);
@@ -135,6 +138,11 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
   const expiredAtRef = useRef<number | null>(null);
   /** One pending-resume check per modal open. */
   const checkedPendingRef = useRef(false);
+  /** Latest GCash status, readable from the poll's fallback timeout. */
+  const latestGcashStatusRef = useRef<GcashPaymentStatus | null>(null);
+  useEffect(() => {
+    latestGcashStatusRef.current = gcashStatus;
+  }, [gcashStatus]);
 
   // ── Voucher state ──
   // When the conductor selects Voucher, they enter the voucher code shown
@@ -405,6 +413,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
         const payment = await fetchStatus(transactionId);
         const status = payment.status;
         setGcashStatus(status);
+        setGcashConfirmationDelayed(payment.confirmationDelayed);
 
         // PAID is always terminal — success regardless of prior EXPIRED state.
         if (status === "paid") {
@@ -455,10 +464,14 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
     // AND the late-settlement grace runs to completion, AND a delayed
     // PayMongo webhook has time to land). If expires_at is unavailable,
     // fall back to the 10-minute TTL.
+    // PROCESSING is exempt: the commuter already authorized and GCash is
+    // still settling, so the QR's claim TTL no longer applies — keep polling
+    // until GCash reports an outcome rather than declaring it expired.
     const msUntilExpiry = expiresAt
       ? new Date(expiresAt).getTime() - Date.now()
       : 10 * 60 * 1000;
     pollTimeoutRef.current = setTimeout(() => {
+      if (latestGcashStatusRef.current === "processing") return;
       stopPolling();
       setGcashError(
         "This QR code has expired. If the commuter already paid on PayMongo, the late webhook may still settle the transaction — check your transaction history in a minute."
@@ -483,6 +496,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
     setIsInitiatingGcash(true);
     setGcashError(null);
     setGcashStatus(null);
+    setGcashConfirmationDelayed(false);
     setGcashInitiation(null);
 
     try {
@@ -507,6 +521,12 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
       });
 
       setGcashInitiation(initiation);
+      // The backend hands back the shift's existing PROCESSING payment (if
+      // any) instead of minting a duplicate; show it as such right away.
+      if (initiation.status === "processing") {
+        setGcashStatus("processing");
+        setGcashConfirmationDelayed(initiation.confirmationDelayed ?? false);
+      }
       setStep("qr_code");
 
       // Start polling for the payment status. The commuter will scan the QR,
@@ -551,6 +571,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
       stopPolling();
       setGcashInitiation(null);
       setGcashStatus(null);
+      setGcashConfirmationDelayed(false);
       setStep("method");
       setSelectedMethod(null);
     } catch (error) {
@@ -560,6 +581,17 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
     } finally {
       setIsCancellingGcash(false);
     }
+  };
+
+  // ─── Return to the current GCash payment ───
+  // After "Back" from the QR step the payment is still live (polling was
+  // only paused), so the location step offers this instead of generating a
+  // new QR. Polling resumes and the next tick refreshes the status.
+  const handleViewCurrentPayment = () => {
+    if (!gcashInitiation) return;
+    setGcashError(null);
+    setStep("qr_code");
+    pollGcashStatus(gcashInitiation.transactionId, gcashInitiation.expiresAt);
   };
 
   const handlePayWithCash = async () => {
@@ -714,6 +746,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
     setExpandedBarangay(null);
     setGcashInitiation(null);
     setGcashStatus(null);
+    setGcashConfirmationDelayed(false);
     setGcashError(null);
     setIsInitiatingGcash(false);
     setIsCancellingGcash(false);
@@ -744,9 +777,10 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
 
   // ─── Resume an interrupted GCash payment when the modal opens ───
   // If the conductor left the payment screen (navigation, refresh) while a
-  // GCash transaction was still PENDING, re-display the SAME QR + details
-  // instead of letting them mint a duplicate. The backend lazily expires
-  // stale rows, so a resumable result is always still claimable.
+  // GCash transaction was still PENDING or PROCESSING, re-display the SAME
+  // payment + status instead of letting them mint a duplicate. The backend
+  // lazily expires stale PENDING rows; PROCESSING ones stay until GCash
+  // reports an outcome.
   useEffect(() => {
     if (!isOpen) {
       checkedPendingRef.current = false;
@@ -764,7 +798,8 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
         setGcashInitiation(pending);
         setIsGroupMode(Boolean(pending.groupId));
         setReceiptTransactions(pending.receipts ?? []);
-        setGcashStatus(null);
+        setGcashStatus(pending.status === "processing" ? "processing" : null);
+        setGcashConfirmationDelayed(pending.confirmationDelayed ?? false);
         setGcashError(null);
         setStep("qr_code");
         pollGcashStatus(pending.transactionId, pending.expiresAt);
@@ -945,6 +980,11 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
     // For Cash: full existing flow with commuter type + fare overview
     const isGCash = selectedMethod === "GCash";
     const bothLocationsSelected = !!(pickupPoint && dropoffPoint);
+    // A GCash payment the conductor stepped back from is still live until
+    // it resolves; offering "Generate QR" here would start a second one.
+    const hasActiveGcash =
+      gcashInitiation !== null &&
+      (gcashStatus === null || gcashStatus === "pending" || gcashStatus === "processing");
 
     return (
       <div className={`fixed inset-0 z-[100] flex flex-col bg-[#050F1A] safe-area-inset sm:items-center sm:justify-center sm:bg-black/60 sm:backdrop-blur-sm sm:p-4 xl:justify-end xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`} {...backdropDismiss}>
@@ -1397,8 +1437,29 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
           </div>
 
           {/* ── Bottom Action Area ── */}
+          {/* GCash mode with a live payment: return to it instead of starting another */}
+          {isGCash && hasActiveGcash && gcashInitiation && (
+            <div className="flex-shrink-0 border-t border-white/10 bg-[#050F1A] px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
+              <div className="mb-3 flex items-baseline justify-between gap-3">
+                <p className="text-xs text-white/70 font-medium">
+                  {gcashStatus === "processing" ? "GCash is confirming this payment" : "GCash payment in progress"}
+                </p>
+                <p className="text-sm font-semibold text-white tabular-nums">{formatCurrency(gcashInitiation.amount)}</p>
+              </div>
+              <button
+                onClick={handleViewCurrentPayment}
+                className="w-full py-3.5 rounded-xl font-bold text-sm transition-colors shadow-lg active:scale-[0.98] bg-[#1A5FB4] hover:bg-[#164A8F] text-white shadow-[#1A5FB4]/30"
+              >
+                View current payment
+              </button>
+              <p className="text-[10px] text-white/25 text-center mt-2">
+                Finish or cancel this payment before generating a new QR code
+              </p>
+            </div>
+          )}
+
           {/* GCash mode: Show "Generate QR Code" button when both locations selected, NO fare display */}
-          {isGCash && bothLocationsSelected && (
+          {isGCash && !hasActiveGcash && bothLocationsSelected && (
             <div className="flex-shrink-0 border-t border-white/10 bg-[#050F1A] px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
               {/* Route confirmation only, NO fare */}
               <div className="mb-3 flex items-center gap-2 flex-wrap">
@@ -1486,7 +1547,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
           )}
 
           {/* No locations selected yet — show hint */}
-          {isGCash && !bothLocationsSelected && (
+          {isGCash && !hasActiveGcash && !bothLocationsSelected && (
             <div className="flex-shrink-0 border-t border-white/10 bg-[#050F1A] px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
               <div className="text-center py-2">
                 <p className="text-[11px] text-white/30">Select both pickup and drop-off locations to generate QR code</p>
@@ -1641,6 +1702,10 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
       qrSecondsLeft !== null
         ? `${Math.floor(qrSecondsLeft / 60)}:${String(qrSecondsLeft % 60).padStart(2, "0")}`
         : null;
+    // PROCESSING: the commuter already scanned and authorized; GCash is
+    // settling it. The QR is spent (claiming it again would be refused) and
+    // its claim countdown no longer applies, and GCash can't cancel it.
+    const isConfirming = gcashStatus === "processing";
 
     return (
       <div className={`fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`} {...backdropDismiss}>
@@ -1654,9 +1719,14 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
             </div>
           </div>
           <div>
-            <h2 className="text-white font-bold text-lg">Scan to Pay</h2>
-            <p className="text-[11px] text-white/40 mt-1 leading-relaxed">Commuter, scan this QR code with your e-Chatco app to confirm payment</p>
+            <h2 className="text-white font-bold text-lg">{isConfirming ? "Confirming Payment" : "Scan to Pay"}</h2>
+            <p className="text-[11px] text-white/40 mt-1 leading-relaxed">
+              {isConfirming
+                ? "The commuter authorized this payment. GCash is confirming it."
+                : "Commuter, scan this QR code with your e-Chatco app to confirm payment"}
+            </p>
           </div>
+          {!isConfirming && (
           <div className="bg-white rounded-2xl p-4 flex justify-center">
             <QRCodeSVG
               value={qrData}
@@ -1667,6 +1737,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
               includeMargin={false}
             />
           </div>
+          )}
           <div className="space-y-2">
             {routeFrom && routeTo && (
               <p className="text-xs text-white/40">
@@ -1677,15 +1748,22 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
               Amount: <span className="text-white font-semibold">{formatCurrency(gcashInitiation.amount)}</span>
             </p>
             <div className="flex items-center justify-center gap-2">
-              <p className={`text-xs font-medium ${gcashStatus === "expired" ? "text-amber-400/90" : "text-blue-400/70"}`}>
-                {gcashStatus === "processing" ? "Payment processing…" :
+              <p className={`text-xs font-medium ${gcashStatus === "expired" || gcashConfirmationDelayed ? "text-amber-400/90" : "text-blue-400/70"}`}>
+                {gcashStatus === "processing" ? (gcashConfirmationDelayed ? "Confirmation delayed" : "Payment processing…") :
                  gcashStatus === "paid" ? "Payment successful!" :
                  gcashStatus === "expired" ? "QR expired — still waiting for PayMongo confirmation…" :
                  gcashStatus ? `Status: ${gcashStatus}` :
                  "Waiting for commuter scan…"}
               </p>
             </div>
-            {countdownLabel && (
+            {isConfirming && (
+              <p className="text-[11px] leading-relaxed text-white/40">
+                {gcashConfirmationDelayed
+                  ? "GCash hasn't confirmed this payment yet. Keep it open and don't collect this fare another way; it updates here once GCash responds."
+                  : "This can't be cancelled while GCash is confirming it."}
+              </p>
+            )}
+            {countdownLabel && !isConfirming && (
               <p className={`text-[11px] font-semibold ${qrSecondsLeft !== null && qrSecondsLeft <= 30 ? "text-red-400" : "text-white/40"}`}>
                 QR expires in <span className="tabular-nums">{countdownLabel}</span>
               </p>
@@ -1713,8 +1791,8 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
           <div className="flex gap-2">
             <button
               onClick={handleCancelGcash}
-              disabled={isCancellingGcash}
-              className="flex-1 py-2.5 rounded-xl border border-red-500/20 text-red-400 text-sm font-semibold hover:bg-red-500/10 transition-colors disabled:opacity-50"
+              disabled={isCancellingGcash || isConfirming}
+              className="flex-1 py-2.5 rounded-xl border border-red-500/20 text-red-400 text-sm font-semibold hover:bg-red-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
             >
               {isCancellingGcash ? "Cancelling…" : "Cancel Payment"}
             </button>
