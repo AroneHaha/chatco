@@ -103,13 +103,13 @@ export default function CommuterProfileModal() {
         <div className="shrink-0 border-b border-white/10 bg-gradient-to-r from-[#102844] to-[#071A2E] light:border-gray-200 light:bg-none light:bg-white px-6 py-4">
           <div className="flex items-center justify-between gap-4">
             <div className="flex min-w-0 items-center gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#62A0EA]/20 bg-[#62A0EA]/10 text-[#99C1F1] light:border-[#1A5FB4]/20 light:bg-[#1A5FB4]/10 light:text-[#1A5FB4]"><UserRound size={20} aria-hidden="true" /></span>
+              <UserRound size={26} className="shrink-0 text-[#99C1F1] light:text-[#1A5FB4]" aria-hidden="true" />
               <div className="min-w-0">
                 <h2 id="commuter-profile-title" className="text-lg font-bold tracking-tight text-white light:text-gray-900">Profile</h2>
                 <p className="mt-0.5 text-xs text-white/50 light:text-gray-500">Your details and account settings</p>
               </div>
             </div>
-            <AccountMenu signOut={signOutControl} />
+            <AccountMenu signOut={signOutControl} trigger="gear" />
           </div>
         </div>
 

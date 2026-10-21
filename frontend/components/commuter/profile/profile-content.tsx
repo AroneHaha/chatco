@@ -238,7 +238,7 @@ export default function ProfileContent({ variant = "page", onSignOutControl }: {
               </span>
             </div>
           </div>
-          {isPage && <div className="hidden self-start lg:block"><AccountMenu signOut={{ request: () => setShowLogoutConfirm(true), locked: false }} /></div>}
+          {isPage && <div className="hidden self-start lg:block"><AccountMenu signOut={{ request: () => setShowLogoutConfirm(true), locked: false }} trigger="gear" /></div>}
         </div>
 
         <div className="space-y-2">
