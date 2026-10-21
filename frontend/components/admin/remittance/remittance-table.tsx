@@ -85,9 +85,27 @@ export function RemittanceTable({ searchQuery, selectedDate, dateFrom, statusFil
     {
       key: '_totalAmount' as const,
       label: 'Amount',
+      headerClassName: 'w-56',
+      cellClassName: 'w-56',
       // Computed column — grand total of cash + GCash
-      render: (_: unknown, row: RemittanceRow) =>
-        fmtPHP(row.cashTotal + row.gcashTotal),
+      render: (_: unknown, row: RemittanceRow) => {
+        const isShortage = row.remittanceStatus === 'Shortage';
+        const difference = isShortage ? (row.shortage ?? 0) : row.remittanceStatus === 'Overage' ? (row.overage ?? 0) : 0;
+
+        return (
+          <div className="flex items-baseline gap-2 whitespace-nowrap tabular-nums">
+            <span>{fmtPHP(row.cashTotal + row.gcashTotal)}</span>
+            {Number.isFinite(difference) && difference > 0 && (
+              <span
+                className={`text-xs font-medium ${STATUS_TEXT_CLASSES[isShortage ? 'danger' : 'success']}`}
+                aria-label={`${isShortage ? 'Shortage' : 'Overage'}: ${fmtPHP(difference)}`}
+              >
+                {isShortage ? '−' : '+'}{fmtPHP(difference)}
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: 'remittanceStatus',
