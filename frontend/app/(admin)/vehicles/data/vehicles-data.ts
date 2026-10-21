@@ -243,7 +243,7 @@ function mapPersonnel(apiPersonnel: Record<string, unknown>[]): Personnel[] {
       birthday: p.birthday ? String(p.birthday).slice(0, 10) : null,
       profilePic: p.profile_picture_url
         ? String(p.profile_picture_url)
-        : `https://placehold.co/150x150/0A1E33/${role === 'Driver' ? '62A0EA' : 'F59E0B'}?text=${name[0] ?? role[0]}`,
+        : '',
       status: p.status === 'TERMINATED' || p.status === 'RESIGNED' || p.status === 'DEACTIVATED' ? p.status : 'ACTIVE',
     };
   });

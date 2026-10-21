@@ -12,6 +12,7 @@ import { DriverDetailModal } from "@/components/admin/vehicles/driver-detail-mod
 import { ConductorDetailModal } from "@/components/admin/vehicles/conductor-detail-modal";
 import { SkeletonTable } from "@/components/admin/ui/skeleton";
 import { RowActionsMenu } from "@/components/admin/ui/row-actions-menu";
+import { UserAvatar } from "@/components/admin/ui/user-avatar";
 
 interface PersonnelTableProps {
   personnel: Personnel[];
@@ -76,13 +77,7 @@ export function PersonnelTable({
       cellClassName: "min-w-0",
       render: (value: string, row: Personnel) => (
         <div className="flex items-center gap-3 min-w-0">
-          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold border flex-shrink-0 ${
-            row.role === "Driver"
-              ? "bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 border-[#62A0EA]/25 admin-light:border-[#1A5FB4]/25 text-[#62A0EA] admin-light:text-[#1A5FB4]"
-              : "bg-amber-400/10 border-amber-400/25 text-amber-400 admin-light:text-amber-700"
-          }`}>
-            {value.split(" ").map(part => part[0]).join("").slice(0, 2)}
-          </div>
+          <UserAvatar src={row.profilePic} alt={`Profile photo of ${value}`} className="h-9 w-9" iconClassName="h-4 w-4" sizes="36px" />
           <p className="min-w-0 truncate font-medium text-white admin-light:text-slate-900">{value}</p>
         </div>
       ),
@@ -92,7 +87,7 @@ export function PersonnelTable({
       label: "Role",
       // Role is a category, not an alert, so it's a quiet dot + label (same
       // treatment as the vehicle table's "Operating"). The dot keeps the
-      // blue/amber role color already used by the avatar beside it.
+      // blue/amber distinction between drivers and conductors.
       render: (value: string) => {
         const isDriver = value === "Driver";
         return (

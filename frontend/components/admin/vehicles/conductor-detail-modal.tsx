@@ -270,8 +270,8 @@ export function ConductorDetailModal({ conductor, onClose, onChanged }: Conducto
     : conductor.name;
 
   const tabs: PageTab<DetailTab>[] = [
-    { id: 'info', label: 'Personal Info', icon: User, accent: 'amber' },
-    { id: 'history', label: 'Assignment History', icon: History, accent: 'amber', count: shiftLogsTotal ?? undefined },
+    { id: 'info', label: 'Personal Info', icon: User },
+    { id: 'history', label: 'Assignment History', icon: History, count: shiftLogsTotal ?? undefined },
   ];
 
   return (
