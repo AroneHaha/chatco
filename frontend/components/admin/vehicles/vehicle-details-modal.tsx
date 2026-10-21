@@ -14,7 +14,6 @@ import {
   AlertCircle,
   Users,
   QrCode,
-  Route,
 } from 'lucide-react';
 import {
   get as getVehicle,
@@ -269,13 +268,6 @@ export function VehicleDetailsModal({ isOpen, vehicleId, onClose }: VehicleDetai
                   />
                   <DetailRow label="Date added" value={formatDate(vehicle.createdAt)} />
                 </dl>
-                <div className="mt-3 flex items-start gap-3 rounded-xl bg-[#0E1628]/60 p-3 admin-light:bg-slate-50">
-                  <Route size={18} aria-hidden="true" className="mt-0.5 shrink-0 text-[#99C1F1] admin-light:text-[#1A5FB4]" />
-                  <div className="min-w-0">
-                    <p className="text-xs text-slate-400 admin-light:text-slate-500">Assigned route</p>
-                    <p className="mt-1 break-words text-sm font-medium text-slate-200 admin-light:text-slate-800">{vehicle.route?.name || 'No route assigned'}</p>
-                  </div>
-                </div>
               </section>
 
               <section aria-labelledby="vehicle-crew-heading" className="mt-4 border-t border-[#2A3A55] pt-3 admin-light:border-[#E2E8F0]">
