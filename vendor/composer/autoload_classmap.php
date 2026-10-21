@@ -205,6 +205,7 @@ return array(
     'App\\Providers\\PaymentServiceProvider' => $baseDir . '/app/Providers/PaymentServiceProvider.php',
     'App\\Rules\\PhilippineMobileNumber' => $baseDir . '/app/Rules/PhilippineMobileNumber.php',
     'App\\Rules\\StrongPassword' => $baseDir . '/app/Rules/StrongPassword.php',
+    'App\\Rules\\UniqueContactNumber' => $baseDir . '/app/Rules/UniqueContactNumber.php',
     'App\\Services\\ActivityLogService' => $baseDir . '/app/Services/ActivityLogService.php',
     'App\\Services\\AdminService' => $baseDir . '/app/Services/AdminService.php',
     'App\\Services\\AnnouncementService' => $baseDir . '/app/Services/AnnouncementService.php',

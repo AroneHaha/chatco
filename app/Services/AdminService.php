@@ -1212,9 +1212,9 @@ class AdminService
     private function profileEagerLoads(): array
     {
         return [
-            'adminProfile:id,first_name,middle_name,last_name',
-            'conductorProfile:id,first_name,middle_name,last_name,generated_username,status',
-            'commuterProfile:id,first_name,middle_name,suffix,surname,birthdate,gender,contact_number,commuter_type,applied_type,account_status,verified_at,username,id_image_url,student_discount_expires_at',
+            'adminProfile:id,first_name,middle_name,last_name,profile_picture_url',
+            'conductorProfile:id,first_name,middle_name,last_name,generated_username,status,profile_picture_url',
+            'commuterProfile:id,first_name,middle_name,suffix,surname,birthdate,gender,contact_number,commuter_type,applied_type,account_status,verified_at,username,id_image_url,profile_image_url,student_discount_expires_at',
             'activeSuspension',
         ];
     }
@@ -1268,12 +1268,18 @@ class AdminService
         $accountStatus = $isConductor
             ? ($user->conductorProfile?->status === 'DISABLED' ? 'DISABLED' : 'ACTIVE')
             : ($suspension ? 'SUSPENDED' : $commuter?->account_status);
+        $profileImageUrl = match ($user->role) {
+            UserRole::ADMIN => $user->adminProfile?->profile_picture_url,
+            UserRole::CONDUCTOR => $user->conductorProfile?->profile_picture_url,
+            UserRole::COMMUTER => $commuter?->profile_image_url,
+        };
 
         return [
             'id' => $user->id,
             'email' => $user->email,
             'role' => $user->role->value,
             'name' => $user->getDisplayName(),
+            'profile_image_url' => $profileImageUrl,
             'first_name' => $commuter?->first_name,
             'middle_name' => $commuter?->middle_name,
             'suffix' => $commuter?->suffix,
@@ -1325,6 +1331,8 @@ class AdminService
     public function listPendingRegistrations(array $filters = []): LengthAwarePaginator
     {
         $perPage = max(1, min((int) ($filters['per_page'] ?? 15), 100));
+        // Oldest first (FIFO review queue) unless the admin asks for most recent.
+        $direction = ($filters['sort'] ?? 'oldest') === 'recent' ? 'desc' : 'asc';
 
         $paginator = User::where('role', UserRole::COMMUTER)
             ->whereHas('commuterProfile', function ($q) {
@@ -1339,8 +1347,12 @@ class AdminService
             ->when($filters['search'] ?? null, function (Builder $query, string $search) {
                 $this->applySearch($query, trim($search));
             })
-            ->with(['commuterProfile:id,first_name,middle_name,surname,birthdate,gender,email,contact_number,commuter_type,applied_type,account_status,id_image_url,verified_at,rejection_reason,username,language_preference'])
-            ->orderBy('created_at', 'asc') // oldest first — FIFO review queue
+            ->with(['commuterProfile:id,first_name,middle_name,surname,birthdate,gender,email,contact_number,commuter_type,applied_type,account_status,id_image_url,profile_image_url,verified_at,rejection_reason,username,language_preference'])
+            ->orderBy('users.created_at', $direction)
+            // created_at has second precision; the id tie-breaker keeps
+            // same-second sign-ups in a fixed order so paging never repeats
+            // or skips an applicant, and 'recent' is the exact reverse of 'oldest'.
+            ->orderBy('users.id', $direction)
             ->paginate($perPage);
 
         // Batch-fetch rejection history for every applicant on this page in
@@ -1372,6 +1384,7 @@ class AdminService
                 'username' => $c?->username,
                 'applied_type' => $c?->applied_type,
                 'id_image_url' => $this->registrationIdUrl($c?->id_image_url),
+                'profile_image_url' => $c?->profile_image_url,
                 'account_status' => $c?->account_status,
                 'language_preference' => $c?->language_preference,
                 'verified_at' => $c?->verified_at?->toIso8601String(),
@@ -1418,7 +1431,7 @@ class AdminService
                     ->orWhere('contact_number', 'like', $term)
                     ->orWhere('rejection_reason', 'like', $term));
             })
-            ->with(['commuterProfile:id,first_name,middle_name,surname,birthdate,gender,email,contact_number,commuter_type,applied_type,account_status,id_image_url,verified_at,rejection_reason,username,language_preference'])
+            ->with(['commuterProfile:id,first_name,middle_name,surname,birthdate,gender,email,contact_number,commuter_type,applied_type,account_status,id_image_url,profile_image_url,verified_at,rejection_reason,username,language_preference'])
             ->orderBy('updated_at', 'desc') // most recently rejected first
             ->paginate($perPage);
 
@@ -1468,6 +1481,7 @@ class AdminService
                 'username' => $c?->username,
                 'applied_type' => $c?->applied_type,
                 'id_image_url' => $this->registrationIdUrl($c?->id_image_url),
+                'profile_image_url' => $c?->profile_image_url,
                 'account_status' => $c?->account_status,
                 'language_preference' => $c?->language_preference,
                 'verified_at' => $c?->verified_at?->toIso8601String(),

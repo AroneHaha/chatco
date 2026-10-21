@@ -131,7 +131,7 @@ class AdminUserController extends Controller
                 'POLICY_VIOLATION',
                 'FRAUD_SUSPECTED',
                 'SAFETY_CONCERN',
-                'ABUSIVE_BEHAVIOR',
+                'INAPPROPRIATE_PROFILE_PHOTO',
                 'PAYMENT_ISSUE',
                 'OTHER',
             ])],

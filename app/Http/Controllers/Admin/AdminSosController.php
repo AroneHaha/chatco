@@ -46,15 +46,36 @@ class AdminSosController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $statusInput = $request->string('status')->toString();
+        // Case-insensitive like before (status=all, status=resolved), then
+        // validated: unknown values and unbounded page sizes are refused
+        // instead of reaching the query.
+        foreach (['status', 'outcome'] as $field) {
+            if (is_string($request->input($field))) {
+                $request->merge([$field => strtoupper(trim($request->input($field)))]);
+            }
+        }
+        $validated = $request->validate([
+            'sort' => ['sometimes', 'in:recent,oldest'],
+            'status' => ['sometimes', 'nullable', 'in:ACTIVE,ACKNOWLEDGED,RESOLVED,ALL'],
+            // Safety History: a day (app timezone) and resolved-by-admin vs
+            // cancelled-by-sender, applied in SQL rather than on one page.
+            'date' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+            'outcome' => ['sometimes', 'nullable', 'in:RESOLVED,CANCELLED'],
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
+            'page' => ['sometimes', 'integer', 'min:1'],
+        ]);
+        $statusInput = $validated['status'] ?? '';
         $filters = [
             'status' => match (true) {
-                $statusInput === ''                => 'ACTIVE', // default: live feed
-                strtoupper($statusInput) === 'ALL' => null,     // explicit ALL → no filter
-                default                            => $statusInput,
+                $statusInput === ''    => 'ACTIVE', // default: live feed
+                $statusInput === 'ALL' => null,     // explicit ALL → no filter
+                default                => $statusInput,
             },
+            'sort' => $validated['sort'] ?? 'recent',
+            'date' => $validated['date'] ?? null,
+            'outcome' => $validated['outcome'] ?? null,
         ];
-        $perPage = (int) $request->integer('per_page', 15);
+        $perPage = (int) ($validated['per_page'] ?? 15);
 
         $alerts = $this->sosService->listActive($request->user(), $filters, $perPage);
 

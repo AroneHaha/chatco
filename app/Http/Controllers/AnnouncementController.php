@@ -42,12 +42,13 @@ class AnnouncementController extends Controller
     }
 
     /**
-     * GET /announcements?unread_only=1&per_page=
+     * GET /announcements?unread_only=1&notifications_only=1&per_page=
      */
     public function index(Request $request): JsonResponse
     {
         $filters = [
             'unread_only' => $request->boolean('unread_only'),
+            'notifications_only' => $request->boolean('notifications_only'),
         ];
         $perPage = max(1, min(100, (int) $request->integer('per_page', 15)));
 

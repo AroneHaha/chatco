@@ -7,15 +7,14 @@ use Illuminate\Foundation\Http\FormRequest;
 /**
  * Validates POST /api/v1/commuter/feedback.
  *
- * Shape/type validation lives here. Paid-ride verification, crew derivation,
- * and duplicate detection live in FeedbackService::submit().
+ * Shape/type validation lives here. Crew derivation and duplicate detection
+ * live in FeedbackService::submit(). Payment is not required for QR feedback.
  *
  * SECURITY: Server-generated fields (vehicle_id, driver_id, conductor_id,
  * commuter_id) are NEVER accepted from the client. They are NOT listed in
  * rules(), so they will NOT appear in the validated() output. The controller
  * passes only the validated fields to the service, which derives the crew
- * from a paid transaction owned by the authenticated commuter. This prevents
- * feedback using a guessed or merely valid shift_id.
+ * from the referenced shift.
  *
  * Authorization is handled at the route level via role:COMMUTER.
  */
