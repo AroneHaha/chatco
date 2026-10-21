@@ -53,6 +53,7 @@ A vehicle (`Vehicle` model) is the jeepney unit: plate/unit number, type, status
 | `per_page` | Default 15, clamped to 1–100 |
 | `page` | |
 | `count_only` | `1`: returns only `{total}` from a count-only query (no eager-loads, no row fetch) |
+| `next_unit_number` | `1`: returns only `{unit_number}` for the Add New Vehicle preview; does not reserve a number |
 
 **200 OK:** a Laravel paginator of raw `Vehicle` models, each with `route`, `driver` and `conductor` eager-loaded in full — see [Known quirks](#known-quirks) for what that means when a conductor is assigned.
 
@@ -71,7 +72,8 @@ Same relations as the list. `404` (shape B, `findOrFail`) if the ID doesn't exis
 
 | Field | Rules |
 |---|---|
-| `unit_number`, `plate_number` | Required, max 20, unique |
+| `plate_number` | Required, max 20, unique |
+| `unit_number` | Server-generated; prohibited in the create request |
 | `brand`, `model` | Required, max 50 |
 | `vehicle_type` | Nullable, one of `Jeepney, Bus, Van, UV Express` |
 | `route_id` | Nullable UUID, must exist |
@@ -83,6 +85,15 @@ Same relations as the list. `404` (shape B, `findOrFail`) if the ID doesn't exis
 **Assignment approval is automatic, not a separate action:** if both `driver_id` and `conductor_id` are sent, `assignment_date` (today, Asia/Manila) and `assignment_approved_at` (now) are stamped in the same insert. A vehicle with only one of the two stays unapproved (`null` on both) until the other is set.
 
 **201 Created:** the Vehicle, freshly loaded with `route`/`driver`/`conductor`. Logged as `VEHICLE`.
+
+Unit numbers use `UNIT-1`, `UNIT-2`, and so on. The first allocation continues
+after the highest existing numeric unit, including padded names such as
+`UNIT-010`, spaced dash variants, and soft-deleted vehicles. A shared counter
+row is locked and incremented in the same transaction as the vehicle insert,
+so concurrent additions receive distinct numbers and failed inserts do not
+consume a number. Existing unit-name edits advance this counter when needed;
+deleted or renamed units never move it backwards. The existing unique index
+on `vehicles.unit_number` remains the final database constraint.
 
 ### PUT/PATCH /admin/vehicles/{id}
 

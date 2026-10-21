@@ -156,13 +156,14 @@ export interface VehicleListFilters {
 /**
  * Fields the create/edit modal can send.
  *
- * For `create`, `unitNumber` + `plateNumber` + `routeId` are required
- * (server-enforced via StoreVehicleRequest). For `update`, only sent
+ * For `create`, `plateNumber`, `brand`, and `model` are required; the server
+ * generates `unitNumber`. For `update`, only sent
  * fields are persisted (UpdateVehicleRequest uses `sometimes` validation).
  *
  * `driverId` / `conductorId` may be `null` to unassign.
  */
 export interface VehicleMutationInput {
+  /** Existing vehicles only; generated automatically on creation. */
   unitNumber?: string;
   plateNumber?: string;
   vehicleType?: string | null;
@@ -367,13 +368,14 @@ export async function get(id: string): Promise<AdminVehicle> {
 /**
  * Create a new vehicle.
  *
- * On 422 (plate/unit uniqueness violation), throws a
+ * The server assigns the next unit number atomically when saving.
+ * On 422 (validation or a duplicate plate), throws a
  * `VehicleOperationError` with `code: "validation"` and the `errors` map
  * so the create modal can render field-specific messages.
  *
  * @returns The created vehicle (fresh from the server, with relations).
  */
-export async function create(input: VehicleMutationInput): Promise<AdminVehicle> {
+export async function create(input: Omit<VehicleMutationInput, "unitNumber">): Promise<AdminVehicle> {
   const res = await fetch(API_BASE, {
     method: "POST",
     headers: {

@@ -11,16 +11,19 @@ use App\Models\Route;
 use App\Models\ShiftLog;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Services\AdminService;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 /**
  * S5-T4 — Admin vehicle CRUD (behavioural coverage).
  *
  * RoleAccessMatrixTest covers access + the 409 active-shift delete guard;
- * this suite covers the CRUD behaviour: create persists, plate/unit
- * uniqueness (422), update persists, and list filter/search/pagination.
+ * this suite covers generated unit numbers, plate/unit uniqueness, updates,
+ * and list filter/search/pagination.
  */
 class AdminVehicleCrudTest extends TestCase
 {
@@ -68,16 +71,16 @@ class AdminVehicleCrudTest extends TestCase
         $admin = $this->makeAdmin();
 
         $response = $this->actingAs($admin)->postJson('/api/v1/admin/vehicles', [
-            'unit_number'  => 'UNIT-NEW',
             'plate_number' => 'NEW-1234',
             'brand'        => 'Isuzu',
             'model'        => 'Elf NHR',
             'vehicle_type' => 'Bus',
         ]);
 
-        $response->assertStatus(201)->assertJsonPath('success', true);
+        $response->assertStatus(201)->assertJsonPath('success', true)
+            ->assertJsonPath('data.unit_number', 'UNIT-1');
         $this->assertDatabaseHas('vehicles', [
-            'unit_number'  => 'UNIT-NEW',
+            'unit_number'  => 'UNIT-1',
             'plate_number' => 'NEW-1234',
             'brand'        => 'Isuzu',
             'model'        => 'Elf NHR',
@@ -90,24 +93,26 @@ class AdminVehicleCrudTest extends TestCase
         $admin = $this->makeAdmin();
 
         $this->actingAs($admin)->postJson('/api/v1/admin/vehicles', [
-            'unit_number'  => 'UNIT-NOBRAND',
             'plate_number' => 'NB-0001',
         ])->assertStatus(422)->assertJsonStructure(['errors' => ['brand', 'model']]);
     }
 
-    public function test_create_rejects_duplicate_plate_or_unit(): void
+    public function test_create_rejects_manual_unit_numbers_and_duplicate_plates(): void
     {
         $admin = $this->makeAdmin();
         $this->makeVehicle(['unit_number' => 'UNIT-DUP', 'plate_number' => 'DUP-0001']);
 
         $this->actingAs($admin)->postJson('/api/v1/admin/vehicles', [
-            'unit_number'  => 'UNIT-DUP',     // duplicate
+            'unit_number'  => 'UNIT-MANUAL',
             'plate_number' => 'OTHER-9999',
+            'brand' => 'Isuzu',
+            'model' => 'Elf NHR',
         ])->assertStatus(422)->assertJsonStructure(['errors' => ['unit_number']]);
 
         $this->actingAs($admin)->postJson('/api/v1/admin/vehicles', [
-            'unit_number'  => 'UNIT-OTHER',
             'plate_number' => 'DUP-0001',     // duplicate
+            'brand' => 'Isuzu',
+            'model' => 'Elf NHR',
         ])->assertStatus(422)->assertJsonStructure(['errors' => ['plate_number']]);
     }
 
@@ -116,13 +121,134 @@ class AdminVehicleCrudTest extends TestCase
         $admin = $this->makeAdmin();
 
         $this->actingAs($admin)->postJson('/api/v1/admin/vehicles', [
-            'unit_number'  => 'UNIT-X',
             'plate_number' => 'X-0001',
             'vehicle_type' => 'Spaceship',
         ])->assertStatus(422)->assertJsonStructure(['errors' => ['vehicle_type']]);
     }
 
     // ── Read / list ──────────────────────────────────────────────
+
+    public function test_unit_number_preview_is_read_only_for_an_empty_fleet(): void
+    {
+        $admin = $this->makeAdmin();
+
+        for ($attempt = 0; $attempt < 2; $attempt++) {
+            $response = $this->actingAs($admin)->getJson('/api/v1/admin/vehicles?next_unit_number=1')
+                ->assertOk()->assertJsonPath('data.unit_number', 'UNIT-1');
+
+            $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
+        }
+
+        $this->assertDatabaseCount('vehicles', 0);
+        $this->assertDatabaseCount('vehicle_unit_sequences', 0);
+    }
+
+    public function test_unit_number_preview_uses_existing_units_without_reserving_a_number(): void
+    {
+        $admin = $this->makeAdmin();
+        $this->makeVehicle(['unit_number' => 'UNIT-010']);
+        $this->makeVehicle(['unit_number' => 'UNIT-013'])->delete();
+
+        $this->actingAs($admin)->getJson('/api/v1/admin/vehicles?next_unit_number=1')
+            ->assertOk()->assertJsonPath('data.unit_number', 'UNIT-14');
+        $this->assertDatabaseCount('vehicle_unit_sequences', 0);
+
+        // Another addition can take the previewed number before this form saves.
+        foreach ([14, 15] as $number) {
+            $this->postJson('/api/v1/admin/vehicles', [
+                'plate_number' => "PREVIEW-{$number}", 'brand' => 'Isuzu', 'model' => 'Elf NHR',
+            ])->assertCreated()->assertJsonPath('data.unit_number', "UNIT-{$number}");
+        }
+
+        $this->getJson('/api/v1/admin/vehicles?next_unit_number=1')
+            ->assertOk()->assertJsonPath('data.unit_number', 'UNIT-16');
+        $this->assertDatabaseHas('vehicle_unit_sequences', ['id' => 1, 'last_number' => 15]);
+    }
+
+    public function test_generated_units_continue_after_the_highest_existing_number(): void
+    {
+        $admin = $this->makeAdmin();
+        foreach (['UNIT-009', 'UNIT – 10', 'UNIT-2', 'UNIT-OLD', 'CUSTOM-999'] as $name) {
+            $this->makeVehicle(['unit_number' => $name]);
+        }
+
+        foreach ([11, 12, 13] as $number) {
+            $this->actingAs($admin)->postJson('/api/v1/admin/vehicles', [
+                'plate_number' => "AUTO-{$number}",
+                'brand' => 'Isuzu',
+                'model' => 'Elf NHR',
+            ])->assertCreated()->assertJsonPath('data.unit_number', "UNIT-{$number}");
+        }
+    }
+
+    public function test_generated_units_include_deleted_units_and_never_reuse_a_number(): void
+    {
+        $admin = $this->makeAdmin();
+        $this->makeVehicle(['unit_number' => 'UNIT-010'])->delete();
+
+        $created = $this->actingAs($admin)->postJson('/api/v1/admin/vehicles', [
+            'plate_number' => 'AUTO-11', 'brand' => 'Isuzu', 'model' => 'Elf NHR',
+        ])->assertCreated()->assertJsonPath('data.unit_number', 'UNIT-11');
+
+        Vehicle::findOrFail($created->json('data.id'))->forceDelete();
+
+        $this->postJson('/api/v1/admin/vehicles', [
+            'plate_number' => 'AUTO-12', 'brand' => 'Isuzu', 'model' => 'Elf NHR',
+        ])->assertCreated()->assertJsonPath('data.unit_number', 'UNIT-12');
+    }
+
+    public function test_unit_sequence_advances_when_an_existing_unit_is_renamed(): void
+    {
+        $admin = $this->makeAdmin();
+        $vehicle = $this->makeVehicle(['unit_number' => 'UNIT-10']);
+
+        $this->actingAs($admin)->putJson("/api/v1/admin/vehicles/{$vehicle->id}", [
+            'unit_number' => 'UNIT – 40',
+        ])->assertOk();
+
+        $this->postJson('/api/v1/admin/vehicles', [
+            'plate_number' => 'AUTO-41', 'brand' => 'Isuzu', 'model' => 'Elf NHR',
+        ])->assertCreated()->assertJsonPath('data.unit_number', 'UNIT-41');
+
+        $this->putJson("/api/v1/admin/vehicles/{$vehicle->id}", [
+            'unit_number' => 'LEGACY-UNIT',
+        ])->assertOk();
+
+        $this->postJson('/api/v1/admin/vehicles', [
+            'plate_number' => 'AUTO-42', 'brand' => 'Isuzu', 'model' => 'Elf NHR',
+        ])->assertCreated()->assertJsonPath('data.unit_number', 'UNIT-42');
+    }
+
+    public function test_failed_vehicle_insert_does_not_consume_a_unit_number(): void
+    {
+        $service = app(AdminService::class);
+        $data = ['plate_number' => 'SAME-PLATE', 'brand' => 'Isuzu', 'model' => 'Elf NHR'];
+        $this->assertSame('UNIT-1', $service->createVehicle($data)->unit_number);
+
+        // Exercise the database uniqueness race after request validation:
+        // another request has already inserted the same plate.
+        try {
+            $service->createVehicle($data);
+            $this->fail('A duplicate plate must be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('plate_number', $exception->errors());
+        }
+
+        $this->assertDatabaseHas('vehicle_unit_sequences', ['id' => 1, 'last_number' => 1]);
+        $this->assertSame('UNIT-2', $service->createVehicle([
+            'plate_number' => 'NEXT-PLATE', 'brand' => 'Isuzu', 'model' => 'Elf NHR',
+        ])->unit_number);
+    }
+
+    public function test_database_rejects_duplicate_generated_unit_names(): void
+    {
+        $vehicle = app(AdminService::class)->createVehicle([
+            'plate_number' => 'AUTO-1', 'brand' => 'Isuzu', 'model' => 'Elf NHR',
+        ]);
+
+        $this->expectException(UniqueConstraintViolationException::class);
+        $this->makeVehicle(['unit_number' => $vehicle->unit_number]);
+    }
 
     public function test_list_is_paginated_and_filterable(): void
     {
@@ -252,6 +378,7 @@ class AdminVehicleCrudTest extends TestCase
         $vehicle = $this->makeVehicle();
 
         $this->actingAs($commuter)->getJson('/api/v1/admin/vehicles')->assertStatus(403);
+        $this->actingAs($commuter)->getJson('/api/v1/admin/vehicles?next_unit_number=1')->assertStatus(403);
         $this->actingAs($commuter)->postJson('/api/v1/admin/vehicles', [
             'unit_number' => 'U', 'plate_number' => 'P',
         ])->assertStatus(403);

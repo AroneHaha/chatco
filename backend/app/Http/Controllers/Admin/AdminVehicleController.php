@@ -43,6 +43,12 @@ class AdminVehicleController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        if ($request->boolean('next_unit_number')) {
+            return $this->successResponse([
+                'unit_number' => $this->adminService->previewVehicleUnitNumber(),
+            ], 'Next unit number retrieved')->header('Cache-Control', 'no-store');
+        }
+
         $filters = [
             'status'   => $request->string('status')->toString() ?: null,
             'route_id' => $request->string('route_id')->toString() ?: null,
@@ -76,8 +82,8 @@ class AdminVehicleController extends Controller
 
     /**
      * POST /api/v1/admin/vehicles
-     * Create a new vehicle. plate_number + unit_number uniqueness enforced
-     * by StoreVehicleRequest validation (422 on dup).
+     * Create a vehicle with a server-generated sequential unit number.
+     * StoreVehicleRequest validates the plate number's uniqueness.
      */
     public function store(StoreVehicleRequest $request): JsonResponse
     {
