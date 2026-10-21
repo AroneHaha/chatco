@@ -58,7 +58,15 @@ class AdminAccountController extends Controller
             'email' => ['required', 'string', 'email:rfc', 'max:255', 'unique:users,email'],
             'contact_number' => ['required', 'string', new PhilippineMobileNumber],
             'address' => ['required', 'string', 'max:255'],
-            'username' => ['required', 'string', 'min:3', 'max:50', 'regex:/^[a-z0-9._-]+$/', 'unique:admin_profiles,username'],
+            // Sign-in resolves usernames across admin, conductor and commuter
+            // accounts (AuthService::resolveLoginUser), so a name another
+            // account already signs in with would be ambiguous.
+            'username' => [
+                'required', 'string', 'min:3', 'max:50', 'regex:/^[a-z0-9._-]+$/',
+                'unique:admin_profiles,username',
+                'unique:conductor_profiles,generated_username',
+                'unique:commuter_profiles,username',
+            ],
             'profile_picture' => ['nullable', 'file', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
         ], [
             'username.regex' => 'Use only letters, numbers, periods, underscores, or hyphens in the username.',
