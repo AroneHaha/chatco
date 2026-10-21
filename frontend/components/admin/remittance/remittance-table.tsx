@@ -43,11 +43,13 @@ interface RemittanceTableProps {
   autoOpenShiftId?: string | null;
   /** Called once the auto-open above has fired, so the page can clear it. */
   onAutoOpenHandled?: () => void;
+  /** Called after a successful cash declaration, so the page can refresh the summary. */
+  onCashDeclared?: () => void;
 }
 
 const ROWS_PER_PAGE = 20;
 
-export function RemittanceTable({ searchQuery, selectedDate, dateFrom, statusFilter, conductorFilter, driverFilter, autoOpenShiftId, onAutoOpenHandled }: RemittanceTableProps) {
+export function RemittanceTable({ searchQuery, selectedDate, dateFrom, statusFilter, conductorFilter, driverFilter, autoOpenShiftId, onAutoOpenHandled, onCashDeclared }: RemittanceTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const { records, total, lastPage, isLoading, error, refresh } = useRemittanceData(currentPage, searchQuery, selectedDate, statusFilter, dateFrom, conductorFilter, driverFilter);
   const [selectedRecord, setSelectedRecord] = useState<RemittanceRow | null>(null);
@@ -85,9 +87,27 @@ export function RemittanceTable({ searchQuery, selectedDate, dateFrom, statusFil
     {
       key: '_totalAmount' as const,
       label: 'Amount',
+      headerClassName: 'w-56',
+      cellClassName: 'w-56',
       // Computed column — grand total of cash + GCash
-      render: (_: unknown, row: RemittanceRow) =>
-        fmtPHP(row.cashTotal + row.gcashTotal),
+      render: (_: unknown, row: RemittanceRow) => {
+        const isShortage = row.remittanceStatus === 'Shortage';
+        const difference = isShortage ? (row.shortage ?? 0) : row.remittanceStatus === 'Overage' ? (row.overage ?? 0) : 0;
+
+        return (
+          <div className="flex items-baseline gap-2 whitespace-nowrap tabular-nums">
+            <span>{fmtPHP(row.cashTotal + row.gcashTotal)}</span>
+            {Number.isFinite(difference) && difference > 0 && (
+              <span
+                className={`text-xs font-medium ${STATUS_TEXT_CLASSES[isShortage ? 'danger' : 'success']}`}
+                aria-label={`${isShortage ? 'Shortage' : 'Overage'}: ${fmtPHP(difference)}`}
+              >
+                {isShortage ? '−' : '+'}{fmtPHP(difference)}
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: 'remittanceStatus',
@@ -246,7 +266,10 @@ export function RemittanceTable({ searchQuery, selectedDate, dateFrom, statusFil
       <CashDeclarationModal
         isOpen={declaringRecord !== null}
         onClose={() => setDeclaringRecord(null)}
-        onDeclared={refresh}
+        onDeclared={() => {
+          void refresh();
+          onCashDeclared?.();
+        }}
         record={declaringRecord}
       />
     </div>

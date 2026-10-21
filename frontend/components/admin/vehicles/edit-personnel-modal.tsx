@@ -3,7 +3,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
-import { Upload, User, Save, IdCard, X, Users, Loader2 } from 'lucide-react';
+import { UserAvatar } from '@/components/admin/ui/user-avatar';
+import { Upload, Save, IdCard, X, Users, Loader2 } from 'lucide-react';
 import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
 import type { Personnel } from '@/app/(admin)/vehicles/data/vehicles-data';
 import {
@@ -380,17 +381,7 @@ export function EditPersonnelModal({ isOpen, onClose, onSaved, editingData }: Ed
         <fieldset disabled={isSubmitting} className="min-w-0 space-y-4 border-0 p-0">
         {/* Profile Picture Section */}
         <div className="flex flex-wrap items-center gap-3 rounded-xl bg-[#0E1628]/60 p-3 admin-light:bg-slate-50">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#2A3A55] bg-[#1A2540] admin-light:border-[#E2E8F0] admin-light:bg-white">
-            {useDefaultPicture ? (
-              <User className="text-slate-600 admin-light:text-slate-400" size={32} />
-            ) : previewSrc ? (
-              // Local file preview; it is not a remote image for Next.js optimization.
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={previewSrc} alt={roleLabel + " profile preview"} className="w-full h-full object-cover" />
-            ) : (
-              <User className="text-slate-600 admin-light:text-slate-400" size={32} />
-            )}
-          </div>
+          <UserAvatar src={useDefaultPicture ? null : previewSrc} alt={`${roleLabel} profile preview`} className="h-14 w-14" iconClassName="h-6 w-6" sizes="56px" />
 
           <div className="min-w-0 flex-1 space-y-2">
             <p className="text-sm font-medium text-white admin-light:text-slate-900">Profile photo <span className="ml-1 text-xs font-normal text-slate-400 admin-light:text-slate-500">Optional</span></p>

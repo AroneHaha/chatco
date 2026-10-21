@@ -34,7 +34,6 @@ export default function UnitList({
                   </div>
                   <div className="min-w-0">
                     <p className={`font-bold text-sm ${isAvailable ? "text-white" : "text-white/40"}`}>{unit.unitNumber}</p>
-                    <p className="text-[11px] text-white/35 font-medium mt-0.5 truncate">{unit.route}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4 pl-[50px]">

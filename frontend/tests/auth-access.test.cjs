@@ -142,7 +142,7 @@ test('encoded, nested and RSC/prefetch URLs cannot bypass the page guard', async
   }
 });
 
-test('successful login issues the existing session and redirects every role to its dashboard', async () => {
+test('successful login issues the existing session and redirects every role to its landing page', async () => {
   for (const role of Object.keys(dashboards)) {
     for (const activeShift of role === 'CONDUCTOR' ? [null, { shift_id: 'active-shift' }] : [null]) {
       const { POST } = load('app/api/auth/login/route.ts', { fetch: async url =>
@@ -153,7 +153,9 @@ test('successful login issues the existing session and redirects every role to i
       }));
       const body = await response.json();
       assert.equal(response.status, 200);
-      assert.equal(body.redirectPath, dashboards[role]);
+      // A conductor without an active shift starts at unit verification.
+      const expectedPath = role === 'CONDUCTOR' && !activeShift ? '/unit-verification' : dashboards[role];
+      assert.equal(body.redirectPath, expectedPath);
       assert.equal(response.cookies.get('chatco_session').value, 'sanctum-token');
       assert.equal(response.cookies.get('chatco_session').httpOnly, true);
       if (role === 'CONDUCTOR') assert.deepEqual(body.activeShift, activeShift);

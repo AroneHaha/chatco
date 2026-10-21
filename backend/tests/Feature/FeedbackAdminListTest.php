@@ -360,6 +360,134 @@ class FeedbackAdminListTest extends TestCase
             ->assertJsonPath('data.summary.distribution.1', 1);
     }
 
+    public function test_rating_filter_narrows_rows_but_not_the_summary(): void
+    {
+        $this->seedDriverFeedback(4, [5, 4, 4, 1]);
+        $this->admin();
+
+        $response = $this->getJson("/api/v1/admin/feedback?driver_id={$this->driver->id}&rating=4")
+            ->assertOk()
+            ->assertJsonCount(2, 'data.feedback')
+            ->assertJsonPath('data.pagination.total', 2)
+            ->assertJsonPath('data.summary.total_count', 4)
+            ->assertJsonPath('data.summary.distribution.1', 1);
+
+        $this->assertSame([4, 4], array_column($response->json('data.feedback'), 'rating'));
+    }
+
+    public function test_conductor_rating_filter_uses_the_conductor_rating(): void
+    {
+        $this->seedConductorFeedback(3, [5, 4, 3]);
+        $this->admin();
+
+        $response = $this->getJson("/api/v1/admin/feedback?conductor_id={$this->conductor->id}&rating=3")
+            ->assertOk()
+            ->assertJsonCount(1, 'data.feedback')
+            ->assertJsonPath('data.summary.total_count', 3);
+
+        $this->assertSame(3, $response->json('data.feedback.0.rating'));
+    }
+
+    public function test_rating_filter_rejects_values_outside_one_to_five(): void
+    {
+        $this->admin();
+
+        $this->getJson("/api/v1/admin/feedback?driver_id={$this->driver->id}&rating=6")
+            ->assertStatus(422);
+    }
+
+    // ── Cursor pagination (admin modal infinite scroll) ─────────
+
+    public function test_cursor_mode_first_batch_includes_summary_and_next_cursor(): void
+    {
+        $this->seedDriverFeedback(12, array_fill(0, 12, 5));
+        $this->admin();
+
+        $response = $this->getJson("/api/v1/admin/feedback?driver_id={$this->driver->id}&pagination=cursor&per_page=10")
+            ->assertOk()
+            ->assertJsonCount(10, 'data.feedback')
+            ->assertJsonPath('data.summary.total_count', 12)
+            ->assertJsonPath('data.pagination.per_page', 10)
+            ->assertJsonPath('data.pagination.has_more', true)
+            ->assertJsonMissingPath('data.pagination.total');
+
+        $this->assertNotEmpty($response->json('data.pagination.next_cursor'));
+    }
+
+    public function test_cursor_mode_next_batch_skips_summary_and_never_repeats_rows(): void
+    {
+        $this->seedDriverFeedback(12, array_fill(0, 12, 4));
+        $this->admin();
+        $base = "/api/v1/admin/feedback?driver_id={$this->driver->id}&pagination=cursor&per_page=10";
+
+        $first = $this->getJson($base)->assertOk();
+        $second = $this->getJson($base.'&cursor='.urlencode($first->json('data.pagination.next_cursor')))
+            ->assertOk()
+            ->assertJsonCount(2, 'data.feedback')
+            ->assertJsonPath('data.summary', null)
+            ->assertJsonPath('data.pagination.has_more', false)
+            ->assertJsonPath('data.pagination.next_cursor', null);
+
+        $ids = array_merge(
+            array_column($first->json('data.feedback'), 'id'),
+            array_column($second->json('data.feedback'), 'id'),
+        );
+        $this->assertCount(12, array_unique($ids));
+    }
+
+    public function test_cursor_mode_is_stable_when_new_feedback_arrives_mid_scroll(): void
+    {
+        $this->seedDriverFeedback(12, array_fill(0, 12, 3));
+        $this->admin();
+        $base = "/api/v1/admin/feedback?driver_id={$this->driver->id}&pagination=cursor&per_page=10";
+        $first = $this->getJson($base)->assertOk();
+
+        // Newer feedback lands while the admin is scrolling. Offset paging
+        // would shift every row down and repeat the last one on page 2.
+        $this->travel(5)->seconds();
+        $this->seedDriverFeedback(3, [1, 1, 1]);
+
+        $second = $this->getJson($base.'&cursor='.urlencode($first->json('data.pagination.next_cursor')))
+            ->assertOk()
+            ->assertJsonCount(2, 'data.feedback');
+
+        $this->assertSame([], array_intersect(
+            array_column($first->json('data.feedback'), 'id'),
+            array_column($second->json('data.feedback'), 'id'),
+        ));
+    }
+
+    public function test_cursor_mode_applies_the_rating_filter(): void
+    {
+        $this->seedDriverFeedback(4, [5, 4, 4, 1]);
+        $this->admin();
+
+        $response = $this->getJson("/api/v1/admin/feedback?driver_id={$this->driver->id}&pagination=cursor&rating=4")
+            ->assertOk()
+            ->assertJsonCount(2, 'data.feedback')
+            ->assertJsonPath('data.summary.total_count', 4)
+            ->assertJsonPath('data.pagination.has_more', false);
+
+        $this->assertSame([4, 4], array_column($response->json('data.feedback'), 'rating'));
+    }
+
+    public function test_cursor_mode_rejects_a_tampered_cursor(): void
+    {
+        $this->admin();
+        $tampered = rtrim(strtr(base64_encode(json_encode([
+            'created_at' => 'not-a-date',
+            'id' => 'not-a-uuid',
+            '_pointsToNextItems' => true,
+        ])), '+/', '-_'), '=');
+
+        $this->getJson("/api/v1/admin/feedback?driver_id={$this->driver->id}&pagination=cursor&cursor={$tampered}")
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('cursor');
+
+        $this->getJson("/api/v1/admin/feedback?driver_id={$this->driver->id}&pagination=cursor&cursor=garbage")
+            ->assertStatus(422);
+    }
+
     public function test_pagination_page_2_returns_next_slice(): void
     {
         $this->seedConductorFeedback(4, [5, 4, 3, 2]);

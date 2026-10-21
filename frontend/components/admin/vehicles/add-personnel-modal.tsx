@@ -3,8 +3,9 @@
 
 import { useState, useRef } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
+import { UserAvatar } from '@/components/admin/ui/user-avatar';
 import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
-import { UserPlus, Upload, User, IdCard, X, Users, Loader2 } from 'lucide-react';
+import { UserPlus, Upload, IdCard, X, Users, Loader2 } from 'lucide-react';
 import {
   CONTACT_NUMBER_PATTERN as CONTACT_PATTERN,
   CONTACT_NUMBER_ERROR as CONTACT_ERROR,
@@ -287,17 +288,7 @@ export function AddPersonnelModal({ isOpen, onClose, onSave }: AddPersonnelModal
 
         {/* Profile Picture Section */}
         <div className="flex flex-wrap items-center gap-3 rounded-xl bg-[#0E1628]/60 p-3 admin-light:bg-slate-50">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#2A3A55] bg-[#1A2540] admin-light:border-[#E2E8F0] admin-light:bg-white">
-            {useDefaultPicture ? (
-              <User className="text-slate-600 admin-light:text-slate-400" size={32} />
-            ) : profilePicture ? (
-              // Local file preview; it is not a remote image for Next.js optimization.
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={profilePicture} alt="Driver profile preview" className="w-full h-full object-cover" />
-            ) : (
-              <User className="text-slate-600 admin-light:text-slate-400" size={32} />
-            )}
-          </div>
+          <UserAvatar src={useDefaultPicture ? null : profilePicture} alt="Driver profile preview" className="h-14 w-14" iconClassName="h-6 w-6" sizes="56px" />
 
           <div className="min-w-0 flex-1 space-y-2">
             <p className="text-sm font-medium text-white admin-light:text-slate-900">Profile photo <span className="ml-1 text-xs font-normal text-slate-400 admin-light:text-slate-500">Optional</span></p>

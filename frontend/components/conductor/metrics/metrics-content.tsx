@@ -1,416 +1,148 @@
 "use client";
 
-import {
-  getGaugeColor,
-  getGaugeTextClass,
-  type RatingMetrics,
-} from "@/lib/conductor/services/ratings.service";
+import { Star } from "lucide-react";
 import { useConductorRatings } from "@/app/(conductor)/hooks/use-conductor-ratings";
+import type { RatingMetrics } from "@/lib/conductor/services/ratings.service";
 
-/**
- * The actual Performance Metrics body — everything except page chrome
- * (the outer sidebar-clearance wrapper, which only makes sense for the
- * full page, not the xl:+ popover — see ConductorMetricsModal). Extracted
- * so the business logic (useConductorRatings, the gauge/cards/distribution
- * views) has exactly one implementation shared by both:
- *   - the full page (app/(conductor)/conductor-dashboard/metrics/page.tsx),
- *     kept for phones/tablets (below xl:) and for anyone linking/refreshing
- *     directly into the URL.
- *   - the xl:+ popover (ConductorMetricsModal), opened from ConductorDock
- *     instead of navigating away from whatever tab the conductor was on.
- *
- * Same split as EndOfDayContent/ConductorEndOfDayModal.
- */
-
-// ─── Constants ───────────────────────────────────────────────────────
-const RADIUS = 80;
-const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
-const ARC_FRACTION = 0.75; // 3/4 circle
-const ARC_LENGTH = CIRCUMFERENCE * ARC_FRACTION;
-const GAUGE_ROTATION = 135; // degrees – starts at ~7:30 position
-
-// ─── Sub-components ──────────────────────────────────────────────────
-
-function StarIcon({
-  filled,
-  size = 14,
-}: {
-  filled: boolean;
-  size?: number;
-}) {
+function Stars({ score }: { score: number }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill={filled ? "#FBBF24" : "none"}
-      stroke={filled ? "#FBBF24" : "rgba(255,255,255,0.15)"}
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-    </svg>
-  );
-}
-
-function Stars({ score, size = 14 }: { score: number; size?: number }) {
-  return (
-    <div className="flex gap-0.5">
-      {[1, 2, 3, 4, 5].map((i) => (
-        <StarIcon key={i} filled={i <= score} size={size} />
+    <div className="flex gap-1" aria-hidden="true">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <span key={star} className="relative block size-4 text-white/15">
+          <Star className="size-4" />
+          <span
+            className="absolute inset-y-0 left-0 overflow-hidden text-amber-400"
+            style={{ width: `${Math.min(1, Math.max(0, score - star + 1)) * 100}%` }}
+          >
+            <Star className="size-4 fill-current" />
+          </span>
+        </span>
       ))}
     </div>
   );
 }
 
-// ─── Gauge Section ───────────────────────────────────────────────────
-
-function GaugeSection({ metrics }: { metrics: RatingMetrics }) {
-  const { overallSatisfaction, averageRating, totalRatings } = metrics;
-  const color = getGaugeColor(overallSatisfaction);
-  const textClass = getGaugeTextClass(overallSatisfaction);
-  const offset = ARC_LENGTH * (1 - overallSatisfaction / 100);
-
-  return (
-    <div className="flex flex-col items-center">
-      {/* SVG Gauge */}
-      <div className="relative" style={{ width: "15rem", height: "11.5rem" }}>
-        <svg
-          viewBox="0 0 200 165"
-          className="w-full h-full"
-          aria-label={`Satisfaction gauge: ${overallSatisfaction}%`}
-        >
-          {/* Background track */}
-          <circle
-            cx={100}
-            cy={100}
-            r={RADIUS}
-            fill="none"
-            stroke="rgba(255,255,255,0.06)"
-            strokeWidth={10}
-            strokeDasharray={`${ARC_LENGTH} ${CIRCUMFERENCE}`}
-            strokeLinecap="round"
-            transform={`rotate(${GAUGE_ROTATION} 100 100)`}
-          />
-          {/* Progress arc */}
-          <circle
-            cx={100}
-            cy={100}
-            r={RADIUS}
-            fill="none"
-            stroke={color}
-            strokeWidth={10}
-            strokeDasharray={`${ARC_LENGTH} ${CIRCUMFERENCE}`}
-            strokeDashoffset={offset}
-            strokeLinecap="round"
-            transform={`rotate(${GAUGE_ROTATION} 100 100)`}
-            style={{
-              transition: "stroke-dashoffset 1s ease-out, stroke 0.4s ease",
-            }}
-          />
-        </svg>
-
-        {/* Center text overlay */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center pb-1">
-          <span className={`text-5xl font-bold leading-none ${textClass}`}>
-            {overallSatisfaction}%
-          </span>
-          <span className="text-[10px] uppercase tracking-widest font-semibold text-white/40 mt-1.5">
-            Satisfaction
-          </span>
-        </div>
-      </div>
-
-      {/* Metric blocks row */}
-      <div className="grid grid-cols-2 gap-3 w-full mt-2">
-        <MetricBlock
-          icon="⭐"
-          label="Avg Rating"
-          value={averageRating.toFixed(1)}
-        />
-        <MetricBlock
-          icon="👥"
-          label="Total Ratings"
-          value={String(totalRatings)}
-        />
-      </div>
-    </div>
-  );
-}
-
-function MetricBlock({
-  icon,
-  label,
-  value,
-}: {
-  icon: string;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="bg-[#071A2E] border border-white/[0.06] rounded-xl px-3 py-3 flex flex-col items-center gap-1">
-      <span className="text-base">{icon}</span>
-      <span className="text-white font-bold text-lg leading-none">{value}</span>
-      <span className="text-[9px] uppercase tracking-wider font-semibold text-white/40 leading-tight text-center">
-        {label}
-      </span>
-    </div>
-  );
-}
-
-// ─── Dual Score Cards ────────────────────────────────────────────────
-
-function DualCards({
-  metrics,
-  driverName,
-}: {
-  metrics: RatingMetrics;
-  driverName: string;
-}) {
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <ScoreCard
-        title="Your Performance"
-        subtitle="Conductor"
-        average={metrics.conductorAverage}
-        count={metrics.conductorCount}
-        accentColor="#62A0EA"
-      />
-      <ScoreCard
-        title="Driver's Performance"
-        subtitle={driverName || "Assigned Driver"}
-        average={metrics.driverAverage}
-        count={metrics.driverCount}
-        accentColor="#A78BFA"
-      />
-    </div>
-  );
-}
-
-function ScoreCard({
-  title,
-  subtitle,
-  average,
-  count,
-  accentColor,
-}: {
+function RoleRating({ title, description, average, count }: {
   title: string;
-  subtitle: string;
+  description: string;
   average: number;
   count: number;
-  accentColor: string;
 }) {
   return (
-    <div className="bg-[#071A2E] border border-white/[0.06] rounded-2xl p-5 flex flex-col gap-3">
-      <div>
-        <h3 className="text-white font-semibold text-sm">{title}</h3>
-        <p className="text-white/40 text-xs mt-0.5">{subtitle}</p>
-      </div>
-      <div className="flex items-end justify-between">
-        <div className="flex flex-col">
-          <span
-            className="text-4xl font-bold leading-none"
-            style={{ color: accentColor }}
-          >
-            {average > 0 ? average.toFixed(1) : "—"}
+    <div className="min-w-0 p-5 sm:p-6">
+      <h3 className="text-sm font-semibold text-white">{title}</h3>
+      <p className="mt-1 text-xs leading-relaxed text-white/45">{description}</p>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-3xl font-semibold tracking-tight text-[#62A0EA] tabular-nums">
+            {count > 0 ? average.toFixed(1) : "\u2014"}
           </span>
-          <span className="text-white/30 text-xs mt-1">
-            {count} {count === 1 ? "rating" : "ratings"}
-          </span>
+          <span className="text-xs text-white/40">/ 5</span>
         </div>
-        {average > 0 && <Stars score={Math.round(average)} size={18} />}
+        <span className="text-xs text-white/55 tabular-nums">
+          {count.toLocaleString()} {count === 1 ? "rating" : "ratings"}
+        </span>
       </div>
     </div>
   );
 }
 
-// ─── Rating Distribution ─────────────────────────────────────────────
-
-function DistributionSection({ metrics }: { metrics: RatingMetrics }) {
-  const maxCount = Math.max(...metrics.distribution, 1);
-
+function RatingOverview({ metrics }: { metrics: RatingMetrics }) {
   return (
-    <div className="bg-[#071A2E] border border-white/[0.06] rounded-2xl p-5">
-      <h3 className="text-[10px] uppercase tracking-wider font-semibold text-white/40 mb-4">
-        Rating Distribution
-      </h3>
-      <div className="space-y-3">
-        {[5, 4, 3, 2, 1].map((star) => {
-          const count = metrics.distribution[star - 1];
-          const pct =
-            metrics.totalRatings > 0
-              ? Math.round((count / metrics.totalRatings) * 100)
-              : 0;
-          const barWidth = (count / maxCount) * 100;
-
-          return (
-            <div key={star} className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5 w-14 shrink-0">
-                <span className="text-white text-sm font-medium">{star}</span>
-                <StarIcon filled size={13} />
-              </div>
-              <div className="flex-1 h-2.5 bg-white/[0.06] rounded-full overflow-hidden">
-                <div
-                  className="h-full w-full bg-[#1A5FB4] rounded-full"
-                  style={{
-                    transform: `scaleX(${barWidth / 100})`,
-                    transformOrigin: "left",
-                    transition: "transform 0.8s ease-out",
-                  }}
-                />
-              </div>
-              <div className="w-16 text-right shrink-0">
-                <span className="text-white/60 text-xs font-medium">
-                  {count}
-                </span>
-                <span className="text-white/30 text-xs ml-1">({pct}%)</span>
-              </div>
+    <section aria-label="All-time rating summary" className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]">
+      <div className="grid sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <div className="min-w-0 p-5 sm:p-6">
+          <h2 className="text-sm font-medium text-white/60">Combined rating</h2>
+          <div className="mt-4 flex items-baseline gap-2">
+            <span className="text-6xl font-semibold leading-none tracking-tight text-white tabular-nums">
+              {metrics.averageRating.toFixed(1)}
+            </span>
+            <span className="text-sm text-white/40">/ 5</span>
+          </div>
+          <div className="mt-3"><Stars score={metrics.averageRating} /></div>
+          <p className="mt-3 text-xs leading-relaxed text-white/45">Driver and conductor scores combined</p>
+          <dl className="mt-6 grid grid-cols-2 gap-4 border-t border-white/10 pt-4">
+            <div>
+              <dt className="text-xs text-white/45">Total ratings</dt>
+              <dd className="mt-1.5 text-xl font-semibold text-white tabular-nums">{metrics.totalRatings.toLocaleString()}</dd>
             </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+            <div>
+              <dt className="text-xs text-white/45">Rated 4 or 5 stars</dt>
+              <dd className="mt-1.5 text-xl font-semibold text-[#62A0EA] tabular-nums">{metrics.overallSatisfaction}%</dd>
+            </div>
+          </dl>
+        </div>
 
-// ─── Empty State ─────────────────────────────────────────────────────
-
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center justify-center py-24 px-6">
-      <div className="w-20 h-20 rounded-full bg-white/[0.04] flex items-center justify-center mb-5">
-        <svg
-          width="36"
-          height="36"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="rgba(255,255,255,0.12)"
-          strokeWidth={1.5}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-        </svg>
-      </div>
-      <h2 className="text-white/70 font-semibold text-base mb-1.5">
-        No ratings yet for this shift
-      </h2>
-      <p className="text-white/35 text-sm text-center max-w-xs leading-relaxed">
-        Ratings from commuters will appear here once they submit feedback.
-      </p>
-    </div>
-  );
-}
-
-// ─── No Shift State ──────────────────────────────────────────────────
-
-function NoShiftState() {
-  return (
-    <div className="flex flex-col items-center justify-center py-24 px-6">
-      <div className="w-20 h-20 rounded-full bg-white/[0.04] flex items-center justify-center mb-5">
-        <svg
-          width="36"
-          height="36"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="rgba(255,255,255,0.12)"
-          strokeWidth={1.5}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <circle cx="12" cy="12" r="10" />
-          <path d="M12 6v6l4 2" />
-        </svg>
-      </div>
-      <h2 className="text-white/70 font-semibold text-base mb-1.5">
-        No active shift
-      </h2>
-      <p className="text-white/35 text-sm text-center max-w-xs leading-relaxed">
-        Start a shift from the dashboard to view your performance metrics.
-      </p>
-    </div>
-  );
-}
-
-// ─── Loading Skeleton ────────────────────────────────────────────────
-
-function LoadingSkeleton() {
-  return (
-    <div className="max-w-4xl mx-auto px-4 pt-6 space-y-6">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-56 h-44 bg-white/[0.04] rounded-2xl" />
-        <div className="grid grid-cols-2 gap-3 w-full">
-          {[1, 2].map((i) => (
-            <div key={i} className="bg-white/[0.04] rounded-xl h-20" />
-          ))}
+        <div className="min-w-0 border-t border-white/10 p-5 sm:border-t-0 sm:border-l sm:p-6">
+          <h2 className="text-sm font-semibold text-white">Rating breakdown</h2>
+          <p className="mt-1 text-xs text-white/45">All driver and conductor scores</p>
+          <div className="mt-6 space-y-4">
+            {[5, 4, 3, 2, 1].map((star) => {
+              const count = metrics.distribution[star - 1];
+              const percent = metrics.totalRatings > 0 ? count / metrics.totalRatings * 100 : 0;
+              return (
+                <div key={star} className="flex items-center gap-3" aria-label={`${star} stars: ${count} ratings, ${Math.round(percent)} percent`}>
+                  <span className="flex w-7 shrink-0 items-center gap-1 text-xs font-medium text-white/70" aria-hidden="true">
+                    {star}<Star className="size-3 fill-amber-400 text-amber-400" />
+                  </span>
+                  <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-sm bg-white/[0.06]" aria-hidden="true">
+                    <div className="h-full rounded-sm bg-[#62A0EA]" style={{ width: `${percent}%` }} />
+                  </div>
+                  <span className="w-10 shrink-0 text-right text-xs text-white/70 tabular-nums" aria-hidden="true">{count.toLocaleString()}</span>
+                  <span className="w-9 shrink-0 text-right text-xs text-white/40 tabular-nums" aria-hidden="true">{Math.round(percent)}%</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white/[0.04] rounded-2xl h-32" />
-        <div className="bg-white/[0.04] rounded-2xl h-32" />
+
+      <div className="grid divide-y divide-white/10 border-t border-white/10 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+        <RoleRating title="Your rating" description="Your conductor scores across all shifts" average={metrics.conductorAverage} count={metrics.conductorCount} />
+        <RoleRating title="Driver ratings" description="Driver scores from the shifts you crewed" average={metrics.driverAverage} count={metrics.driverCount} />
       </div>
-      <div className="bg-white/[0.04] rounded-2xl h-48" />
-    </div>
+    </section>
   );
 }
 
-function PageHeader() {
-  return (
-    <div className="mb-2">
-      <h1 className="text-white text-xl font-bold">Performance Metrics</h1>
-      <p className="text-white/40 text-sm mt-1">Shift ratings overview</p>
-    </div>
-  );
-}
-
-// ─── Main content ────────────────────────────────────────────────────
-
-/**
- * @param showHeader Set false when a caller's own shell already shows the
- * "Performance Metrics" title (ConductorMetricsModal's sticky header) — the
- * page (metrics/page.tsx) has no such chrome of its own, so it keeps this
- * true (the default) and gets the title from here instead.
- */
+/** Shared by the small-screen page and large-screen dock modal. */
 export default function MetricsContent({ showHeader = true }: { showHeader?: boolean }) {
-  const { shift, metrics, status, error } = useConductorRatings();
-
-  if (status === "loading") return <LoadingSkeleton />;
-
-  if (status === "error") {
-    return (
-      <div className="max-w-4xl mx-auto px-4 pt-6">
-        {showHeader && <PageHeader />}
-        <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-6 py-8 text-center">
-          <p className="text-sm text-red-300">{error}</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!shift) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 pt-6">
-        <NoShiftState />
-      </div>
-    );
-  }
-
-  if (metrics.totalRatings === 0) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 pt-6">
-        {showHeader && <PageHeader />}
-        <EmptyState />
-      </div>
-    );
-  }
+  const { metrics, status, error, refresh } = useConductorRatings();
+  const loading = status === "loading";
 
   return (
-    <div className="max-w-4xl mx-auto px-4 pt-6 space-y-6">
-      {showHeader && <PageHeader />}
-      <GaugeSection metrics={metrics} />
-      <DualCards metrics={metrics} driverName={shift.driverName} />
-      <DistributionSection metrics={metrics} />
+    <div className="mx-auto w-full max-w-4xl space-y-5 px-4 py-6 sm:px-6">
+      <div>
+        {showHeader && <h1 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">Performance Metrics</h1>}
+        <p className={`${showHeader ? "mt-1.5" : ""} text-sm leading-relaxed text-white/50`}>Commuter ratings across all your shifts</p>
+        <p className="mt-2 text-xs font-medium text-[#62A0EA]">All time</p>
+      </div>
+
+      {loading ? (
+        <div role="status" aria-label="Loading ratings" className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]">
+          <div className="grid sm:grid-cols-2">
+            <div className="space-y-5 p-6">
+              <div className="h-4 w-28 rounded bg-white/5" />
+              <div className="h-16 w-32 rounded bg-white/5" />
+              <div className="h-16 rounded bg-white/5" />
+            </div>
+            <div className="space-y-5 p-6">{[1, 2, 3, 4, 5].map((row) => <div key={row} className="h-4 rounded bg-white/5" />)}</div>
+          </div>
+          <div className="h-36 border-t border-white/10" />
+        </div>
+      ) : status === "error" ? (
+        <div role="alert" className="rounded-xl border border-red-400/20 bg-red-400/5 p-6">
+          <h2 className="text-sm font-semibold text-white">Ratings unavailable</h2>
+          <p className="mt-2 text-sm text-white/55">{error}</p>
+          <button type="button" onClick={() => void refresh()} className="mt-4 min-h-11 rounded-lg bg-[#1A5FB4] px-4 text-sm font-medium text-white hover:bg-[#164A8F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]">Try again</button>
+        </div>
+      ) : metrics.totalRatings === 0 ? (
+        <section className="rounded-xl border border-white/10 bg-white/[0.03] px-6 py-14 text-center">
+          <Star className="mx-auto size-8 text-[#62A0EA]/70" strokeWidth={1.5} aria-hidden="true" />
+          <h2 className="mt-5 text-base font-semibold text-white">No ratings yet</h2>
+          <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-white/50">Your ratings will appear here when commuters submit feedback.</p>
+        </section>
+      ) : <RatingOverview metrics={metrics} />}
     </div>
   );
 }

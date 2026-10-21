@@ -52,7 +52,7 @@ type PasswordStep = "form" | "verify";
  * dedicated profile endpoint, which the service maps to the correct shape.
  */
 export function useProfile() {
-  const { logout: authLogout, refresh: refreshAuth } = useAuth();
+  const { logout: authLogout, refresh: refreshAuth, patchCommuterProfile } = useAuth();
 
   // ─── Load state ───────────────────────────────────────────────────
   const [profile, setProfile] = useState<CommuterProfile | null>(null);
@@ -381,6 +381,9 @@ export function useProfile() {
 
   const applyPhotoChange = (updated: CommuterProfile) => {
     setProfile(previous => previous ? { ...previous, profileImageUrl: updated.profileImageUrl } : updated);
+    // The upload response is authoritative, so the sidebar/dock avatar takes
+    // the new URL directly instead of refetching the session.
+    patchCommuterProfile({ profileImageUrl: updated.profileImageUrl });
   };
 
   return {

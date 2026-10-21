@@ -265,11 +265,13 @@ The conductor's shifts, newest `time_in` first, each with `vehicle`, `driver` an
 
 ### GET /conductor/ratings
 
-Commuter feedback for one of the conductor's shifts. Powers the metrics page.
+Conductor ratings, scoped to the authenticated conductor. The metrics page uses `scope=all_time`: no active shift is required, and the response contains only numeric summaries.
 
 - **Limiter:** conductor-read (60/min)
 
-**Query:** `shift_id` (required)
+**Query:** `scope=all_time` returns `{ conductor, driver }`, each with `average_rating`, `total_count`, and `distribution` keyed 5–1. Driver scores cover every shift crewed by the caller; conductor scores include only non-null `conductor_rating` values. No comments, categories, or commuter details are returned. Empty histories return zero averages, counts, and distribution values.
+
+Alternatively, `shift_id` (required without `scope=all_time`) retains the existing per-shift response below.
 
 **200 OK.** An array, newest first. Each row carries **both** ratings: the driver rating (`rating`, `category`, `comment`) and the conductor rating (`conductor_*`). The web client splits each row into a DRIVER and a CONDUCTOR entry.
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { ChevronDown, LogOut, Moon, Sun } from "lucide-react";
+import { ChevronDown, LogOut, Moon, Settings, Sun } from "lucide-react";
 import { useLightModeToggle } from "@/contexts/commuter-theme-context";
 
 /**
@@ -23,8 +23,20 @@ export type SignOutControl = {
  *
  * Appearance shares ProfileThemeToggle's state: the real commuter preference
  * inside the commuter app, preview-only in the conductor app.
+ *
+ * `trigger`: "appearance" (default) shows the current mode's moon/sun with a
+ * chevron; "gear" is a bare settings gear that turns while the menu opens,
+ * used by the commuter Profile.
  */
-export default function AccountMenu({ signOut, lockedHint }: { signOut: SignOutControl | null; lockedHint?: string }) {
+export default function AccountMenu({
+  signOut,
+  lockedHint,
+  trigger = "appearance",
+}: {
+  signOut: SignOutControl | null;
+  lockedHint?: string;
+  trigger?: "appearance" | "gear";
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLight, setIsLight] = useLightModeToggle();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -56,6 +68,25 @@ export default function AccountMenu({ signOut, lockedHint }: { signOut: SignOutC
         triggerRef.current?.focus();
       }}
     >
+      {trigger === "gear" ? (
+        <button
+          ref={triggerRef}
+          type="button"
+          onClick={() => setIsOpen(previous => !previous)}
+          aria-haspopup="true"
+          aria-expanded={isOpen}
+          aria-controls={menuId}
+          aria-label={`Settings, ${modeLabel}`}
+          title="Appearance and log out"
+          className={`flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] ${isOpen ? "text-white light:text-gray-900" : "text-white/60 hover:text-white light:text-gray-500 light:hover:text-gray-900"}`}
+        >
+          <Settings
+            size={24}
+            aria-hidden="true"
+            className={`transition-transform duration-500 ease-out motion-reduce:transition-none ${isOpen ? "rotate-180" : "rotate-0"}`}
+          />
+        </button>
+      ) : (
       <button
         ref={triggerRef}
         type="button"
@@ -74,6 +105,7 @@ export default function AccountMenu({ signOut, lockedHint }: { signOut: SignOutC
         </span>
         <ChevronDown size={15} aria-hidden="true" className={`text-white/50 transition-transform light:text-gray-500 duration-200 motion-reduce:transition-none ${isOpen ? "rotate-180" : ""}`} />
       </button>
+      )}
 
       <div
         id={menuId}

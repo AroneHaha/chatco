@@ -14,6 +14,7 @@ use App\Support\Payments\PaymentGatewayException;
 use App\Support\Payments\PaymentIntentResult;
 use App\Support\Payments\WebhookEvent;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -181,6 +182,139 @@ class PaymentService
         $status = $this->gateway->retrieveStatus($transaction->payment_reference);
 
         return $this->transitionTo($transaction, $status);
+    }
+
+    /**
+     * Reconcile the local status with the provider, rate-limited per
+     * transaction via a cache key. Catches the case where PayMongo's webhook
+     * is delayed or never arrives (e.g. local dev without ngrok, network
+     * blip) — the commuter authorized on PayMongo but the DB still says
+     * PENDING/PROCESSING. Without this, every reader would echo it forever.
+     *
+     * Shared by status polling, the conductor's pending-payment lookup and
+     * the payments:expire-stale scheduled job, so a delayed payment keeps
+     * being reconciled even after the conductor closes the QR screen.
+     *
+     * Triggers for:
+     *   - PENDING GCash rows (the common case — commuter is mid-checkout),
+     *   - PROCESSING GCash rows (authorized, awaiting provider settlement;
+     *     there is no PayMongo "processing" webhook, so this is the only way
+     *     a delayed confirmation is picked up besides the final webhook),
+     *   - EXPIRED GCash rows inside the late-settlement grace window (the
+     *     commuter may have authorized just before the local TTL lapsed).
+     *
+     * Safe no-op for: hard-terminal rows, non-GCASH rows, FakeGateway rows,
+     * rows without a payment_reference, or when the throttle window is active.
+     */
+    public function reconcileIfDue(Transaction $transaction): Transaction
+    {
+        $throttleSeconds = $this->reconcileThrottleFor($transaction);
+        if ($throttleSeconds <= 0) {
+            return $transaction; // reconciliation disabled by config
+        }
+
+        // Only GCash rows can have a provider to reconcile with.
+        if ($transaction->payment_method !== PaymentMethod::GCASH) {
+            return $transaction;
+        }
+
+        // Only resolvable rows are worth reconciling.
+        $isUnresolved = $transaction->status->isPending();
+        $isLateSettleable = $transaction->status === PaymentStatus::EXPIRED
+            && $this->withinLateSettlementWindow($transaction);
+        if (! $isUnresolved && ! $isLateSettleable) {
+            return $transaction;
+        }
+
+        // Need a real provider reference (FakeGateway rows have fake_ refs but
+        // we don't want to call PayMongo for those either — skip if the
+        // gateway itself isn't configured).
+        if (! $transaction->payment_reference || ! $this->isGatewayConfigured()) {
+            return $transaction;
+        }
+
+        // Rate-limit: one provider round-trip per transaction per window.
+        // Concurrent readers share the same cache key, so only one wins the
+        // race — the rest read the freshly-updated row.
+        $cacheKey = "payment.sync.{$transaction->transaction_id}";
+        if (! Cache::add($cacheKey, now()->timestamp, $throttleSeconds)) {
+            return $transaction; // another reader is already syncing (or recently did)
+        }
+
+        try {
+            $transaction = $this->syncStatus($transaction);
+        } catch (PaymentGatewayException $e) {
+            // Provider call failed (network, 5xx, etc.). Log + move on — the
+            // cached row is still authoritative for the response, and the
+            // next throttle window will retry.
+            Log::warning('Payment provider reconciliation failed', [
+                'transaction_id' => $transaction->transaction_id,
+                'reference' => $transaction->payment_reference,
+                'error' => $e->getMessage(),
+            ]);
+
+            // Release the throttle so the next reader can retry sooner.
+            Cache::forget($cacheKey);
+        }
+
+        return $transaction;
+    }
+
+    /**
+     * Whether a PROCESSING payment has been waiting on the provider longer
+     * than payments.processing_delay_seconds. Display-only: the payment stays
+     * unresolved (it can still settle), the conductor UI just switches to a
+     * "confirmation delayed" message. updated_at is when the row entered
+     * PROCESSING — nothing else writes to a row while it is PROCESSING.
+     */
+    public function isConfirmationDelayed(Transaction $transaction): bool
+    {
+        if ($transaction->status !== PaymentStatus::PROCESSING || ! $transaction->updated_at) {
+            return false;
+        }
+
+        $delaySeconds = (int) config('payments.processing_delay_seconds', 180);
+
+        return $transaction->updated_at->lte(now()->subSeconds($delaySeconds));
+    }
+
+    /**
+     * The reconciliation throttle to apply for this transaction: a short
+     * window right after the commuter claims the QR (they're actively on
+     * PayMongo's checkout page and a webhook is imminent), backing off to
+     * the steady-state throttle once that window has passed and the row is
+     * more likely stalled/abandoned than about to resolve.
+     */
+    private function reconcileThrottleFor(Transaction $transaction): int
+    {
+        $activeWindowSeconds = (int) config('payments.reconcile_active_window_seconds', 90);
+        $createdAt = $transaction->created_at;
+
+        if ($activeWindowSeconds > 0 && $createdAt && $createdAt->copy()->addSeconds($activeWindowSeconds)->isFuture()) {
+            return (int) config('payments.reconcile_active_throttle_seconds', 5);
+        }
+
+        return (int) config('payments.reconcile_throttle_seconds', 30);
+    }
+
+    /**
+     * Whether an EXPIRED GCash transaction is still inside the late-settlement
+     * grace window — the window during which a delayed PayMongo webhook could
+     * still flip it to PAID. Past this window, reconciliation is futile.
+     */
+    private function withinLateSettlementWindow(Transaction $transaction): bool
+    {
+        $graceSeconds = (int) config('payments.late_settlement_grace_seconds', 60);
+        if ($graceSeconds <= 0) {
+            return false;
+        }
+
+        $updated = $transaction->updated_at;
+        if (! $updated) {
+            return true; // unknown — give the benefit of the doubt
+        }
+
+        return $updated->gt(now()->subSeconds($graceSeconds));
     }
 
     /**

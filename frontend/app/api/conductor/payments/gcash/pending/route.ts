@@ -5,8 +5,8 @@ import { proxyToLaravel } from "@/lib/conductor/server/proxy";
 /**
  * GET /api/conductor/payments/gcash/pending
  *
- * The conductor's resumable PENDING GCash transaction for their active
- * shift, or null. Proxies to Laravel GET /api/v1/conductor/payments/gcash/pending.
+ * The conductor's resumable PENDING or PROCESSING GCash transaction for
+ * their active shift, or null. Proxies to Laravel GET /api/v1/conductor/payments/gcash/pending.
  *
  * Lets the fare modal re-display the SAME QR + details after the conductor
  * navigated away or refreshed mid-payment, instead of minting a duplicate.

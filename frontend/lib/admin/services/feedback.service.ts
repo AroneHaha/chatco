@@ -11,8 +11,10 @@
  *   - Translate 404 (staff not found) / 403 (role) / 422 (missing param)
  *     into typed errors the UI can branch on
  *
- * Used by the User Management page's "double-click a conductor/driver row"
- * flow — the modal shows aggregate stats + paginated feedback rows.
+ * Used by the Fleet Management > Personnel "Ratings & Feedback" modal, which
+ * infinite-scrolls the reviews. Requests use the endpoint's cursor mode
+ * (`pagination=cursor`): the first batch carries the summary, later batches
+ * pass `next_cursor` and return `summary: null`.
  */
 
 // ─── Raw backend shapes ─────────────────────────────────────────────
@@ -34,19 +36,17 @@ interface RawFeedbackRow {
 
 interface RawFeedbackListResponse {
   staff: { id: string; role: "CONDUCTOR" | "DRIVER" };
+  /** Only on the first batch (no cursor). */
   summary: {
     average_rating: number;
     total_count: number;
     distribution: Record<string, number>;
-  };
+  } | null;
   feedback: RawFeedbackRow[];
   pagination: {
-    current_page: number;
     per_page: number;
-    total: number;
-    last_page: number;
-    from: number | null;
-    to: number | null;
+    next_cursor: string | null;
+    has_more: boolean;
   };
 }
 
@@ -72,15 +72,14 @@ export interface FeedbackSummary {
 
 export interface FeedbackListResult {
   staff: { id: string; role: "CONDUCTOR" | "DRIVER" };
-  summary: FeedbackSummary;
+  /** Present on the first batch only; null when a cursor was sent. */
+  summary: FeedbackSummary | null;
   feedback: FeedbackRow[];
   pagination: {
-    currentPage: number;
     perPage: number;
-    total: number;
-    lastPage: number;
-    from: number | null;
-    to: number | null;
+    /** Opaque keyset cursor for the next batch; null at the end. */
+    nextCursor: string | null;
+    hasMore: boolean;
   };
 }
 
@@ -92,7 +91,12 @@ export interface FeedbackListQuery {
   /** drivers.id. */
   driverId?: string;
   perPage?: number;
-  page?: number;
+  /** `nextCursor` from the previous batch; omit for the first batch. */
+  cursor?: string | null;
+  /** 1–5: list only this star level. The summary always covers all ratings. */
+  rating?: number;
+  /** Cancels a superseded request (filter change, modal closed). */
+  signal?: AbortSignal;
 }
 
 // ─── Typed errors ───────────────────────────────────────────────────
@@ -145,19 +149,18 @@ function mapRow(raw: RawFeedbackRow): FeedbackRow {
 function mapResult(raw: RawFeedbackListResponse): FeedbackListResult {
   return {
     staff: raw.staff,
-    summary: {
-      averageRating: raw.summary.average_rating,
-      totalCount: raw.summary.total_count,
-      distribution: raw.summary.distribution,
-    },
+    summary: raw.summary
+      ? {
+          averageRating: raw.summary.average_rating,
+          totalCount: raw.summary.total_count,
+          distribution: raw.summary.distribution,
+        }
+      : null,
     feedback: raw.feedback.map(mapRow),
     pagination: {
-      currentPage: raw.pagination.current_page,
       perPage: raw.pagination.per_page,
-      total: raw.pagination.total,
-      lastPage: raw.pagination.last_page,
-      from: raw.pagination.from,
-      to: raw.pagination.to,
+      nextCursor: raw.pagination.next_cursor,
+      hasMore: raw.pagination.has_more,
     },
   };
 }
@@ -167,17 +170,18 @@ function mapResult(raw: RawFeedbackListResponse): FeedbackListResult {
 const API_PATH = "/api/admin/feedback";
 
 function buildQueryString(q: FeedbackListQuery): string {
-  const params = new URLSearchParams();
+  const params = new URLSearchParams({ pagination: "cursor" });
   if (q.conductorId) params.set("conductor_id", q.conductorId);
   if (q.driverId) params.set("driver_id", q.driverId);
   if (q.perPage) params.set("per_page", String(q.perPage));
-  if (q.page) params.set("page", String(q.page));
+  if (q.cursor) params.set("cursor", q.cursor);
+  if (q.rating) params.set("rating", String(q.rating));
   const qs = params.toString();
   return qs ? `?${qs}` : "";
 }
 
 /**
- * Fetch paginated feedback + summary stats for a conductor or driver.
+ * Fetch one batch of feedback (newest first) for a conductor or driver.
  *
  * Exactly one of `conductorId` / `driverId` must be supplied — the backend
  * returns 422 if neither is present. The caller chooses which based on the
@@ -193,6 +197,7 @@ export async function list(
   const res = await fetch(`${API_PATH}${qs}`, {
     headers: { Accept: "application/json" },
     credentials: "include",
+    signal: query.signal,
   });
 
   if (!res.ok) {

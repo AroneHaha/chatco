@@ -13,6 +13,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class AuthTest extends TestCase
@@ -152,6 +153,77 @@ class AuthTest extends TestCase
 
         $response->assertStatus(200);
         $this->assertEquals('CONDUCTOR', $response->json('data.role'));
+    }
+
+    public function test_login_with_admin_username(): void
+    {
+        $admin = $this->seedAdmin();
+        $admin->adminProfile->update(['username' => 'site.admin']);
+
+        $response = $this->postJson('/api/v1/auth/login', [
+            'login' => 'site.admin',
+            'password' => 'password123',
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertEquals('ADMIN', $response->json('data.role'));
+        $this->assertEquals($admin->id, $response->json('data.id'));
+    }
+
+    public function test_login_with_admin_username_and_wrong_password_returns_401(): void
+    {
+        $admin = $this->seedAdmin();
+        $admin->adminProfile->update(['username' => 'site.admin']);
+
+        $this->postJson('/api/v1/auth/login', [
+            'login' => 'site.admin',
+            'password' => 'wrong-password',
+        ])->assertStatus(401);
+    }
+
+    public function test_admin_created_in_user_management_can_sign_in_with_username(): void
+    {
+        Mail::fake();
+        Sanctum::actingAs($this->seedAdmin());
+
+        $created = $this->postJson('/api/v1/admin/admins', $this->newAdminPayload('new.admin'))
+            ->assertStatus(201)
+            ->assertJsonPath('data.username', 'new.admin');
+
+        // The temporary password is emailed; set a known one to sign in.
+        User::whereKey($created->json('data.id'))->update(['password' => Hash::make('password123')]);
+
+        $this->postJson('/api/v1/auth/login', [
+            'login' => 'new.admin',
+            'password' => 'password123',
+        ])->assertStatus(200)
+            ->assertJsonPath('data.id', $created->json('data.id'))
+            ->assertJsonPath('data.role', 'ADMIN');
+    }
+
+    public function test_new_admin_username_cannot_reuse_a_conductor_or_commuter_sign_in_name(): void
+    {
+        Mail::fake();
+        $this->seedConductor();
+        Sanctum::actingAs($this->seedAdmin());
+
+        $this->postJson('/api/v1/admin/admins', $this->newAdminPayload('conductor001'))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('username');
+
+        $this->assertDatabaseMissing('admin_profiles', ['username' => 'conductor001']);
+    }
+
+    private function newAdminPayload(string $username): array
+    {
+        return [
+            'first_name' => 'New',
+            'last_name' => 'Admin',
+            'email' => $username.'@example.com',
+            'contact_number' => '09171234567',
+            'address' => 'Calumpit, Bulacan',
+            'username' => $username,
+        ];
     }
 
     // ── Single-Device Session Enforcement ────────────────────────
@@ -449,6 +521,10 @@ class AuthTest extends TestCase
         $response->assertStatus(200);
         $this->assertEquals('COMMUTER', $response->json('data.user.role'));
         $this->assertEquals('Jose', $response->json('data.profile.first_name'));
+        // No photo uploaded yet: the key is present and null, so the app
+        // shell shows the default avatar.
+        $response->assertJsonPath('data.profile.profile_image_url', null);
+        $this->assertArrayHasKey('profile_image_url', $response->json('data.profile'));
     }
 
     public function test_commuter_login_cross_platform_session_isolation(): void

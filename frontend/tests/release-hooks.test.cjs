@@ -70,25 +70,22 @@ test("dashboard query modals can be dismissed, opened manually, and opened by la
   assert.equal(render().showScan, true);
 });
 
-test("ratings verifies the active shift and refetches when the cached shift is different", async () => {
+test("ratings loads all-time metrics without an active shift and supports refresh", async () => {
   const requested = [];
   const render = hook("app/(conductor)/hooks/use-conductor-ratings.ts", "useConductorRatings", {
-    "@/lib/conductor/services/shift.service": {
-      getActiveShift: () => ({ shiftId: "old" }),
-      fetchActiveShift: async () => ({ shiftId: "current" }),
-    },
     "@/lib/conductor/services/ratings.service": {
-      fetchRatingsForShift: async id => { requested.push(id); return { ratings: [{ id }], error: null }; },
-      calculateMetrics: ratings => ({ count: ratings.length }),
+      fetchAllTimeRatingMetrics: async () => { requested.push("all_time"); return { metrics: { totalRatings: 6 }, error: null }; },
+      calculateMetrics: () => ({ totalRatings: 0 }),
     },
   });
   assert.equal(render().status, "loading");
   await settle();
   assert.equal(render().status, "success");
-  assert.deepEqual(requested, ["old", "current"]);
-  assert.equal(render().ratings[0].id, "current");
+  assert.deepEqual(requested, ["all_time"]);
+  assert.equal(render().metrics.totalRatings, 6);
   await render().refresh();
   assert.equal(render().status, "success");
+  assert.deepEqual(requested, ["all_time", "all_time"]);
 });
 
 test("a superseded verification request cannot overwrite a refreshed assignment", async () => {

@@ -25,6 +25,25 @@ export interface RatingMetrics {
   distribution: [number, number, number, number, number];
 }
 
+export async function fetchAllTimeRatingMetrics(): Promise<{
+  metrics: RatingMetrics;
+  error: string | null;
+}> {
+  const emptyMetrics = calculateMetrics([]);
+  if (!shouldUseConductorApi()) return { metrics: emptyMetrics, error: null };
+
+  try {
+    const response = await api.get<{ data: RatingMetrics }>(CONDUCTOR_API.ratingsSummary);
+    if (!response.data) return { metrics: emptyMetrics, error: "Unable to load ratings. Please try again." };
+    return { metrics: response.data, error: null };
+  } catch (error) {
+    if (error instanceof NetworkError || error instanceof ApiError) {
+      return { metrics: emptyMetrics, error: "Unable to load ratings. Please try again." };
+    }
+    throw error;
+  }
+}
+
 export async function fetchRatingsForShift(shiftId: string): Promise<{
   ratings: ConductorRating[];
   error: string | null;
