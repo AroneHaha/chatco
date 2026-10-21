@@ -79,7 +79,7 @@ class TransactionSeeder extends Seeder
 
                 $txn = new Transaction();
                 $txn->fill([
-                    'transaction_id'  => 'TXN-' . strtoupper(Str::random(15)),
+                    'transaction_id'  => 'TXN-' . $createdAt->year . strtoupper(Str::random(8)),
                     'shift_id'        => $shift->shift_id,
                     'payment_method'  => $method,
                     'final_amount'    => $fare,

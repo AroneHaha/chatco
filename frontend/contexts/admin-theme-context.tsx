@@ -5,6 +5,31 @@ import { createThemeStore, type AppTheme } from "@/lib/theme/theme-store";
 
 /** Separate key from the commuter app, so each app keeps its own choice. */
 const store = createThemeStore("chatco:admin-theme");
+let themeTransitionTimer: number | null = null;
+let themeTransitionFrame: number | null = null;
+
+function setAdminTheme(theme: AppTheme): void {
+  if (typeof document === "undefined" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    store.set(theme);
+    return;
+  }
+
+  const root = document.documentElement;
+  root.setAttribute("data-admin-theme-transitioning", "true");
+  if (themeTransitionFrame !== null) window.cancelAnimationFrame(themeTransitionFrame);
+  if (themeTransitionTimer !== null) window.clearTimeout(themeTransitionTimer);
+
+  // Let the browser apply the transition rule while the old theme is still
+  // active, then update subscribers on the next frame so colors interpolate.
+  themeTransitionFrame = window.requestAnimationFrame(() => {
+    themeTransitionFrame = null;
+    store.set(theme);
+  });
+  themeTransitionTimer = window.setTimeout(() => {
+    root.removeAttribute("data-admin-theme-transitioning");
+    themeTransitionTimer = null;
+  }, 260);
+}
 
 /**
  * Admin pages whose content has `admin-light:` styles. Light mode is rolled
@@ -33,5 +58,5 @@ export function AdminThemeProvider({ children }: { children: ReactNode }) {
 }
 
 export function useAdminTheme(): [AppTheme, (theme: AppTheme) => void] {
-  return [useContext(AdminThemeContext), store.set];
+  return [useContext(AdminThemeContext), setAdminTheme];
 }

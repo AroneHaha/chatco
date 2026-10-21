@@ -160,6 +160,44 @@ class AdminRegistrationTest extends TestCase
         $this->assertEquals(['older@example.com', 'newer@example.com'], $emails);
     }
 
+    public function test_pending_list_sorts_most_recent_first_when_requested(): void
+    {
+        $older = $this->seedPendingCommuter(['email' => 'older@example.com', 'username' => 'older']);
+        $older->forceFill(['created_at' => now()->subHours(2)])->save();
+        $newer = $this->seedPendingCommuter(['email' => 'newer@example.com', 'username' => 'newer']);
+        $newer->forceFill(['created_at' => now()->subHour()])->save();
+
+        $recent = $this->actingAs($this->admin)->getJson('/api/v1/admin/registrations?sort=recent');
+        $this->assertEquals(['newer@example.com', 'older@example.com'], array_column($recent->json('data.data'), 'email'));
+
+        $oldest = $this->actingAs($this->admin)->getJson('/api/v1/admin/registrations?sort=oldest');
+        $this->assertEquals(['older@example.com', 'newer@example.com'], array_column($oldest->json('data.data'), 'email'));
+
+        $this->actingAs($this->admin)->getJson('/api/v1/admin/registrations?sort=alphabetical')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('sort');
+    }
+
+    public function test_pending_list_pages_same_second_sign_ups_without_repeats_in_either_order(): void
+    {
+        $at = now()->subHour()->startOfSecond();
+        foreach (['a', 'b', 'c'] as $name) {
+            $this->seedPendingCommuter(['email' => "{$name}@example.com", 'username' => $name])
+                ->forceFill(['created_at' => $at])->save();
+        }
+
+        $pages = fn (string $sort) => collect([1, 2, 3])->flatMap(fn (int $page) => array_column(
+            $this->actingAs($this->admin)
+                ->getJson("/api/v1/admin/registrations?sort={$sort}&per_page=1&page={$page}")
+                ->json('data.data'),
+            'email'
+        ))->all();
+
+        $oldest = $pages('oldest');
+        $this->assertCount(3, array_unique($oldest));
+        $this->assertEquals(array_reverse($oldest), $pages('recent'));
+    }
+
     public function test_pending_list_filters_by_id(): void
     {
         $target = $this->seedPendingCommuter(['email' => 'target@example.com', 'username' => 'target']);
@@ -469,6 +507,31 @@ class AdminRegistrationTest extends TestCase
     }
 
     // ── POST  /admin/registrations/{id}/reject ───────────────────
+
+    public function test_rejected_list_filters_by_applied_type(): void
+    {
+        foreach (['STUDENT' => 'rej.student', 'PWD' => 'rej.pwd'] as $type => $username) {
+            $pending = $this->seedPendingCommuter([
+                'email' => "{$username}@example.com",
+                'username' => $username,
+                'applied_type' => $type,
+            ]);
+            $this->actingAs($this->admin)
+                ->postJson("/api/v1/admin/registrations/{$pending->id}/reject", ['rejection_reason' => 'ID image is unreadable.'])
+                ->assertOk();
+        }
+
+        $this->actingAs($this->admin)
+            ->getJson('/api/v1/admin/registrations/rejected?applied_type=PWD')
+            ->assertOk()
+            ->assertJsonPath('data.total', 1)
+            ->assertJsonPath('data.data.0.applied_type', 'PWD');
+
+        $this->actingAs($this->admin)
+            ->getJson('/api/v1/admin/registrations/rejected')
+            ->assertOk()
+            ->assertJsonPath('data.total', 2);
+    }
 
     public function test_reject_sets_status_rejected_and_records_reason(): void
     {

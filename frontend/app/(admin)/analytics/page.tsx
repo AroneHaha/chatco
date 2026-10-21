@@ -41,6 +41,7 @@ import { PeakHoursChart } from '@/components/admin/analytics/peak-hours-chart';
 import type { PickupPoint } from '@/app/(admin)/analytics/data/analytics-data';
 import { SkeletonCard } from '@/components/admin/ui/skeleton';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
+import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
 import { exportReport, type ReportFormat } from '@/lib/utils/export-report';
 import type {
   AnalyticsRemittance,
@@ -833,30 +834,31 @@ export default function AnalyticsPage() {
           </div>
 
           {preset === 'custom' && (
-            <div className="flex items-center gap-1">
-              <div className="relative">
-                <CalendarDays size={14} className="absolute left-2 top-2.5 text-slate-500 pointer-events-none" />
-                <input
-                  type="date"
-                  value={customFrom}
-                  max={customTo || undefined}
-                  aria-label="Range start date"
-                  onChange={e => setCustomFrom(e.target.value)}
-                  className="bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-xs text-slate-300 admin-light:text-slate-700 pl-8 pr-2 py-1.5 focus:outline-none focus:border-[#62A0EA]/50 admin-light:focus:border-[#1A5FB4] scheme-dark admin-light:scheme-light"
-                />
-              </div>
+            <div className="flex flex-wrap items-center gap-1">
+              <AdminDatePicker
+                value={customFrom}
+                onChange={setCustomFrom}
+                ariaLabel="Range start date"
+                clearLabel="Clear start date"
+                max={customTo || undefined}
+                popover
+                yearNavigation
+                triggerClassName="h-9 w-full"
+                className="w-36"
+              />
               <span className="text-slate-500 text-xs">to</span>
-              <div className="relative">
-                <CalendarDays size={14} className="absolute left-2 top-2.5 text-slate-500 pointer-events-none" />
-                <input
-                  type="date"
-                  value={customTo}
-                  min={customFrom || undefined}
-                  aria-label="Range end date"
-                  onChange={e => setCustomTo(e.target.value)}
-                  className="bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-xs text-slate-300 admin-light:text-slate-700 pl-8 pr-2 py-1.5 focus:outline-none focus:border-[#62A0EA]/50 admin-light:focus:border-[#1A5FB4] scheme-dark admin-light:scheme-light"
-                />
-              </div>
+              <AdminDatePicker
+                value={customTo}
+                onChange={setCustomTo}
+                ariaLabel="Range end date"
+                clearLabel="Clear end date"
+                min={customFrom || undefined}
+                popover
+                yearNavigation
+                align="right"
+                triggerClassName="h-9 w-full"
+                className="w-36"
+              />
             </div>
           )}
 

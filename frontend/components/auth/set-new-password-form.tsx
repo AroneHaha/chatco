@@ -139,23 +139,7 @@ export default function SetNewPasswordForm() {
           describedBy={error ? "set-password-error" : undefined}
         />
 
-        <ul id="password-rules" className="grid gap-1.5 text-xs" aria-label="Password requirements">
-          {PASSWORD_RULES.map((rule) => {
-            const met = rule.test(password);
-            return (
-              <li key={rule.id} className={`flex items-center gap-2 ${met ? "text-[#62A0EA]" : "text-white/60"}`}>
-                {/* Fixed-width slot (dot until met, then a check) so labels don't shift. */}
-                <span className="inline-flex w-[14px] justify-center" aria-hidden="true">
-                  {met ? <Check size={14} strokeWidth={2.2} /> : <span className="h-1 w-1 rounded-full bg-white/40" />}
-                </span>
-                <span>
-                  {rule.label}
-                  <span className="sr-only">{met ? " (met)" : " (not met)"}</span>
-                </span>
-              </li>
-            );
-          })}
-        </ul>
+        <PasswordRules id="password-rules" password={password} />
 
         <button type="submit" disabled={isSaving} className={styles.submit}>
           {isSaving ? (
@@ -175,7 +159,33 @@ export default function SetNewPasswordForm() {
   );
 }
 
-function PasswordField({
+/**
+ * Live PASSWORD_RULES checklist for the dark sign-in surfaces. Shared with
+ * the forgot-password flow's "Set a new password" step.
+ */
+export function PasswordRules({ id, password }: { id: string; password: string }) {
+  return (
+    <ul id={id} className="grid gap-1.5 text-xs" aria-label="Password requirements">
+      {PASSWORD_RULES.map((rule) => {
+        const met = rule.test(password);
+        return (
+          <li key={rule.id} className={`flex items-center gap-2 ${met ? "text-[#62A0EA]" : "text-white/60"}`}>
+            {/* Fixed-width slot (dot until met, then a check) so labels don't shift. */}
+            <span className="inline-flex w-[14px] justify-center" aria-hidden="true">
+              {met ? <Check size={14} strokeWidth={2.2} /> : <span className="h-1 w-1 rounded-full bg-white/40" />}
+            </span>
+            <span>
+              {rule.label}
+              <span className="sr-only">{met ? " (met)" : " (not met)"}</span>
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+export function PasswordField({
   id,
   label,
   value,
@@ -183,6 +193,8 @@ function PasswordField({
   disabled,
   autoFocus = false,
   describedBy,
+  invalid,
+  placeholder,
 }: {
   id: string;
   label: string;
@@ -191,6 +203,8 @@ function PasswordField({
   disabled: boolean;
   autoFocus?: boolean;
   describedBy?: string;
+  invalid?: boolean;
+  placeholder?: string;
 }) {
   const [visible, setVisible] = useState(false);
 
@@ -208,6 +222,8 @@ function PasswordField({
           autoFocus={autoFocus}
           disabled={disabled}
           aria-describedby={describedBy}
+          aria-invalid={invalid || undefined}
+          placeholder={placeholder}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           className={styles.passwordInput}

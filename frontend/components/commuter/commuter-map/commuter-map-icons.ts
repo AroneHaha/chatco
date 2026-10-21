@@ -6,6 +6,8 @@
 // map component focused on layout/rendering, and icons can be tested/reused.
 
 import L from "leaflet";
+import { mdiJeepney } from "@mdi/js";
+import { COMMUTER_PIN_SIZE, commuterPinHtml } from "@/components/maps/commuter-pin";
 
 // --- CAPACITY CONFIG ---
 
@@ -32,15 +34,13 @@ export function getBearing(start: [number, number], end: [number, number]): numb
 
 // --- ICONS ---
 
-/** Commuter's own GPS location pin — blue with pulse ring */
+/** Commuter's own GPS location pin — MDI account icon on CHATCO Blue */
 export function createCommuterIcon(): L.DivIcon {
   return new L.DivIcon({
     className: "custom-commuter-icon",
-    html: `<div style="position: relative; width: 20px; height: 20px;">
-              <div style="position: absolute; inset: 0; background: #1A5FB4; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 10px rgba(26,95,180,0.6); z-index: 2;"></div>
-              <div style="position: absolute; inset: -5px; background: rgba(26,95,180,0.3); border-radius: 50%; animation: pulse 2s infinite; z-index: 1;"></div>
-            </div>`,
-    iconSize: [20, 20], iconAnchor: [10, 10],
+    html: commuterPinHtml("#1A5FB4"),
+    iconSize: [COMMUTER_PIN_SIZE, COMMUTER_PIN_SIZE],
+    iconAnchor: [COMMUTER_PIN_SIZE / 2, COMMUTER_PIN_SIZE / 2],
   });
 }
 
@@ -66,8 +66,8 @@ export function createJeepneyIcon(capacity: VehicleCapacity, isWithinRadius: boo
   const icon = new L.DivIcon({
     className: "custom-jeepney-icon",
     html: `<div style="position: relative; width: 44px; height: 44px; background: #071A2E; border-radius: 50%; border: 2.5px solid ${config.color}; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 12px rgba(0,0,0,0.5), 0 0 8px ${config.color}40;">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${config.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H18.75m-7.5-10.5H6.375c-.621 0-1.125.504-1.125 1.125v6.75m12-6.75h-3.375c-.621 0-1.125.504-1.125 1.125v6.75m0 0H5.625m12-6.75h-1.5m-1.5 0h-1.5" />
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="${config.color}" aria-hidden="true">
+                  <path d="${mdiJeepney}" />
                 </svg>
                 ${greenDot}
               </div>`,

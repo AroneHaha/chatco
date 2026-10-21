@@ -164,6 +164,17 @@ class LostItemService
         return $query->paginate($perPage);
     }
 
+    /** Latest claim activity for the dashboard, with only the fields its preview displays. */
+    public function recentClaims(int $limit = 4)
+    {
+        return Claim::query()
+            ->select(['id', 'item_id', 'claimant_name', 'status', 'created_at'])
+            ->with(['item:id,item_name,image_url,status'])
+            ->orderByDesc('created_at')
+            ->limit(min(max($limit, 1), 10))
+            ->get();
+    }
+
     /**
      * Single-item detail for ANY authenticated role (commuter/conductor
      * browse + the admin item-detail view both call this). Deliberately does

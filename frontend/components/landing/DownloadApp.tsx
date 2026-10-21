@@ -11,7 +11,7 @@ const INSTALL_STEPS = [
 
 export default function DownloadApp() {
   return (
-    <section id="download" aria-labelledby="download-heading" className="bg-[#F0F7FF] py-20 text-gray-900 md:py-28">
+    <section id="download" aria-labelledby="download-heading" className="bg-white py-20 text-gray-900 md:py-28">
       <div className="mx-auto grid max-w-7xl items-center gap-12 px-5 md:px-8 lg:grid-cols-[1.1fr_0.9fr] lg:gap-20">
         <div className="text-center lg:text-left">
           <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-[#1A5FB4]">
@@ -36,7 +36,7 @@ export default function DownloadApp() {
           </Link>
         </div>
 
-        <div className="rounded-3xl border border-[#DAEEFF] bg-white p-6 shadow-xl shadow-[#1A5FB4]/5 md:p-8">
+        <div className="rounded-3xl border border-[#DAEEFF] bg-[#F0F7FF] p-6 shadow-xl shadow-[#1A5FB4]/5 md:p-8">
           <div className="flex items-center gap-3 border-b border-[#DAEEFF] pb-6">
             <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#071A2E]">
               <Image src={logo} alt="" width={44} height={44} />
@@ -49,7 +49,7 @@ export default function DownloadApp() {
           <ol className="mt-6 space-y-6">
             {INSTALL_STEPS.map((step, i) => (
               <li key={step.title} className="flex items-start gap-4">
-                <span aria-hidden="true" className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#F0F7FF] text-sm font-bold text-[#1A5FB4]">
+                <span aria-hidden="true" className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-sm font-bold text-[#1A5FB4]">
                   {i + 1}
                 </span>
                 <div>

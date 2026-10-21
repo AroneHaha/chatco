@@ -5,6 +5,8 @@ import Link from "next/link";
 import { ArrowLeft, ArrowRight, CircleCheck, LoaderCircle } from "lucide-react";
 import styles from "./login.module.css";
 import Stepper, { Step as StepperStep } from "@/components/Stepper";
+import { PASSWORD_RULES } from "@/lib/utils/password-policy";
+import { PasswordField, PasswordRules } from "./set-new-password-form";
 
 type Step = "email" | "code" | "password" | "done";
 
@@ -102,8 +104,9 @@ export default function ForgotPasswordForm({ onBusyChange, onReturnToLogin }: { 
   async function resetPassword() {
     if (loading) return;
     setError("");
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
+    // Same policy the backend's StrongPassword rule enforces on reset.
+    if (PASSWORD_RULES.some(rule => !rule.test(password))) {
+      setError("Your new password doesn't meet every requirement below.");
       return;
     }
     if (password !== confirmation) {
@@ -143,6 +146,9 @@ export default function ForgotPasswordForm({ onBusyChange, onReturnToLogin }: { 
   const activeIndex = STEPS.indexOf(step as typeof STEPS[number]);
   const buttonText = step === "email" ? (loading ? "Sending" : "Send Code") : step === "code" ? (loading ? "Verifying" : "Verify Code") : (loading ? "Resetting" : "Reset Password");
   const disabled = loading || (step === "email" ? !email : step === "code" ? code.length !== 6 : !password || !confirmation);
+  // Flags the confirmation only once it can no longer match: a correct prefix
+  // typed so far stays quiet, a wrong character or extra length shows at once.
+  const confirmationMismatch = confirmation.length > 0 && !password.startsWith(confirmation);
 
   return (
     <div ref={content} className={styles.recoveryFlow}>
@@ -198,13 +204,13 @@ export default function ForgotPasswordForm({ onBusyChange, onReturnToLogin }: { 
             </StepperStep>
             <StepperStep>
               <form id="password-recovery-password" className={styles.recoveryFields} onSubmit={submit} aria-busy={loading}>
-                <div>
-                  <label htmlFor="new-password" className={styles.fieldLabel}>New password</label>
-                  <input id="new-password" type="password" autoComplete="new-password" required minLength={8} value={password} onChange={event => setPassword(event.target.value)} placeholder="At least 8 characters" className={styles.input} disabled={loading} aria-invalid={!!error} aria-describedby={error ? "reset-error" : undefined} />
+                <div className="grid gap-3">
+                  <PasswordField id="new-password" label="New password" value={password} onChange={setPassword} disabled={loading} invalid={!!error} placeholder="At least 8 characters" describedBy={error ? "reset-error reset-password-rules" : "reset-password-rules"} />
+                  <PasswordRules id="reset-password-rules" password={password} />
                 </div>
                 <div>
-                  <label htmlFor="confirm-new-password" className={styles.fieldLabel}>Confirm new password</label>
-                  <input id="confirm-new-password" type="password" autoComplete="new-password" required minLength={8} value={confirmation} onChange={event => setConfirmation(event.target.value)} placeholder="Repeat your password" className={styles.input} disabled={loading} aria-invalid={!!error} aria-describedby={error ? "reset-error" : undefined} />
+                  <PasswordField id="confirm-new-password" label="Confirm new password" value={confirmation} onChange={setConfirmation} disabled={loading} invalid={!!error || confirmationMismatch} placeholder="Repeat your password" describedBy={confirmationMismatch ? "reset-confirm-error" : error ? "reset-error" : undefined} />
+                  {confirmationMismatch && <p id="reset-confirm-error" className="mt-2 text-xs text-[#fca5a5]">Passwords don&apos;t match. Re-enter the same password as above.</p>}
                 </div>
               </form>
             </StepperStep>

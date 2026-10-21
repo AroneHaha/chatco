@@ -5,9 +5,12 @@ import { TablePagination } from '@/components/admin/ui/table-pagination';
 import { RowActionsMenu } from '@/components/admin/ui/row-actions-menu';
 import { Badge } from '@/components/admin/ui/badge';
 import { Modal } from '@/components/admin/ui/modal';
-import { UserIcon, Mail, Phone, Pencil, Trash2, AtSign, Calendar, ShieldCheck, ShieldAlert, UserRound, Tag, BusFront, CarFront, type LucideIcon } from 'lucide-react';
+import { UserAvatar } from '@/components/admin/ui/user-avatar';
+import { UserIcon, Mail, Phone, Pencil, Trash2, AtSign, Calendar, ShieldCheck, ShieldAlert, UserRound, BusFront, CarFront, type LucideIcon } from 'lucide-react';
 import type { ActiveUser, RejectedUser } from '@/app/(admin)/users/data/users-data';
 import styles from './commuter-details.module.css';
+import { StatusReasonHint } from './status-reason-hint';
+import { CommuterTypeLabel } from './commuter-type-label';
 
 type User = ActiveUser | RejectedUser;
 
@@ -48,6 +51,20 @@ function formatJoinedDate(value: string | null): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+/**
+ * Small amber "?" on the commuter's photo; hovering (or tapping, for touch)
+ * reveals why and until when the account is suspended.
+ */
+function SuspensionHint({ suspension }: { suspension: NonNullable<ActiveUser['suspension']> }) {
+  const title = suspension.isPermanent
+    ? 'Permanently suspended'
+    : suspension.endsAt
+      ? `Suspended until ${new Date(suspension.endsAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}`
+      : 'Suspended';
+
+  return <StatusReasonHint title={title} reason={suspension.reason} label="Why this account is suspended" />;
+}
+
 /** Shape shared by PaginationMeta (active) and RegistrationPagination (rejected). */
 interface UsersTablePagination {
   currentPage: number;
@@ -69,9 +86,8 @@ interface UsersTableProps {
   selectedUser: User | null;
   onSelectUser: (user: User | null) => void;
   /**
-   * Optional double-click handler. Wired to the DataTable's onRowDoubleClick.
-   * The parent (users/page.tsx) uses this to open the Feedback modal for
-   * CONDUCTOR / DRIVER rows — other roles are ignored by the parent.
+   * Optional double-click handler, wired to the DataTable's onRowDoubleClick.
+   * The parent uses it to open the selected user's details modal.
    */
   onRowDoubleClick?: (user: User) => void;
   /** Search bar + filter controls, rendered in the card header above the table. */
@@ -89,6 +105,17 @@ interface UsersTableProps {
 
 export function UsersTable({ users, searchQuery, onDeactivate, onDisableConductor, onEdit, onDelete, isRejectedTab, selectedUser, onSelectUser, onRowDoubleClick, headerContent, pagination, onPageChange, isRefreshing }: UsersTableProps) {
   const columns = [
+    ...(!isRejectedTab ? [{
+      // Unlabelled photo column; next/image serves a ~36px copy from R2.
+      key: 'profileImageUrl',
+      label: '',
+      headerClassName: 'w-12 pl-2 pr-0 sm:pl-4',
+      cellClassName: 'w-12 pl-2 pr-0 sm:pl-4',
+      cardLead: true,
+      render: (value: string | null, item: User) => (
+        <UserAvatar src={value} alt={`Profile photo of ${item.name}`} className="h-9 w-9" iconClassName="h-4 w-4" sizes="36px" />
+      ),
+    }] : []),
     {
       key: 'name',
       label: 'User',
@@ -116,13 +143,6 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
         cellClassName: 'whitespace-nowrap px-2 sm:px-4',
         render: (value: string | null) => <span className="text-sm text-slate-300 admin-light:text-slate-700">{value || '—'}</span>,
       },
-      {
-        key: 'phoneNumber',
-        label: 'Contact',
-        headerClassName: 'px-2 sm:px-4',
-        cellClassName: 'whitespace-nowrap px-2 sm:px-4',
-        render: (value: string) => <span className="text-sm text-slate-400 admin-light:text-slate-500">{value || '—'}</span>,
-      },
     ] : []),
     {
       key: 'commuterType',
@@ -133,12 +153,12 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
       // column shows the role itself (Admin, Conductor, Driver).
       render: (value: string, item: User) => {
         const role = 'role' in item ? item.role : 'COMMUTER';
-        const isCommuter = role === 'COMMUTER';
-        const Icon = isCommuter ? (value === 'Regular' ? UserRound : Tag) : (ROLE_ICONS[role] ?? UserRound);
+        if (role === 'COMMUTER') return <CommuterTypeLabel type={value} />;
+        const Icon = ROLE_ICONS[role] ?? UserRound;
         return (
           <span className="inline-flex items-center gap-1.5 text-sm text-slate-300 admin-light:text-slate-700">
             <Icon size={14} className="shrink-0 text-slate-500" aria-hidden="true" />
-            {isCommuter ? value : (ROLE_LABELS[role] ?? role)}
+            {ROLE_LABELS[role] ?? role}
           </span>
         );
       },
@@ -247,71 +267,75 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
 
           if (isCommuter) {
             const suspension = 'suspension' in selectedUser ? selectedUser.suspension : null;
+            const status = displayStatus(selectedUser);
+            const commuterType = selectedUser.commuterType && selectedUser.commuterType !== '—' ? selectedUser.commuterType : null;
             return (
-              <div className={styles.details}>
-                <header className={styles.detailHeader}>
-                  <div className="min-w-0">
-                    <h2 className={styles.detailTitle}>Commuter Details</h2>
-                    <p className={styles.detailName}>{selectedUser.name}</p>
-                  </div>
-                  <span className={styles.detailStatus}>
-                    <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${STATUS_DOT[displayStatus(selectedUser)] ?? 'bg-slate-600'}`} />
-                    {displayStatus(selectedUser)}
-                  </span>
-                </header>
-
-                <div className={styles.detailLayout}>
-                  <div className={styles.detailSections}>
-                    <section>
-                      <h3 className={styles.detailSectionTitle}>Personal information</h3>
-                      <dl className={styles.detailFields}>
-                        {registrationDetails.map(detail => (
-                          <div key={detail.label}>
-                            <dt>{detail.label}</dt>
-                            <dd>{detail.value || 'Not provided'}</dd>
-                          </div>
-                        ))}
-                      </dl>
-                    </section>
-
-                    <section className={styles.detailSectionDivider}>
-                      <h3 className={styles.detailSectionTitle}>Contact and account</h3>
-                      <dl className={styles.detailContact}>
-                        <div><dt>Username</dt><dd>{username || 'Not provided'}</dd></div>
-                        <div><dt>Email</dt><dd>{selectedUser.email}</dd></div>
-                        <div><dt>Phone number</dt><dd>{selectedUser.phoneNumber}</dd></div>
-                      </dl>
-                      <dl className={`${styles.detailFields} ${styles.detailDates}`}>
-                        <div><dt>Joined</dt><dd>{formatJoinedDate(createdAt)}</dd></div>
-                        <div><dt>Verified on</dt><dd>{verifiedAt ? formatJoinedDate(verifiedAt) : 'Not verified'}</dd></div>
-                      </dl>
-                    </section>
+              <div className={styles.sheet}>
+                <aside className={styles.rail} aria-label="Commuter identity">
+                  <div className={styles.railIdentity}>
+                    <span className="relative shrink-0">
+                      <UserAvatar src={profile?.profileImageUrl} alt={`Profile photo of ${selectedUser.name}`} className="h-14 w-14 sm:h-22 sm:w-22" iconClassName="h-6 w-6 sm:h-9 sm:w-9" />
+                      {selectedUser.status === 'Suspended' && suspension && <SuspensionHint suspension={suspension} />}
+                    </span>
+                    <div className={styles.railIdentityText}>
+                      <h2 className={styles.kicker}>Commuter Details</h2>
+                      <p className={styles.personName}>{selectedUser.name}</p>
+                      <p className={styles.personMeta}>
+                        <span>
+                          <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${STATUS_DOT[status] ?? 'bg-slate-600'}`} />
+                          {status}
+                        </span>
+                        {commuterType && <span>{commuterType}</span>}
+                      </p>
+                    </div>
                   </div>
 
-                  <aside className={styles.detailDocument}>
-                    <h3 className={styles.detailSectionTitle}>Uploaded ID</h3>
-                    {selectedUser.idImageUrl ? (
-                      <>
-                        <div className={styles.detailImage}>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={selectedUser.idImageUrl} alt={`Uploaded ID for ${selectedUser.name}`} loading="lazy" />
+                  <dl className={styles.timeline}>
+                    <div><dt>Joined</dt><dd>{formatJoinedDate(createdAt)}</dd></div>
+                    <div><dt>Verified on</dt><dd className={verifiedAt ? undefined : styles.muted}>{verifiedAt ? formatJoinedDate(verifiedAt) : 'Not verified'}</dd></div>
+                  </dl>
+                </aside>
+
+                <div className={styles.record}>
+
+                  <section className={styles.recordSection}>
+                    <h3 className={styles.sectionTitle}>Personal information</h3>
+                    <dl className={styles.fieldGrid}>
+                      {registrationDetails.map(detail => (
+                        <div key={detail.label} className={styles.field}>
+                          <dt>{detail.label}</dt>
+                          <dd className={detail.value ? undefined : styles.muted}>{detail.value || 'Not provided'}</dd>
                         </div>
-                        <a href={selectedUser.idImageUrl} target="_blank" rel="noopener noreferrer" className={styles.detailImageLink}>View full-size ID</a>
-                      </>
-                    ) : <p className={styles.detailImageEmpty}>No ID uploaded.</p>}
-                  </aside>
+                      ))}
+                    </dl>
+                  </section>
+
+                  <section className={styles.recordSection}>
+                    <h3 className={styles.sectionTitle}>Contact and account</h3>
+                    <dl className={styles.fieldRows}>
+                      <div className={styles.field}><dt>Username</dt><dd className={username ? undefined : styles.muted}>{username || 'Not provided'}</dd></div>
+                      <div className={styles.field}><dt>Email</dt><dd>{selectedUser.email}</dd></div>
+                      <div className={styles.field}><dt>Phone number</dt><dd>{selectedUser.phoneNumber}</dd></div>
+                    </dl>
+                  </section>
+
+                  <section className={styles.recordSection}>
+                    <h3 className={styles.sectionTitle}>Uploaded ID</h3>
+                    {selectedUser.idImageUrl ? (
+                      <div className={styles.idRow}>
+                        <a href={selectedUser.idImageUrl} target="_blank" rel="noopener noreferrer" className={styles.idThumb} aria-label={`Open the uploaded ID for ${selectedUser.name} in a new tab`}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={selectedUser.idImageUrl} alt="" loading="lazy" />
+                        </a>
+                        <a href={selectedUser.idImageUrl} target="_blank" rel="noopener noreferrer" className={styles.idLink}>View full-size ID</a>
+                      </div>
+                    ) : <p className={styles.idEmpty}>No ID uploaded.</p>}
+                  </section>
                 </div>
 
-                {selectedUser.status === 'Suspended' && suspension && (
-                  <div className="rounded-lg border border-amber-400/20 bg-amber-400/5 p-4 text-sm">
-                    <p className="font-semibold text-amber-300 admin-light:text-amber-700">{suspension.isPermanent ? 'Permanently suspended' : suspension.endsAt ? `Suspended until ${new Date(suspension.endsAt).toLocaleString()}` : 'Suspended'}</p>
-                    <p className="mt-1 wrap-break-word text-slate-300 admin-light:text-slate-700">{suspension.reason}</p>
-                  </div>
-                )}
-
-                <footer className={styles.detailActions}>
-                  <button type="button" onClick={() => { onEdit(selectedUser as ActiveUser); onSelectUser(null); }} className={styles.detailEdit}>Edit Commuter</button>
-                  <button type="button" onClick={() => { onDeactivate(selectedUser as ActiveUser); onSelectUser(null); }} className={selectedUser.status === 'Active' ? styles.detailSuspend : styles.detailReactivate}>
+                <footer className={styles.sheetActions}>
+                  <button type="button" onClick={() => { onEdit(selectedUser as ActiveUser); onSelectUser(null); }} className={styles.actionEdit}>Edit Commuter</button>
+                  <button type="button" onClick={() => { onDeactivate(selectedUser as ActiveUser); onSelectUser(null); }} className={selectedUser.status === 'Active' ? styles.actionSuspend : styles.actionReactivate}>
                     {selectedUser.status === 'Active' ? 'Suspend Account' : 'Reactivate Account'}
                   </button>
                 </footer>

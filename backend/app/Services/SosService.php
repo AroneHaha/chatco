@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\Setting;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -153,8 +154,10 @@ class SosService
      */
     public function listActive(User $admin, array $filters, int $perPage = 15): LengthAwarePaginator
     {
+        $direction = ($filters['sort'] ?? 'recent') === 'oldest' ? 'asc' : 'desc';
         $query = SosAlert::with(['commuter', 'conductor'])
-            ->orderByDesc('created_at');
+            ->orderBy('created_at', $direction)
+            ->orderBy('id', $direction);
 
         if (empty($filters['status']) || $filters['status'] === self::STATUS_RESOLVED) {
             // History needs resolver names; batch-load only the display fields.
@@ -172,6 +175,22 @@ class SosService
         }
         // else: no filter → return all statuses (controller already
         // defaulted to ACTIVE if the caller omitted the param entirely).
+
+        // One calendar day in the app timezone (Asia/Manila), as a range on
+        // created_at so the (status, created_at) index is usable.
+        if (! empty($filters['date'])) {
+            $day = Carbon::createFromFormat('Y-m-d', $filters['date'], config('app.timezone'))->startOfDay();
+            $query->whereBetween('created_at', [$day, $day->copy()->endOfDay()]);
+        }
+
+        // "Cancelled" = the sender resolved their own alert; anything else
+        // (an admin, or no resolver on older rows) is "Resolved". Same rule
+        // as the monitoring page's mapHistory(). COALESCE keeps rows with a
+        // NULL resolver on the Resolved side instead of dropping them.
+        if (! empty($filters['outcome'])) {
+            $cancelled = "COALESCE(resolved_by = (CASE WHEN sender_role = 'CONDUCTOR' THEN conductor_id ELSE commuter_id END), 0)";
+            $query->whereRaw("{$cancelled} = ?", [$filters['outcome'] === 'CANCELLED' ? 1 : 0]);
+        }
 
         return $query->paginate($perPage);
     }

@@ -34,7 +34,7 @@ export default function DiscountApplicationPage() {
   const [state, setState] = useState<ApplicationState | null>(null);
   const [category, setCategory] = useState<DiscountCategory | ''>('');
   const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState<{ title: string; body: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [confirmSubmit, setConfirmSubmit] = useState(false);
@@ -88,7 +88,7 @@ export default function DiscountApplicationPage() {
     if (submitting.current || incomplete || !state?.can_submit) return;
     submitting.current = true; ++sequence.current;
     setConfirmSubmit(false);
-    setBusy(true); setError(''); setMessage('');
+    setBusy(true); setError(''); setMessage(null);
     try {
       const body = proof.formData(student, state?.document_required !== false); body.set('requested_type', category);
       if (correction && application) {
@@ -96,7 +96,7 @@ export default function DiscountApplicationPage() {
       }
       setState(await renewalRequest<ApplicationState>('/api/commuter/discount-applications', { method: 'POST', body }));
       proof.setDocument(null);
-      setMessage('Your discount application was submitted. Your account stays Regular until an admin approves it.');
+      setMessage({ title: 'Application submitted', body: 'Your account stays Regular until an admin approves it.' });
     } catch (err) {
       submitting.current = false; await load();
       setError(err instanceof Error ? err.message : 'Unable to submit application.');
@@ -108,13 +108,13 @@ export default function DiscountApplicationPage() {
   const cancelConfirmed = async () => {
     if (submitting.current || !cancellable || !application) return;
     submitting.current = true; ++sequence.current;
-    setBusy(true); setCancelError(''); setError(''); setMessage('');
+    setBusy(true); setCancelError(''); setError(''); setMessage(null);
     try {
       setState(await renewalRequest<ApplicationState>('/api/commuter/discount-applications/cancel', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ application_id: application.id }),
       }));
       setConfirmCancel(false); setCategory(''); proof.setDocument(null);
-      setMessage('Your application was cancelled. You can start a new application at any time.');
+      setMessage({ title: 'Application cancelled', body: 'You can start a new application at any time.' });
     } catch (err) {
       setCancelError(err instanceof Error ? err.message : 'Unable to cancel the application.');
       submitting.current = false; void load();
@@ -137,7 +137,15 @@ export default function DiscountApplicationPage() {
       <div className="mx-auto max-w-6xl">
         {loading && <div role="status" className="flex min-h-56 items-center justify-center gap-3 text-sm text-white/60 light:text-gray-500"><Loader2 size={20} className="animate-spin text-[#62A0EA] light:text-[#1A5FB4]" />Loading your application status...</div>}
         {error && <div role="alert" className="mb-6 flex flex-col gap-3 rounded-xl border border-red-300/25 bg-red-300/10 p-4 text-sm text-red-200 light:border-red-200 light:bg-red-50 light:text-red-700 sm:flex-row sm:items-center sm:justify-between">{error}<button type="button" onClick={() => void load()} disabled={busy} className="min-h-10 self-start font-medium underline underline-offset-4 sm:self-auto">Refresh status</button></div>}
-        {message && <p role="status" className="mb-6 flex items-start gap-3 rounded-xl border border-emerald-300/25 bg-emerald-300/10 p-4 text-sm leading-relaxed text-emerald-200 light:border-emerald-200 light:bg-emerald-50 light:text-emerald-800"><Check size={18} className="mt-0.5 shrink-0" aria-hidden="true" />{message}</p>}
+        {/* Solid confirmation panel (no translucent fill): a filled check,
+            a short title, and the one thing the commuter should know next. */}
+        {message && <div role="status" className="mb-6 flex items-start gap-3 rounded-xl border border-[#1F4D3D] bg-[#0D2A22] p-4 light:border-emerald-200 light:bg-emerald-50">
+          <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white light:bg-emerald-600"><Check size={16} strokeWidth={2.5} /></span>
+          <div className="min-w-0 pt-0.5">
+            <p className="text-sm font-semibold text-white light:text-emerald-900">{message.title}</p>
+            <p className="mt-0.5 text-sm leading-relaxed text-[#A7D7C5] light:text-emerald-800">{message.body}</p>
+          </div>
+        </div>}
         {state && <div className="grid gap-8 lg:grid-cols-[minmax(0,1.55fr)_minmax(16rem,0.8fr)] lg:gap-12">
           <section className="min-w-0" aria-labelledby={`${proofId}-section`}>
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-5 light:border-gray-200">
@@ -182,11 +190,18 @@ export default function DiscountApplicationPage() {
           <aside className="h-fit rounded-2xl border border-white/10 bg-white/[0.035] light:border-gray-200 light:bg-white p-5 sm:p-6">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#99C1F1] light:text-[#1A5FB4]">What happens next</p>
             <ol className="mt-5">
-              {[['01', 'Send your proof', 'Choose the category and upload a clear document.'], ['02', 'Admin verification', 'A reviewer checks that the document is valid.'], ['03', 'Classification update', 'If approved, the discount is applied to future eligible fares.']].map(([step, title, description], index) => <li key={step} className={`relative flex gap-4 ${index < 2 ? 'pb-6' : ''}`}>
-                {index < 2 && <span aria-hidden="true" className="absolute bottom-0 left-3 top-7 w-px bg-white/10 light:bg-gray-200" />}
-                <span className={`relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold ${index === 0 ? 'border-[#62A0EA]/50 bg-[#62A0EA]/10 text-[#99C1F1] light:text-[#1A5FB4]' : 'border-white/15 text-white/50 light:border-gray-300 light:text-gray-400'}`}>{index === 0 && state.status === 'APPROVED' ? <Check size={13} aria-hidden="true" /> : step}</span>
-                <div className="min-w-0"><p className="text-sm font-semibold">{title}</p><p className="mt-1 text-xs leading-relaxed text-white/55 light:text-gray-500">{description}</p></div>
-              </li>)}
+              {[['01', 'Send your proof', 'Choose the category and upload a clear document.'], ['02', 'Admin verification', 'A reviewer checks that the document is valid.'], ['03', 'Classification update', 'If approved, the discount is applied to future eligible fares.']].map(([step, title, description], index) => {
+                // Follows the live status, so submitting (which sets `state`
+                // from the response) moves to step 2 without a reload.
+                const currentStep = state.status === 'APPROVED' ? 3 : state.status === 'PENDING' ? 1 : 0;
+                const done = index < currentStep;
+                const current = index === currentStep;
+                return <li key={step} aria-current={current ? 'step' : undefined} className={`relative flex gap-4 ${index < 2 ? 'pb-6' : ''}`}>
+                  {index < 2 && <span aria-hidden="true" className={`absolute bottom-0 left-3 top-7 w-px ${index < currentStep ? 'bg-[#62A0EA]/60 light:bg-[#1A5FB4]/50' : 'bg-white/10 light:bg-gray-200'}`} />}
+                  <span className={`relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold transition-colors ${done ? 'border-[#1A5FB4] bg-[#1A5FB4] text-white' : current ? 'border-[#62A0EA]/50 bg-[#62A0EA]/10 text-[#99C1F1] light:text-[#1A5FB4]' : 'border-white/15 text-white/50 light:border-gray-300 light:text-gray-400'}`}>{done ? <Check size={13} aria-hidden="true" /> : step}</span>
+                  <div className="min-w-0"><p className={`text-sm font-semibold ${!done && !current ? 'text-white/60 light:text-gray-500' : ''}`}>{title}</p><p className="mt-1 text-xs leading-relaxed text-white/55 light:text-gray-500">{description}</p></div>
+                </li>;
+              })}
             </ol>
             <div className="mt-6 border-t border-white/10 pt-5 light:border-gray-200">
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/45 light:text-gray-500">Before you submit</p>

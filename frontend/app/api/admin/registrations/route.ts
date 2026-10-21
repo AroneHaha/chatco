@@ -15,9 +15,10 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/admin/registrations
- * Create a PENDING commuter account on behalf of a commuter who registered
+ * Create an APPROVED commuter account on behalf of a commuter who registered
  * onsite (e.g. at a terminal kiosk). The admin fills the form + uploads a
- * valid ID image; the account is created with account_status=PENDING.
+ * valid ID image; the account receives an emailed temporary password and must
+ * replace it at first sign-in.
  *
  * This route handles MULTIPART FORM DATA (not JSON) because of the ID image
  * file. The shared proxyToLaravel() helper only supports JSON bodies, so we

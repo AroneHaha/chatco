@@ -212,10 +212,12 @@ class AuthRegisterTest extends TestCase
 
     public function test_register_uses_applied_type_for_commuter_type(): void
     {
-        foreach (['REGULAR', 'STUDENT', 'SENIOR', 'PWD'] as $type) {
+        foreach (['REGULAR', 'STUDENT', 'SENIOR', 'PWD'] as $index => $type) {
             $this->registerWithFile([
                 'email' => "applicant.{$type}@example.com",
-                'username' => "applicant.{$type}",
+                'username' => strtolower("app.{$type}"),
+                // Each applicant needs their own number (UniqueContactNumber).
+                'contact_number' => "0917000000{$index}",
                 'applied_type' => $type,
             ]);
 
@@ -344,6 +346,34 @@ class AuthRegisterTest extends TestCase
             ->assertJsonStructure(['errors' => ['email']]);
     }
 
+    public function test_register_caps_username_at_16_characters(): void
+    {
+        $this->registerWithFile(['username' => str_repeat('a', 17)])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.username.0', 'Usernames can be at most 16 characters.');
+
+        $this->registerWithFile(['username' => str_repeat('a', 16)])
+            ->assertJsonMissingValidationErrors('username');
+    }
+
+    public function test_register_rejects_username_with_spaces_or_other_symbols(): void
+    {
+        // Leading/trailing spaces are trimmed by TrimStrings before validation.
+        foreach (['maria santos', 'maria-santos', 'maria@santos', 'maria!'] as $username) {
+            $this->registerWithFile(['username' => $username])
+                ->assertStatus(422)
+                ->assertJsonValidationErrors('username');
+        }
+
+        $this->assertDatabaseCount('commuter_profiles', 0);
+    }
+
+    public function test_register_accepts_username_with_period_and_underscore(): void
+    {
+        $this->registerWithFile(['username' => 'maria.santos_01'])
+            ->assertStatus(201);
+    }
+
     public function test_register_rejects_duplicate_username_with_422(): void
     {
         $existing = $this->seedApprovedCommuter(['username' => 'maria.santos']);
@@ -376,7 +406,7 @@ class AuthRegisterTest extends TestCase
         $this->seedApprovedCommuter(['email' => 'maria.santos@example.com']);
 
         $this->registerWithFile([
-            'username' => 'different.username',
+            'username' => 'other.user',
         ])
             ->assertStatus(422)
             ->assertJsonStructure(['errors' => ['email']]);

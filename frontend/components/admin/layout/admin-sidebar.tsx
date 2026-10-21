@@ -11,7 +11,6 @@ import {
 } from '@/config/admin-nav';
 import { useSettingsDrawer } from '@/components/admin/ui/settings-drawer';
 import { NotificationBell } from '@/components/admin/layout/notification-bell';
-import { AdminThemeToggle } from '@/components/admin/layout/admin-theme-toggle';
 import { useAdminTheme } from '@/contexts/admin-theme-context';
 import { useAdminNotifications, formatAdminBadgeCount } from '@/contexts/admin-notifications-context';
 
@@ -42,7 +41,6 @@ export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <AdminThemeToggle onBrand />
           <NotificationBell onBrand />
         </div>
       </div>

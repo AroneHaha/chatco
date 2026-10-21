@@ -3,11 +3,10 @@
 
 import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
-import { getInitials } from '@/components/admin/layout/admin-identity';
+import { UserAvatar } from '@/components/admin/ui/user-avatar';
 import { QRCodeCanvas } from 'qrcode.react';
 import {
   Car,
-  User,
   Phone,
   Download,
   Printer,
@@ -74,9 +73,9 @@ function CrewRow({
 }) {
   return (
     <div className="flex items-center gap-3 py-3">
-      <div aria-hidden="true" className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-semibold ${!person ? 'bg-slate-500/10 text-slate-400 admin-light:text-slate-500' : label === 'Driver' ? 'bg-[#62A0EA]/15 text-[#99C1F1] admin-light:bg-[#1A5FB4]/10 admin-light:text-[#1A5FB4]' : 'bg-amber-400/10 text-amber-300 admin-light:text-amber-700'}`}>
-        {person ? getInitials(person.name) : <User size={18} />}
-      </div>
+      {/* Photo from R2 (resized by next/image), or the same default icon the
+          user lists use when there is none or it fails to load. */}
+      <UserAvatar src={person?.photoUrl} alt={person ? `Profile photo of ${person.name}` : ''} className="h-11 w-11" iconClassName="h-5 w-5" sizes="44px" />
       <div className="min-w-0 flex-1">
         <p className="text-xs text-slate-400 admin-light:text-slate-500">{label}</p>
         {person ? (

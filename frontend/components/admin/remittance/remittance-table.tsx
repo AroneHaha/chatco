@@ -191,12 +191,6 @@ export function RemittanceTable({ searchQuery, selectedDate, dateFrom, statusFil
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* Click hint */}
-      <p className="shrink-0 text-xs text-slate-600 admin-light:text-slate-400 mb-3 flex items-center gap-1.5">
-        <span className="px-1.5 py-0.5 bg-[#0E1628] admin-light:bg-[#F1F5F9] rounded text-[10px] text-slate-500 border border-[#1E2D45] admin-light:border-[#E2E8F0] font-mono">click</span>
-        Click a row to view conductor details &amp; transaction history
-      </p>
-
       <div className="flex-1 min-h-0">
         <DataTable
           data={paginatedData}

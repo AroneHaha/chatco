@@ -5,8 +5,6 @@ import HowItWorks from "@/components/landing/HowItWorks";
 import Manifesto from "@/components/landing/Manifesto";
 import CommuterFeatures from "@/components/landing/CommuterFeatures";
 import HeatmapShowcase from "@/components/landing/HeatmapShowcase";
-import SafetySupport from "@/components/landing/SafetySupport";
-import About from "@/components/landing/About";
 import DownloadApp from "@/components/landing/DownloadApp";
 import Contact from "@/components/landing/Contact";
 import FinalCTA from "@/components/landing/FinalCTA";
@@ -28,11 +26,7 @@ export default function LandingLayout({ children }: { children: React.ReactNode 
         <HowItWorks />
         <CommuterFeatures />
         <Manifesto />
-        <Reveal>
-          <SafetySupport />
-        </Reveal>
         <HeatmapShowcase />
-        <About />
         <DownloadApp />
         <Contact />
         <Reveal>

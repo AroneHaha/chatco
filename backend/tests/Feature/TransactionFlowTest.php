@@ -762,6 +762,10 @@ class TransactionFlowTest extends TestCase
         $this->assertStringStartsWith('MP-', $group->reference_number);
         $this->assertCount(3, $group->transactions);
         $this->assertSame(3, $group->transactions->pluck('transaction_id')->unique()->count());
+        // TXN- + year + 8-character code from the unambiguous alphabet (no 0/O, 1/I).
+        foreach ($group->transactions as $transaction) {
+            $this->assertMatchesRegularExpression('/^TXN-'.now()->year.'[A-HJ-NP-Z2-9]{8}$/', $transaction->transaction_id);
+        }
         $this->assertTrue($group->transactions->every(fn ($transaction) => $transaction->pickup_name === 'Calumpit' && $transaction->dropoff_name === 'Bustos'));
         $this->assertSame('STUDENT', $group->transactions->first()->passenger_role);
         $this->assertSame(13.6, (float) $group->transactions->first()->final_amount);

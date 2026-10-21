@@ -8,6 +8,8 @@ interface Column<T> {
   render?: (value: never, item: T) => ReactNode;
   headerClassName?: string;
   cellClassName?: string;
+  /** Mobile cards: render beside the card heading (e.g. an avatar) instead of as a detail row. */
+  cardLead?: boolean;
 }
 
 interface DataTableProps<T> {
@@ -58,9 +60,10 @@ export function DataTable<T extends object>({
       );
     });
   }, [data, searchQuery]);
-  const cardHeading = columns[0];
+  const cardLead = columns.find((column) => column.cardLead);
+  const cardHeading = columns.find((column) => column !== cardLead);
   const cardActions = columns.find((column) => column.key === 'actions');
-  const cardDetails = columns.filter((column) => column !== cardHeading && column !== cardActions);
+  const cardDetails = columns.filter((column) => column !== cardLead && column !== cardHeading && column !== cardActions);
   const renderValue = (column: Column<T>, item: T) => {
     const value = (item as Record<string, unknown>)[column.key];
     return column.render ? column.render(value as never, item) : (value as ReactNode);
@@ -88,7 +91,10 @@ export function DataTable<T extends object>({
                   className="min-w-0 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#111A2B] admin-light:bg-[#F8FAFC] p-3 break-words [&_.whitespace-nowrap]:whitespace-normal"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">{cardHeading && renderValue(cardHeading, item)}</div>
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      {cardLead && <div className="shrink-0">{renderValue(cardLead, item)}</div>}
+                      <div className="min-w-0 flex-1">{cardHeading && renderValue(cardHeading, item)}</div>
+                    </div>
                     {cardActions && <div className="shrink-0 [&_button]:min-h-11 [&_button]:min-w-11">{renderValue(cardActions, item)}</div>}
                   </div>
                   <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] pt-3">

@@ -19,9 +19,10 @@ interface AdminDatePickerProps {
   invalid?: boolean;
   errorId?: string;
   clearLabel?: string;
+  disabled?: boolean;
   /** Use the browser's top layer inside animated, scrollable dialogs. */
   popover?: boolean;
-  /** Jump directly to a birth year instead of paging through every month. */
+  /** Jump directly to a year and month instead of paging through every month. */
   yearNavigation?: boolean;
   /** Earliest/latest selectable day ('YYYY-MM-DD'); days outside are disabled. */
   min?: string;
@@ -61,7 +62,7 @@ const ACCENTS: Record<'blue' | 'red', Accent> = {
 // decide open direction before the panel itself has rendered/measured.
 const PANEL_HEIGHT_ESTIMATE = 336;
 
-export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'left', ariaLabel, className, triggerClassName, id, invalid, errorId, clearLabel = 'Clear date filter', popover = false, yearNavigation = false, min, max, placeholder = 'mm/dd/yyyy' }: AdminDatePickerProps) {
+export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'left', ariaLabel, className, triggerClassName, id, invalid, errorId, clearLabel = 'Clear date filter', disabled = false, popover = false, yearNavigation = false, min, max, placeholder = 'mm/dd/yyyy' }: AdminDatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [openDirection, setOpenDirection] = useState<'down' | 'up'>('down');
   const [viewMonth, setViewMonth] = useState(() => (value ? parseISODate(value) : new Date()));
@@ -153,6 +154,7 @@ export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'lef
   }, [isOpen, popover]);
 
   const openPicker = () => {
+    if (disabled) return;
     setViewMonth(value ? parseISODate(value) : new Date());
     setIsOpen((open) => !open);
   };
@@ -203,16 +205,17 @@ export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'lef
         id={id}
         type="button"
         onClick={openPicker}
+        disabled={disabled}
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         aria-label={ariaLabel}
         data-invalid={invalid || undefined}
         aria-describedby={invalid ? errorId : undefined}
-        className={`flex items-center gap-2 bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] light:bg-white light:border-gray-200 rounded-md text-xs pl-8 pr-2 text-left focus:outline-none ${triggerClassName ?? 'w-40 py-1.5'} ${colors.ring} transition-colors`}
+        className={`flex items-center gap-2 bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] light:bg-white light:border-gray-200 rounded-md text-xs pl-8 pr-2 text-left focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 ${triggerClassName ?? 'w-40 py-1.5'} ${colors.ring} transition-colors`}
       >
         <CalendarDays size={14} className="absolute left-2.5 text-slate-500 pointer-events-none" />
         <span className={value ? 'text-slate-300 admin-light:text-slate-700 light:text-gray-900' : 'text-slate-500 light:text-gray-400'}>{displayLabel}</span>
-        {value && (
+        {value && !disabled && (
           <span
             role="button"
             tabIndex={0}

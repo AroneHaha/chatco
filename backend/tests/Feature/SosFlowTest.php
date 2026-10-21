@@ -296,6 +296,94 @@ class SosFlowTest extends TestCase
         $response->assertStatus(403);
     }
 
+    // ── GET /admin/sos — Safety History filters ─────────────────
+
+    private function resolvedAlert(string $createdAt): SosAlert
+    {
+        $alert = SosAlert::forceCreate([
+            'sender_role' => 'COMMUTER',
+            'commuter_id' => $this->commuter->id,
+            'lat'         => 14.5995,
+            'lng'         => 120.9842,
+            'status'      => 'RESOLVED',
+            'resolved_by' => $this->admin->id,
+            'resolved_at' => $createdAt,
+        ]);
+        $alert->forceFill(['created_at' => $createdAt])->save();
+
+        return $alert;
+    }
+
+    public function test_history_sort_and_pagination_are_stable(): void
+    {
+        $first = $this->resolvedAlert('2026-01-05 08:00:00');
+        $second = $this->resolvedAlert('2026-01-05 09:00:00');
+        $third = $this->resolvedAlert('2026-01-05 10:00:00');
+
+        $this->admin();
+        $this->getJson('/api/v1/admin/sos?status=RESOLVED&sort=oldest&per_page=2&page=1')
+            ->assertOk()
+            ->assertJsonPath('data.data.0.id', $first->id)
+            ->assertJsonPath('data.data.1.id', $second->id)
+            ->assertJsonPath('data.total', 3)
+            ->assertJsonPath('data.last_page', 2);
+        $this->getJson('/api/v1/admin/sos?status=RESOLVED&sort=recent&per_page=2&page=1')
+            ->assertOk()
+            ->assertJsonPath('data.data.0.id', $third->id);
+    }
+
+    public function test_history_date_filter_searches_all_rows_on_the_app_timezone_day(): void
+    {
+        // Older than any single fetched batch: the day must still be found.
+        $old = $this->resolvedAlert('2026-01-05 00:00:00');
+        $this->resolvedAlert('2026-01-05 23:59:59');
+        $this->resolvedAlert('2026-01-04 23:59:59');
+        $this->resolvedAlert('2026-01-06 00:00:00');
+        foreach (range(1, 60) as $i) {
+            $this->resolvedAlert(now()->subMinutes($i)->toDateTimeString());
+        }
+
+        $this->admin();
+        $response = $this->getJson('/api/v1/admin/sos?status=RESOLVED&date=2026-01-05&per_page=10');
+
+        $response->assertOk()
+            ->assertJsonPath('data.total', 2)
+            ->assertJsonPath('data.last_page', 1);
+        $this->assertContains($old->id, array_column($response->json('data.data'), 'id'));
+    }
+
+    public function test_history_outcome_filter_splits_cancelled_from_resolved(): void
+    {
+        $cancelled = $this->resolvedAlert('2026-01-05 08:00:00');
+        $cancelled->forceFill(['resolved_by' => $this->commuter->id])->save();
+        $resolved = $this->resolvedAlert('2026-01-05 09:00:00');
+        // Older rows may have no resolver recorded; they count as Resolved.
+        $legacy = $this->resolvedAlert('2026-01-05 10:00:00');
+        $legacy->forceFill(['resolved_by' => null])->save();
+
+        $this->admin();
+        $cancelledIds = array_column($this->getJson('/api/v1/admin/sos?status=RESOLVED&outcome=cancelled')->assertOk()->json('data.data'), 'id');
+        $resolvedIds = array_column($this->getJson('/api/v1/admin/sos?status=RESOLVED&outcome=RESOLVED')->assertOk()->json('data.data'), 'id');
+
+        $this->assertSame([$cancelled->id], $cancelledIds);
+        $this->assertEqualsCanonicalizing([$resolved->id, $legacy->id], $resolvedIds);
+    }
+
+    public function test_history_filters_reject_invalid_values(): void
+    {
+        $this->admin();
+        foreach ([
+            'sort=random',
+            'date=2026-13-40',
+            'date='.rawurlencode("2026-01-05' OR 1=1"),
+            'outcome=DELETED',
+            'per_page=5000',
+            'page=0',
+        ] as $query) {
+            $this->getJson("/api/v1/admin/sos?status=RESOLVED&{$query}")->assertStatus(422);
+        }
+    }
+
     // ── PATCH /admin/sos/{id}/acknowledge ───────────────────────
 
     public function test_admin_can_acknowledge_sos(): void

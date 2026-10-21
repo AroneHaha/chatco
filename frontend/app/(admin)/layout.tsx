@@ -84,9 +84,9 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
   // DESKTOP
   if (!isMobile) {
     return (
-      <div className="admin-shell flex h-screen bg-[#0B1120]">
+      <div className="admin-shell fixed inset-0 flex overflow-hidden bg-[#0B1120]">
         <AdminSidebar onSignOut={() => setIsSignOutOpen(true)} />
-        <main data-admin-theme={pageTheme} className={`flex-1 overflow-y-auto p-6 lg:p-8 text-white ${MAIN_LIGHT}`}>
+        <main data-admin-theme={pageTheme} className={`min-h-0 min-w-0 flex-1 overflow-y-auto p-6 lg:p-8 text-white ${MAIN_LIGHT}`}>
           {children}
         </main>
         <div data-admin-theme={theme} className="contents">

@@ -411,6 +411,7 @@ export default function ActivityLogsPage() {
                 accent="blue"
                 align="right"
                 popover
+                yearNavigation
                 ariaLabel="Filter activity by an exact date"
                 value={selectedDate}
                 onChange={handleSelectedDateChange}

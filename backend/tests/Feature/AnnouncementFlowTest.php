@@ -497,6 +497,24 @@ class AnnouncementFlowTest extends TestCase
         ]);
     }
 
+    public function test_notifications_only_filter_returns_only_own_targeted_rows(): void
+    {
+        $otherAdmin = User::factory()->admin()->create();
+        $this->createAnnouncement('Holiday Notice'); // broadcast
+        $this->createTargetedAnnouncement($otherAdmin->id, 'SHIFT_ENDED', 'Not Mine');
+        $this->createTargetedAnnouncement($this->admin->id, 'SHIFT_ENDED', 'Mine');
+
+        $this->admin();
+        $response = $this->getJson('/api/v1/announcements?notifications_only=1');
+
+        $response->assertStatus(200);
+        $this->assertSame(['Mine'], array_column($response->json('data.data'), 'title'));
+
+        // Without the flag the feed still mixes broadcasts with own rows.
+        $titles = array_column($this->getJson('/api/v1/announcements')->json('data.data'), 'title');
+        $this->assertEqualsCanonicalizing(['Holiday Notice', 'Mine'], $titles);
+    }
+
     public function test_unread_count_filters_by_types(): void
     {
         $this->createTargetedAnnouncement($this->commuter->id, 'claim_approved', 'Claim Approved');

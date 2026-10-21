@@ -60,10 +60,10 @@ function VehicleMarkerImpl({
         center={position}
         radius={1000}
         pathOptions={{
-          color: isWithinRadius ? "#22c55e" : "#62A0EA",
+          color: isWithinRadius ? "#FFFFFF" : "#62A0EA",
           weight: 1,
           opacity: isWithinRadius ? 0.4 : 0.15,
-          fillColor: isWithinRadius ? "#22c55e" : "#62A0EA",
+          fillColor: isWithinRadius ? "#FFFFFF" : "#62A0EA",
           fillOpacity: isWithinRadius ? 0.04 : 0.01,
           dashArray: "4 8",
         }}

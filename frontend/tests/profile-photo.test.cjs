@@ -70,6 +70,8 @@ test('profile service sends only the file and maps authoritative snake_case phot
       return { data: { user: { id: 'owner', email: 'owner@example.test' }, profile: { profile_image_url: 'https://media.example.test/photo.jpg' } } };
     } }, ApiError: class extends Error {} },
     '@/lib/commuter/endpoints': { COMMUTER_API: { profile: '/api/commuter/profile' } },
+    '@/lib/shared/services/password-change.service': { createPasswordChangeClient: () => ({}) },
+    '@/lib/utils/compress-image': { compressImage: async file => file, IMAGE_COMPRESSION: { profile: {} } },
   });
   const file = new File(['image'], 'photo.jpg', { type: 'image/jpeg' });
   const result = await service.uploadProfilePhoto(file);
@@ -93,6 +95,7 @@ function photoUI(upload = async () => ({ profileImageUrl: 'https://media.example
     'lucide-react': { Camera: 'Camera' },
     '@/lib/api/client': { ApiError: class extends Error {} },
     '@/lib/commuter/services/profile.service': { uploadProfilePhoto: upload },
+    './profile-photo-cropper': { default: 'Cropper' },
   });
   const profile = { firstName: 'Real', surname: 'User', profileImageUrl: 'https://media.example.test/old.jpg' };
   const flatten = node => Array.isArray(node) ? node.flatMap(flatten) : node && typeof node === 'object' && node.props ? [node, ...flatten(node.props.children)] : [];
@@ -107,10 +110,13 @@ test('web photo control blocks duplicate submissions and uses successful backend
   const ui = photoUI(() => { count++; return new Promise(resolve => { finish = resolve; }); });
   const choose = ui.render().find(n => n.type === 'input').props.onChange;
   const file = new File(['image'], 'photo.jpg', { type: 'image/jpeg' });
-  const pending = choose(event(file));
+  choose(event(file));
+  assert.equal(count, 0); // Selecting a file must not skip crop confirmation.
+  const confirm = ui.render().find(n => n.type === 'Cropper').props.onConfirm;
+  confirm(file); confirm(file);
   await choose(event(file));
   assert.equal(count, 1);
-  finish({ profileImageUrl: 'https://media.example.test/new.jpg' }); await pending;
+  finish({ profileImageUrl: 'https://media.example.test/new.jpg' }); await new Promise(resolve => setImmediate(resolve));
   assert.equal(ui.uploaded[0].profileImageUrl, 'https://media.example.test/new.jpg');
   assert.equal(ui.render().find(n => n.type === 'button').props.disabled, false);
 });
@@ -128,6 +134,8 @@ test('invalid or oversized web photo never sends an upload', async () => {
 test('failed web upload keeps the old image and supports retry', async () => {
   const ui = photoUI(async () => { throw new Error('Offline'); });
   await ui.render().find(n => n.type === 'input').props.onChange(event(new File(['image'], 'photo.jpg', { type: 'image/jpeg' })));
+  ui.render().find(n => n.type === 'Cropper').props.onConfirm(new File(['crop'], 'crop.jpg', { type: 'image/jpeg' }));
+  await new Promise(resolve => setImmediate(resolve));
   assert.equal(ui.uploaded.length, 0);
   assert.equal(ui.render().find(n => n.type === 'img').props.src, ui.profile.profileImageUrl);
   assert.equal(ui.render().find(n => n.type === 'button').props.disabled, false);
@@ -138,7 +146,18 @@ test('failed web upload keeps the old image and supports retry', async () => {
 test('web photo result cannot update an unmounted profile', async () => {
   let finish;
   const ui = photoUI(() => new Promise(resolve => { finish = resolve; }));
-  const pending = ui.render().find(n => n.type === 'input').props.onChange(event(new File(['image'], 'photo.jpg', { type: 'image/jpeg' })));
-  ui.unmount(); finish({ profileImageUrl: 'https://media.example.test/new.jpg' }); await pending;
+  ui.render().find(n => n.type === 'input').props.onChange(event(new File(['image'], 'photo.jpg', { type: 'image/jpeg' })));
+  ui.render().find(n => n.type === 'Cropper').props.onConfirm(new File(['crop'], 'crop.jpg', { type: 'image/jpeg' }));
+  ui.unmount(); finish({ profileImageUrl: 'https://media.example.test/new.jpg' }); await new Promise(resolve => setImmediate(resolve));
   assert.equal(ui.uploaded.length, 0);
+});
+
+test('cancelling photo crop retains the saved image and sends no upload', () => {
+  let count = 0;
+  const ui = photoUI(async () => { count++; });
+  ui.render().find(n => n.type === 'input').props.onChange(event(new File(['image'], 'photo.jpg', { type: 'image/jpeg' })));
+  ui.render().find(n => n.type === 'Cropper').props.onCancel();
+  assert.equal(ui.render().some(n => n.type === 'Cropper'), false);
+  assert.equal(count, 0);
+  assert.equal(ui.render().find(n => n.type === 'img').props.src, ui.profile.profileImageUrl);
 });

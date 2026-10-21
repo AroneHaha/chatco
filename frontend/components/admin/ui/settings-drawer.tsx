@@ -7,7 +7,7 @@ import { SkeletonFareMatrix } from './skeleton/skeleton-fare-matrix';
 import { useAdminTheme } from '@/contexts/admin-theme-context';
 import {
   X, Calculator, PiggyBank, Ticket, Gauge,
-  Shield, MessageCircleQuestion, Settings2, ArrowLeft, Printer, ChevronRight, UserRoundCog
+  Shield, MessageCircleQuestion, Settings2, ArrowLeft, Printer, ChevronRight, UserRoundCog, Moon
 } from 'lucide-react';
 
 // ─── Lazy-loaded settings page components ───
@@ -48,30 +48,63 @@ const settingsGroups = [
   { id: 'app', label: 'App' },
 ] as const;
 
+// True when `href` is a setting the drawer can open as a panel.
+export function isSettingsPanelHref(href: string) {
+  return settingsOptions.some(o => o.href === href);
+}
+
 // ─── Context ───
+// The open sub-page (`activeHref`) lives here rather than in the drawer so
+// callers outside it (dashboard Quick Links) can open a specific panel.
 interface SettingsDrawerContextType {
   isSettingsOpen: boolean;
+  activeHref: string | null;
+  setActiveHref: (href: string | null) => void;
   openSettingsDrawer: () => void;
+  openSettingsPanel: (href: string) => void;
   closeSettingsDrawer: () => void;
   toggleSettingsDrawer: () => void;
 }
 
 const SettingsDrawerContext = createContext<SettingsDrawerContextType>({
   isSettingsOpen: false,
+  activeHref: null,
+  setActiveHref: () => {},
   openSettingsDrawer: () => {},
+  openSettingsPanel: () => {},
   closeSettingsDrawer: () => {},
   toggleSettingsDrawer: () => {},
 });
 
 export function SettingsDrawerProvider({ children }: { children: ReactNode }) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [activeHref, setActiveHref] = useState<string | null>(null);
 
-  const openSettingsDrawer = useCallback(() => setIsSettingsOpen(true), []);
-  const closeSettingsDrawer = useCallback(() => setIsSettingsOpen(false), []);
-  const toggleSettingsDrawer = useCallback(() => setIsSettingsOpen(prev => !prev), []);
+  // Opening from the nav always starts at the menu; closing resets it too.
+  const openSettingsDrawer = useCallback(() => {
+    setActiveHref(null);
+    setIsSettingsOpen(true);
+  }, []);
+  const openSettingsPanel = useCallback((href: string) => {
+    setActiveHref(isSettingsPanelHref(href) ? href : null);
+    setIsSettingsOpen(true);
+  }, []);
+  const closeSettingsDrawer = useCallback(() => {
+    setActiveHref(null);
+    setIsSettingsOpen(false);
+  }, []);
+  const toggleSettingsDrawer = useCallback(() => {
+    setActiveHref(null);
+    setIsSettingsOpen(prev => !prev);
+  }, []);
+
+  const value = useMemo(
+    () => ({ isSettingsOpen, activeHref, setActiveHref, openSettingsDrawer, openSettingsPanel, closeSettingsDrawer, toggleSettingsDrawer }),
+    [isSettingsOpen, activeHref, openSettingsDrawer, openSettingsPanel, closeSettingsDrawer, toggleSettingsDrawer]
+  );
 
   return (
-    <SettingsDrawerContext.Provider value={{ isSettingsOpen, openSettingsDrawer, closeSettingsDrawer, toggleSettingsDrawer }}>
+    <SettingsDrawerContext.Provider value={value}>
       {children}
     </SettingsDrawerContext.Provider>
   );
@@ -123,21 +156,12 @@ function DrawerLoader() {
 // clickable. The menu is a narrow list; opening a setting widens the same
 // panel over the page.
 export function SettingsDrawer({ docked = false }: { docked?: boolean }) {
-  const { isSettingsOpen, closeSettingsDrawer } = useSettingsDrawer();
-  const [theme] = useAdminTheme();
+  const { isSettingsOpen, activeHref, setActiveHref, closeSettingsDrawer } = useSettingsDrawer();
+  const [theme, setTheme] = useAdminTheme();
   const pathname = usePathname();
-  const [activeHref, setActiveHref] = useState<string | null>(null);
 
-  // Reset to menu whenever the drawer closes
-  if (!isSettingsOpen && activeHref !== null) {
-    setActiveHref(null);
-  }
-
-  // Close drawer + reset to menu
-  const handleClose = () => {
-    setActiveHref(null);
-    closeSettingsDrawer();
-  };
+  // Close drawer + reset to menu (the context resets activeHref on close)
+  const handleClose = closeSettingsDrawer;
 
   // Open a sub-page inside the drawer (no router.push — parent page stays put)
   const handleOptionClick = (href: string) => {
@@ -275,6 +299,31 @@ export function SettingsDrawer({ docked = false }: { docked?: boolean }) {
                       </li>
                     );
                   })}
+                  {group.id === 'app' && (
+                    <li>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={theme === 'dark'}
+                        aria-label="Dark mode"
+                        onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                        className="group flex w-full items-center gap-3 px-5 py-3 text-left transition-colors duration-150 hover:bg-[#131C2E] admin-light:hover:bg-[#F8FAFC] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4]"
+                      >
+                        <Moon
+                          size={16}
+                          aria-hidden="true"
+                          className="shrink-0 text-slate-500 admin-light:text-slate-600 group-hover:text-slate-300 admin-light:group-hover:text-slate-900"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium text-slate-200 admin-light:text-slate-800 group-hover:text-white admin-light:group-hover:text-slate-900">Dark mode</span>
+                          <span className="mt-0.5 block truncate text-[11px] text-slate-500">Switch between dark and light appearance.</span>
+                        </span>
+                        <span aria-hidden="true" className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${theme === 'dark' ? 'bg-[#62A0EA]' : 'bg-slate-600 admin-light:bg-slate-300'}`}>
+                          <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${theme === 'dark' ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+                        </span>
+                      </button>
+                    </li>
+                  )}
                 </ul>
               </section>
             ))}

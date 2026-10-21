@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { mdiJeepney } from "@mdi/js";
+import { COMMUTER_PIN_SIZE, commuterPinHtml } from "@/components/maps/commuter-pin";
 import { haversineMeters } from "@/lib/utils/geo";
 import type { ConductorHailRequest } from "@/lib/conductor/types";
 import { useRouteGeometry } from "@/hooks/use-route-geometry";
@@ -145,8 +147,8 @@ export default function ConductorMap({
     className: "custom-vehicle-icon",
     html: `
       <div style="width: 44px; height: 44px; background: #071A2E; border-radius: 50%; border: 2.5px solid ${markerPresentation.color}; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 12px rgba(0,0,0,0.5), 0 0 10px ${markerPresentation.glow}; transition: border-color 200ms ease, box-shadow 200ms ease;">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${markerPresentation.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H18.75m-7.5-10.5H6.375c-.621 0-1.125.504-1.125 1.125v6.75m12-6.75h-3.375c-.621 0-1.125.504-1.125 1.125v6.75m0 0H5.625m12-6.75h-1.5m-1.5 0h-1.5" />
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="${markerPresentation.color}" aria-hidden="true">
+          <path d="${mdiJeepney}" />
         </svg>
       </div>
     `,
@@ -155,18 +157,13 @@ export default function ConductorMap({
     popupAnchor: [0, -25],
   }), [markerPresentation]);
 
-  // Hailing Commuter Marker
+  // Hailing Commuter Marker — MDI account icon on Signal Orange
   const hailingIcon = useMemo(() => new L.DivIcon({
     className: "custom-hailing-icon",
-    html: `
-      <div style="position: relative; width: 20px; height: 20px;">
-        <div style="position: absolute; inset: 0; background: #FF6D3A; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 10px rgba(255,109,58,0.6); z-index: 2;"></div>
-        <div style="position: absolute; inset: -5px; background: rgba(255,109,58,0.3); border-radius: 50%; animation: pulse 2s infinite; z-index: 1;"></div>
-      </div>
-    `,
-    iconSize: [20, 20],
-    iconAnchor: [10, 10],
-    popupAnchor: [0, -15],
+    html: commuterPinHtml("#FF6D3A"),
+    iconSize: [COMMUTER_PIN_SIZE, COMMUTER_PIN_SIZE],
+    iconAnchor: [COMMUTER_PIN_SIZE / 2, COMMUTER_PIN_SIZE / 2],
+    popupAnchor: [0, -(COMMUTER_PIN_SIZE / 2 + 4)],
   }), []);
 
   if (!isDomReady) {
@@ -193,7 +190,9 @@ export default function ConductorMap({
         <Polyline positions={routeGeometry.routeCoords} pathOptions={{ color: '#62A0EA', weight: 4, opacity: 0.9, dashArray: '10 10', lineCap: 'round', lineJoin: 'round' }} />
 
         {/* 1km Radius Circle — conductor's operational pickup zone */}
-        <Circle center={vehiclePosition} radius={RADIUS_M} pathOptions={{ color: markerPresentation.color, fillColor: markerPresentation.color, fillOpacity: 0.05, weight: 1.5, opacity: 0.3, dashArray: '8 4' }} />
+        {/* Neutral white so the zone doesn't compete with the marker, which
+            already carries the capacity/break colour. */}
+        <Circle center={vehiclePosition} radius={RADIUS_M} pathOptions={{ color: '#FFFFFF', fillColor: '#FFFFFF', fillOpacity: 0.05, weight: 1.5, opacity: 0.3, dashArray: '8 4' }} />
 
         <Marker position={vehiclePosition} icon={vehicleIcon}>
           <UnitPopup
@@ -266,10 +265,6 @@ export default function ConductorMap({
         }
         .leaflet-popup-close-button {
           color: #071A2E !important;
-        }
-        @keyframes pulse {
-          0% { transform: scale(1); opacity: 1; }
-          100% { transform: scale(2.5); opacity: 0; }
         }
       `}</style>
     </>

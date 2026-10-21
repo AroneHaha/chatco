@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { FileText, ImageIcon, Upload, X } from 'lucide-react';
+import { compressImage, IMAGE_COMPRESSION } from '@/lib/utils/compress-image';
 import { EDUCATION_LABELS, ENROLLMENT_TERMS, HIGH_SCHOOL_GRADES, type EducationLevel, type DiscountApplication } from '@/lib/shared/services/student-renewal.service';
 
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -15,8 +16,12 @@ export function useDiscountProof() {
   const [gradeLevel, setGradeLevel] = useState('');
   const [schoolYear, setSchoolYear] = useState('');
   const [term, setTerm] = useState('');
-  const [document, setDocument] = useState<File | null>(null);
+  const [document, setDocumentState] = useState<File | null>(null);
   const [fileError, setFileError] = useState('');
+  // Bumped on every pick/clear so a compression that finishes after the
+  // document was cleared or replaced cannot overwrite the newer state.
+  const pick = useRef(0);
+  const setDocument = useCallback((file: File | null) => { pick.current += 1; setDocumentState(file); }, []);
   const incomplete = !schoolName.trim() || !educationLevel || !schoolYear.trim()
     || (educationLevel === 'HIGH_SCHOOL' && !gradeLevel) || (educationLevel === 'COLLEGE' && !term.trim());
   const prefill = useCallback((previous: DiscountApplication) => {
@@ -26,13 +31,17 @@ export function useDiscountProof() {
     setSchoolYear(previous.school_year ?? '');
     setTerm(ENROLLMENT_TERMS.some(item => item === previous.enrollment_term) ? previous.enrollment_term ?? '' : '');
   }, []);
-  const chooseDocument = (event: ChangeEvent<HTMLInputElement>) => {
+  const chooseDocument = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]; event.target.value = '';
     if (!file) return;
     if (file.size > MAX_BYTES || !ACCEPTED_TYPES.includes(file.type)) {
       setFileError('Choose a JPG, PNG, WebP, or PDF document up to 5 MB.'); return;
     }
-    setFileError(''); setDocument(file);
+    setFileError('');
+    const current = ++pick.current;
+    // PDFs come back unchanged; images are downscaled before upload.
+    const compressed = await compressImage(file, IMAGE_COMPRESSION.document);
+    if (current === pick.current) setDocumentState(compressed);
   };
   const formData = (student = true, includeDocument = true) => {
     const body = new FormData();
@@ -47,6 +56,29 @@ export function useDiscountProof() {
   };
   return { schoolName, setSchoolName, educationLevel, setEducationLevel, gradeLevel, setGradeLevel,
     schoolYear, setSchoolYear, term, setTerm, document, setDocument, fileError, chooseDocument, incomplete, prefill, formData };
+}
+
+/**
+ * The chosen image itself, so the commuter can check it is the right, readable
+ * document before sending. Read as a data URL rather than an object URL: no
+ * URL to revoke, so React's dev double-mount can't leave a dead preview. The
+ * file is already compressed (IMAGE_COMPRESSION.document) by this point.
+ */
+function ImagePreview({ file }: { file: File }) {
+  const [preview, setPreview] = useState<{ file: File; url: string } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const reader = new FileReader();
+    reader.onload = () => { if (!cancelled && typeof reader.result === 'string') setPreview({ file, url: reader.result }); };
+    reader.readAsDataURL(file);
+    return () => { cancelled = true; if (reader.readyState === FileReader.LOADING) reader.abort(); };
+  }, [file]);
+
+  // A stale preview from the previously chosen file is never shown.
+  const url = preview?.file === file ? preview.url : null;
+  if (!url) return <><ImageIcon size={28} aria-hidden="true" className="text-[#99C1F1] light:text-[#1A5FB4]" />Loading preview…</>;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={url} alt={`Preview of ${file.name}`} className="h-full w-full object-contain p-2" />;
 }
 
 export function DiscountProofFields({ proof, busy, proofId, year, student = true, documentLabel = 'Enrollment proof', studentSectionSpacing = false, showDocument = true }: {
@@ -106,7 +138,7 @@ export function DiscountProofFields({ proof, busy, proofId, year, student = true
           <div className="flex h-48 flex-col items-center justify-center gap-2 border-b border-white/10 bg-[#0E1628] light:border-gray-200 light:bg-gray-50 text-xs text-white/50 light:text-gray-500 sm:h-56">
             {document.type === 'application/pdf'
               ? <><FileText size={28} aria-hidden="true" className="text-[#99C1F1] light:text-[#1A5FB4]" />PDF document</>
-              : <><ImageIcon size={28} aria-hidden="true" className="text-[#99C1F1] light:text-[#1A5FB4]" />Image preview</>}
+              : <ImagePreview file={document} />}
           </div>
         ) : (
           <label className={`flex h-48 flex-col items-center justify-center gap-2 border-b border-white/10 bg-[#0E1628] light:border-gray-200 light:bg-gray-50 text-sm font-medium transition-colors focus-within:ring-2 focus-within:ring-inset focus-within:ring-[#62A0EA]/60 sm:h-56 ${busy ? 'opacity-50' : 'cursor-pointer hover:bg-[#131C2E] light:hover:bg-gray-100'}`}>

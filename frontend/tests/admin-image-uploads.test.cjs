@@ -116,6 +116,7 @@ test('onsite picker permits selecting the same file again and guards double subm
   class Reader { readAsDataURL() { reads++; this.result = 'data:image/jpeg;base64,image'; this.onload(); } abort() {} }
   const render = ui('components/admin/users/add-registration-modal.tsx', 'AddRegistrationModal', {
     '@/components/admin/ui/modal': { Modal: 'Modal' }, '@/lib/utils/format': { formatContactNumberInput: v => v },
+    '@/components/admin/ui/admin-date-picker': { AdminDatePicker: 'AdminDatePicker' },
     '@/components/Stepper': { StepContentWrapper: 'StepContentWrapper' },
     '@/components/commuter/discount-proof-fields': { useDiscountProof: () => ({ schoolName: '', educationLevel: '', gradeLevel: '', term: '', schoolYear: '' }) },
     '@/lib/shared/services/student-renewal.service': { EDUCATION_LABELS: {}, ENROLLMENT_TERMS: [], HIGH_SCHOOL_GRADES: [] },
@@ -124,6 +125,10 @@ test('onsite picker permits selecting the same file again and guards double subm
   const choose = render().find(n => n.type === 'input' && n.props.type === 'file').props.onChange;
   const event = pick(file); choose(event); assert.equal(event.target.value, ''); choose(pick(file)); assert.equal(reads, 2);
   const submit = () => render().find(n => n.type === 'form').props.onSubmit({ preventDefault() {} });
+  await submit();
+  assert.equal(submissions, 0);
+  assert.ok(render().some(n => n.props.children === 'Select a date of birth to continue.'));
+  render().find(n => n.type === 'AdminDatePicker').props.onChange('2000-01-01');
   await submit(); // Details -> account/review.
   const pending = submit(); await submit(); assert.equal(submissions, 1);
   finish.reject(new Error('Upload failed')); await pending;

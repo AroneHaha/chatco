@@ -48,16 +48,16 @@ export function statusBadge(status: string): { label: string; variant: BadgeVari
     : { label: 'Unknown', variant: 'neutral' };
 }
 
-/** Payment-method pill styling. Keyed the same way, with the same fail-safe. */
+/** Payment-method text color. Keyed the same way, with the same fail-safe. */
 const METHOD_STYLES: Record<PaymentMethod, string> = {
-  Cash: 'bg-emerald-500/15 text-emerald-400 admin-light:text-emerald-700',
-  Gcash: 'bg-[#62A0EA]/15 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4]',
-  Voucher: 'bg-pink-500/15 text-pink-400 admin-light:text-pink-700',
-  Unknown: 'bg-slate-500/15 text-slate-300 admin-light:text-slate-700',
+  Cash: 'text-emerald-400 admin-light:text-emerald-700',
+  Gcash: 'text-[#62A0EA] admin-light:text-[#1A5FB4]',
+  Voucher: 'text-pink-400 admin-light:text-pink-700',
+  Unknown: 'text-slate-300 admin-light:text-slate-700',
 };
 
 /**
- * Resolve a payment method to its pill classes. An unrecognised method must
+ * Resolve a payment method to its text color. An unrecognised method must
  * not fall through to Cash — Cash is the method the conductor physically
  * remits, so mislabelling inflates the expected cash drawer.
  */

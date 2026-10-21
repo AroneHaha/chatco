@@ -382,6 +382,8 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     // reported items, reviews claims (approve/reject), and closes released
     // items. Commuter-side browse + claim live in the /lost-found group.
     Route::get('/lost-items', [AdminLostItemController::class, 'index'])->middleware('throttle:conductor-read');
+    // Keep this static path before /lost-items/{itemId} for the dashboard feed.
+    Route::get('/lost-items/recent-claims', [AdminLostItemController::class, 'recentClaims'])->middleware('throttle:conductor-read');
     Route::post('/lost-items', [AdminLostItemController::class, 'store'])->middleware('throttle:admin-write');
     Route::get('/lost-items/{itemId}', [AdminLostItemController::class, 'show'])->middleware('throttle:conductor-read');
     // Bulk route sits above the {itemId} PATCH so "reactivate" is never read as an item id.

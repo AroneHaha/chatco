@@ -64,11 +64,26 @@ export interface DemandZone {
 export interface MonitoringData {
   sosAlerts: SosAlert[];
   sosHistory: SosHistoryLog[];
+  sosHistoryTotal: number;
+  sosHistoryLastPage: number;
   overspeedHistory: OverspeedLog[];
   overspeedTotal: number;
   overspeedLastPage: number;
   demandZones: DemandZone[];
 }
+
+export type SafetyHistorySort = "recent" | "oldest";
+export type SosHistoryOutcome = "ALL" | "RESOLVED" | "CANCELLED";
+
+/** One server-side page of SOS History; filtered and paginated in SQL. */
+export interface SosHistoryQuery {
+  page: number;
+  date: string;
+  outcome: SosHistoryOutcome;
+}
+
+export const SOS_HISTORY_PER_PAGE = 10;
+const DEFAULT_SOS_HISTORY_QUERY: SosHistoryQuery = { page: 1, date: "", outcome: "ALL" };
 
 /* ─── MOCK DATA removed — overspeed now fetched from real API ─── */
 /* Demand zones require commuter location tracking which doesn't exist yet —
@@ -204,9 +219,17 @@ function mapHistory(raw: BackendAlert): SosHistoryLog {
 
 const POLL_INTERVAL_MS = 5000;
 
-export function useMonitoringData(overspeedPage = 1, overspeedDate = "") {
+export function useMonitoringData(
+  overspeedPage = 1,
+  overspeedDate = "",
+  historySort: SafetyHistorySort = "recent",
+  sosHistoryQuery: SosHistoryQuery = DEFAULT_SOS_HISTORY_QUERY,
+) {
+  const { page: sosHistoryPage, date: sosHistoryDate, outcome: sosHistoryOutcome } = sosHistoryQuery;
   const [sosAlerts, setSosAlerts] = useState<SosAlert[]>([]);
   const [sosHistory, setSosHistory] = useState<SosHistoryLog[]>([]);
+  const [sosHistoryTotal, setSosHistoryTotal] = useState(0);
+  const [sosHistoryLastPage, setSosHistoryLastPage] = useState(1);
   const [overspeedHistory, setOverspeedHistory] = useState<OverspeedLog[]>([]);
   const [overspeedTotal, setOverspeedTotal] = useState(0);
   const [overspeedLastPage, setOverspeedLastPage] = useState(1);
@@ -220,6 +243,7 @@ export function useMonitoringData(overspeedPage = 1, overspeedDate = "") {
   const closedIds = useRef<Set<string>>(new Set());
   const activeRequestId = useRef(0);
   const historyRequestId = useRef(0);
+  const overspeedRequestId = useRef(0);
   const retryAtRef = useRef(0);
 
   const requestMonitoring = useCallback(async (url: string) => {
@@ -258,7 +282,18 @@ export function useMonitoringData(overspeedPage = 1, overspeedDate = "") {
   const fetchHistory = useCallback(async () => {
     const requestId = ++historyRequestId.current;
     try {
-      const res = await requestMonitoring("/api/admin/sos?status=RESOLVED&per_page=50");
+      // Date, outcome and sort are applied in SQL across all history, not
+      // within one fetched batch, so an older day, a narrow filter or
+      // "Oldest first" still finds every match and the totals are exact.
+      const params = new URLSearchParams({
+        status: "RESOLVED",
+        page: String(sosHistoryPage),
+        per_page: String(SOS_HISTORY_PER_PAGE),
+        sort: historySort,
+      });
+      if (sosHistoryDate) params.set("date", sosHistoryDate);
+      if (sosHistoryOutcome !== "ALL") params.set("outcome", sosHistoryOutcome);
+      const res = await requestMonitoring(`/api/admin/sos?${params}`);
       if (!res) return;
       if (!res.ok) return;
       const data = await res.json();
@@ -268,19 +303,23 @@ export function useMonitoringData(overspeedPage = 1, overspeedDate = "") {
       rawAlerts.forEach((a) => closedIds.current.add(a.id));
       setSosAlerts((prev) => prev.filter((a) => !closedIds.current.has(a.id)));
       setSosHistory(rawAlerts.map(mapHistory));
+      setSosHistoryTotal(Number(data.meta?.total ?? rawAlerts.length));
+      setSosHistoryLastPage(Math.max(1, Number(data.meta?.last_page ?? 1)));
     } catch {
       // History is best-effort on poll; don't surface as a hard error.
     }
-  }, [requestMonitoring]);
+  }, [historySort, requestMonitoring, sosHistoryDate, sosHistoryOutcome, sosHistoryPage]);
 
   const fetchOverspeed = useCallback(async () => {
+    const requestId = ++overspeedRequestId.current;
     try {
-      const params = new URLSearchParams({ page: String(overspeedPage), per_page: "10" });
+      const params = new URLSearchParams({ page: String(overspeedPage), per_page: "10", sort: historySort });
       if (overspeedDate) params.set("date", overspeedDate);
       const res = await requestMonitoring(`/api/admin/monitoring/overspeed?${params}`);
       if (!res) return;
       if (!res.ok) return;
       const data = await res.json();
+      if (requestId !== overspeedRequestId.current) return;
       const paginator = data.data ?? {};
       const raw = (paginator.data ?? []) as Array<{
         id: string; unit: string; plate: string; speed: number;
@@ -303,7 +342,7 @@ export function useMonitoringData(overspeedPage = 1, overspeedDate = "") {
     } catch {
       // Overspeed is best-effort
     }
-  }, [overspeedDate, overspeedPage, requestMonitoring]);
+  }, [historySort, overspeedDate, overspeedPage, requestMonitoring]);
 
   const fetchDemandZones = useCallback(async () => {
     try {
@@ -338,20 +377,27 @@ export function useMonitoringData(overspeedPage = 1, overspeedDate = "") {
     fetchOverspeedRef.current = fetchOverspeed;
     void fetchOverspeed();
   }, [fetchOverspeed]);
+  const fetchHistoryRef = useRef(fetchHistory);
+  useEffect(() => {
+    fetchHistoryRef.current = fetchHistory;
+    void fetchHistory();
+  }, [fetchHistory]);
 
   // Initial fetch + polling. Coalesce focus/online/visibility events and let
   // slow refreshes finish before issuing the next batch.
   useEffect(() => {
     let inFlight = false;
     let lastRefreshAt = 0;
-    const refreshAll = (includeOverspeed = true) => {
+    // The filtered history feeds already fetched on mount via their own
+    // effects, so the first pass skips them.
+    const refreshAll = (includeHistoryFeeds = true) => {
       if (document.visibilityState !== "visible") return;
       if (inFlight || Date.now() - lastRefreshAt < 1000) return;
       inFlight = true;
       lastRefreshAt = Date.now();
       void Promise.all([
-        fetchActive(), fetchHistory(), fetchDemandZones(),
-        ...(includeOverspeed ? [fetchOverspeedRef.current()] : []),
+        fetchActive(), fetchDemandZones(),
+        ...(includeHistoryFeeds ? [fetchHistoryRef.current(), fetchOverspeedRef.current()] : []),
       ]).finally(() => { inFlight = false; });
     };
 
@@ -368,7 +414,7 @@ export function useMonitoringData(overspeedPage = 1, overspeedDate = "") {
       window.removeEventListener("online", onRefresh);
       document.removeEventListener("visibilitychange", onRefresh);
     };
-  }, [fetchActive, fetchHistory, fetchDemandZones]);
+  }, [fetchActive, fetchDemandZones]);
 
   // ── Actions ──
 
@@ -438,6 +484,8 @@ export function useMonitoringData(overspeedPage = 1, overspeedDate = "") {
   const data: MonitoringData = {
     sosAlerts,
     sosHistory,
+    sosHistoryTotal,
+    sosHistoryLastPage,
     overspeedHistory,
     overspeedTotal,
     overspeedLastPage,

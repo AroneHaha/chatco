@@ -12,8 +12,6 @@ const LINKS = [
   { label: "How It Works", id: "how-it-works" },
   { label: "Features", id: "features" },
   { label: "Why CHATCO", id: "platform" },
-  { label: "Safety", id: "safety" },
-  { label: "About", id: "about" },
   { label: "Download", id: "download" },
   { label: "Contact", id: "contact" },
 ];

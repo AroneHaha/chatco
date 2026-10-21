@@ -73,6 +73,12 @@ class AdminLostItemController extends Controller
         return $this->successResponse($items, 'Lost items retrieved');
     }
 
+    /** GET /admin/lost-items/recent-claims */
+    public function recentClaims(): JsonResponse
+    {
+        return $this->successResponse($this->lostItemService->recentClaims(5), 'Recent claims retrieved');
+    }
+
     /**
      * POST /admin/lost-items
      */

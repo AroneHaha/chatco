@@ -4,6 +4,7 @@ import { useRef } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { SettingsModule } from "@/app/(admin)/admin-dashboard/data/dashboard-data";
+import { isSettingsPanelHref, useSettingsDrawer } from "@/components/admin/ui/settings-drawer";
 
 interface DashboardSettingsCarouselProps {
   modules: SettingsModule[];
@@ -11,6 +12,17 @@ interface DashboardSettingsCarouselProps {
 
 export function DashboardSettingsCarousel({ modules }: DashboardSettingsCarouselProps) {
   const carouselRef = useRef<HTMLDivElement>(null);
+  const { openSettingsPanel } = useSettingsDrawer();
+
+  // Settings links open their panel in the Settings drawer instead of the
+  // full page. Modifier/middle clicks fall through so "open in new tab"
+  // still reaches the direct page.
+  const handleModuleClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (!isSettingsPanelHref(href)) return;
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    openSettingsPanel(href);
+  };
 
   const scroll = (direction: "left" | "right") => {
     if (carouselRef.current) {
@@ -55,6 +67,7 @@ export function DashboardSettingsCarousel({ modules }: DashboardSettingsCarousel
           <Link
             key={mod.title}
             href={mod.href}
+            onClick={(e) => handleModuleClick(e, mod.href)}
             className="shrink-0 w-70 h-35 rounded-lg p-5 flex flex-col justify-between group snap-start border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white hover:border-[#2A3A55] admin-light:hover:border-[#CBD5E1] hover:bg-[#131C2E] admin-light:hover:bg-[#F8FAFC] transition-colors"
           >
             <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 bg-[#1A2540] admin-light:bg-[#F1F5F9] text-slate-400 admin-light:text-slate-500">

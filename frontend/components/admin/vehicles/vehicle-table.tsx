@@ -4,10 +4,11 @@
 import { DataTable } from '@/components/admin/ui/data-table';
 import { TablePagination } from '@/components/admin/ui/table-pagination';
 import { SearchBar } from '@/components/admin/ui/search-bar';
-import { Pencil, Clock, Car, Plus, Trash2, Eye } from 'lucide-react'; // Added icons
+import { Pencil, Clock, Plus, Trash2, Eye } from 'lucide-react';
 import type { PageMeta, Vehicle } from '@/app/(admin)/vehicles/data/vehicles-data';
 import { SkeletonTable } from '@/components/admin/ui/skeleton';
 import { RowActionsMenu } from '@/components/admin/ui/row-actions-menu';
+import { mdiJeepney } from '@mdi/js';
 
 // REMOVED the hardcoded mockVehicles array since we are getting it from the page now
 
@@ -46,8 +47,10 @@ export function VehicleTable({
       cellClassName: 'whitespace-nowrap',
       render: (value: string) => (
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-[#62A0EA]/20 admin-light:border-[#1A5FB4]/20 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4]">
-            <Car size={17} />
+          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center text-slate-400 admin-light:text-slate-500">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d={mdiJeepney} />
+            </svg>
           </div>
           <p className="font-semibold text-white admin-light:text-slate-900">{value}</p>
         </div>
