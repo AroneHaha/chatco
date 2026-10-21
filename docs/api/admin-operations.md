@@ -234,6 +234,27 @@ A **unified** view of remittances: real `Remittance` rows (ended shifts) stitche
 
 `is_active_shift` distinguishes a still-running shift (synthesized row, `remittance_status` forced to `PENDING`, no real `Remittance` row exists yet) from a genuine ended-but-unsettled remittance — only the latter can take the [cash-declaration](#post-adminremittancesshiftidcash-declaration) action.
 
+**`summary=1` (opt-in):** adds a `summary` object to the envelope, aggregated over **every** filtered row (not just the returned page — the admin summary cards request it with `per_page=1`). Omitted entirely when the flag isn't sent, so existing callers are unchanged.
+
+```json
+"summary": {
+  "total_passengers": 412, "cash_total": 9850.0, "gcash_total": 2310.0,
+  "shortage_total": 125.0, "overage_total": 40.0,
+  "for_cash_declaration_count": 3, "overdue_count": 1,
+  "trend": [
+    { "start": "2026-10-16", "end": "2026-10-16", "passengers": 58, "cash": 1310.0, "gcash": 290.0, "shortage": 0.0, "overage": 15.0, "for_cash_declaration": 0, "overdue": 0 },
+    "… oldest first, the last bucket ends today (or on `date`) …"
+  ]
+}
+```
+
+| Field | Counts |
+|---|---|
+| `total_passengers`, `cash_total`, `gcash_total`, `shortage_total`, `overage_total` | Declared shifts only (`COMPLETE`/`SHORTAGE`/`OVERAGE`/legacy `"Remitted"`), and only on or after `date_from` — the PENDING carry-overs and last-24h active shifts `date_from` also pulls in are excluded. `cash_total` is the expected cash, not the admin's declared count. |
+| `for_cash_declaration_count` | Ended `PENDING` remittances not yet overdue, **including** carry-overs from before `date_from` (the admin table keeps those visible until declared). Active shifts never count. |
+| `overdue_count` | Ended `PENDING` remittances past `remittance_due_at`, same scope as above. |
+| `trend` | The same figures per bucket, zero-filled, oldest first, ending on `date` when given, otherwise today (Asia/Manila) — fleet-wide, ignoring the other filters. `trend_by` picks the buckets: `day` (default) = 7 single days; `week` = 6 rolling 7-day windows (the last equals "last 7 days"); `month` = 6 calendar months, the last running to the end date. One grouped-by-date query on `remittances.date`, bucketed in PHP. `for_cash_declaration`/`overdue` count still-undeclared shifts by the day the shift ran. Feeds the summary cards' sparklines. |
+
 ### POST /admin/remittances/{shiftId}/cash-declaration
 
 The admin's physical cash count for an ended shift's `PENDING` remittance. This is the **only** place cash is actually counted — the conductor's own `POST /conductor/remittances` deliberately ignores whatever cash figure it's sent (see [conductor.md](conductor.md#post-conductorremittances)).
