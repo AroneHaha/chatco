@@ -218,9 +218,8 @@ Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR', 'maint
     Route::get('/drivers', [ConductorController::class, 'drivers'])->middleware('throttle:conductor-read');
     Route::get('/receipt-settings', [ConductorController::class, 'receiptSettings'])->middleware('throttle:conductor-read');
 
-    // Ratings for a shift the conductor crewed — powers the metrics page.
-    // shift_id is required; the service scopes rows to auth()->id() so a
-    // conductor can only read feedback for their own shifts.
+    // Metrics use scope=all_time for numeric summaries across all crewed shifts.
+    // The shift_id lookup is retained; both modes are scoped to auth()->id().
     Route::get('/ratings', [ConductorController::class, 'ratings'])->middleware('throttle:conductor-read');
 
     // Mutations — strict limit (one shift per conductor at a time anyway).

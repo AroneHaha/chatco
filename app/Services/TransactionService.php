@@ -15,10 +15,12 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Voucher;
 use App\Support\Payments\PaymentGatewayException;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -499,11 +501,32 @@ class TransactionService
             );
         }, 3);
 
-        // One pending GCash payment per shift: if a still-fresh PENDING
-        // transaction exists (e.g. the conductor navigated away mid-payment
-        // and came back), return it instead of minting a duplicate QR. Stale
-        // rows are lazily expired first, which frees the slot for a new one.
-        $existing = $this->findFreshPendingGcashForShift($shift->shift_id);
+        // Serialize initiation per shift. The reuse check and the creation
+        // run in separate DB transactions (the PayMongo call after creation
+        // must not run under a row lock), so without this two near-identical
+        // requests (double tap, web + mobile) could both miss the check and
+        // create two live payments for one fare. The second request waits for
+        // the first, then reuses its payment.
+        try {
+            return Cache::lock("gcash-initiate:{$shift->shift_id}", 120)
+                ->block(15, fn (): array => $this->reuseOrCreateGcashFare($shift, $data));
+        } catch (LockTimeoutException) {
+            abort(409, 'A GCash payment is still being created for this shift. Try again in a moment.');
+        }
+    }
+
+    /**
+     * Body of initiateGcashFare(), run while holding the per-shift lock.
+     */
+    private function reuseOrCreateGcashFare(ShiftLog $shift, array $data): array
+    {
+        // One active GCash payment per shift: if a PENDING (still claimable)
+        // or PROCESSING (authorized, awaiting PayMongo) transaction exists
+        // (e.g. the conductor navigated away mid-payment and came back),
+        // return it instead of minting a duplicate QR. A PROCESSING payment
+        // can still settle, so a replacement could charge the commuter twice.
+        // Stale PENDING rows are lazily expired first, which frees the slot.
+        $existing = $this->findActiveGcashForShift($shift->shift_id);
         if ($existing) {
             return $this->gcashInitiationPayload($existing);
         }
@@ -652,13 +675,14 @@ class TransactionService
     }
 
     /**
-     * The conductor's currently-resumable PENDING GCash transaction, or null.
+     * The conductor's currently-active (PENDING or PROCESSING) GCash
+     * transaction, or null.
      *
      * Powers GET /conductor/payments/gcash/pending: when the conductor left
      * the payment screen (navigation, refresh) the frontend calls this on
-     * reopen and shows the SAME QR + details instead of a new one. Returns
-     * null when there is no active shift, no pending GCash row, or the row
-     * just lazily expired.
+     * reopen and shows the SAME payment + status instead of a new one.
+     * Returns null when there is no active shift, no active GCash row, or the
+     * row just resolved / lazily expired.
      */
     public function findPendingGcashForConductor(User $conductor): ?array
     {
@@ -672,22 +696,28 @@ class TransactionService
             return null;
         }
 
-        $transaction = $this->findFreshPendingGcashForShift($shift->shift_id);
+        $transaction = $this->findActiveGcashForShift($shift->shift_id);
 
         return $transaction ? $this->gcashInitiationPayload($transaction) : null;
     }
 
     /**
-     * Latest PENDING GCash transaction for a shift that is still within the
-     * claim TTL. Stale rows are lazily flipped to EXPIRED (through the
-     * payment state machine) as a side effect, so callers never see — or
-     * resume — a QR that can no longer be claimed.
+     * Latest unresolved GCash transaction for a shift: PENDING within the
+     * claim TTL, or PROCESSING (authorized, awaiting PayMongo — never expired
+     * by the TTL because it can still settle).
+     *
+     * The row is reconciled with the provider first (throttled), so a
+     * delayed payment keeps being checked whenever the conductor opens the
+     * fare screen, even with the QR screen closed and no scheduler running.
+     * Stale PENDING rows are then lazily flipped to EXPIRED (through the
+     * payment state machine), so callers never resume a QR that can no
+     * longer be claimed.
      */
-    private function findFreshPendingGcashForShift(string $shiftId): ?Transaction
+    private function findActiveGcashForShift(string $shiftId): ?Transaction
     {
         $transaction = Transaction::where('shift_id', $shiftId)
             ->where('payment_method', PaymentMethod::GCASH->value)
-            ->where('status', PaymentStatus::PENDING->value)
+            ->whereIn('status', [PaymentStatus::PENDING->value, PaymentStatus::PROCESSING->value])
             ->whereNotNull('qr_token')
             ->latest('created_at')
             ->first();
@@ -696,15 +726,17 @@ class TransactionService
             return null;
         }
 
+        $transaction = $this->paymentService->reconcileIfDue($transaction);
         $transaction = $this->paymentService->expireIfStale($transaction);
 
-        return $transaction->status === PaymentStatus::PENDING ? $transaction : null;
+        return $transaction->status->isPending() ? $transaction : null;
     }
 
     /**
-     * Shape a PENDING GCash transaction into the initiate-response payload
+     * Shape an active GCash transaction into the initiate-response payload
      * (same keys whether freshly created or resumed). expires_at is always
-     * derived from created_at + TTL — the same clock claimGcash checks.
+     * derived from created_at + TTL — the same clock claimGcash checks; it
+     * only bounds claiming, so a PROCESSING row past it is still live.
      */
     private function gcashInitiationPayload(Transaction $transaction): array
     {
@@ -726,6 +758,7 @@ class TransactionService
             'receipts' => $transaction->group_id
                 ? Transaction::where('group_id', $transaction->group_id)->orderBy('group_position')->get()
                 : collect([$transaction]),
+            'confirmation_delayed' => $this->paymentService->isConfirmationDelayed($transaction),
         ];
     }
 

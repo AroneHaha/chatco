@@ -171,6 +171,8 @@ class AuthController extends Controller
                 'commuter_type' => $user->commuterProfile->commuter_type,
                 'applied_type' => $user->commuterProfile->applied_type,
                 'account_status' => $user->commuterProfile->account_status,
+                // Shown by the app shell's avatar (sidebar/dock); null = default.
+                'profile_image_url' => $user->commuterProfile->profile_image_url,
             ],
         };
 

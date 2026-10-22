@@ -85,7 +85,7 @@ return [
     | will trigger at most one provider round-trip per transaction per window.
     |
     | Only triggers when:
-    |   - the row is GCASH + PENDING (or EXPIRED, for late-settlement),
+    |   - the row is GCASH + PENDING/PROCESSING (or EXPIRED, for late-settlement),
     |   - it has a payment_reference (real gateway, not FakeGateway),
     |   - and the cache key has expired.
     |
@@ -128,6 +128,23 @@ return [
     | Set to 0 to fail immediately on EXPIRED (pre-fix behavior — NOT recommended).
     */
     'late_settlement_grace_seconds' => (int) env('PAYMENT_LATE_SETTLEMENT_GRACE', 60),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Processing Confirmation Delay (seconds)
+    |--------------------------------------------------------------------------
+    | PROCESSING means the commuter already authorized the GCash payment and
+    | PayMongo is still settling it. Per PayMongo, that state is neither a
+    | success nor a failure, so it is never expired, failed or replaced by a
+    | timeout — it stays unresolved until the provider reports an outcome
+    | (webhook, or reconciliation via status polling / the pending lookup /
+    | payments:expire-stale).
+    |
+    | After this many seconds in PROCESSING the status endpoint reports
+    | confirmation_delayed=true so the conductor UI can say the confirmation
+    | is delayed. It is display-only and does not change the payment.
+    */
+    'processing_delay_seconds' => (int) env('PAYMENT_PROCESSING_DELAY', 180),
 
     /*
     |--------------------------------------------------------------------------

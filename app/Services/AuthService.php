@@ -7,6 +7,7 @@ use App\Enums\UserRole;
 use App\Exceptions\AccountSuspendedException;
 use App\Exceptions\MaintenanceException;
 use App\Exceptions\RegistrationPendingException;
+use App\Models\AdminProfile;
 use App\Models\CommuterProfile;
 use App\Models\ConductorProfile;
 use App\Models\ShiftLog;
@@ -39,11 +40,13 @@ class AuthService
     ) {}
 
     /**
-     * Login with email, conductor generated_username, or commuter username.
+     * Login with email, admin username, conductor generated_username, or
+     * commuter username.
      *
      * A commuter can sign in with EITHER their email OR the username they
      * chose at sign-up — both resolve to the same account. Conductors use
-     * their admin-generated username. The SoftDeletes scope on User already
+     * their admin-generated username. Admins can use their email or the
+     * username set when their account was created (User Management). The SoftDeletes scope on User already
      * excludes rejected (soft-deleted) accounts, so a freed username reused
      * by a new commuter resolves only to the live account.
      */
@@ -246,11 +249,12 @@ class AuthService
     }
 
     /**
-     * Resolve a login identifier (email, conductor generated_username, or
-     * commuter username) to a User with all profile relations eager loaded.
+     * Resolve a login identifier (email, admin username, conductor
+     * generated_username, or commuter username) to a User with all profile
+     * relations eager loaded.
      *
-     * Deliberately three targeted lookups instead of one query ORing across
-     * `email` and two `whereHas` subqueries: MySQL cannot use the unique
+     * Deliberately targeted lookups instead of one query ORing across
+     * `email` and `whereHas` subqueries: MySQL cannot use the unique
      * index on `users.email` when it's OR'd against correlated EXISTS
      * subqueries on other tables, so that shape degrades to a full table
      * scan of `users` on every login attempt (confirmed via EXPLAIN). Each
@@ -265,6 +269,11 @@ class AuthService
         $user = User::with($with)->where('email', $login)->first();
         if ($user) {
             return $user;
+        }
+
+        $adminId = AdminProfile::where('username', $login)->value('id');
+        if ($adminId) {
+            return User::with($with)->find($adminId);
         }
 
         $conductorId = ConductorProfile::where('generated_username', $login)->value('id');
