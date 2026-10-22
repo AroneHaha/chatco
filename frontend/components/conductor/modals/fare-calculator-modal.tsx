@@ -40,6 +40,7 @@ import type { PaymentMethodType } from "@/types";
 import { useConductorConnectivity } from "@/app/(conductor)/hooks/use-conductor-connectivity";
 import { usePopoverModal, useBackdropDismiss } from "@/components/conductor/modals/use-popover-modal";
 import { PopoverTail } from "@/components/conductor/modals/popover-tail";
+import { useCommuterTheme } from "@/contexts/commuter-theme-context";
 
 interface FareCalcModalProps {
   isOpen: boolean;
@@ -85,6 +86,9 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
   // Open/close timing + xl:+ popover anchoring (measures ConductorDock's
   // real Payment button) — shared with EndOfDayModal, see usePopoverModal.
   const { isRendered, backdropAnim, panelAnim, panelAnchorStyle, anchorOffset } = usePopoverModal(isOpen, "conductor-payment-anchor");
+  // The popover tail takes an inline fill, which `light:` classes can't reach.
+  const isLight = useCommuterTheme() === "light";
+  const panelTailColor = isLight ? "#FFFFFF" : "#071A2E";
   const [selectedMethod, setSelectedMethod] = useState<SelectedPaymentMethod | null>(null);
   const [pointAreas, setPointAreas] = useState<PointArea[]>(() => getPointAreas());
   const [pickupPoint, setPickupPoint] = useState<PointArea | null>(null);
@@ -697,14 +701,14 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
   // Color utility classes for pickup/dropoff indicators
   const pickupDotClass = isSameBarangay ? "bg-violet-500" : "bg-emerald-500";
   const dropoffDotClass = isSameBarangay ? "bg-violet-500" : "bg-red-500";
-  const pickupBorderClass = isSameBarangay ? "border-violet-500/50 bg-violet-500/10" : "border-emerald-500/50 bg-emerald-500/10";
-  const dropoffBorderClass = isSameBarangay ? "border-violet-500/50 bg-violet-500/10" : "border-red-500/50 bg-red-500/10";
-  const pickupBadgeClass = isSameBarangay ? "text-violet-400 bg-violet-500/10" : "text-emerald-400 bg-emerald-500/10";
-  const dropoffBadgeClass = isSameBarangay ? "text-violet-400 bg-violet-500/10" : "text-red-400 bg-red-500/10";
+  const pickupBorderClass = isSameBarangay ? "border-violet-500/50 bg-violet-500/10 light:bg-violet-50" : "border-emerald-500/50 bg-emerald-500/10 light:bg-emerald-50";
+  const dropoffBorderClass = isSameBarangay ? "border-violet-500/50 bg-violet-500/10 light:bg-violet-50" : "border-red-500/50 bg-red-500/10 light:bg-red-50";
+  const pickupBadgeClass = isSameBarangay ? "text-violet-400 light:text-violet-700 bg-violet-500/10 light:bg-violet-50" : "text-emerald-400 light:text-emerald-700 bg-emerald-500/10 light:bg-emerald-50";
+  const dropoffBadgeClass = isSameBarangay ? "text-violet-400 light:text-violet-700 bg-violet-500/10 light:bg-violet-50" : "text-red-400 light:text-red-600 bg-red-500/10 light:bg-red-50";
   const pickupTagClass = isSameBarangay ? "bg-violet-500 text-white" : "bg-emerald-500 text-white";
   const dropoffTagClass = isSameBarangay ? "bg-violet-500 text-white" : "bg-red-500 text-white";
-  const pickupLabelClass = isSameBarangay ? "text-violet-400" : "text-emerald-400";
-  const dropoffLabelClass = isSameBarangay ? "text-violet-400" : "text-red-400";
+  const pickupLabelClass = isSameBarangay ? "text-violet-400 light:text-violet-700" : "text-emerald-400 light:text-emerald-700";
+  const dropoffLabelClass = isSameBarangay ? "text-violet-400 light:text-violet-700" : "text-red-400 light:text-red-600";
 
   // ─── Clear location handlers (only reset location, NOT payment) ──
   const clearPickup = () => {
@@ -885,28 +889,28 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
   if (step === "method") {
     return (
       <div className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`} {...backdropDismiss}>
-        <PopoverTail panelColor="#071A2E" anchorOffsetPx={anchorOffset} />
-        <div className={`w-full sm:max-w-md bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-white/10 shadow-2xl ${panelAnim}`} style={panelAnchorStyle}>
+        <PopoverTail panelColor={panelTailColor} anchorOffsetPx={anchorOffset} className="light:border-gray-200" />
+        <div className={`w-full sm:max-w-md bg-[#071A2E] light:bg-white sm:rounded-2xl rounded-t-2xl border border-white/10 light:border-gray-200 shadow-2xl ${panelAnim}`} style={panelAnchorStyle}>
           {/* Header */}
-          <div className="p-5 border-b border-white/10">
+          <div className="p-5 border-b border-white/10 light:border-gray-200">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-white">Collect Payment</h2>
+              <h2 className="text-lg font-bold text-white light:text-gray-900">Collect Payment</h2>
               <button
                 onClick={handleClose}
-                className="xl:hidden text-white/40 hover:text-white transition-colors"
+                className="xl:hidden text-white/40 light:text-gray-500 hover:text-white light:hover:text-gray-900 transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <p className="text-sm text-white/40 mt-1">Choose how the commuter is paying</p>
+            <p className="text-sm text-white/40 light:text-gray-500 mt-1">Choose how the commuter is paying</p>
           </div>
 
           {/* Method Options */}
           <div className="p-5 space-y-3">
             {!isOnline && (
-              <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+              <div className="rounded-xl border border-amber-500/25 light:border-amber-200 bg-amber-500/10 light:bg-amber-50 px-3 py-2 text-xs text-amber-200 light:text-amber-800">
                 Offline mode: cash fares are saved on this device and queued for synchronization. GCash is unavailable.
               </div>
             )}
@@ -916,19 +920,19 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                 setSelectedMethod("Cash");
                 setStep("select");
               }}
-              className="w-full cursor-pointer text-left p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 transition-all duration-200 group"
+              className="w-full cursor-pointer text-left p-4 rounded-xl border border-white/10 light:border-gray-200 bg-white/5 light:bg-gray-50 hover:bg-white/10 light:hover:bg-gray-100 hover:border-white/20 light:hover:border-gray-300 transition-all duration-200 group"
             >
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-[#62A0EA]/10 border border-[#62A0EA]/20 flex items-center justify-center flex-shrink-0 group-hover:bg-[#62A0EA]/15 transition-colors">
-                  <svg className="w-6 h-6 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <div className="w-12 h-12 rounded-xl bg-[#62A0EA]/10 light:bg-[#F0F7FF] border border-[#62A0EA]/20 light:border-[#DAEEFF] flex items-center justify-center flex-shrink-0 group-hover:bg-[#62A0EA]/15 transition-colors">
+                  <svg className="w-6 h-6 text-[#62A0EA] light:text-[#1A5FB4]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
                   </svg>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-white font-bold text-sm">Cash Payment</h3>
-                  <p className="text-[11px] text-white/40 mt-0.5 leading-relaxed">Collect physical cash from the commuter and record the transaction</p>
+                  <h3 className="text-white light:text-gray-900 font-bold text-sm">Cash Payment</h3>
+                  <p className="text-[11px] text-white/40 light:text-gray-500 mt-0.5 leading-relaxed">Collect physical cash from the commuter and record the transaction</p>
                 </div>
-                <svg className="w-5 h-5 text-white/20 group-hover:text-white/50 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-5 h-5 text-white/20 light:text-gray-400 group-hover:text-white/50 light:group-hover:text-gray-600 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
                 </svg>
               </div>
@@ -942,19 +946,19 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                 setSelectedMethod("GCash");
                 setStep("select");
               }}
-              className={`w-full text-left p-4 rounded-xl border transition-all duration-200 group ${isOnline ? "cursor-pointer border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20" : "border-amber-500/20 bg-amber-500/5 opacity-60 cursor-not-allowed"}`}
+              className={`w-full text-left p-4 rounded-xl border transition-all duration-200 group ${isOnline ? "cursor-pointer border-white/10 light:border-gray-200 bg-white/5 light:bg-gray-50 hover:bg-white/10 light:hover:bg-gray-100 hover:border-white/20 light:hover:border-gray-300" : "border-amber-500/20 light:border-amber-200 bg-amber-500/5 light:bg-amber-50 opacity-60 cursor-not-allowed"}`}
             >
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-[#62A0EA]/10 border border-[#62A0EA]/20 flex items-center justify-center flex-shrink-0 group-hover:bg-[#62A0EA]/15 transition-colors">
-                  <svg className="w-6 h-6 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <div className="w-12 h-12 rounded-xl bg-[#62A0EA]/10 light:bg-[#F0F7FF] border border-[#62A0EA]/20 light:border-[#DAEEFF] flex items-center justify-center flex-shrink-0 group-hover:bg-[#62A0EA]/15 transition-colors">
+                  <svg className="w-6 h-6 text-[#62A0EA] light:text-[#1A5FB4]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" />
                   </svg>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-white font-bold text-sm">GCash Payment</h3>
-                   <p className="text-[11px] text-white/40 mt-0.5 leading-relaxed">{isOnline ? "Digital payment via GCash — commuter scans QR to pay from their account" : "Unavailable offline. Reconnect to generate a payment QR."}</p>
+                  <h3 className="text-white light:text-gray-900 font-bold text-sm">GCash Payment</h3>
+                   <p className="text-[11px] text-white/40 light:text-gray-500 mt-0.5 leading-relaxed">{isOnline ? "Digital payment via GCash — commuter scans QR to pay from their account" : "Unavailable offline. Reconnect to generate a payment QR."}</p>
                 </div>
-                <svg className="w-5 h-5 text-white/20 group-hover:text-white/50 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-5 h-5 text-white/20 light:text-gray-400 group-hover:text-white/50 light:group-hover:text-gray-600 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
                 </svg>
               </div>
@@ -964,7 +968,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
 
           {/* Footer info */}
           <div className="px-5 pb-5">
-            <p className="text-[10px] text-white/20 leading-relaxed text-center">
+            <p className="text-[10px] text-white/20 light:text-gray-400 leading-relaxed text-center">
               Both methods will be recorded in the shift transaction log for end-of-day remittance.
             </p>
           </div>
@@ -987,33 +991,33 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
       (gcashStatus === null || gcashStatus === "pending" || gcashStatus === "processing");
 
     return (
-      <div className={`fixed inset-0 z-[100] flex flex-col bg-[#050F1A] safe-area-inset sm:items-center sm:justify-center sm:bg-black/60 sm:backdrop-blur-sm sm:p-4 xl:justify-end xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`} {...backdropDismiss}>
-        <PopoverTail panelColor="#050F1A" anchorOffsetPx={anchorOffset} />
-        <div className={`flex flex-col h-full w-full max-w-lg mx-auto sm:h-auto sm:max-h-[85vh] sm:rounded-2xl sm:border sm:border-white/10 sm:bg-[#050F1A] sm:shadow-2xl sm:overflow-hidden ${panelAnim}`} style={panelAnchorStyle}>
+      <div className={`fixed inset-0 z-[100] flex flex-col bg-[#050F1A] light:max-sm:bg-gray-50 safe-area-inset sm:items-center sm:justify-center sm:bg-black/60 sm:backdrop-blur-sm sm:p-4 xl:justify-end xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`} {...backdropDismiss}>
+        <PopoverTail panelColor={isLight ? "#F9FAFB" : "#050F1A"} anchorOffsetPx={anchorOffset} className="light:border-gray-200" />
+        <div className={`flex flex-col h-full w-full max-w-lg mx-auto sm:h-auto sm:max-h-[85vh] sm:rounded-2xl sm:border sm:border-white/10 sm:bg-[#050F1A] light:sm:border-gray-200 light:sm:bg-gray-50 sm:shadow-2xl sm:overflow-hidden ${panelAnim}`} style={panelAnchorStyle}>
           {/* ── Fullscreen Header ── */}
-          <div className="flex-shrink-0 bg-[#071A2E] border-b border-white/10 pt-safe">
+          <div className="flex-shrink-0 bg-[#071A2E] light:bg-white border-b border-white/10 light:border-gray-200 pt-safe">
             {/* Top bar: back + title + method badge + close */}
             <div className="flex items-center justify-between px-4 py-3">
               <div className="flex items-center gap-2 min-w-0">
                 <button
                   onClick={() => setStep("method")}
-                  className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0"
+                  className="w-9 h-9 rounded-xl bg-white/5 light:bg-gray-50 border border-white/10 light:border-gray-200 flex items-center justify-center text-white/50 light:text-gray-500 hover:text-white light:hover:text-gray-900 hover:bg-white/10 light:hover:bg-gray-100 transition-colors flex-shrink-0"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
                   </svg>
                 </button>
-                <h2 className="text-base sm:text-lg font-bold text-white truncate">Select Location</h2>
+                <h2 className="text-base sm:text-lg font-bold text-white light:text-gray-900 truncate">Select Location</h2>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 {/* Method badge — preserves payment state visibility */}
-                <span className="inline-flex items-center gap-2 px-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[#99C1F1]">
+                <span className="inline-flex items-center gap-2 px-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[#99C1F1] light:text-[#1A5FB4]">
                   <span className="h-1.5 w-1.5 bg-[#62A0EA]" aria-hidden="true" />
                   {selectedMethod}
                 </span>
                 <button
                   onClick={handleClose}
-                  className="xl:hidden w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+                  className="xl:hidden w-9 h-9 rounded-xl bg-white/5 light:bg-gray-50 border border-white/10 light:border-gray-200 flex items-center justify-center text-white/40 light:text-gray-500 hover:text-white light:hover:text-gray-900 hover:bg-white/10 light:hover:bg-gray-100 transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -1032,18 +1036,18 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                     selectingField === "pickup"
                       ? pickupBorderClass + " border"
                       : pickupPoint
-                        ? "border-white/10 bg-white/5"
-                        : "border-white/10 bg-white/5"
+                        ? "border-white/10 light:border-gray-200 bg-white/5 light:bg-gray-50"
+                        : "border-white/10 light:border-gray-200 bg-white/5 light:bg-gray-50"
                   }`}
                 >
                   <div className="flex items-center gap-2">
-                    <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${pickupPoint ? pickupDotClass + ' shadow-sm' : 'bg-white/20'}`} />
-                    <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">
+                    <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${pickupPoint ? pickupDotClass + ' shadow-sm' : 'bg-white/20 light:bg-gray-300'}`} />
+                    <span className="text-[10px] font-semibold text-white/40 light:text-gray-500 uppercase tracking-wider">
                       Pickup
                     </span>
                   </div>
                   <div className="flex items-center justify-between mt-1 ml-[18px]">
-                    <span className={`text-sm font-medium ${pickupPoint ? 'text-white' : 'text-white/30'}`}>
+                    <span className={`text-sm font-medium ${pickupPoint ? 'text-white light:text-gray-900' : 'text-white/30 light:text-gray-400'}`}>
                       {pickupPoint
                         ? pickupLandmark
                           ? `${pickupPoint.name} · ${pickupLandmark}`
@@ -1061,7 +1065,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                 {pickupPoint && (
                   <button
                     onClick={(e) => { e.stopPropagation(); clearPickup(); }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/30 hover:text-white hover:bg-red-500/20 hover:border-red-500/30 transition-colors"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/5 light:bg-gray-50 border border-white/10 light:border-gray-200 flex items-center justify-center text-white/30 light:text-gray-400 hover:text-white light:hover:text-gray-900 hover:bg-red-500/20 hover:border-red-500/30 transition-colors"
                     title="Clear pickup"
                   >
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -1084,9 +1088,9 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                       setDropoffLandmark(tmpLandmark);
                     }
                   }}
-                  className="w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors"
+                  className="w-7 h-7 rounded-full bg-white/5 light:bg-gray-50 border border-white/10 light:border-gray-200 flex items-center justify-center hover:bg-white/10 light:hover:bg-gray-100 transition-colors"
                 >
-                  <svg className="w-3.5 h-3.5 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="w-3.5 h-3.5 text-white/40 light:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
                   </svg>
                 </button>
@@ -1100,18 +1104,18 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                     selectingField === "dropoff"
                       ? dropoffBorderClass + " border"
                       : dropoffPoint
-                        ? "border-white/10 bg-white/5"
-                        : "border-white/10 bg-white/5"
+                        ? "border-white/10 light:border-gray-200 bg-white/5 light:bg-gray-50"
+                        : "border-white/10 light:border-gray-200 bg-white/5 light:bg-gray-50"
                   }`}
                 >
                   <div className="flex items-center gap-2">
-                    <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${dropoffDotClass} ${dropoffPoint ? 'shadow-sm' : 'bg-white/20'}`} />
-                    <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">
+                    <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${dropoffDotClass} ${dropoffPoint ? 'shadow-sm' : 'bg-white/20 light:bg-gray-300'}`} />
+                    <span className="text-[10px] font-semibold text-white/40 light:text-gray-500 uppercase tracking-wider">
                       Drop-off
                     </span>
                   </div>
                   <div className="flex items-center justify-between mt-1 ml-[18px]">
-                    <span className={`text-sm font-medium ${dropoffPoint ? 'text-white' : 'text-white/30'}`}>
+                    <span className={`text-sm font-medium ${dropoffPoint ? 'text-white light:text-gray-900' : 'text-white/30 light:text-gray-400'}`}>
                       {dropoffPoint
                         ? dropoffLandmark
                           ? `${dropoffPoint.name} · ${dropoffLandmark}`
@@ -1129,7 +1133,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                 {dropoffPoint && (
                   <button
                     onClick={(e) => { e.stopPropagation(); clearDropoff(); }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/30 hover:text-white hover:bg-red-500/20 hover:border-red-500/30 transition-colors"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/5 light:bg-gray-50 border border-white/10 light:border-gray-200 flex items-center justify-center text-white/30 light:text-gray-400 hover:text-white light:hover:text-gray-900 hover:bg-red-500/20 hover:border-red-500/30 transition-colors"
                     title="Clear drop-off"
                   >
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -1141,9 +1145,9 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
 
               {/* Same barangay warning */}
               {isSameBarangay && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-500/10 border border-violet-500/20">
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-500/10 light:bg-violet-50 border border-violet-500/20 light:border-violet-200">
                   <div className="w-2 h-2 rounded-full bg-violet-400 animate-pulse flex-shrink-0" />
-                  <span className="text-[10px] text-violet-300 font-medium">Same pickup & drop-off — both locations shown in violet</span>
+                  <span className="text-[10px] text-violet-300 light:text-violet-700 font-medium">Same pickup & drop-off — both locations shown in violet</span>
                 </div>
               )}
 
@@ -1151,24 +1155,24 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
               {selectedMethod !== "Voucher" && (
                 <div className="mt-1">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">
+                    <span className="text-[10px] font-semibold text-white/40 light:text-gray-500 uppercase tracking-wider">
                       {isGCash ? "Passengers" : "Commuter Type"}
                     </span>
-                    <div className="flex rounded-lg border border-white/10 bg-white/5 p-0.5" role="group" aria-label="Payment passenger mode">
+                    <div className="flex rounded-lg border border-white/10 light:border-gray-200 bg-white/5 light:bg-gray-50 p-0.5" role="group" aria-label="Payment passenger mode">
                       {([false, true] as const).map((multiple) => (
                         <button
                           key={String(multiple)}
                           type="button"
                           aria-pressed={isGroupMode === multiple}
                           onClick={() => setIsGroupMode(multiple)}
-                          className={`rounded-md px-2.5 py-1 text-[10px] font-semibold transition-colors ${isGroupMode === multiple ? "bg-[#1A5FB4] text-white" : "text-white/45 hover:text-white/70"}`}
+                          className={`rounded-md px-2.5 py-1 text-[10px] font-semibold transition-colors ${isGroupMode === multiple ? "bg-[#1A5FB4] text-white" : "text-white/45 light:text-gray-500 hover:text-white/70 light:hover:text-gray-700"}`}
                         >
                           {multiple ? "Multiple" : "Single"}
                         </button>
                       ))}
                     </div>
                   </div>
-                  <p className="mt-1 text-[10px] text-white/45">
+                  <p className="mt-1 text-[10px] text-white/45 light:text-gray-500">
                     {isGroupMode
                       ? isGCash
                         ? "Multiple - Enter companions only; the payer is added after QR claim"
@@ -1186,7 +1190,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                         className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
                           commuterType === type
                             ? "bg-[#1A5FB4] text-white"
-                            : "bg-white/5 text-white/50 hover:bg-white/10"
+                            : "bg-white/5 light:bg-gray-50 text-white/50 light:text-gray-500 hover:bg-white/10 light:hover:bg-gray-100"
                         }`}
                       >
                         {getCommuterTypeLabel(type)}
@@ -1195,7 +1199,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                   </div>
                   )}
                   {isGroupMode && (
-                    <p className="mt-1.5 text-[10px] text-blue-300/70">
+                    <p className="mt-1.5 text-[10px] text-blue-300/70 light:text-blue-700">
                       Multiple selected - review the route, then enter passenger quantities.
                     </p>
                   )}
@@ -1205,10 +1209,10 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
           </div>
 
           {/* ── Search Bar ── */}
-          <div className="flex-shrink-0 px-4 pt-3 pb-2 bg-[#050F1A]">
+          <div className="flex-shrink-0 px-4 pt-3 pb-2 bg-[#050F1A] light:bg-gray-50">
             <div className="relative">
               <svg
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30"
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 light:text-gray-400"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -1225,10 +1229,10 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                 placeholder="Search barangay or landmark..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#62A0EA]/60 transition-colors"
+                className="w-full bg-white/5 light:bg-gray-50 border border-white/10 light:border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white light:text-gray-900 placeholder:text-white/30 light:placeholder:text-gray-400 focus:outline-none focus:border-[#62A0EA]/60 transition-colors"
               />
             </div>
-            <p className="text-[10px] text-white/30 mt-2">
+            <p className="text-[10px] text-white/30 light:text-gray-400 mt-2">
               {selectingField === "pickup"
                 ? "Tap your boarding Point Area — then select a sub pickup point"
                 : "Tap your destination Point Area — then select a sub drop-off point"}
@@ -1246,11 +1250,9 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
               const pointSubDropoffs = subDropoffPoints(point);
 
               // Color classes for barangay list items (green default, violet when same)
-              const itemPickupBg = isSameBarangay ? "bg-violet-500/15 border-violet-500/40" : "bg-emerald-500/15 border-emerald-500/40";
-              const itemDropoffBg = isSameBarangay ? "bg-violet-500/15 border-violet-500/40" : "bg-emerald-500/15 border-emerald-500/40";
-              const itemBothBg = "bg-violet-500/20 border-violet-500/40";
-              const itemPickupLabel = isSameBarangay ? pickupLabelClass : pickupLabelClass;
-              const itemDropoffLabel = isSameBarangay ? dropoffLabelClass : dropoffLabelClass;
+              const itemPickupBg = isSameBarangay ? "bg-violet-500/15 light:bg-violet-50 border-violet-500/40 light:border-violet-300" : "bg-emerald-500/15 light:bg-emerald-50 border-emerald-500/40 light:border-emerald-300";
+              const itemDropoffBg = isSameBarangay ? "bg-violet-500/15 light:bg-violet-50 border-violet-500/40 light:border-violet-300" : "bg-emerald-500/15 light:bg-emerald-50 border-emerald-500/40 light:border-emerald-300";
+              const itemBothBg = "bg-violet-500/20 light:bg-violet-50 border-violet-500/40 light:border-violet-300";
 
               return (
                 <div key={point.pointNumber} className="mb-1">
@@ -1283,22 +1285,22 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                           : isPickup
                             ? itemPickupBg
                             : itemDropoffBg
-                        : "border-white/[0.04] hover:bg-white/[0.04]"
+                        : "border-white/[0.04] light:border-gray-200 hover:bg-white/[0.04] light:hover:bg-gray-100"
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="flex flex-col items-center flex-shrink-0">
-                          <span className="text-[9px] font-bold text-white/25 leading-none">PT</span>
-                          <span className="text-sm font-bold text-white/60 leading-none mt-0.5">{point.pointNumber}</span>
+                          <span className="text-[9px] font-bold text-white/25 light:text-gray-400 leading-none">PT</span>
+                          <span className="text-sm font-bold text-white/60 light:text-gray-600 leading-none mt-0.5">{point.pointNumber}</span>
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5">
-                            <span className="text-sm font-semibold text-white truncate">{point.name}</span>
-                            <span className="text-[9px] font-semibold text-white/20 flex-shrink-0">Brgy {point.pointNumber}</span>
+                            <span className="text-sm font-semibold text-white light:text-gray-900 truncate">{point.name}</span>
+                            <span className="text-[9px] font-semibold text-white/20 light:text-gray-400 flex-shrink-0">Brgy {point.pointNumber}</span>
                           </div>
                           {pointSubDropoffs.length > 0 && (
-                            <p className="text-[10px] text-white/30 mt-0.5 truncate">
+                            <p className="text-[10px] text-white/30 light:text-gray-400 mt-0.5 truncate">
                               {pointSubDropoffs.join(" · ")}
                             </p>
                           )}
@@ -1307,10 +1309,10 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
 
                       <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
                         {isPickup && (
-                          <span className={`text-[8px] font-bold ${itemPickupLabel} ${pickupTagClass} px-1.5 py-0.5 rounded`}>PICKUP</span>
+                          <span className={`text-[8px] font-bold ${pickupTagClass} px-1.5 py-0.5 rounded`}>PICKUP</span>
                         )}
                         {isDropoff && (
-                          <span className={`text-[8px] font-bold ${itemDropoffLabel} ${dropoffTagClass} px-1.5 py-0.5 rounded`}>DROP-OFF</span>
+                          <span className={`text-[8px] font-bold ${dropoffTagClass} px-1.5 py-0.5 rounded`}>DROP-OFF</span>
                         )}
 
                         <button
@@ -1318,10 +1320,10 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                             e.stopPropagation();
                             setExpandedBarangay(isExpanded ? null : point.pointNumber);
                           }}
-                          className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors"
+                          className="w-7 h-7 rounded-lg bg-white/5 light:bg-gray-50 border border-white/10 light:border-gray-200 flex items-center justify-center hover:bg-white/10 light:hover:bg-gray-100 transition-colors"
                         >
                           <svg
-                            className={`w-3.5 h-3.5 text-white/40 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
+                            className={`w-3.5 h-3.5 text-white/40 light:text-gray-500 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
@@ -1341,8 +1343,8 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                   {/* Expanded sub pickup/drop-off points */}
                   {isExpanded && (
                     <div className="ml-11 mt-1 mb-2 space-y-1">
-                      <p className="text-[10px] text-white/20 uppercase tracking-wider font-medium mb-1.5">
-                        Sub pickup/drop-off points in {point.name} <span className="text-white/10">· tap to select</span>
+                      <p className="text-[10px] text-white/20 light:text-gray-400 uppercase tracking-wider font-medium mb-1.5">
+                        Sub pickup/drop-off points in {point.name} <span className="text-white/10 light:text-gray-300">· tap to select</span>
                       </p>
                       {/* Skip sub-point button */}
                       <button
@@ -1353,10 +1355,10 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                           }
                           setExpandedBarangay(null);
                         }}
-                        className="flex items-center gap-2 px-2 py-1.5 rounded-md w-full text-left transition-colors border cursor-pointer bg-white/[0.02] border-transparent hover:bg-amber-500/5 hover:border-amber-500/20"
+                        className="flex items-center gap-2 px-2 py-1.5 rounded-md w-full text-left transition-colors border cursor-pointer bg-white/[0.02] border-transparent hover:bg-amber-500/5 hover:border-amber-500/20 light:hover:bg-amber-50 light:hover:border-amber-200"
                       >
                         <div className="w-1.5 h-1.5 rounded-full bg-amber-400/50" />
-                        <span className="text-[11px] text-amber-400/70">
+                        <span className="text-[11px] text-amber-400/70 light:text-amber-700">
                           Use Point Area only
                         </span>
                       </button>
@@ -1366,12 +1368,12 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                         const isLandmarkSelected = isLandmarkPickup || isLandmarkDropoff;
 
                         // Pickup is green and drop-off is red; shared locations stay violet.
-                        const lmPickupBgCls = isSameBarangay ? "bg-violet-500/10 border-violet-500/30" : "bg-emerald-500/10 border-emerald-500/30";
-                        const lmDropoffBgCls = isSameBarangay ? "bg-violet-500/10 border-violet-500/30" : "bg-red-500/10 border-red-500/30";
+                        const lmPickupBgCls = isSameBarangay ? "bg-violet-500/10 light:bg-violet-50 border-violet-500/30 light:border-violet-200" : "bg-emerald-500/10 light:bg-emerald-50 border-emerald-500/30 light:border-emerald-300";
+                        const lmDropoffBgCls = isSameBarangay ? "bg-violet-500/10 light:bg-violet-50 border-violet-500/30 light:border-violet-200" : "bg-red-500/10 light:bg-red-50 border-red-500/30 light:border-red-200";
                         const lmPickupDotCls = isSameBarangay ? "bg-violet-400" : "bg-emerald-400";
                         const lmDropoffDotCls = isSameBarangay ? "bg-violet-400" : "bg-red-400";
-                        const lmPickupTextCls = isSameBarangay ? "text-violet-400" : "text-emerald-400";
-                        const lmDropoffTextCls = isSameBarangay ? "text-violet-400" : "text-red-400";
+                        const lmPickupTextCls = isSameBarangay ? "text-violet-400 light:text-violet-700" : "text-emerald-400 light:text-emerald-700";
+                        const lmDropoffTextCls = isSameBarangay ? "text-violet-400 light:text-violet-700" : "text-red-400 light:text-red-600";
 
                         return (
                           <div
@@ -1398,33 +1400,33 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                             className={`flex items-center gap-2 px-2 py-1.5 rounded-md w-full text-left transition-colors border cursor-pointer ${
                               isLandmarkSelected
                                 ? isLandmarkPickup && isLandmarkDropoff
-                                  ? "bg-violet-500/15 border-violet-500/30"
+                                  ? "bg-violet-500/15 light:bg-violet-50 border-violet-500/30 light:border-violet-200"
                                   : isLandmarkPickup
                                     ? lmPickupBgCls
                                     : lmDropoffBgCls
-                                : "bg-white/[0.02] border-transparent hover:bg-white/5"
+                                : "bg-white/[0.02] border-transparent hover:bg-white/5 light:hover:bg-gray-100"
                             }`}
                           >
                             <div className={`w-1.5 h-1.5 rounded-full ${
                               isLandmarkSelected
                                 ? isLandmarkPickup ? lmPickupDotCls : lmDropoffDotCls
-                                : "bg-white/20"
+                                : "bg-white/20 light:bg-gray-300"
                             }`} />
                             <span className={`text-[11px] ${
                               isLandmarkSelected
                                 ? isLandmarkPickup ? lmPickupTextCls : lmDropoffTextCls
-                                : "text-white/40"
+                                : "text-white/40 light:text-gray-500"
                             }`}>
                               {landmark}
                             </span>
                             {isLandmarkPickup && !isLandmarkDropoff && (
-                              <span className={`text-[8px] font-bold ${lmPickupTextCls} bg-white/5 px-1 py-0.5 rounded ml-auto`}>PICKUP</span>
+                              <span className={`text-[8px] font-bold ${lmPickupTextCls} bg-white/5 light:bg-gray-50 px-1 py-0.5 rounded ml-auto`}>PICKUP</span>
                             )}
                             {isLandmarkDropoff && !isLandmarkPickup && (
-                              <span className={`text-[8px] font-bold ${lmDropoffTextCls} bg-white/5 px-1 py-0.5 rounded ml-auto`}>DROP-OFF</span>
+                              <span className={`text-[8px] font-bold ${lmDropoffTextCls} bg-white/5 light:bg-gray-50 px-1 py-0.5 rounded ml-auto`}>DROP-OFF</span>
                             )}
                             {isLandmarkPickup && isLandmarkDropoff && (
-                              <span className="text-[8px] font-bold text-violet-400 bg-violet-500/10 px-1 py-0.5 rounded ml-auto">BOTH</span>
+                              <span className="text-[8px] font-bold text-violet-400 light:text-violet-700 bg-violet-500/10 light:bg-violet-50 px-1 py-0.5 rounded ml-auto">BOTH</span>
                             )}
                           </div>
                         );
@@ -1439,12 +1441,12 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
           {/* ── Bottom Action Area ── */}
           {/* GCash mode with a live payment: return to it instead of starting another */}
           {isGCash && hasActiveGcash && gcashInitiation && (
-            <div className="flex-shrink-0 border-t border-white/10 bg-[#050F1A] px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
+            <div className="flex-shrink-0 border-t border-white/10 light:border-gray-200 bg-[#050F1A] light:bg-gray-50 px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
               <div className="mb-3 flex items-baseline justify-between gap-3">
-                <p className="text-xs text-white/70 font-medium">
+                <p className="text-xs text-white/70 light:text-gray-700 font-medium">
                   {gcashStatus === "processing" ? "GCash is confirming this payment" : "GCash payment in progress"}
                 </p>
-                <p className="text-sm font-semibold text-white tabular-nums">{formatCurrency(gcashInitiation.amount)}</p>
+                <p className="text-sm font-semibold text-white light:text-gray-900 tabular-nums">{formatCurrency(gcashInitiation.amount)}</p>
               </div>
               <button
                 onClick={handleViewCurrentPayment}
@@ -1452,7 +1454,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
               >
                 View current payment
               </button>
-              <p className="text-[10px] text-white/25 text-center mt-2">
+              <p className="text-[10px] text-white/25 light:text-gray-400 text-center mt-2">
                 Finish or cancel this payment before generating a new QR code
               </p>
             </div>
@@ -1460,19 +1462,19 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
 
           {/* GCash mode: Show "Generate QR Code" button when both locations selected, NO fare display */}
           {isGCash && !hasActiveGcash && bothLocationsSelected && (
-            <div className="flex-shrink-0 border-t border-white/10 bg-[#050F1A] px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
+            <div className="flex-shrink-0 border-t border-white/10 light:border-gray-200 bg-[#050F1A] light:bg-gray-50 px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
               {/* Route confirmation only, NO fare */}
               <div className="mb-3 flex items-center gap-2 flex-wrap">
                 <div className="flex items-center gap-1.5">
                   <div className={`w-2.5 h-2.5 rounded-full ${pickupDotClass}`} />
-                  <span className="text-xs text-white/70 font-medium">{pickupPoint?.name}{pickupLandmark ? ` · ${pickupLandmark}` : ""}</span>
+                  <span className="text-xs text-white/70 light:text-gray-700 font-medium">{pickupPoint?.name}{pickupLandmark ? ` · ${pickupLandmark}` : ""}</span>
                 </div>
-                <svg className="w-3 h-3 text-white/20 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-3 h-3 text-white/20 light:text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
                 </svg>
                 <div className="flex items-center gap-1.5">
                   <div className={`w-2.5 h-2.5 rounded-full ${dropoffDotClass}`} />
-                  <span className="text-xs text-white/70 font-medium">{dropoffPoint?.name}{dropoffLandmark ? ` · ${dropoffLandmark}` : ""}</span>
+                  <span className="text-xs text-white/70 light:text-gray-700 font-medium">{dropoffPoint?.name}{dropoffLandmark ? ` · ${dropoffLandmark}` : ""}</span>
                 </div>
               </div>
 
@@ -1482,7 +1484,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
               >
                 {isGroupMode ? "Review Transaction" : "Generate QR Code"}
               </button>
-              <p className="text-[10px] text-white/25 text-center mt-2">
+              <p className="text-[10px] text-white/25 light:text-gray-400 text-center mt-2">
                 Fare will be calculated after the commuter scans the QR code
               </p>
             </div>
@@ -1490,49 +1492,49 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
 
           {/* Cash mode: Show fare summary & pay button (existing behavior) */}
           {!isGCash && fareInfo && (
-            <div className="flex-shrink-0 border-t border-white/10 bg-[#050F1A] px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
+            <div className="flex-shrink-0 border-t border-white/10 light:border-gray-200 bg-[#050F1A] light:bg-gray-50 px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
               {/* Route confirmation with dynamic color indicators */}
               <div className="mb-2 flex items-center gap-2 flex-wrap">
                 <div className="flex items-center gap-1.5">
                   <div className={`w-2.5 h-2.5 rounded-full ${pickupDotClass}`} />
-                  <span className="text-xs text-white/70 font-medium">{pickupPoint?.name}{pickupLandmark ? ` · ${pickupLandmark}` : ""}</span>
+                  <span className="text-xs text-white/70 light:text-gray-700 font-medium">{pickupPoint?.name}{pickupLandmark ? ` · ${pickupLandmark}` : ""}</span>
                 </div>
-                <svg className="w-3 h-3 text-white/20 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-3 h-3 text-white/20 light:text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
                 </svg>
                 <div className="flex items-center gap-1.5">
                   <div className={`w-2.5 h-2.5 rounded-full ${dropoffDotClass}`} />
-                  <span className="text-xs text-white/70 font-medium">{dropoffPoint?.name}{dropoffLandmark ? ` · ${dropoffLandmark}` : ""}</span>
+                  <span className="text-xs text-white/70 light:text-gray-700 font-medium">{dropoffPoint?.name}{dropoffLandmark ? ` · ${dropoffLandmark}` : ""}</span>
                 </div>
               </div>
 
               {/* Fare Explanation */}
-              <div className="mb-3 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/5">
-                <p className="text-[10px] text-white/30 leading-relaxed">
+              <div className="mb-3 px-3 py-2 rounded-lg bg-white/[0.03] light:bg-gray-50 border border-white/5 light:border-gray-200">
+                <p className="text-[10px] text-white/30 light:text-gray-400 leading-relaxed">
                   {fareInfo.barangaysTraveled} barangay{fareInfo.barangaysTraveled !== 1 ? "s" : ""} traversed
                   {fareInfo.succeedingCount > 0 &&
                     ` · Base fare covers first ${fareInfo.baseBarangayCount} + ${fareInfo.succeedingCount} succeeding`}
                 </p>
               </div>
 
-              <div className="mb-3 flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+              <div className="mb-3 flex items-center justify-between rounded-xl border border-white/10 light:border-gray-200 bg-white/[0.03] light:bg-gray-50 px-4 py-3">
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45 light:text-gray-500">
                     Total fare
                   </p>
                   {fareInfo.hasDiscount && (
-                    <p className="mt-1 text-[10px] font-medium text-[#62A0EA]">
+                    <p className="mt-1 text-[10px] font-medium text-[#62A0EA] light:text-[#1A5FB4]">
                       You save {formatCurrency(fareInfo.discountAmount)}
                     </p>
                   )}
                 </div>
                 <div className="text-right flex-shrink-0">
                   {fareInfo.hasDiscount && (
-                    <p className="mb-0.5 text-xs text-white/30 line-through">
+                    <p className="mb-0.5 text-xs text-white/30 light:text-gray-400 line-through">
                       {formatCurrency(fareInfo.regularFare)}
                     </p>
                   )}
-                  <p className="text-2xl font-extrabold leading-none text-white">
+                  <p className="text-2xl font-extrabold leading-none text-white light:text-gray-900">
                     {formatCurrency(fareInfo.finalFare)}
                   </p>
                 </div>
@@ -1548,17 +1550,17 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
 
           {/* No locations selected yet — show hint */}
           {isGCash && !hasActiveGcash && !bothLocationsSelected && (
-            <div className="flex-shrink-0 border-t border-white/10 bg-[#050F1A] px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
+            <div className="flex-shrink-0 border-t border-white/10 light:border-gray-200 bg-[#050F1A] light:bg-gray-50 px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
               <div className="text-center py-2">
-                <p className="text-[11px] text-white/30">Select both pickup and drop-off locations to generate QR code</p>
+                <p className="text-[11px] text-white/30 light:text-gray-400">Select both pickup and drop-off locations to generate QR code</p>
               </div>
             </div>
           )}
 
           {!isGCash && !fareInfo && (
-            <div className="flex-shrink-0 border-t border-white/10 bg-[#050F1A] px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
+            <div className="flex-shrink-0 border-t border-white/10 light:border-gray-200 bg-[#050F1A] light:bg-gray-50 px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
               <div className="text-center py-2">
-                <p className="text-[11px] text-white/30">Select both pickup and drop-off to calculate fare</p>
+                <p className="text-[11px] text-white/30 light:text-gray-400">Select both pickup and drop-off to calculate fare</p>
               </div>
             </div>
           )}
@@ -1578,33 +1580,33 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
 
     return (
       <div className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`} {...backdropDismiss}>
-        <PopoverTail panelColor="#071A2E" anchorOffsetPx={anchorOffset} />
+        <PopoverTail panelColor={panelTailColor} anchorOffsetPx={anchorOffset} className="light:border-gray-200" />
         {/* Capped to the backdrop's padded height so the header can never be
             pushed off a short phone screen; only the tiles scroll, the
             readout and actions stay pinned. */}
-        <div className={`flex max-h-full w-full max-w-md flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#071A2E] shadow-2xl ${panelAnim}`} style={panelAnchorStyle}>
-          <div className="flex-shrink-0 border-b border-white/10 px-4 py-4 sm:p-5">
-            <h2 className="text-lg font-bold text-white">Passenger Group</h2>
-            <p className="mt-1 text-xs text-white/40">
+        <div className={`flex max-h-full w-full max-w-md flex-col overflow-hidden rounded-2xl border border-white/10 light:border-gray-200 bg-[#071A2E] light:bg-white shadow-2xl ${panelAnim}`} style={panelAnchorStyle}>
+          <div className="flex-shrink-0 border-b border-white/10 light:border-gray-200 px-4 py-4 sm:p-5">
+            <h2 className="text-lg font-bold text-white light:text-gray-900">Passenger Group</h2>
+            <p className="mt-1 text-xs text-white/40 light:text-gray-500">
               {pickupPoint?.name} → {dropoffPoint?.name}
             </p>
           </div>
 
           {/* Readout: headcount and total first, the mix spelled out below. */}
-          <div className="grid flex-shrink-0 grid-cols-[auto_1fr] items-end gap-x-4 gap-y-1 border-b border-white/10 bg-[#050F1A] px-4 py-5 sm:px-5" aria-live="polite">
-            <span className="text-[44px] font-bold leading-[0.9] tracking-tight tabular-nums text-white">{groupEnteredCount}</span>
-            <span className="text-right text-[22px] font-bold leading-none tabular-nums text-white">
+          <div className="grid flex-shrink-0 grid-cols-[auto_1fr] items-end gap-x-4 gap-y-1 border-b border-white/10 light:border-gray-200 bg-[#050F1A] light:bg-gray-50 px-4 py-5 sm:px-5" aria-live="polite">
+            <span className="text-[44px] font-bold leading-[0.9] tracking-tight tabular-nums text-white light:text-gray-900">{groupEnteredCount}</span>
+            <span className="text-right text-[22px] font-bold leading-none tabular-nums text-white light:text-gray-900">
               {shouldShowGroupFareSummary && groupEnteredCount > 0 ? formatCurrency(groupTotalFare) : "—"}
             </span>
-            <span className="text-[11px] text-white/45">
+            <span className="text-[11px] text-white/45 light:text-gray-500">
               {groupNoun}{isGCashGroup && " + payer"}
             </span>
-            <span className="text-right text-[11px] text-white/45">
+            <span className="text-right text-[11px] text-white/45 light:text-gray-500">
               {shouldShowGroupFareSummary && groupDiscountTotal > 0 ? (
-                <><span className="tabular-nums text-emerald-300">{formatCurrency(groupDiscountTotal)}</span> discount</>
+                <><span className="tabular-nums text-emerald-300 light:text-emerald-700">{formatCurrency(groupDiscountTotal)}</span> discount</>
               ) : groupEnteredCount > 0 ? "total" : ""}
             </span>
-            <p className="col-span-2 mt-2.5 min-h-4 text-[11px] text-white/55">
+            <p className="col-span-2 mt-2.5 min-h-4 text-[11px] text-white/55 light:text-gray-600">
               {groupMix || (isGCashGroup ? "Payer is added when they scan the QR" : "Tap a tile for each passenger")}
             </p>
           </div>
@@ -1624,24 +1626,24 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                       onClick={() => setGroupCounts((current) => ({ ...current, [type]: Math.min(50, current[type] + 1) }))}
                       className={`flex min-h-[104px] w-full cursor-pointer flex-col justify-between rounded-xl border p-3.5 pr-11 text-left transition-[transform,background-color,border-color] duration-150 active:scale-[0.98] disabled:cursor-not-allowed ${
                         count > 0
-                          ? "border-[#62A0EA]/45 bg-[#1A5FB4]/[0.14]"
-                          : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]"
+                          ? "border-[#62A0EA]/45 light:border-[#1A5FB4] bg-[#1A5FB4]/[0.14] light:bg-[#F0F7FF]"
+                          : "border-white/10 light:border-gray-200 bg-white/[0.03] light:bg-gray-50 hover:bg-white/[0.06] light:hover:bg-gray-100"
                       }`}
                     >
                       <span>
-                        <span className="block text-sm font-semibold text-white">{label}</span>
+                        <span className="block text-sm font-semibold text-white light:text-gray-900">{label}</span>
                         {shouldShowTypeFare && (
-                          <span className="mt-0.5 block text-[11px] tabular-nums text-white/45">{formatCurrency(fare)}</span>
+                          <span className="mt-0.5 block text-[11px] tabular-nums text-white/45 light:text-gray-500">{formatCurrency(fare)}</span>
                         )}
                       </span>
-                      <span className={`text-[28px] font-bold leading-none tabular-nums ${count > 0 ? "text-white" : "text-white/20"}`}>{count}</span>
+                      <span className={`text-[28px] font-bold leading-none tabular-nums ${count > 0 ? "text-white light:text-gray-900" : "text-white/20 light:text-gray-400"}`}>{count}</span>
                     </button>
                     {count > 0 && (
                       <button
                         type="button"
                         aria-label={`Remove ${label}`}
                         onClick={() => setGroupCounts((current) => ({ ...current, [type]: Math.max(0, current[type] - 1) }))}
-                        className="absolute right-2 top-2 flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-white/10 bg-[#071A2E] text-white/70 transition-colors hover:text-white active:scale-95"
+                        className="absolute right-2 top-2 flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-white/10 light:border-gray-200 bg-[#071A2E] light:bg-white text-white/70 light:text-gray-700 transition-colors hover:text-white light:hover:text-gray-900 active:scale-95"
                       >
                         <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" d="M5 12h14" />
@@ -1652,11 +1654,11 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                 );
               })}
             </div>
-            <p className="px-4 pb-4 text-[11px] text-white/40 sm:px-5">Tap a tile to add one. Use the minus button to remove one.</p>
+            <p className="px-4 pb-4 text-[11px] text-white/40 light:text-gray-500 sm:px-5">Tap a tile to add one. Use the minus button to remove one.</p>
           </div>
 
           <div className="flex flex-shrink-0 gap-3 px-4 pb-4 sm:px-5 sm:pb-5">
-            <button type="button" onClick={() => setStep("select")} className="flex-1 cursor-pointer rounded-xl border border-white/10 py-3 text-sm font-semibold text-white/60 transition-colors hover:bg-white/5">Back</button>
+            <button type="button" onClick={() => setStep("select")} className="flex-1 cursor-pointer rounded-xl border border-white/10 light:border-gray-200 py-3 text-sm font-semibold text-white/60 light:text-gray-600 transition-colors hover:bg-white/5 light:hover:bg-gray-100">Back</button>
             <button
               type="button"
               disabled={groupEnteredCount === 0 || !pickupPoint || !dropoffPoint || isInitiatingGcash}
@@ -1706,102 +1708,120 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
     // settling it. The QR is spent (claiming it again would be refused) and
     // its claim countdown no longer applies, and GCash can't cancel it.
     const isConfirming = gcashStatus === "processing";
+    const isExpiringSoon = qrSecondsLeft !== null && qrSecondsLeft <= 30;
+    // Only null/pending/processing/expired reach this step; paid and the
+    // other terminal statuses move the modal to success/failed first.
+    const isStatusWarning = gcashStatus === "expired" || (isConfirming && gcashConfirmationDelayed);
+    const statusLabel = isConfirming
+      ? gcashConfirmationDelayed ? "Confirmation delayed" : "GCash is confirming"
+      : gcashStatus === "expired"
+        ? "QR expired, waiting for PayMongo"
+        : gcashStatus === "pending"
+          ? "Waiting for the commuter to pay"
+          : "Waiting for commuter scan";
 
     return (
       <div className={`fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`} {...backdropDismiss}>
-        <PopoverTail panelColor="#071A2E" anchorOffsetPx={anchorOffset} />
-        <div className={`w-full max-w-xs bg-[#071A2E] border border-blue-500/20 rounded-3xl p-6 text-center shadow-2xl space-y-4 ${panelAnim}`} style={panelAnchorStyle}>
-          <div className="flex justify-center">
-            <div className="w-14 h-14 rounded-full bg-blue-500/15 border-2 border-blue-500/30 flex items-center justify-center">
-              <svg className="w-7 h-7 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" />
-              </svg>
+        <PopoverTail panelColor={panelTailColor} anchorOffsetPx={anchorOffset} className="light:border-gray-200" />
+        <div className={`modal-scroll max-h-full w-full max-w-sm overflow-y-auto rounded-2xl border border-white/10 light:border-gray-200 bg-[#071A2E] light:bg-white shadow-2xl ${panelAnim}`} style={panelAnchorStyle}>
+          {/* Amount first, like Confirm Payment: what's being charged and for
+              which trip, before the code the commuter has to scan. */}
+          <div className="px-5 pt-5 pb-4">
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 className="text-[10px] font-semibold uppercase tracking-[0.08em] text-white/40 light:text-gray-500">
+                {isConfirming ? "Confirming Payment" : "Scan to Pay"}
+              </h2>
+              <span className="text-[11px] font-semibold text-white/40 light:text-gray-500">GCash</span>
             </div>
-          </div>
-          <div>
-            <h2 className="text-white font-bold text-lg">{isConfirming ? "Confirming Payment" : "Scan to Pay"}</h2>
-            <p className="text-[11px] text-white/40 mt-1 leading-relaxed">
-              {isConfirming
-                ? "The commuter authorized this payment. GCash is confirming it."
-                : "Commuter, scan this QR code with your e-Chatco app to confirm payment"}
+            <p className="mt-2 text-[40px] font-bold leading-none tracking-tight tabular-nums text-white light:text-gray-900">
+              {formatCurrency(gcashInitiation.amount)}
             </p>
-          </div>
-          {!isConfirming && (
-          <div className="bg-white rounded-2xl p-4 flex justify-center">
-            <QRCodeSVG
-              value={qrData}
-              size={180}
-              bgColor="#ffffff"
-              fgColor="#071A2E"
-              level="H"
-              includeMargin={false}
-            />
-          </div>
-          )}
-          <div className="space-y-2">
             {routeFrom && routeTo && (
-              <p className="text-xs text-white/40">
-                {routeFrom} → {routeTo}
-              </p>
-            )}
-            <p className="text-xs text-white/50">
-              Amount: <span className="text-white font-semibold">{formatCurrency(gcashInitiation.amount)}</span>
-            </p>
-            <div className="flex items-center justify-center gap-2">
-              <p className={`text-xs font-medium ${gcashStatus === "expired" || gcashConfirmationDelayed ? "text-amber-400/90" : "text-blue-400/70"}`}>
-                {gcashStatus === "processing" ? (gcashConfirmationDelayed ? "Confirmation delayed" : "Payment processing…") :
-                 gcashStatus === "paid" ? "Payment successful!" :
-                 gcashStatus === "expired" ? "QR expired — still waiting for PayMongo confirmation…" :
-                 gcashStatus ? `Status: ${gcashStatus}` :
-                 "Waiting for commuter scan…"}
-              </p>
-            </div>
-            {isConfirming && (
-              <p className="text-[11px] leading-relaxed text-white/40">
-                {gcashConfirmationDelayed
-                  ? "GCash hasn't confirmed this payment yet. Keep it open and don't collect this fare another way; it updates here once GCash responds."
-                  : "This can't be cancelled while GCash is confirming it."}
-              </p>
-            )}
-            {countdownLabel && !isConfirming && (
-              <p className={`text-[11px] font-semibold ${qrSecondsLeft !== null && qrSecondsLeft <= 30 ? "text-red-400" : "text-white/40"}`}>
-                QR expires in <span className="tabular-nums">{countdownLabel}</span>
+              <p className="mt-2 text-xs leading-snug text-white/55 light:text-gray-600">
+                {routeFrom} <span className="text-white/30 light:text-gray-400">→</span> {routeTo}
               </p>
             )}
           </div>
 
-          {gcashError && (
-            <p role="alert" className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-left text-[11px] text-red-300">
-              {gcashError}
-            </p>
-          )}
+          {/* The QR is spent once the commuter authorizes, so the plate gives
+              way to the confirmation note instead of a dead code. */}
+          <div className="px-5">
+            {isConfirming ? (
+              <div className="rounded-xl border border-white/10 light:border-gray-200 bg-[#050F1A] light:bg-gray-50 px-4 py-5">
+                <p className="text-sm font-semibold text-white light:text-gray-900">The commuter authorized this payment.</p>
+                <p className="mt-1.5 text-xs leading-relaxed text-white/55 light:text-gray-600">
+                  {gcashConfirmationDelayed
+                    ? "GCash hasn't confirmed this payment yet. Keep it open and don't collect this fare another way; it updates here once GCash responds."
+                    : "GCash is confirming it now, so it can't be cancelled."}
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-center rounded-xl bg-white p-4 light:border light:border-gray-200">
+                  <QRCodeSVG
+                    value={qrData}
+                    size={256}
+                    bgColor="#ffffff"
+                    fgColor="#071A2E"
+                    level="H"
+                    includeMargin={false}
+                    className="h-auto w-full max-w-[232px]"
+                  />
+                </div>
+                <p className="mt-2.5 text-[11px] leading-relaxed text-white/45 light:text-gray-500">
+                  Commuter scans this with the e-Chatco app to pay through GCash.
+                </p>
+              </>
+            )}
+          </div>
 
-          {/* DEV ONLY: Simulate payment button — only shows when the backend
-              has payments.allow_simulation=true (FakeGateway or sandbox). */}
-          {process.env.NODE_ENV === "development" && (
-            <button
-              onClick={handleSimulatePayment}
-              className="w-full py-2 rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-400 text-xs font-semibold hover:bg-amber-500/20 transition-colors"
-            >
-              [DEV] Simulate Payment Paid
-            </button>
-          )}
+          {/* Live status and the QR's remaining time share one readout row. */}
+          <div className="mt-4 flex items-center justify-between gap-3 border-y border-white/10 light:border-gray-200 bg-[#050F1A] light:bg-gray-50 px-5 py-3" aria-live="polite">
+            <span className={`flex min-w-0 items-center gap-2 text-xs font-semibold ${isStatusWarning ? "text-amber-300 light:text-amber-700" : "text-white/80 light:text-gray-800"}`}>
+              <span aria-hidden="true" className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${isStatusWarning ? "bg-amber-400" : "bg-[#62A0EA]"}`} />
+              <span className="truncate">{statusLabel}</span>
+            </span>
+            {countdownLabel && !isConfirming && (
+              <span className={`flex-shrink-0 text-xs ${isExpiringSoon ? "font-semibold text-red-400 light:text-red-600" : "text-white/45 light:text-gray-500"}`}>
+                Expires <span className="tabular-nums">{countdownLabel}</span>
+              </span>
+            )}
+          </div>
 
-          {/* Action buttons */}
-          <div className="flex gap-2">
-            <button
-              onClick={handleCancelGcash}
-              disabled={isCancellingGcash || isConfirming}
-              className="flex-1 py-2.5 rounded-xl border border-red-500/20 text-red-400 text-sm font-semibold hover:bg-red-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-            >
-              {isCancellingGcash ? "Cancelling…" : "Cancel Payment"}
-            </button>
-            <button
-              onClick={() => { stopPolling(); setStep("select"); }}
-              className="flex-1 py-2.5 rounded-xl border border-white/10 text-white/50 text-sm font-semibold hover:bg-white/5 transition-colors"
-            >
-              Back
-            </button>
+          <div className="space-y-3 p-5">
+            {gcashError && (
+              <p role="alert" className="border-l-2 border-red-500 pl-3 text-xs leading-relaxed text-red-300 light:text-red-700">
+                {gcashError}
+              </p>
+            )}
+
+            {/* DEV ONLY: Simulate payment button — only shows when the backend
+                has payments.allow_simulation=true (FakeGateway or sandbox). */}
+            {process.env.NODE_ENV === "development" && (
+              <button
+                onClick={handleSimulatePayment}
+                className="w-full py-2 rounded-xl border border-amber-500/20 light:border-amber-200 bg-amber-500/10 light:bg-amber-50 text-amber-400 light:text-amber-700 text-xs font-semibold hover:bg-amber-500/20 transition-colors"
+              >
+                [DEV] Simulate Payment Paid
+              </button>
+            )}
+
+            {/* Action buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={handleCancelGcash}
+                disabled={isCancellingGcash || isConfirming}
+                className="flex-1 cursor-pointer rounded-xl bg-[#DC2626] py-3 text-sm font-semibold text-white transition-colors hover:bg-[#B91C1C] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[#DC2626] disabled:active:scale-100"
+              >
+                {isCancellingGcash ? "Cancelling…" : "Cancel Payment"}
+              </button>
+              <button
+                onClick={() => { stopPolling(); setStep("select"); }}
+                className="flex-1 cursor-pointer rounded-xl border border-white/10 light:border-gray-200 bg-[#131C2E] light:bg-white py-3 text-sm font-semibold text-white/80 light:text-gray-800 transition-colors hover:bg-[#1A2540] light:hover:bg-gray-100 active:scale-[0.98]"
+              >
+                Back
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1814,29 +1834,29 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
   if (step === "scan_result" && gcashFareInfo) {
     return (
       <div className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`} {...backdropDismiss}>
-        <PopoverTail panelColor="#071A2E" anchorOffsetPx={anchorOffset} />
-        <div className={`w-full sm:max-w-sm bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl ${panelAnim}`} style={panelAnchorStyle}>
+        <PopoverTail panelColor={panelTailColor} anchorOffsetPx={anchorOffset} className="light:border-gray-200" />
+        <div className={`w-full sm:max-w-sm bg-[#071A2E] light:bg-white rounded-2xl border border-white/10 light:border-gray-200 shadow-2xl ${panelAnim}`} style={panelAnchorStyle}>
           <div className="p-6">
-            <h2 className="text-lg font-bold text-white mb-4">
+            <h2 className="text-lg font-bold text-white light:text-gray-900 mb-4">
               Fare Breakdown
             </h2>
 
             {/* Commuter info detected from scan */}
-            <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 mb-4">
+            <div className="bg-blue-500/10 light:bg-blue-50 border border-blue-500/20 light:border-blue-200 rounded-xl p-3 mb-4">
               <div className="flex items-center gap-2 mb-1">
-                <svg className="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-4 h-4 text-blue-400 light:text-blue-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
                 </svg>
-                <span className="text-xs font-semibold text-blue-400">
+                <span className="text-xs font-semibold text-blue-400 light:text-blue-700">
                   Commuter Detected
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-white/70">{scannedCommuterName}</span>
+                <span className="text-sm text-white/70 light:text-gray-700">{scannedCommuterName}</span>
                 <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
                   scannedCommuterType !== "REGULAR"
-                    ? "bg-amber-500/15 text-amber-400 border border-amber-500/25"
-                    : "bg-white/5 text-white/40 border border-white/10"
+                    ? "bg-amber-500/15 light:bg-amber-50 text-amber-400 light:text-amber-700 border border-amber-500/25 light:border-amber-200"
+                    : "bg-white/5 light:bg-gray-50 text-white/40 light:text-gray-500 border border-white/10 light:border-gray-200"
                 }`}>
                   {getCommuterTypeLabel(scannedCommuterType)}
                 </span>
@@ -1845,59 +1865,59 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
 
             <div className="space-y-3 mb-6">
               <div className="flex justify-between text-sm">
-                <span className="text-white/50">Route</span>
-                <span className="text-white">
+                <span className="text-white/50 light:text-gray-500">Route</span>
+                <span className="text-white light:text-gray-900">
                   {pickupPoint?.name}{pickupLandmark ? ` · ${pickupLandmark}` : ""} →{" "}
                   {dropoffPoint?.name}{dropoffLandmark ? ` · ${dropoffLandmark}` : ""}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-white/50">Barangays Traveled</span>
-                <span className="text-white">
+                <span className="text-white/50 light:text-gray-500">Barangays Traveled</span>
+                <span className="text-white light:text-gray-900">
                   {gcashFareInfo.barangaysTraveled}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-white/50">Fare Basis</span>
-                <span className="text-white/70 text-xs">
+                <span className="text-white/50 light:text-gray-500">Fare Basis</span>
+                <span className="text-white/70 light:text-gray-700 text-xs">
                   {gcashFareInfo.succeedingCount > 0
                     ? `Base fare covers first ${gcashFareInfo.baseBarangayCount} + ${gcashFareInfo.succeedingCount} succeeding`
                     : "Base fare (within first 4 barangays)"}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-white/50">Regular Fare</span>
-                <span className={gcashFareInfo.hasDiscount ? "text-white/30 line-through" : "text-white"}>
+                <span className="text-white/50 light:text-gray-500">Regular Fare</span>
+                <span className={gcashFareInfo.hasDiscount ? "text-white/30 light:text-gray-400 line-through" : "text-white light:text-gray-900"}>
                   {formatCurrency(gcashFareInfo.regularFare)}
                 </span>
               </div>
               {gcashFareInfo.hasDiscount && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-white/50">Discount ({getCommuterTypeLabel(scannedCommuterType)})</span>
-                  <span className="text-green-400">
+                  <span className="text-white/50 light:text-gray-500">Discount ({getCommuterTypeLabel(scannedCommuterType)})</span>
+                  <span className="text-green-400 light:text-green-700">
                     -{formatCurrency(gcashFareInfo.discountAmount)}
                   </span>
                 </div>
               )}
-              <div className="border-t border-white/10 pt-3 flex justify-between">
-                <span className="text-white font-semibold">Total</span>
-                <span className="text-xl font-extrabold text-white">
+              <div className="border-t border-white/10 light:border-gray-200 pt-3 flex justify-between">
+                <span className="text-white light:text-gray-900 font-semibold">Total</span>
+                <span className="text-xl font-extrabold text-white light:text-gray-900">
                   {formatCurrency(gcashFareInfo.finalFare)}
                 </span>
               </div>
             </div>
 
             {/* GCash Payment Notice */}
-            <div className="bg-[#1A5FB4]/10 border border-[#1A5FB4]/20 rounded-xl p-3 mb-6">
+            <div className="bg-[#1A5FB4]/10 light:bg-[#F0F7FF] border border-[#1A5FB4]/20 light:border-[#DAEEFF] rounded-xl p-3 mb-6">
               <div className="flex items-center gap-2 mb-1">
-                <svg className="w-4 h-4 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-4 h-4 text-[#62A0EA] light:text-[#1A5FB4]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
                 </svg>
-                <span className="text-xs font-semibold text-[#62A0EA]">
+                <span className="text-xs font-semibold text-[#62A0EA] light:text-[#1A5FB4]">
                   GCash Secure Payment
                 </span>
               </div>
-              <p className="text-[10px] text-white/40">
+              <p className="text-[10px] text-white/40 light:text-gray-500">
                 Fare will be charged to the commuter&apos;s GCash account. No wallet balance needed — pay directly.
               </p>
             </div>
@@ -1905,7 +1925,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
             <div className="flex gap-3">
               <button
                 onClick={() => setStep("qr_code")}
-                className="flex-1 py-3 rounded-xl border border-white/10 text-white/60 text-sm font-semibold hover:bg-white/5 transition-colors"
+                className="flex-1 py-3 rounded-xl border border-white/10 light:border-gray-200 text-white/60 light:text-gray-600 text-sm font-semibold hover:bg-white/5 light:hover:bg-gray-100 transition-colors"
               >
                 Back
               </button>
@@ -1942,31 +1962,31 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
 
     return (
       <div className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`} {...backdropDismiss}>
-        <PopoverTail panelColor="#071A2E" anchorOffsetPx={anchorOffset} />
-        <div className={`w-full sm:max-w-sm max-h-full overflow-y-auto modal-scroll bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl ${panelAnim}`} style={panelAnchorStyle}>
+        <PopoverTail panelColor={panelTailColor} anchorOffsetPx={anchorOffset} className="light:border-gray-200" />
+        <div className={`w-full sm:max-w-sm max-h-full overflow-y-auto modal-scroll bg-[#071A2E] light:bg-white rounded-2xl border border-white/10 light:border-gray-200 shadow-2xl ${panelAnim}`} style={panelAnchorStyle}>
           {/* Amount first: the method, the amount to collect, and the
               instruction as plain text instead of a tinted notice box. */}
           <div className="p-5">
-            <h2 className="text-[10px] font-semibold uppercase tracking-[0.08em] text-white/40">
+            <h2 className="text-[10px] font-semibold uppercase tracking-[0.08em] text-white/40 light:text-gray-500">
               Confirm Payment
             </h2>
             <div className="mt-2">
-              <div className="flex items-center gap-2 text-xs font-semibold text-white/60">
+              <div className="flex items-center gap-2 text-xs font-semibold text-white/60 light:text-gray-600">
                 {selectedMethod === "GCash" ? (
-                  <svg className="w-4 h-4 text-white/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <svg className="w-4 h-4 text-white/50 light:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" />
                   </svg>
                 ) : (
-                  <svg className="w-4 h-4 text-white/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <svg className="w-4 h-4 text-white/50 light:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
                   </svg>
                 )}
                 {selectedMethod === "GCash" ? "Charge through GCash" : selectedMethod === "Voucher" ? "Apply voucher" : "Collect in cash"}
               </div>
-              <p className={`mt-1.5 font-bold leading-tight tracking-tight tabular-nums text-white ${selectedMethod === "Voucher" ? "text-xl" : "text-[40px]"}`}>
+              <p className={`mt-1.5 font-bold leading-tight tracking-tight tabular-nums text-white light:text-gray-900 ${selectedMethod === "Voucher" ? "text-xl" : "text-[40px]"}`}>
                 {selectedMethod === "Voucher" ? "Calculated when applied" : formatCurrency(activeFareInfo.finalFare)}
               </p>
-              <p className="mt-1 max-w-[34ch] text-[13px] leading-relaxed text-white/60">
+              <p className="mt-1 max-w-[34ch] text-[13px] leading-relaxed text-white/60 light:text-gray-600">
                 {selectedMethod === "GCash"
                   ? "The commuter scans a QR and pays from their GCash account. No wallet balance needed."
                   : selectedMethod === "Voucher"
@@ -1977,24 +1997,24 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
           </div>
 
           {/* Details grouped by meaning, each with its supporting line. */}
-          <dl className="border-t border-white/10 px-5 py-1 divide-y divide-white/6">
+          <dl className="border-t border-white/10 light:border-gray-200 px-5 py-1 divide-y divide-white/6 light:divide-gray-200">
             {pickupLandmark && (
               <div className="grid grid-cols-[84px_1fr] gap-3 py-3">
-                <dt className="pt-px text-xs text-white/45">Pickup</dt>
-                <dd className="min-w-0 text-[13px] font-medium text-white">{pickupLandmark}</dd>
+                <dt className="pt-px text-xs text-white/45 light:text-gray-500">Pickup</dt>
+                <dd className="min-w-0 text-[13px] font-medium text-white light:text-gray-900">{pickupLandmark}</dd>
               </div>
             )}
             {dropoffLandmark && (
               <div className="grid grid-cols-[84px_1fr] gap-3 py-3">
-                <dt className="pt-px text-xs text-white/45">Drop-off</dt>
-                <dd className="min-w-0 text-[13px] font-medium text-white">{dropoffLandmark}</dd>
+                <dt className="pt-px text-xs text-white/45 light:text-gray-500">Drop-off</dt>
+                <dd className="min-w-0 text-[13px] font-medium text-white light:text-gray-900">{dropoffLandmark}</dd>
               </div>
             )}
             <div className="grid grid-cols-[84px_1fr] gap-3 py-3">
-              <dt className="pt-px text-xs text-white/45">Distance</dt>
-              <dd className="min-w-0 text-[13px] font-medium text-white">
+              <dt className="pt-px text-xs text-white/45 light:text-gray-500">Distance</dt>
+              <dd className="min-w-0 text-[13px] font-medium text-white light:text-gray-900">
                 {activeFareInfo.barangaysTraveled} {activeFareInfo.barangaysTraveled === 1 ? "barangay" : "barangays"}
-                <span className="mt-0.5 block text-[11px] font-normal leading-snug text-white/45">
+                <span className="mt-0.5 block text-[11px] font-normal leading-snug text-white/45 light:text-gray-500">
                   {activeFareInfo.succeedingCount > 0
                     ? `Base fare covers first ${activeFareInfo.baseBarangayCount} + ${activeFareInfo.succeedingCount} succeeding`
                     : "Base fare (within first 4 barangays)"}
@@ -2002,25 +2022,25 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
               </dd>
             </div>
             <div className="grid grid-cols-[84px_1fr] gap-3 py-3">
-              <dt className="pt-px text-xs text-white/45">Commuter</dt>
-              <dd className="min-w-0 text-[13px] font-medium text-white">
+              <dt className="pt-px text-xs text-white/45 light:text-gray-500">Commuter</dt>
+              <dd className="min-w-0 text-[13px] font-medium text-white light:text-gray-900">
                 {isGroupMode ? (
                   <>
                     {groupPassengerCount} {groupPassengerCount === 1 ? "passenger" : "passengers"}
-                    <span className="mt-0.5 block text-[11px] font-normal text-white/45">{groupMix}</span>
+                    <span className="mt-0.5 block text-[11px] font-normal text-white/45 light:text-gray-500">{groupMix}</span>
                   </>
                 ) : getCommuterTypeLabel(activeCommuterType)}
               </dd>
             </div>
             <div className="grid grid-cols-[84px_1fr] gap-3 py-3">
-              <dt className="pt-px text-xs text-white/45">Fare</dt>
-              <dd className="min-w-0 text-[13px] font-medium tabular-nums text-white">
+              <dt className="pt-px text-xs text-white/45 light:text-gray-500">Fare</dt>
+              <dd className="min-w-0 text-[13px] font-medium tabular-nums text-white light:text-gray-900">
                 {/* A group's discount covers the whole group, so pair it with the
                     group's full fare rather than one passenger's. */}
                 {isGroupMode ? (
                   <>
                     {formatCurrency(activeFareInfo.regularFare * groupPassengerCount)} full fare
-                    <span className="mt-0.5 block text-[11px] font-normal text-white/45">
+                    <span className="mt-0.5 block text-[11px] font-normal text-white/45 light:text-gray-500">
                       {groupPassengerCount} × {formatCurrency(activeFareInfo.regularFare)}
                     </span>
                   </>
@@ -2028,7 +2048,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                   <>{formatCurrency(activeFareInfo.regularFare)} regular</>
                 )}
                 {activeFareInfo.hasDiscount && activeFareInfo.discountAmount > 0 && (
-                  <span className="mt-0.5 block text-[11px] font-normal text-white/45">
+                  <span className="mt-0.5 block text-[11px] font-normal text-white/45 light:text-gray-500">
                     − {formatCurrency(activeFareInfo.discountAmount)} {isGroupMode ? "" : `${getCommuterTypeLabel(activeCommuterType).toLowerCase()} `}discount
                   </span>
                 )}
@@ -2040,17 +2060,17 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
             {/* Voucher Code Input — only for Voucher payment */}
             {selectedMethod === "Voucher" && (
               <div className="mb-6">
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                  Voucher Code <span className="text-red-400">*</span>
+                <label className="block text-xs font-medium text-slate-300 light:text-gray-700 mb-1.5">
+                  Voucher Code <span className="text-red-400 light:text-red-600">*</span>
                 </label>
                 <input
                   type="text"
                   value={voucherCode}
                   onChange={(e) => setVoucherCode(e.target.value.toUpperCase().trim())}
                   placeholder="e.g. REWARD-AB12CD34"
-                  className="block w-full px-4 py-2.5 bg-[#0E1628] border border-[#1E2D45] rounded-md text-white text-sm font-mono placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-violet-400 transition-colors"
+                  className="block w-full px-4 py-2.5 bg-[#0E1628] light:bg-white border border-[#1E2D45] light:border-gray-200 rounded-md text-white light:text-gray-900 text-sm font-mono placeholder-slate-500 light:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-violet-400 transition-colors"
                 />
-                <p className="text-[10px] text-slate-500 mt-1">
+                <p className="text-[10px] text-slate-500 light:text-gray-500 mt-1">
                   Enter the code shown by the commuter&apos;s app. Free-ride vouchers cover the fare; discount vouchers reduce it. Collect any remaining fare in cash.
                 </p>
               </div>
@@ -2060,7 +2080,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
               <button
                 onClick={() => setStep(isGroupMode ? "passengers" : "select")}
                 disabled={isInitiatingGcash}
-                className="flex-1 py-3 rounded-xl border border-white/10 text-white/60 text-sm font-semibold hover:bg-white/5 transition-colors disabled:opacity-50"
+                className="flex-1 py-3 rounded-xl border border-white/10 light:border-gray-200 text-white/60 light:text-gray-600 text-sm font-semibold hover:bg-white/5 light:hover:bg-gray-100 transition-colors disabled:opacity-50"
               >
                 Back
               </button>
@@ -2089,15 +2109,15 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
   if (step === "processing") {
     return (
       <div className={`fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`} {...backdropDismiss}>
-        <PopoverTail panelColor="#071A2E" anchorOffsetPx={anchorOffset} />
-        <div className={`w-full max-w-xs bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl p-8 text-center ${panelAnim}`} style={panelAnchorStyle}>
+        <PopoverTail panelColor={panelTailColor} anchorOffsetPx={anchorOffset} className="light:border-gray-200" />
+        <div className={`w-full max-w-xs bg-[#071A2E] light:bg-white rounded-2xl border border-white/10 light:border-gray-200 shadow-2xl p-8 text-center ${panelAnim}`} style={panelAnchorStyle}>
           <div className={`w-16 h-16 mx-auto mb-4 rounded-full border-4 border-t-transparent animate-spin ${
             selectedMethod === "GCash" ? "border-[#1A5FB4]" : "border-emerald-500"
           }`} />
-          <h2 className="text-lg font-bold text-white mb-2">
+          <h2 className="text-lg font-bold text-white light:text-gray-900 mb-2">
             Processing Payment
           </h2>
-          <p className="text-sm text-white/40">
+          <p className="text-sm text-white/40 light:text-gray-500">
             {selectedMethod === "GCash"
               ? "Charging fare via GCash..."
               : "Recording cash payment..."}
@@ -2138,18 +2158,18 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
 
     return (
       <div className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`} {...backdropDismiss}>
-        <PopoverTail panelColor="#071A2E" anchorOffsetPx={anchorOffset} />
-        <div className={`w-full sm:max-w-sm max-h-[92vh] overflow-y-auto bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl modal-scroll ${panelAnim}`} style={panelAnchorStyle}>
+        <PopoverTail panelColor={panelTailColor} anchorOffsetPx={anchorOffset} className="light:border-gray-200" />
+        <div className={`w-full sm:max-w-sm max-h-[92vh] overflow-y-auto bg-[#071A2E] light:bg-white rounded-2xl border border-white/10 light:border-gray-200 shadow-2xl modal-scroll ${panelAnim}`} style={panelAnchorStyle}>
           <div className="p-6 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center">
-              <svg className="w-8 h-8 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/10 light:bg-green-50 border border-green-500/20 light:border-green-200 flex items-center justify-center">
+              <svg className="w-8 h-8 text-green-400 light:text-green-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
               </svg>
             </div>
-            <h2 className="text-lg font-bold text-white mb-1">
+            <h2 className="text-lg font-bold text-white light:text-gray-900 mb-1">
               Payment Successful!
             </h2>
-            <p className="text-sm text-white/40 mb-4">
+            <p className="text-sm text-white/40 light:text-gray-500 mb-4">
               {selectedMethod === "GCash"
                 ? "Fare has been charged via GCash"
                 : selectedMethod === "Voucher"
@@ -2157,62 +2177,62 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                   : "Cash payment has been recorded"}
             </p>
 
-            <div className="bg-white/5 rounded-xl p-4 text-left space-y-2 mb-6">
+            <div className="bg-white/5 light:bg-gray-50 rounded-xl p-4 text-left space-y-2 mb-6">
               <div className="flex justify-between text-sm">
-                <span className="text-white/40">Amount Paid</span>
-                <span className="text-white font-bold">
+                <span className="text-white/40 light:text-gray-500">Amount Paid</span>
+                <span className="text-white light:text-gray-900 font-bold">
                   {formatCurrency(activeFareInfo.finalFare)}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-white/40">Route</span>
-                <span className="text-white/70">
+                <span className="text-white/40 light:text-gray-500">Route</span>
+                <span className="text-white/70 light:text-gray-700">
                   {pickupPoint?.name}{pickupLandmark ? ` · ${pickupLandmark}` : ""} →{" "}
                   {dropoffPoint?.name}{dropoffLandmark ? ` · ${dropoffLandmark}` : ""}
                 </span>
               </div>
               {pickupLandmark && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-white/40">Pickup Landmark</span>
+                  <span className="text-white/40 light:text-gray-500">Pickup Landmark</span>
                   <span className={pickupLabelClass}>{pickupLandmark}</span>
                 </div>
               )}
               {dropoffLandmark && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-white/40">Drop-off Landmark</span>
+                  <span className="text-white/40 light:text-gray-500">Drop-off Landmark</span>
                   <span className={dropoffLabelClass}>{dropoffLandmark}</span>
                 </div>
               )}
               <div className="flex justify-between text-sm">
-                <span className="text-white/40">Barangays</span>
-                <span className="text-white/70">
+                <span className="text-white/40 light:text-gray-500">Barangays</span>
+                <span className="text-white/70 light:text-gray-700">
                   {activeFareInfo.barangaysTraveled} traveled
                 </span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-white/40">Commuter Type</span>
-                <span className="text-white/70">
+                <span className="text-white/40 light:text-gray-500">Commuter Type</span>
+                <span className="text-white/70 light:text-gray-700">
                   {getCommuterTypeLabel(selectedMethod === "GCash" ? scannedCommuterType : commuterType)}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-white/40">Method</span>
-                <span className={selectedMethod === "GCash" ? "text-[#62A0EA]" : "text-emerald-400"}>
+                <span className="text-white/40 light:text-gray-500">Method</span>
+                <span className={selectedMethod === "GCash" ? "text-[#62A0EA] light:text-[#1A5FB4]" : "text-emerald-400 light:text-emerald-700"}>
                   {selectedMethod}
                 </span>
               </div>
               {gcashInitiation && selectedMethod === "GCash" && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-white/40">Ref ID</span>
-                  <span className="text-white/50 text-xs font-mono">
+                  <span className="text-white/40 light:text-gray-500">Ref ID</span>
+                  <span className="text-white/50 light:text-gray-500 text-xs font-mono">
                     {gcashInitiation.transactionId}
                   </span>
                 </div>
               )}
               {gcashInitiation && selectedMethod === "GCash" && !gcashInitiation.checkoutUrl && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-white/40">Mode</span>
-                  <span className="text-amber-400/60 text-xs font-medium">
+                  <span className="text-white/40 light:text-gray-500">Mode</span>
+                  <span className="text-amber-400/60 light:text-amber-700 text-xs font-medium">
                     Simulated (Dev)
                   </span>
                 </div>
@@ -2222,18 +2242,18 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
             <button
               type="button"
               onClick={() => setShowReceiptDetails((open) => !open)}
-              className="mb-3 flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-left transition-colors hover:bg-white/10"
+              className="mb-3 flex w-full items-center justify-between rounded-xl border border-white/10 light:border-gray-200 bg-white/5 light:bg-gray-50 px-4 py-3 text-left transition-colors hover:bg-white/10 light:hover:bg-gray-100"
             >
               <span>
-                <span className="block text-sm font-bold text-white">Receipt Details</span>
-                <span className="text-[10px] text-white/35">
+                <span className="block text-sm font-bold text-white light:text-gray-900">Receipt Details</span>
+                <span className="text-[10px] text-white/35 light:text-gray-400">
                   {showReceiptDetails
                     ? `${receiptCount} receipt${receiptCount !== 1 ? "s" : ""} shown`
                     : `Tap to view ${receiptCount} receipt${receiptCount !== 1 ? "s" : ""}`}
                 </span>
               </span>
               <svg
-                className={`h-4 w-4 text-white/45 transition-transform ${showReceiptDetails ? "rotate-180" : ""}`}
+                className={`h-4 w-4 text-white/45 light:text-gray-500 transition-transform ${showReceiptDetails ? "rotate-180" : ""}`}
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -2246,7 +2266,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
             <button
               type="button"
               onClick={() => window.print()}
-              className="mb-3 w-full rounded-xl border border-white/15 bg-white/10 py-3 text-sm font-bold text-white transition-colors hover:bg-white/15"
+              className="mb-3 w-full rounded-xl border border-white/15 light:border-gray-300 bg-white/10 light:bg-gray-100 py-3 text-sm font-bold text-white light:text-gray-900 transition-colors hover:bg-white/15"
             >
               Print {isGroupMode ? "All Receipts" : "Receipt"}
             </button>
@@ -2264,9 +2284,9 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
 
             <div className={`${showReceiptDetails ? "mt-4 block" : "hidden print:block"} ${isGroupMode ? "max-h-[48vh] space-y-4 overflow-y-auto rounded-xl pr-1" : ""}`}>
               {(receiptTransactions.length > 0 ? receiptTransactions : [null]).map((transaction, index) => (
-                <div key={transaction?.transactionId ?? "single"} className={isGroupMode ? "rounded-xl border border-white/15 bg-white/5 p-2" : ""}>
+                <div key={transaction?.transactionId ?? "single"} className={isGroupMode ? "rounded-xl border border-white/15 light:border-gray-300 bg-white/5 light:bg-gray-50 p-2" : ""}>
                   {isGroupMode && (
-                    <p className="mb-2 text-left text-[10px] font-bold uppercase tracking-wider text-white/40">
+                    <p className="mb-2 text-left text-[10px] font-bold uppercase tracking-wider text-white/40 light:text-gray-500">
                       Passenger receipt {index + 1} of {receiptTransactions.length}
                     </p>
                   )}
@@ -2309,18 +2329,18 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
   if (step === "failed") {
     return (
       <div className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`} {...backdropDismiss}>
-        <PopoverTail panelColor="#071A2E" anchorOffsetPx={anchorOffset} />
-        <div className={`w-full sm:max-w-sm bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl ${panelAnim}`} style={panelAnchorStyle}>
+        <PopoverTail panelColor={panelTailColor} anchorOffsetPx={anchorOffset} className="light:border-gray-200" />
+        <div className={`w-full sm:max-w-sm bg-[#071A2E] light:bg-white rounded-2xl border border-white/10 light:border-gray-200 shadow-2xl ${panelAnim}`} style={panelAnchorStyle}>
           <div className="p-6 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
-              <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/10 light:bg-red-50 border border-red-500/20 light:border-red-200 flex items-center justify-center">
+              <svg className="w-8 h-8 text-red-400 light:text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
               </svg>
             </div>
-            <h2 className="text-lg font-bold text-white mb-1">
+            <h2 className="text-lg font-bold text-white light:text-gray-900 mb-1">
               Payment Failed
             </h2>
-            <p className="text-sm text-white/40 mb-6">
+            <p className="text-sm text-white/40 light:text-gray-500 mb-6">
               {gcashError
                 ? gcashError
                 : selectedMethod === "GCash"
@@ -2330,7 +2350,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
             <div className="flex gap-3">
               <button
                 onClick={handleClose}
-                className="flex-1 py-3 rounded-xl border border-white/10 text-white/60 text-sm font-semibold hover:bg-white/5 transition-colors"
+                className="flex-1 py-3 rounded-xl border border-white/10 light:border-gray-200 text-white/60 light:text-gray-600 text-sm font-semibold hover:bg-white/5 light:hover:bg-gray-100 transition-colors"
               >
                 Close
               </button>
