@@ -1065,7 +1065,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                 {pickupPoint && (
                   <button
                     onClick={(e) => { e.stopPropagation(); clearPickup(); }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/5 light:bg-gray-50 border border-white/10 light:border-gray-200 flex items-center justify-center text-white/30 light:text-gray-400 hover:text-white light:hover:text-gray-900 hover:bg-red-500/20 hover:border-red-500/30 transition-colors"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/5 light:bg-gray-50 border border-white/10 light:border-gray-200 flex items-center justify-center text-white/30 light:text-gray-400 hover:text-white light:hover:text-red-600 hover:bg-red-500/20 hover:border-red-500/30 light:hover:bg-red-50 light:hover:border-red-200 transition-colors"
                     title="Clear pickup"
                   >
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -1133,7 +1133,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                 {dropoffPoint && (
                   <button
                     onClick={(e) => { e.stopPropagation(); clearDropoff(); }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/5 light:bg-gray-50 border border-white/10 light:border-gray-200 flex items-center justify-center text-white/30 light:text-gray-400 hover:text-white light:hover:text-gray-900 hover:bg-red-500/20 hover:border-red-500/30 transition-colors"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/5 light:bg-gray-50 border border-white/10 light:border-gray-200 flex items-center justify-center text-white/30 light:text-gray-400 hover:text-white light:hover:text-red-600 hover:bg-red-500/20 hover:border-red-500/30 light:hover:bg-red-50 light:hover:border-red-200 transition-colors"
                     title="Clear drop-off"
                   >
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
