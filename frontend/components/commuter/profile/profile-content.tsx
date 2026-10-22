@@ -7,7 +7,7 @@ import { Check, ChevronRight, CircleHelp, Clock, KeyRound, Loader2, LogOut, Mail
 import { useProfile } from "@/app/(commuter)/profile/use-profile";
 import { AccountStatus } from "@/app/(commuter)/profile/types";
 import { getCommuterTypeLabel } from "@/types";
-import ChangeEmailDialog from "./change-email-dialog";
+import ChangeEmailDialog, { maskEmail } from "./change-email-dialog";
 import ProfileThemeToggle from "./profile-theme-toggle";
 import ProfilePhoto from "./profile-photo";
 import AccountMenu, { type SignOutControl } from "./account-menu";
@@ -161,33 +161,33 @@ export default function ProfileContent({ variant = "page", onSignOutControl }: {
     switch (status) {
       case "ACTIVE":
         return {
-          color: "text-emerald-300 bg-emerald-500/10 border-emerald-400/20 light:text-emerald-700 light:bg-emerald-50 light:border-emerald-200",
+          color: "text-white bg-emerald-700 border-emerald-600 hover:bg-emerald-800 hover:border-emerald-700 light:text-white light:bg-emerald-700 light:border-emerald-600 light:hover:bg-emerald-800 light:hover:border-emerald-700",
           text: "Verified",
           icon: ShieldCheck,
         };
       case "PENDING_VERIFICATION":
       case "PENDING":
         return {
-          color: "text-amber-300 bg-amber-500/10 border-amber-400/20 light:text-amber-700 light:bg-amber-50 light:border-amber-200",
+          color: "text-white bg-amber-700 border-amber-600 hover:bg-amber-800 hover:border-amber-700 light:text-white light:bg-amber-700 light:border-amber-600 light:hover:bg-amber-800 light:hover:border-amber-700",
           text: "Pending Verification",
           icon: Clock,
         };
       case "DISCOUNT_REJECTED":
       case "REJECTED":
         return {
-          color: "text-red-300 bg-red-500/10 border-red-400/20 light:text-red-700 light:bg-red-50 light:border-red-200",
+          color: "text-white bg-red-700 border-red-600 hover:bg-red-800 hover:border-red-700 light:text-white light:bg-red-700 light:border-red-600 light:hover:bg-red-800 light:hover:border-red-700",
           text: "Rejected",
           icon: ShieldX,
         };
       case "APPROVED":
         return {
-          color: "text-emerald-300 bg-emerald-500/10 border-emerald-400/20 light:text-emerald-700 light:bg-emerald-50 light:border-emerald-200",
+          color: "text-white bg-emerald-700 border-emerald-600 hover:bg-emerald-800 hover:border-emerald-700 light:text-white light:bg-emerald-700 light:border-emerald-600 light:hover:bg-emerald-800 light:hover:border-emerald-700",
           text: "Approved",
           icon: ShieldCheck,
         };
       default:
         return {
-          color: "text-white/60 bg-white/5 border-white/15 light:text-slate-600 light:bg-slate-50 light:border-slate-200",
+          color: "text-white bg-slate-700 border-slate-600 hover:bg-slate-800 hover:border-slate-700 light:text-white light:bg-slate-700 light:border-slate-600 light:hover:bg-slate-800 light:hover:border-slate-700",
           text: status ?? "Unknown",
           icon: CircleHelp,
         };
@@ -234,15 +234,15 @@ export default function ProfileContent({ variant = "page", onSignOutControl }: {
             <p className="text-white/50 text-sm mt-1 break-words light:text-gray-500">@{profile.username}</p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <span
-                className={`inline-flex max-w-full items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-medium leading-tight ${statusConfig.color}`}
+                className={`inline-flex max-w-full cursor-default items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] font-medium leading-tight transition-colors ${statusConfig.color}`}
               >
                 <StatusIcon size={13} strokeWidth={1.8} aria-hidden="true" className="shrink-0" />
                 <span className="break-words">{statusConfig.text}</span>
               </span>
-              <span className="inline-flex max-w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-[#99C1F1]/20 bg-[#62A0EA]/5 px-2.5 py-1.5 text-[11px] font-medium leading-tight text-[#B6D3F6] light:border-[#1A5FB4]/20 light:bg-[#F0F7FF] light:text-[#1A5FB4]">
+              <span className="inline-flex max-w-full cursor-default flex-wrap items-center gap-x-2 gap-y-1 rounded-full border border-[#337DD2] bg-[#1A5FB4] px-2.5 py-1.5 text-[11px] font-semibold leading-tight text-white transition-colors hover:border-[#164A8F] hover:bg-[#164A8F] light:border-[#337DD2] light:bg-[#1A5FB4] light:text-white light:hover:border-[#164A8F] light:hover:bg-[#164A8F]">
                 <span className="break-words">{getCommuterTypeLabel(profile.commuterType)}</span>
                 {discountPercentage > 0 && (
-                  <span className="border-l border-[#99C1F1]/25 pl-2 font-semibold whitespace-nowrap tabular-nums text-[#99C1F1] light:border-[#1A5FB4]/20 light:text-[#1A5FB4]">{discountPercentage}% off</span>
+                  <span className="border-l border-white/40 pl-2 font-semibold whitespace-nowrap tabular-nums text-white">{discountPercentage}% off</span>
                 )}
               </span>
             </div>
@@ -423,7 +423,7 @@ export default function ProfileContent({ variant = "page", onSignOutControl }: {
             <div>
               <p className="block text-xs font-medium text-white/50 light:text-gray-500 mb-1.5">Email Address</p>
               <button type="button" onClick={() => setShowEmailDialog(true)} aria-label="Change email address" className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-white/10 bg-[#050F1A] px-4 py-3 text-left text-sm text-white/90 light:text-gray-900 hover:border-[#62A0EA]/40 hover:bg-white/5 light:border-gray-200 light:bg-white light:hover:border-[#1A5FB4]/40 light:hover:bg-gray-50">
-                <span className="min-w-0 flex-1 break-all">{profile.email || "Not provided"}</span><Pencil size={16} aria-hidden="true" className="shrink-0 text-[#99C1F1] light:text-[#1A5FB4]" />
+                <span className="min-w-0 flex-1 break-all">{profile.email ? maskEmail(profile.email) : "Not provided"}</span><Pencil size={16} aria-hidden="true" className="shrink-0 text-[#99C1F1] light:text-[#1A5FB4]" />
               </button>
             </div>
             <div>
@@ -490,7 +490,7 @@ export default function ProfileContent({ variant = "page", onSignOutControl }: {
         </div>}
         <div className={isPage ? "space-y-5 lg:hidden" : "grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]"}>
           <section aria-labelledby={detailsHeadingId} className={isPage ? "rounded-2xl border border-white/10 bg-[#071A2E] p-5 light:border-gray-200 light:bg-white" : "min-w-0 rounded-2xl border border-white/10 bg-[#0B223A] p-5 light:border-gray-200 light:bg-white xl:row-span-2 xl:self-stretch"}>
-            <h3 id={detailsHeadingId} className={`flex items-center gap-2 text-sm font-semibold text-white light:text-gray-900 ${isPage ? "" : "gap-3"}`}>{isPage ? <UserRound size={17} aria-hidden="true" className="text-[#99C1F1] light:text-[#1A5FB4]" /> : <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#62A0EA]/15 bg-[#62A0EA]/10 text-[#99C1F1] light:border-[#1A5FB4]/20 light:bg-[#1A5FB4]/10 light:text-[#1A5FB4]"><UserRound size={16} aria-hidden="true" /></span>}Personal details</h3>
+            <h3 id={detailsHeadingId} className={`flex items-center gap-2 text-sm font-semibold text-white light:text-gray-900 ${isPage ? "" : "gap-3"}`}><UserRound size={22} aria-hidden="true" className="shrink-0 text-[#99C1F1] light:text-[#1A5FB4]" />Personal details</h3>
             {!isPage && <p className="mt-3 text-xs text-white/40 light:text-gray-500">Your registered information</p>}
             <dl className={isPage ? "mt-4 grid grid-cols-2 gap-x-4 gap-y-5" : "mt-5 grid grid-cols-2 gap-x-4 gap-y-5"}>
               <div><dt className="text-xs text-white/50 light:text-gray-500">First name</dt><dd className="mt-1 break-words text-sm text-white/90 light:text-gray-900">{profile.firstName}</dd></div>
@@ -500,7 +500,7 @@ export default function ProfileContent({ variant = "page", onSignOutControl }: {
               <div className={isPage ? "col-span-full" : "col-span-full border-t border-white/10 pt-4 light:border-gray-200"}>
                 <dt className="text-xs text-white/50 light:text-gray-500">Email address</dt>
                 <dd className={isPage ? "mt-1" : "mt-2"}>
-                  <p className={isPage ? "break-all text-sm text-white/90 light:text-gray-900" : "min-h-11 break-all rounded-xl border border-white/10 bg-[#071A2E] px-3 py-3 light:border-gray-200 light:bg-gray-50 text-sm text-white/90 light:text-gray-900"}>{profile.email || "Not provided"}</p>
+                  <p className={isPage ? "break-all text-sm text-white/90 light:text-gray-900" : "min-h-11 break-all rounded-xl border border-white/10 bg-[#071A2E] px-3 py-3 light:border-gray-200 light:bg-gray-50 text-sm text-white/90 light:text-gray-900"}>{profile.email ? maskEmail(profile.email) : "Not provided"}</p>
                 </dd>
               </div>
             </dl>
@@ -508,8 +508,8 @@ export default function ProfileContent({ variant = "page", onSignOutControl }: {
 
           <section aria-labelledby={contactHeadingId} className={isPage ? "rounded-2xl border border-white/10 bg-[#071A2E] p-5 light:border-gray-200 light:bg-white" : "min-w-0 rounded-2xl border border-white/10 bg-[#0B223A] p-5 light:border-gray-200 light:bg-white"}>
             <div className="flex items-center justify-between gap-3">
-              <h3 id={contactHeadingId} className={`flex items-center gap-2 text-sm font-semibold text-white light:text-gray-900 ${isPage ? "" : "gap-3"}`}>{isPage ? <Phone size={17} aria-hidden="true" className="text-[#99C1F1] light:text-[#1A5FB4]" /> : <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#62A0EA]/15 bg-[#62A0EA]/10 text-[#99C1F1] light:border-[#1A5FB4]/20 light:bg-[#1A5FB4]/10 light:text-[#1A5FB4]"><Phone size={16} aria-hidden="true" /></span>}Contact number</h3>
-              {!isEditing && <button type="button" onClick={startEditing} aria-label="Edit contact number" className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-3 text-xs font-medium text-[#99C1F1] hover:bg-white/5 hover:text-white light:text-[#1A5FB4] light:bg-[#1A5FB4]/10 light:hover:bg-[#1A5FB4]/15 light:hover:text-[#164A8F] ${isPage ? "min-h-11 bg-[#62A0EA]/10" : "min-h-9 border border-[#62A0EA]/20 bg-[#62A0EA]/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"}`}><Pencil size={14} aria-hidden="true" /> Edit</button>}
+              <h3 id={contactHeadingId} className={`flex items-center gap-2 text-sm font-semibold text-white light:text-gray-900 ${isPage ? "" : "gap-3"}`}><Phone size={22} aria-hidden="true" className="shrink-0 text-[#99C1F1] light:text-[#1A5FB4]" />Contact number</h3>
+              {!isEditing && <button type="button" onClick={startEditing} aria-label="Edit contact number" className={`inline-flex shrink-0 items-center gap-2 rounded-lg border border-[#337DD2] bg-[#1A5FB4] px-3 text-xs font-semibold text-white transition-colors hover:border-[#164A8F] hover:bg-[#164A8F] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] ${isPage ? "min-h-11" : "min-h-9"}`}><Pencil size={14} aria-hidden="true" /> Edit</button>}
               {isEditing && !isPage && (
                 <div className="flex shrink-0 items-center gap-2">
                   <button type="button" onClick={cancelEditing} disabled={isSaving} aria-label="Cancel contact edit" title="Cancel" className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-white/70 transition-colors hover:bg-white/5 light:border-gray-200 light:text-gray-600 light:hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] disabled:opacity-50"><X size={17} aria-hidden="true" /></button>
@@ -533,7 +533,7 @@ export default function ProfileContent({ variant = "page", onSignOutControl }: {
           </section>
 
           <section aria-labelledby={securityHeadingId} className={isPage ? "rounded-2xl border border-white/10 bg-[#071A2E] p-5 light:border-gray-200 light:bg-white" : "min-w-0 rounded-2xl border border-white/10 bg-[#0B223A] p-5 light:border-gray-200 light:bg-white"}>
-            <h3 id={securityHeadingId} className={`flex items-center gap-2 text-sm font-semibold text-white light:text-gray-900 ${isPage ? "mb-2" : "mb-4 gap-3"}`}>{isPage ? <ShieldCheck size={17} aria-hidden="true" className="text-[#99C1F1] light:text-[#1A5FB4]" /> : <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#62A0EA]/15 bg-[#62A0EA]/10 text-[#99C1F1] light:border-[#1A5FB4]/20 light:bg-[#1A5FB4]/10 light:text-[#1A5FB4]"><ShieldCheck size={16} aria-hidden="true" /></span>}Account security</h3>
+            <h3 id={securityHeadingId} className={`flex items-center gap-2 text-sm font-semibold text-white light:text-gray-900 ${isPage ? "mb-2" : "mb-4 gap-3"}`}><ShieldCheck size={22} aria-hidden="true" className="shrink-0 text-[#99C1F1] light:text-[#1A5FB4]" />Account security</h3>
             <button type="button" onClick={() => setShowEmailDialog(true)} className={`flex min-h-12 w-full items-center gap-3 rounded-lg py-3 text-left text-sm text-white/80 transition-colors hover:bg-white/5 light:text-gray-700 light:hover:bg-gray-100 ${isPage ? "" : "rounded-xl border border-white/10 bg-[#071A2E] px-3 hover:border-[#62A0EA]/40 light:border-gray-200 light:bg-white light:hover:border-[#1A5FB4]/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA]"}`}>
               <Mail size={18} aria-hidden="true" className={isPage ? "shrink-0 text-white/50 light:text-gray-400" : "shrink-0 text-[#99C1F1] light:text-[#1A5FB4]"} /><span className="min-w-0 flex-1"><span className="block">Change email</span>{!isPage && <span className="mt-1 block text-[11px] font-normal text-white/40 light:text-gray-500">Verify a new address</span>}</span><ChevronRight size={16} aria-hidden="true" className="shrink-0 text-white/40 light:text-gray-400" />
             </button>
