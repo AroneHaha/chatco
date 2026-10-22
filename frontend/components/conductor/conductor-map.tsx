@@ -199,10 +199,7 @@ export default function ConductorMap({
             title={unitNumber}
             subtitle="Your unit"
             status={{ label: markerPresentation.label, tone: isOnBreak ? "info" : capacityTone(capacityStatus) }}
-            details={[
-              ...(isOnBreak ? [{ label: "Capacity", value: capacityStatus }] : []),
-              { label: "Pickup zone", value: "1 km radius" },
-            ]}
+            details={isOnBreak ? [{ label: "Capacity", value: capacityStatus }] : []}
           />
         </Marker>
 

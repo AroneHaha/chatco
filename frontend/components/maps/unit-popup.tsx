@@ -3,7 +3,7 @@
 import { useEffect, type ReactNode } from "react";
 import { useLeafletContext } from "@react-leaflet/core";
 import { Popup } from "react-leaflet";
-import { Car } from "lucide-react";
+import { mdiJeepney } from "@mdi/js";
 import styles from "./unit-popup.module.css";
 
 type Tone = "success" | "warning" | "danger" | "info";
@@ -22,9 +22,13 @@ interface UnitPopupProps {
   status: { label: string; tone: Tone };
   details: { label: string; value: ReactNode }[];
   notes?: { message: string; tone: Tone }[];
+  /** MDI icon path for the header; matches the marker it belongs to. */
+  iconPath?: string;
+  /** Stack the icon above a centred subtitle and title. */
+  centered?: boolean;
 }
 
-export default function UnitPopup({ title, subtitle = "Unit details", status, details, notes = [] }: UnitPopupProps) {
+export default function UnitPopup({ title, subtitle = "Unit details", status, details, notes = [], iconPath = mdiJeepney, centered = false }: UnitPopupProps) {
   const { overlayContainer: marker } = useLeafletContext();
 
   useEffect(() => {
@@ -85,25 +89,25 @@ export default function UnitPopup({ title, subtitle = "Unit details", status, de
   }, [marker]);
 
   return (
-    <Popup className={styles.popup} minWidth={240} maxWidth={300} autoPanPadding={[20, 20]}>
+    <Popup className={styles.popup} closeButton={false} minWidth={0} maxWidth={320} autoPanPadding={[20, 20]}>
       <section aria-label={`${subtitle}: ${title}`}>
-        <div className={styles.header}>
-          <span className={styles.icon}><Car size={19} aria-hidden="true" /></span>
+        <div className={centered ? `${styles.header} ${styles.headerCentered}` : styles.header}>
+          <svg className={styles.icon} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d={iconPath} /></svg>
           <div className={styles.heading}>
             <div className={styles.subtitle}>{subtitle}</div>
             <div className={styles.title}>{title}</div>
           </div>
         </div>
         <div className={styles.body}>
-          <span className={styles.badge} data-tone={status.tone}><span aria-hidden="true" />{status.label}</span>
-          <dl className={styles.details}>
+          <span className={styles.status} data-tone={status.tone}>{status.label}</span>
+          {details.length > 0 && <dl className={styles.details}>
             {details.map(detail => (
               <div key={detail.label} className={styles.row}>
                 <dt>{detail.label}</dt>
                 <dd>{detail.value}</dd>
               </div>
             ))}
-          </dl>
+          </dl>}
           {notes.length > 0 && <div className={styles.notes}>
             {notes.map(note => <div key={note.message} className={styles.note} data-tone={note.tone}>{note.message}</div>)}
           </div>}

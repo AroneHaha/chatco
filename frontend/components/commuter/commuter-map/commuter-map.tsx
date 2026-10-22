@@ -16,8 +16,9 @@
 // to be updated to call API endpoints instead of client-side calculations.
 
 import { useState, useEffect, useMemo, useCallback, useSyncExternalStore } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Polyline } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Polyline } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
+import { mdiAccount } from "@mdi/js";
 import { distanceToPolylineMeters } from "@/lib/utils/geo";
 import { ROUTE_COORDS } from "./commuter-map-constants";
 import { useRouteGeometry } from "@/hooks/use-route-geometry";
@@ -27,6 +28,7 @@ import LocationFinder from "./location-finder";
 import VehicleMarker from "./vehicle-marker";
 import UnitDetailsPanel from "./unit-details-panel";
 import DynamicRouteViewport from "@/components/maps/dynamic-route-viewport";
+import UnitPopup from "@/components/maps/unit-popup";
 
 // --- MAIN COMPONENT ---
 
@@ -156,10 +158,14 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
         {/* --- COMMUTER LOCATION PIN --- */}
         {showMapPin && userActualLocation && (
           <Marker position={userActualLocation} icon={commuterIcon}>
-            <Popup>
-              <div className="font-bold text-[#071A2E]">You are here</div>
-              <div className="text-xs text-gray-500">Live GPS Location</div>
-            </Popup>
+            <UnitPopup
+              title="You are here"
+              subtitle="Your location"
+              iconPath={mdiAccount}
+              centered
+              status={{ label: "Live GPS", tone: "info" }}
+              details={[]}
+            />
           </Marker>
         )}
 
