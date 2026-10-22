@@ -15,7 +15,12 @@ const store = createThemeStore("chatco:conductor-theme");
  * still uses white text that would vanish on a light background. Add a route
  * here once its page and the popovers opened from it are themed.
  */
-const LIGHT_READY_ROUTES = new Set(["/conductor-dashboard"]);
+const LIGHT_READY_ROUTES = new Set([
+  "/conductor-dashboard",
+  "/conductor-dashboard/end-of-day",
+  "/conductor-dashboard/metrics",
+  "/conductor-dashboard/conductor-settings",
+]);
 
 export function ConductorThemeProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();

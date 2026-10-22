@@ -43,7 +43,8 @@ export default function EndOfDayContent() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [hasRemittedToday, setHasRemittedToday] = useState(false);
   const [historyFilter, setHistoryFilter] = useState<RemittanceHistoryFilter>("week");
-  const [historyDate, setHistoryDate] = useState("");
+  const [historyDateFrom, setHistoryDateFrom] = useState("");
+  const [historyDateTo, setHistoryDateTo] = useState("");
   const [showOfficialReport, setShowOfficialReport] = useState(false);
   const [reportForRecord, setReportForRecord] = useState<RemittanceRecord | null>(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -127,10 +128,14 @@ export default function EndOfDayContent() {
       if (historyFilter === "last7") return date >= new Date(startOfToday.getTime() - 6 * 86400000) && date <= startOfToday;
       if (historyFilter === "week") return date >= weekStart && date <= weekEnd;
       if (historyFilter === "month") return date >= monthStart && date <= startOfToday;
-      if (historyFilter === "date") return historyDate ? recordDate === historyDate : true;
+      if (historyFilter === "date") {
+        if (historyDateFrom && historyDateTo) return recordDate >= historyDateFrom && recordDate <= historyDateTo;
+        const selectedDate = historyDateFrom || historyDateTo;
+        return selectedDate ? recordDate === selectedDate : true;
+      }
       return true;
     });
-  }, [history, historyFilter, historyDate]);
+  }, [history, historyFilter, historyDateFrom, historyDateTo]);
 
   const activeReport = reportForRecord || {
     shiftId: shiftInfo.shiftId,
@@ -304,11 +309,11 @@ export default function EndOfDayContent() {
   if (status === "loading") {
     return (
       <div className="px-4 pt-5 space-y-5 animate-pulse">
-        <div className="h-20 bg-white/[0.04] rounded-2xl" />
-        <div className="h-28 bg-white/[0.04] rounded-2xl" />
-        <div className="h-48 bg-white/[0.04] rounded-2xl" />
-        <div className="h-32 bg-white/[0.04] rounded-2xl" />
-        <div className="h-14 bg-white/[0.04] rounded-2xl" />
+        <div className="h-20 bg-white/[0.04] light:bg-gray-200 rounded-2xl" />
+        <div className="h-28 bg-white/[0.04] light:bg-gray-200 rounded-2xl" />
+        <div className="h-48 bg-white/[0.04] light:bg-gray-200 rounded-2xl" />
+        <div className="h-32 bg-white/[0.04] light:bg-gray-200 rounded-2xl" />
+        <div className="h-14 bg-white/[0.04] light:bg-gray-200 rounded-2xl" />
       </div>
     );
   }
@@ -316,7 +321,7 @@ export default function EndOfDayContent() {
   if (status === "error") {
     return (
       <div className="px-4 py-10 text-center">
-        <p className="text-red-300 text-sm">{error}</p>
+        <p className="text-red-300 light:text-red-700 text-sm">{error}</p>
       </div>
     );
   }
@@ -325,28 +330,28 @@ export default function EndOfDayContent() {
     <>
       <div className="px-4 pt-5 space-y-5">
         {/* Driver info */}
-        <div className="bg-[#071A2E] border border-white/[0.06] rounded-2xl p-4 flex items-center justify-between"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-[#1A5FB4]/15 flex items-center justify-center text-[#62A0EA] font-bold text-sm">{shiftInfo.driverName[0]}</div><div><p className="text-sm font-bold text-white">{shiftInfo.driverName}</p><p className="text-[11px] text-white/40 font-medium">{shiftInfo.unitNumber} · {shiftInfo.route}</p></div></div></div>
+        <div className="bg-[#071A2E] light:bg-white border border-white/[0.06] light:border-gray-200 rounded-2xl p-4 flex items-center justify-between"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-[#1A5FB4]/15 light:bg-gray-100 flex items-center justify-center text-[#62A0EA] light:text-[#1A5FB4] font-bold text-sm">{shiftInfo.driverName[0]}</div><div><p className="text-sm font-bold text-white light:text-gray-900">{shiftInfo.driverName}</p><p className="text-[11px] text-white/40 light:text-gray-500 font-medium">{shiftInfo.unitNumber} · {shiftInfo.route}</p></div></div></div>
 
         {/* Grand Total card */}
-        <div className="bg-[#071A2E] border border-white/[0.06] rounded-2xl p-4">
+        <div className="bg-[#071A2E] light:bg-white border border-white/[0.06] light:border-gray-200 rounded-2xl p-4">
           <div className="flex items-center gap-2 mb-2">
-            <div className="w-7 h-7 rounded-lg bg-[#1A5FB4]/15 flex items-center justify-center">
-              <svg className="w-4 h-4 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <div className="w-7 h-7 rounded-lg bg-[#1A5FB4]/15 light:bg-gray-100 flex items-center justify-center">
+              <svg className="w-4 h-4 text-[#62A0EA] light:text-[#1A5FB4]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
               </svg>
             </div>
-            <p className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">Total Collections</p>
+            <p className="text-[10px] font-semibold text-white/40 light:text-gray-500 uppercase tracking-wider">Total Collections</p>
           </div>
-          <p className="text-3xl font-extrabold text-[#62A0EA]">{fmt(summary.grandTotal)}</p>
-          <p className="text-[11px] text-white/25 mt-1">{summary.totalPassengers} passenger{summary.totalPassengers !== 1 ? "s" : ""} · {transactions.length} transaction{transactions.length !== 1 ? "s" : ""}</p>
+          <p className="text-3xl font-extrabold text-[#62A0EA] light:text-[#1A5FB4]">{fmt(summary.grandTotal)}</p>
+          <p className="text-[11px] text-white/25 light:text-gray-500 mt-1">{summary.totalPassengers} passenger{summary.totalPassengers !== 1 ? "s" : ""} · {transactions.length} transaction{transactions.length !== 1 ? "s" : ""}</p>
         </div>
 
         {/* Payment Breakdown */}
-        <div className="bg-[#071A2E] border border-white/[0.06] rounded-2xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-white/5">
-            <p className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Payment Breakdown</p>
+        <div className="bg-[#071A2E] light:bg-white border border-white/[0.06] light:border-gray-200 rounded-2xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-white/5 light:border-gray-200">
+            <p className="text-[10px] font-bold text-white/40 light:text-gray-500 uppercase tracking-wider">Payment Breakdown</p>
           </div>
-          <div className="divide-y divide-white/[0.04]">
+          <div className="divide-y divide-white/[0.04] light:divide-gray-100">
             {(Object.entries(summary.breakdown) as [string, { count: number; amount: number }][])
               .filter(([, val]) => val.count > 0 || val.amount > 0)
               .map(([key, val]) => {
@@ -355,51 +360,51 @@ export default function EndOfDayContent() {
                 return (
                   <div key={key} className="flex items-center justify-between px-4 py-3">
                     <div className="flex items-center gap-2.5">
-                      <div className={`w-2 h-2 rounded-full ${cfg.dot}`} />
-                      <span className="text-sm font-medium text-white/70">{cfg.label}</span>
-                      <span className="text-[11px] text-white/30 font-medium tabular-nums">{val.count}x</span>
+                      <div className={`w-2 h-2 rounded-full ${cfg.dot} light:bg-[#1A5FB4]`} />
+                      <span className="text-sm font-medium text-white/70 light:text-gray-700">{cfg.label}</span>
+                      <span className="text-[11px] text-white/30 light:text-gray-500 font-medium tabular-nums">{val.count}x</span>
                     </div>
-                    <span className={`text-sm font-bold tabular-nums ${cfg.color}`}>{fmt(val.amount)}</span>
+                    <span className={`text-sm font-bold tabular-nums ${cfg.color} light:text-gray-900`}>{fmt(val.amount)}</span>
                   </div>
                 );
               })}
           </div>
-          <div className="px-4 py-3 bg-white/[0.02] border-t border-white/[0.06] flex items-center justify-between">
-            <span className="text-xs font-bold text-white/50 uppercase tracking-wider">Grand Total</span>
-            <span className="text-base font-extrabold text-white tabular-nums">{fmt(summary.grandTotal)}</span>
+          <div className="px-4 py-3 bg-white/[0.02] light:bg-gray-50 border-t border-white/[0.06] light:border-gray-200 flex items-center justify-between">
+            <span className="text-xs font-bold text-white/50 light:text-gray-600 uppercase tracking-wider">Grand Total</span>
+            <span className="text-base font-extrabold text-white light:text-gray-900 tabular-nums">{fmt(summary.grandTotal)}</span>
           </div>
         </div>
 
         {/* Collection Summary — GCash vs Cash high-level */}
-        <div className="bg-[#1A5FB4]/8 border border-[#1A5FB4]/20 rounded-2xl p-4 space-y-3">
-          <p className="text-[10px] font-bold text-[#62A0EA]/60 uppercase tracking-wider">Collection Summary</p>
+        <div className="bg-[#1A5FB4]/8 light:bg-white border border-[#1A5FB4]/20 light:border-gray-200 rounded-2xl p-4 space-y-3">
+          <p className="text-[10px] font-bold text-[#62A0EA]/60 light:text-gray-600 uppercase tracking-wider">Collection Summary</p>
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-white/5 rounded-xl p-3 border border-white/5">
-              <p className="text-[10px] font-semibold text-blue-400/60 uppercase tracking-wider">GCash</p>
-              <p className="text-lg font-extrabold text-blue-400 mt-0.5">{fmt(summary.gcashTotal)}</p>
+            <div className="bg-white/5 light:bg-gray-50 rounded-xl p-3 border border-white/5 light:border-gray-200">
+              <p className="text-[10px] font-semibold text-blue-400/60 light:text-gray-600 uppercase tracking-wider">GCash</p>
+              <p className="text-lg font-extrabold text-blue-400 light:text-gray-900 mt-0.5">{fmt(summary.gcashTotal)}</p>
             </div>
-            <div className="bg-white/5 rounded-xl p-3 border border-white/5">
-              <p className="text-[10px] font-semibold text-emerald-400/60 uppercase tracking-wider">Cash</p>
-              <p className="text-lg font-extrabold text-emerald-400 mt-0.5">{fmt(summary.cashTotal)}</p>
+            <div className="bg-white/5 light:bg-gray-50 rounded-xl p-3 border border-white/5 light:border-gray-200">
+              <p className="text-[10px] font-semibold text-emerald-400/60 light:text-gray-600 uppercase tracking-wider">Cash</p>
+              <p className="text-lg font-extrabold text-emerald-400 light:text-gray-900 mt-0.5">{fmt(summary.cashTotal)}</p>
             </div>
           </div>
-          <div className="h-px bg-white/10" />
+          <div className="h-px bg-white/10 light:bg-gray-200" />
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-white/70 uppercase tracking-wider">Grand Total</span>
-            <span className="text-2xl font-extrabold text-[#62A0EA] tabular-nums">{fmt(summary.grandTotal)}</span>
+            <span className="text-xs font-bold text-white/70 light:text-gray-700 uppercase tracking-wider">Grand Total</span>
+            <span className="text-2xl font-extrabold text-[#62A0EA] light:text-[#1A5FB4] tabular-nums">{fmt(summary.grandTotal)}</span>
           </div>
         </div>
 
         {/* Remit section */}
         {!hasRemittedToday ? (
           <div className="space-y-3">
-            <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3.5 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-[#1A5FB4]/15 flex items-center justify-center flex-shrink-0">
-                <svg className="w-4 h-4 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5a17.92 17.92 0 0 1-8.716-2.247m0 0A9 9 0 0 1 3 12c0-1.47.353-2.856.978-4.082" /></svg>
+            <div className="bg-white/[0.03] light:bg-gray-50 border border-white/[0.06] light:border-gray-200 rounded-xl p-3.5 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-[#1A5FB4]/15 light:bg-gray-100 flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4 text-[#62A0EA] light:text-[#1A5FB4]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5a17.92 17.92 0 0 1-8.716-2.247m0 0A9 9 0 0 1 3 12c0-1.47.353-2.856.978-4.082" /></svg>
               </div>
               <div>
-                <p className="text-xs font-semibold text-white/70">Remittance to Admin</p>
-                <p className="text-[10px] text-white/30 mt-0.5">All recorded transactions will be submitted to admin</p>
+                <p className="text-xs font-semibold text-white/70 light:text-gray-800">Remittance to Admin</p>
+                <p className="text-[10px] text-white/30 light:text-gray-500 mt-0.5">All recorded transactions will be submitted to admin</p>
               </div>
             </div>
             <button
@@ -407,33 +412,33 @@ export default function EndOfDayContent() {
               disabled={!canRemit}
               className={`w-full py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
                 canRemit
-                  ? "bg-[#1A5FB4] text-white shadow-lg shadow-[#1A5FB4]/25 hover:bg-[#165a9f] active:scale-[0.98]"
-                  : "bg-white/5 text-white/20 cursor-not-allowed border border-white/5"
+                  ? "bg-[#1A5FB4] text-white hover:bg-[#165a9f] active:scale-[0.98]"
+                  : "bg-white/5 light:bg-gray-100 text-white/20 light:text-gray-400 cursor-not-allowed border border-white/5 light:border-gray-200"
               }`}
             >
               {!canRemit ? "No pending remittance" : pendingRemittance ? "Complete Pending Remittance" : "Remit to Admin"}
             </button>
           </div>
         ) : (
-          <div className="bg-emerald-500/8 border border-emerald-500/20 rounded-2xl p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-emerald-500/15 flex items-center justify-center flex-shrink-0">
-              <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+          <div className="bg-emerald-500/8 light:bg-gray-50 border border-emerald-500/20 light:border-gray-200 rounded-2xl p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-emerald-500/15 light:bg-gray-100 flex items-center justify-center flex-shrink-0">
+              <svg className="w-5 h-5 text-emerald-400 light:text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
             </div>
             <div>
-              <p className="text-sm font-bold text-emerald-400">Submitted to Admin</p>
-              <p className="text-[11px] text-white/30 mt-0.5">
+              <p className="text-sm font-bold text-emerald-400 light:text-gray-800">Submitted to Admin</p>
+              <p className="text-[11px] text-white/30 light:text-gray-500 mt-0.5">
                 GCash {fmt(summary.gcashTotal)} · Cash {fmt(summary.cashTotal)} · Total {fmt(summary.grandTotal)}
               </p>
             </div>
           </div>
         )}
 
-        <HistorySection showHistory={showHistory} setShowHistory={setShowHistory} filteredHistory={filteredHistory} historyFilter={historyFilter} setHistoryFilter={setHistoryFilter} historyDate={historyDate} setHistoryDate={setHistoryDate} openOfficialReport={openOfficialReport} onPrintReport={printReport} />
+        <HistorySection showHistory={showHistory} setShowHistory={setShowHistory} filteredHistory={filteredHistory} historyFilter={historyFilter} setHistoryFilter={setHistoryFilter} historyDateFrom={historyDateFrom} setHistoryDateFrom={setHistoryDateFrom} historyDateTo={historyDateTo} setHistoryDateTo={setHistoryDateTo} openOfficialReport={openOfficialReport} onPrintReport={printReport} />
       </div>
 
       {submitError && (
         <div className="px-4 pb-4">
-          <p className="text-center text-xs text-red-300">{submitError}</p>
+          <p className="text-center text-xs text-red-300 light:text-red-700">{submitError}</p>
         </div>
       )}
 

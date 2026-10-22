@@ -2,7 +2,6 @@
 import { type RemittanceRecord } from "@/lib/conductor/services/remittance.service";
 import { formatTime } from "@/lib/conductor/services/shift.service";
 import { fmt, fmtDate, fmtDateTime } from "@/app/(conductor)/conductor-dashboard/end-of-day/helpers";
-import { remittanceStatusVariant, REMITTANCE_STATUS_PILL_CLASSES } from "@/lib/shared/remittance-status";
 
 interface OfficialReportModalProps { show: boolean; onClose: () => void; activeReport: RemittanceRecord; route: string; }
 
@@ -16,19 +15,7 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
-// Same status→category as the shared admin helper, re-skinned to this
-// printed report's own light-paper palette instead of Tailwind classes.
-const STATUS_PRINT_COLORS: Record<ReturnType<typeof remittanceStatusVariant>, { color: string; bg: string }> = {
-  success: { color: "#16a34a", bg: "#f0fdf4" },
-  info: { color: "#0284c7", bg: "#f0f9ff" },
-  warning: { color: "#d97706", bg: "#fffbeb" },
-  danger: { color: "#dc2626", bg: "#fef2f2" },
-  neutral: { color: "#475569", bg: "#f8fafc" },
-};
-
 export function buildPrintHTML(report: RemittanceRecord, route: string): string {
-  const { color: statusColor, bg: statusBg } = STATUS_PRINT_COLORS[remittanceStatusVariant(report.remittanceStatus)];
-
   const gcashTotal = report.gcashTotal ?? 0;
   const cashTotal = report.cashTotal ?? 0;
   const grandTotal = gcashTotal + cashTotal + (report.totalCashless ?? 0);
@@ -166,16 +153,12 @@ export function buildPrintHTML(report: RemittanceRecord, route: string): string 
       font-weight: 600;
       color: #111;
     }
-    .status-badge {
+    .status-value {
       font-size: 10px;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.06em;
-      padding: 4px 10px;
-      border-radius: 999px;
-      background: ${statusBg};
-      color: ${statusColor};
-      border: 1px solid ${statusColor}33;
+      color: #475569;
     }
     .footer {
       text-align: center;
@@ -267,7 +250,7 @@ export function buildPrintHTML(report: RemittanceRecord, route: string): string 
       <p class="status-label">Remittance Status</p>
       <p class="status-text">Submitted to Admin</p>
     </div>
-    <span class="status-badge">${escapeHtml(report.remittanceStatus)}</span>
+    <span class="status-value">${escapeHtml(report.remittanceStatus)}</span>
   </div>
 
   <div class="footer">
@@ -287,42 +270,42 @@ export default function OfficialReportModal({ show, onClose, activeReport, route
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-[#0F2135] border border-white/[0.08] rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl animate-slide-up max-h-[90vh] flex flex-col mb-16 sm:mb-0">
-        <div className="flex-shrink-0 px-6 pt-6 pb-4 border-b border-white/[0.06]"><div className="flex items-center justify-between"><div className="flex items-center gap-2"><div className="w-7 h-7 rounded-lg bg-[#1A5FB4] flex items-center justify-center"><svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg></div><h2 className="text-white font-bold text-sm">Official Report</h2></div><button onClick={onClose} className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-white/40 hover:bg-white/10 hover:text-white transition-all"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg></button></div></div>
+      <div className="relative w-full max-w-md bg-[#0F2135] light:bg-white border border-white/[0.08] light:border-gray-200 rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl animate-slide-up max-h-[90vh] flex flex-col mb-16 sm:mb-0">
+        <div className="flex-shrink-0 px-6 pt-6 pb-4 border-b border-white/[0.06] light:border-gray-200"><div className="flex items-center justify-between"><div className="flex items-center gap-2"><div className="w-7 h-7 rounded-lg bg-[#1A5FB4] flex items-center justify-center"><svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg></div><h2 className="text-white light:text-gray-900 font-bold text-sm">Official Report</h2></div><button onClick={onClose} className="w-8 h-8 rounded-lg bg-white/5 light:bg-gray-100 flex items-center justify-center text-white/40 light:text-gray-600 hover:bg-white/10 light:hover:bg-gray-200 hover:text-white light:hover:text-gray-900 transition-all"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg></button></div></div>
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
-          <div className="text-center space-y-1"><h3 className="text-white font-extrabold text-xl tracking-wide">CHATCO</h3><p className="text-[10px] text-white/30 uppercase tracking-[0.2em] font-semibold">End of Day Remittance Report</p></div><div className="h-px bg-white/10" />
+          <div className="text-center space-y-1"><h3 className="text-white light:text-gray-900 font-extrabold text-xl tracking-wide">CHATCO</h3><p className="text-[10px] text-white/30 light:text-gray-500 uppercase tracking-[0.2em] font-semibold">End of Day Remittance Report</p></div><div className="h-px bg-white/10 light:bg-gray-200" />
           <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-            <div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Date</p><p className="text-xs font-semibold text-white/80 mt-0.5">{fmtDate(activeReport.date)}</p></div><div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Shift ID</p><p className="text-xs font-semibold text-white/80 mt-0.5 font-mono">{activeReport.shiftId}</p></div><div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Conductor</p><p className="text-xs font-semibold text-white/80 mt-0.5">{activeReport.conductorName}</p></div><div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Driver</p><p className="text-xs font-semibold text-white/80 mt-0.5">{activeReport.driverName}</p></div><div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Time In</p><p className="text-xs font-semibold text-emerald-400/80 mt-0.5">{formatTime(activeReport.timeIn)}</p></div><div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Time Out</p><p className="text-xs font-semibold text-red-400/80 mt-0.5">{formatTime(activeReport.timeOut)}</p></div><div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Unit Number</p><p className="text-xs font-semibold text-white/80 mt-0.5">{activeReport.unitNumber}</p></div><div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Route</p><p className="text-xs font-semibold text-white/80 mt-0.5">{route}</p></div>
+            <div><p className="text-[9px] font-bold text-white/25 light:text-gray-500 uppercase tracking-wider">Date</p><p className="text-xs font-semibold text-white/80 light:text-gray-800 mt-0.5">{fmtDate(activeReport.date)}</p></div><div><p className="text-[9px] font-bold text-white/25 light:text-gray-500 uppercase tracking-wider">Shift ID</p><p className="text-xs font-semibold text-white/80 light:text-gray-800 mt-0.5 font-mono">{activeReport.shiftId}</p></div><div><p className="text-[9px] font-bold text-white/25 light:text-gray-500 uppercase tracking-wider">Conductor</p><p className="text-xs font-semibold text-white/80 light:text-gray-800 mt-0.5">{activeReport.conductorName}</p></div><div><p className="text-[9px] font-bold text-white/25 light:text-gray-500 uppercase tracking-wider">Driver</p><p className="text-xs font-semibold text-white/80 light:text-gray-800 mt-0.5">{activeReport.driverName}</p></div><div><p className="text-[9px] font-bold text-white/25 light:text-gray-500 uppercase tracking-wider">Time In</p><p className="text-xs font-semibold text-emerald-400/80 light:text-gray-800 mt-0.5">{formatTime(activeReport.timeIn)}</p></div><div><p className="text-[9px] font-bold text-white/25 light:text-gray-500 uppercase tracking-wider">Time Out</p><p className="text-xs font-semibold text-red-400/80 light:text-gray-800 mt-0.5">{formatTime(activeReport.timeOut)}</p></div><div><p className="text-[9px] font-bold text-white/25 light:text-gray-500 uppercase tracking-wider">Unit Number</p><p className="text-xs font-semibold text-white/80 light:text-gray-800 mt-0.5">{activeReport.unitNumber}</p></div><div><p className="text-[9px] font-bold text-white/25 light:text-gray-500 uppercase tracking-wider">Route</p><p className="text-xs font-semibold text-white/80 light:text-gray-800 mt-0.5">{route}</p></div>
           </div>
 
           {/* Payment Breakdown table */}
           <div className="space-y-2">
-            <p className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Payment Breakdown</p>
-            <div className="bg-white/[0.03] border border-white/[0.05] rounded-xl overflow-hidden">
+            <p className="text-[10px] font-bold text-white/40 light:text-gray-600 uppercase tracking-wider">Payment Breakdown</p>
+            <div className="bg-white/[0.03] light:bg-gray-50 border border-white/[0.05] light:border-gray-200 rounded-xl overflow-hidden">
               <table className="w-full">
-                <thead><tr className="border-b border-white/[0.06]"><th className="text-left text-[9px] font-bold text-white/30 uppercase tracking-wider px-3.5 py-2.5">Method</th><th className="text-right text-[9px] font-bold text-white/30 uppercase tracking-wider px-3.5 py-2.5">Amount</th></tr></thead>
-                <tbody className="divide-y divide-white/[0.03]">
-                  <tr><td className="px-3.5 py-2.5 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-blue-400" /><span className="text-xs text-white/60">GCash</span></td><td className="px-3.5 py-2.5 text-right text-xs font-bold text-blue-400 tabular-nums">{fmt(gcashTotal)}</td></tr>
-                  <tr><td className="px-3.5 py-2.5 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><span className="text-xs text-white/60">Cash</span></td><td className="px-3.5 py-2.5 text-right text-xs font-bold text-emerald-400 tabular-nums">{fmt(cashTotal)}</td></tr>
-                  {activeReport.cashlessBreakdown.gcashScanned > 0 && <tr><td className="px-3.5 py-2.5 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-purple-400" /><span className="text-xs text-white/60">QR Scanned</span></td><td className="px-3.5 py-2.5 text-right text-xs font-bold text-purple-400 tabular-nums">{fmt(activeReport.cashlessBreakdown.gcashScanned)}</td></tr>}
-                  {activeReport.cashlessBreakdown.gcashDirect > 0 && <tr><td className="px-3.5 py-2.5 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><span className="text-xs text-white/60">Prepaid</span></td><td className="px-3.5 py-2.5 text-right text-xs font-bold text-emerald-400 tabular-nums">{fmt(activeReport.cashlessBreakdown.gcashDirect)}</td></tr>}
-                  {activeReport.cashlessBreakdown.voucher > 0 && <tr><td className="px-3.5 py-2.5 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-amber-400" /><span className="text-xs text-white/60">Voucher</span></td><td className="px-3.5 py-2.5 text-right text-xs font-bold text-amber-400 tabular-nums">{fmt(activeReport.cashlessBreakdown.voucher)}</td></tr>}
+                <thead><tr className="border-b border-white/[0.06] light:border-gray-200"><th className="text-left text-[9px] font-bold text-white/30 light:text-gray-600 uppercase tracking-wider px-3.5 py-2.5">Method</th><th className="text-right text-[9px] font-bold text-white/30 light:text-gray-600 uppercase tracking-wider px-3.5 py-2.5">Amount</th></tr></thead>
+                <tbody className="divide-y divide-white/[0.03] light:divide-gray-200">
+                  <tr><td className="px-3.5 py-2.5 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-blue-400 light:bg-[#1A5FB4]" /><span className="text-xs text-white/60 light:text-gray-700">GCash</span></td><td className="px-3.5 py-2.5 text-right text-xs font-bold text-blue-400 light:text-gray-900 tabular-nums">{fmt(gcashTotal)}</td></tr>
+                  <tr><td className="px-3.5 py-2.5 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 light:bg-[#1A5FB4]" /><span className="text-xs text-white/60 light:text-gray-700">Cash</span></td><td className="px-3.5 py-2.5 text-right text-xs font-bold text-emerald-400 light:text-gray-900 tabular-nums">{fmt(cashTotal)}</td></tr>
+                  {activeReport.cashlessBreakdown.gcashScanned > 0 && <tr><td className="px-3.5 py-2.5 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-purple-400 light:bg-[#1A5FB4]" /><span className="text-xs text-white/60 light:text-gray-700">QR Scanned</span></td><td className="px-3.5 py-2.5 text-right text-xs font-bold text-purple-400 light:text-gray-900 tabular-nums">{fmt(activeReport.cashlessBreakdown.gcashScanned)}</td></tr>}
+                  {activeReport.cashlessBreakdown.gcashDirect > 0 && <tr><td className="px-3.5 py-2.5 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 light:bg-[#1A5FB4]" /><span className="text-xs text-white/60 light:text-gray-700">Prepaid</span></td><td className="px-3.5 py-2.5 text-right text-xs font-bold text-emerald-400 light:text-gray-900 tabular-nums">{fmt(activeReport.cashlessBreakdown.gcashDirect)}</td></tr>}
+                  {activeReport.cashlessBreakdown.voucher > 0 && <tr><td className="px-3.5 py-2.5 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-amber-400 light:bg-[#1A5FB4]" /><span className="text-xs text-white/60 light:text-gray-700">Voucher</span></td><td className="px-3.5 py-2.5 text-right text-xs font-bold text-amber-400 light:text-gray-900 tabular-nums">{fmt(activeReport.cashlessBreakdown.voucher)}</td></tr>}
                 </tbody>
-                <tfoot><tr className="bg-white/[0.03]"><td className="px-3.5 py-2.5 text-[10px] font-bold text-white/50 uppercase tracking-wider">Grand Total</td><td className="px-3.5 py-2.5 text-right text-sm font-extrabold text-white tabular-nums">{fmt(grandTotal)}</td></tr></tfoot>
+                <tfoot><tr className="bg-white/[0.03] light:bg-gray-100"><td className="px-3.5 py-2.5 text-[10px] font-bold text-white/50 light:text-gray-700 uppercase tracking-wider">Grand Total</td><td className="px-3.5 py-2.5 text-right text-sm font-extrabold text-white light:text-gray-900 tabular-nums">{fmt(grandTotal)}</td></tr></tfoot>
               </table>
             </div>
           </div>
 
-          <div className="h-px bg-white/[0.06]" />
+          <div className="h-px bg-white/[0.06] light:bg-gray-200" />
           <div className="flex items-center justify-between">
-            <div><span className="text-xs font-bold text-white/70 uppercase tracking-wider">Grand Total</span></div>
-            <span className="text-2xl font-extrabold text-[#62A0EA] tabular-nums">{fmt(grandTotal)}</span>
+            <div><span className="text-xs font-bold text-white/70 light:text-gray-700 uppercase tracking-wider">Grand Total</span></div>
+            <span className="text-2xl font-extrabold text-[#62A0EA] light:text-[#1A5FB4] tabular-nums">{fmt(grandTotal)}</span>
           </div>
-          <div className="h-px bg-white/[0.06]" />
-          <div className="flex items-center justify-between bg-white/[0.03] border border-white/[0.05] rounded-xl px-4 py-3"><div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Remittance Status</p><p className="text-xs font-semibold text-white/60 mt-0.5">Submitted to Admin</p></div><span className={`text-[9px] font-bold uppercase tracking-wider border px-2.5 py-1 rounded-full ${REMITTANCE_STATUS_PILL_CLASSES[remittanceStatusVariant(activeReport.remittanceStatus)]}`}>{activeReport.remittanceStatus}</span></div>
-          <p className="text-[10px] text-white/15 text-center font-mono">Generated: {fmtDateTime()}</p>
+          <div className="h-px bg-white/[0.06] light:bg-gray-200" />
+          <div className="flex items-center justify-between bg-white/[0.03] light:bg-gray-50 border border-white/[0.05] light:border-gray-200 rounded-xl px-4 py-3"><div><p className="text-[9px] font-bold text-white/25 light:text-gray-500 uppercase tracking-wider">Remittance Status</p><p className="text-xs font-semibold text-white/60 light:text-gray-700 mt-0.5">Submitted to Admin</p></div><span className="text-[10px] font-bold uppercase tracking-wider text-white/60 light:text-gray-600">{activeReport.remittanceStatus}</span></div>
+          <p className="text-[10px] text-white/15 light:text-gray-500 text-center font-mono">Generated: {fmtDateTime()}</p>
         </div>
-        <div className="flex-shrink-0 px-6 py-4 border-t border-white/[0.06] bg-[#0F2135]"><button onClick={onClose} className="w-full py-3 rounded-xl bg-white/5 border border-white/10 text-white/50 text-xs font-semibold hover:bg-white/10 transition-all">Close</button></div>
+        <div className="flex-shrink-0 px-6 py-4 border-t border-white/[0.06] light:border-gray-200 bg-[#0F2135] light:bg-white"><button onClick={onClose} className="w-full py-3 rounded-xl bg-white/5 light:bg-gray-100 border border-white/10 light:border-gray-300 text-white/50 light:text-gray-700 text-xs font-semibold hover:bg-white/10 light:hover:bg-gray-200 transition-all">Close</button></div>
       </div>
     </div>
   );

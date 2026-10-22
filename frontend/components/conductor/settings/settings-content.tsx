@@ -7,12 +7,13 @@ import { useAuth } from "@/contexts/auth-context";
 import { clearShift } from "@/lib/conductor/services/shift.service";
 import { useConductorShift } from "@/app/(conductor)/hooks/use-conductor-shift";
 import { useRemittanceData } from "@/app/(conductor)/hooks/use-remittance-data";
-import { useConductorProfile } from "@/app/(conductor)/hooks/use-conductor-profile";
-import { UserAvatar } from "@/components/admin/ui/user-avatar";
+import { patchConductorProfile, useConductorProfile } from "@/app/(conductor)/hooks/use-conductor-profile";
+import { uploadConductorProfilePhoto } from "@/lib/conductor/services/profile.service";
+import ProfilePhoto from "@/components/commuter/profile/profile-photo";
 import { SettingsSkeleton } from "@/components/conductor/ui/skeleton";
 import type { SignOutControl } from "@/components/commuter/profile/account-menu";
 
-export const LOGOUT_LOCKED_HINT = "Remit all pending collections before logging out.";
+export const LOGOUT_LOCKED_HINT = "Remit all pending collections before signing out.";
 
 /**
  * The actual Settings body — everything except page chrome (the outer
@@ -120,7 +121,7 @@ export default function SettingsContent({ showHeader = true, onSignOutControl }:
     return (
       <div className="flex items-center justify-center px-6 py-16">
         <div className="max-w-sm text-center">
-          <p className="text-red-300 text-sm">{shiftError || remitError}</p>
+          <p className="text-red-300 light:text-red-600 text-sm">{shiftError || remitError}</p>
         </div>
       </div>
     );
@@ -130,74 +131,74 @@ export default function SettingsContent({ showHeader = true, onSignOutControl }:
   const username = conductorProfile?.username?.trim();
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6 lg:py-8 space-y-6">
+    <div className="max-w-4xl mx-auto px-4 py-6 lg:py-8 space-y-6 text-white light:text-gray-900">
       {/* ===== Page Header ===== */}
       {showHeader && (
         <div>
-          <h1 className="text-white font-bold text-xl lg:text-2xl">Settings</h1>
-          <p className="text-white/40 text-sm mt-1">
+          <h1 className="text-white light:text-gray-900 font-bold text-xl lg:text-2xl">Settings</h1>
+          <p className="text-white/40 light:text-gray-600 text-sm mt-1">
             Manage your app preferences and account
           </p>
         </div>
       )}
 
       {/* ===== Profile Section ===== */}
-      <section aria-labelledby={profileHeadingId} className="relative isolate flex items-center gap-4 overflow-hidden rounded-2xl border border-[#62A0EA]/20 bg-gradient-to-br from-[#102E50] to-[#071A2E] p-5 xl:gap-5 xl:from-[#153C66] xl:via-[#0C2743] xl:p-6">
+      <section aria-labelledby={profileHeadingId} className="relative isolate flex items-center gap-4 overflow-hidden rounded-2xl border border-[#62A0EA]/20 light:border-blue-200 bg-gradient-to-br from-[#102E50] to-[#071A2E] light:from-blue-50 light:to-white p-5 xl:gap-5 xl:from-[#153C66] xl:via-[#0C2743] light:xl:from-blue-50 light:xl:via-blue-50 light:xl:to-white xl:p-6">
         <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-16 -z-10 hidden h-56 w-56 rounded-full border border-[#99C1F1]/10 bg-[#62A0EA]/5 xl:block">
           <div className="absolute inset-6 rounded-full border border-[#99C1F1]/10" />
           <div className="absolute inset-12 rounded-full border border-[#99C1F1]/10" />
         </div>
-        {/* Same default image as the commuter profile until admin uploads a photo. */}
-        <UserAvatar
-          src={conductorProfile?.photoUrl}
-          alt=""
-          className="h-16 w-16 xl:h-20 xl:w-20"
+        {/* The default avatar remains until the conductor uploads a photo. */}
+        <ProfilePhoto
+          profileImageUrl={conductorProfile?.photoUrl}
+          onPhotoUploaded={(photoUrl) => patchConductorProfile({ photoUrl })}
+          uploadPhoto={uploadConductorProfilePhoto}
+          className="group relative h-16 w-16 xl:h-20 xl:w-20 rounded-2xl border border-[#62A0EA]/30 bg-[#1A5FB4] text-white xl:border-[#99C1F1]/30 xl:bg-gradient-to-br xl:from-[#337DD2] xl:to-[#1A5FB4] xl:shadow-lg xl:shadow-[#050F1A]/30 xl:ring-4 xl:ring-white/5 transition-colors hover:border-[#99C1F1] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#99C1F1]"
           iconClassName="h-8 w-8 xl:h-10 xl:w-10"
           sizes="(min-width: 1280px) 80px, 64px"
-          surfaceClassName="rounded-2xl border border-[#62A0EA]/30 bg-[#1A5FB4] text-white xl:border-[#99C1F1]/30 xl:bg-gradient-to-br xl:from-[#337DD2] xl:to-[#1A5FB4] xl:shadow-lg xl:shadow-[#050F1A]/30 xl:ring-4 xl:ring-white/5"
         />
         <div className="min-w-0 flex-1">
-          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#99C1F1]/80">Conductor account</p>
-          <h2 id={profileHeadingId} className="break-words text-xl font-bold leading-snug tracking-tight text-white xl:text-2xl">
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#99C1F1]/80 light:text-blue-700">Conductor account</p>
+          <h2 id={profileHeadingId} className="break-words text-xl font-bold leading-snug tracking-tight text-white light:text-gray-900 xl:text-2xl">
             {conductorName}
           </h2>
-          {username && <p className="mt-1 break-words text-sm text-white/50">@{username}</p>}
+          {username && <p className="mt-1 break-words text-sm text-white/50 light:text-gray-600">@{username}</p>}
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-[#62A0EA]/30 bg-[#62A0EA]/10 px-2.5 py-1 text-[11px] font-medium text-[#99C1F1]">Conductor</span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-white/60">
+            <span className="rounded-full border border-[#337DD2] bg-[#1A5FB4] px-2.5 py-1 text-[11px] font-semibold text-white">Conductor</span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-600 bg-slate-700 px-2.5 py-1 text-[11px] font-medium text-white">
               <LockKeyhole size={12} aria-hidden="true" />Managed by admin
             </span>
           </div>
         </div>
       </section>
 
-      <section aria-labelledby={detailsHeadingId} className="rounded-2xl border border-white/10 bg-[#071A2E] p-5">
-        <h3 id={detailsHeadingId} className="flex items-center gap-2 text-sm font-semibold text-white">
-          <UserRound size={17} aria-hidden="true" className="text-[#99C1F1]" />Personal details
+      <section aria-labelledby={detailsHeadingId} className="rounded-2xl border border-white/10 light:border-gray-200 bg-[#0B223A] light:bg-white p-5">
+        <h3 id={detailsHeadingId} className="flex items-center gap-2 text-sm font-semibold text-white light:text-gray-900">
+          <UserRound size={17} aria-hidden="true" className="text-[#99C1F1] light:text-blue-600" />Personal details
         </h3>
         <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-5">
           <div className="col-span-full">
-            <dt className="text-xs text-white/50">Full name</dt>
-            <dd className="mt-1 break-words text-sm text-white/90">{conductorName}</dd>
+            <dt className="text-xs text-white/50 light:text-gray-500">Full name</dt>
+            <dd className="mt-1 break-words text-sm text-white/90 light:text-gray-900">{conductorName}</dd>
           </div>
           <div className="min-w-0">
-            <dt className="text-xs text-white/50">Username</dt>
-            <dd className="mt-1 break-words text-sm text-white/90">{username || "Not provided"}</dd>
+            <dt className="text-xs text-white/50 light:text-gray-500">Username</dt>
+            <dd className="mt-1 break-words text-sm text-white/90 light:text-gray-900">{username || "Not provided"}</dd>
           </div>
           <div>
-            <dt className="text-xs text-white/50">Account type</dt>
-            <dd className="mt-1 text-sm text-white/90">Conductor</dd>
+            <dt className="text-xs text-white/50 light:text-gray-500">Account type</dt>
+            <dd className="mt-1 text-sm text-white/90 light:text-gray-900">Conductor</dd>
           </div>
-          <div className="col-span-full border-t border-white/10 pt-4">
-            <dt className="text-xs text-white/50">Email address</dt>
-            <dd className="mt-1 break-all text-sm text-white/90">{conductorProfile?.email || user?.email || "Not provided"}</dd>
+          <div className="col-span-full border-t border-white/10 light:border-gray-200 pt-4">
+            <dt className="text-xs text-white/50 light:text-gray-500">Email address</dt>
+            <dd className="mt-1 break-all text-sm text-white/90 light:text-gray-900">{conductorProfile?.email || user?.email || "Not provided"}</dd>
           </div>
         </dl>
       </section>
 
       {/* ===== Active Assignment ===== */}
-      <section className="bg-[#071A2E] border border-white/[0.06] rounded-2xl p-4 lg:p-6">
-        <h2 className="text-[10px] uppercase tracking-wider font-semibold text-white/40 mb-4">
+      <section className="bg-[#0B223A] light:bg-white border border-white/[0.06] light:border-gray-200 rounded-2xl p-4 lg:p-6">
+        <h2 className="text-[10px] uppercase tracking-wider font-semibold text-white/40 light:text-gray-500 mb-4">
           Active Assignment
         </h2>
 
@@ -211,12 +212,12 @@ export default function SettingsContent({ showHeader = true, onSignOutControl }:
             ).map((item) => (
               <div
                 key={item.label}
-                className="flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3"
+                className="flex items-center justify-between bg-[#071A2E] light:bg-gray-50 border border-white/[0.06] light:border-gray-200 rounded-xl px-4 py-3"
               >
-                <span className="text-xs text-white/40 font-medium">
+                <span className="text-xs text-white/40 light:text-gray-600 font-medium">
                   {item.label}
                 </span>
-                <span className="text-sm text-white font-semibold">
+                <span className="text-sm text-white light:text-gray-900 font-semibold">
                   {item.value}
                 </span>
               </div>
@@ -224,9 +225,9 @@ export default function SettingsContent({ showHeader = true, onSignOutControl }:
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-10 text-center">
-            <div className="w-14 h-14 rounded-full bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mb-3">
+              <div className="w-14 h-14 rounded-full bg-white/[0.03] light:bg-gray-50 border border-white/[0.06] light:border-gray-200 flex items-center justify-center mb-3">
               <svg
-                className="w-6 h-6 text-white/15"
+                className="w-6 h-6 text-white/15 light:text-gray-400"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -239,8 +240,8 @@ export default function SettingsContent({ showHeader = true, onSignOutControl }:
                 />
               </svg>
             </div>
-            <p className="text-sm text-white/25 font-medium">No active shift</p>
-            <p className="text-xs text-white/15 mt-1">
+            <p className="text-sm text-white/25 light:text-gray-600 font-medium">No active shift</p>
+            <p className="text-xs text-white/15 light:text-gray-500 mt-1">
               Start a shift to see assignment details
             </p>
           </div>
@@ -248,8 +249,8 @@ export default function SettingsContent({ showHeader = true, onSignOutControl }:
       </section>
 
       {/* ===== Emergency SOS ===== */}
-      <section className="bg-[#071A2E] border border-white/[0.06] rounded-2xl p-4 lg:p-6">
-        <h2 className="text-[10px] uppercase tracking-wider font-semibold text-white/40 mb-4">
+      <section className="bg-[#0B223A] light:bg-white border border-white/[0.06] light:border-gray-200 rounded-2xl p-4 lg:p-6">
+        <h2 className="text-[10px] uppercase tracking-wider font-semibold text-white/40 light:text-gray-500 mb-4">
           Emergency
         </h2>
 
@@ -257,11 +258,11 @@ export default function SettingsContent({ showHeader = true, onSignOutControl }:
           type="button"
           onClick={handleSosClick}
           onBlur={() => { lastSosClickRef.current = null; }}
-          className="w-full flex touch-manipulation items-center gap-4 bg-red-500/[0.06] border border-red-500/15 hover:bg-red-500/[0.12] hover:border-red-500/25 rounded-2xl px-5 py-5 transition-all active:scale-[0.98]"
+          className="w-full flex cursor-pointer touch-manipulation items-center gap-4 rounded-2xl border border-red-500 bg-red-700 px-5 py-5 text-left transition-colors hover:border-red-400 hover:bg-red-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400 active:scale-[0.98] light:border-red-600 light:bg-red-700 light:hover:border-red-500 light:hover:bg-red-800"
         >
-          <div className="w-14 h-14 rounded-2xl bg-red-500/15 border border-red-500/20 flex items-center justify-center flex-shrink-0">
+          <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl border border-red-400 bg-red-900">
             <svg
-              className="w-7 h-7 text-red-400"
+              className="h-7 w-7 text-white"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -275,10 +276,10 @@ export default function SettingsContent({ showHeader = true, onSignOutControl }:
             </svg>
           </div>
           <div className="text-left">
-            <p className="text-base font-bold text-red-400">
+            <p className="text-base font-bold text-white">
               Emergency SOS
             </p>
-            <p className="text-xs text-red-400/40 mt-0.5">
+            <p className="mt-0.5 text-xs text-white/85">
               Double-click or double-tap to open SOS confirmation
             </p>
           </div>
@@ -286,11 +287,11 @@ export default function SettingsContent({ showHeader = true, onSignOutControl }:
       </section>
 
       {/* ===== Logout (Bottom of scroll for both Mobile & Desktop) ===== */}
-      <div className={`pt-6 border-t border-white/[0.06] ${onSignOutControl ? "lg:hidden" : ""}`}>
+      <div className={`pt-6 border-t border-white/[0.06] light:border-gray-200 ${onSignOutControl ? "lg:hidden" : ""}`}>
         {logoutLocked && (
           <div className="flex items-center justify-center gap-1.5 mb-3">
             <svg
-              className="w-3 h-3 text-amber-400/70 flex-shrink-0"
+              className="w-3 h-3 text-amber-400/70 light:text-amber-700 flex-shrink-0"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -302,7 +303,7 @@ export default function SettingsContent({ showHeader = true, onSignOutControl }:
                 d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
               />
             </svg>
-            <p className="text-xs text-amber-400/70 font-medium">
+            <p className="text-xs text-amber-400/70 light:text-amber-700 font-medium">
               {LOGOUT_LOCKED_HINT}
             </p>
           </div>
@@ -310,10 +311,10 @@ export default function SettingsContent({ showHeader = true, onSignOutControl }:
         <button
           onClick={handleLogout}
           disabled={logoutLocked}
-          className="w-full flex items-center justify-center gap-2 bg-white/[0.04] border border-white/10 hover:bg-white/[0.08] hover:border-white/15 rounded-xl px-4 py-3 transition-all disabled:opacity-25 disabled:cursor-not-allowed active:scale-[0.98]"
+          className="w-full flex items-center justify-center gap-2 bg-white/[0.04] light:bg-gray-50 border border-white/10 light:border-gray-200 hover:bg-white/[0.08] light:hover:bg-gray-100 hover:border-white/15 light:hover:border-gray-300 rounded-xl px-4 py-3 transition-all disabled:opacity-25 disabled:cursor-not-allowed active:scale-[0.98]"
         >
           <svg
-            className="w-4 h-4 text-white/50"
+            className="w-4 h-4 text-white/50 light:text-gray-500"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -325,8 +326,8 @@ export default function SettingsContent({ showHeader = true, onSignOutControl }:
               d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9"
             />
           </svg>
-          <span className="text-sm font-semibold text-white/50">
-            Log Out
+          <span className="text-sm font-semibold text-white/50 light:text-gray-600">
+            Sign out
           </span>
         </button>
       </div>
@@ -342,7 +343,7 @@ export default function SettingsContent({ showHeader = true, onSignOutControl }:
       {showLogoutConfirm && createPortal(
         <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowLogoutConfirm(false)} />
-          <div className="relative w-full max-w-sm bg-[#0B1E33] border border-white/10 rounded-3xl overflow-hidden shadow-2xl animate-slide-up max-h-[90vh] overflow-y-auto">
+          <div className="relative w-full max-w-sm bg-[#0B1E33] light:bg-white border border-white/10 light:border-gray-200 rounded-3xl overflow-hidden shadow-2xl animate-slide-up max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex flex-col items-center text-center space-y-4">
                 <div className="w-14 h-14 bg-red-500/15 rounded-full flex items-center justify-center">
@@ -351,13 +352,13 @@ export default function SettingsContent({ showHeader = true, onSignOutControl }:
                   </svg>
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-white">Log Out?</h2>
-                  <p className="text-sm text-white/50 mt-1">Are you sure you want to log out? You will need to sign in again to continue.</p>
+                  <h2 className="text-lg font-bold text-white light:text-gray-900">Sign out?</h2>
+                  <p className="text-sm text-white/50 light:text-gray-600 mt-1">Are you sure you want to sign out? You will need to sign in again to continue.</p>
                 </div>
                 <div className="w-full grid grid-cols-2 gap-3 pt-2">
                   <button
                     onClick={() => setShowLogoutConfirm(false)}
-                    className="py-3 rounded-xl text-sm font-semibold border border-white/10 text-gray-300 hover:bg-white/5 transition-colors"
+                    className="py-3 rounded-xl text-sm font-semibold border border-white/10 light:border-gray-300 text-gray-300 light:text-gray-700 hover:bg-white/5 light:hover:bg-gray-100 transition-colors"
                   >
                     Cancel
                   </button>
@@ -365,7 +366,7 @@ export default function SettingsContent({ showHeader = true, onSignOutControl }:
                     onClick={confirmLogout}
                     className="py-3 rounded-xl text-sm font-bold bg-red-600 text-white hover:bg-red-700 transition-colors"
                   >
-                    Log Out
+                    Sign out
                   </button>
                 </div>
               </div>
