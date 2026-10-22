@@ -8,6 +8,8 @@ import BreakConfirmModal from "@/components/conductor/modals/break-confirm-modal
 import ConductorConnectivityBanner from "@/components/conductor/conductor-connectivity-banner";
 import ConductorDeviceGuard from "@/components/conductor/conductor-device-guard";
 import { useDashboardState } from "./dashboard/use-dashboard-state";
+import { BreakToggleButton } from "./dashboard/break-toggle-button";
+import { useConductorProfile } from "@/app/(conductor)/hooks/use-conductor-profile";
 import { MobileDashboardCard } from "./dashboard/mobile-dashboard-card";
 import { DesktopDashboardCard } from "./dashboard/desktop-dashboard-card";
 import { DesktopDashboardBar } from "./dashboard/desktop-dashboard-bar";
@@ -45,6 +47,7 @@ export default function ConductorDashboard() {
     unitNumber,
     route,
   } = useDashboardState();
+  const conductorPhotoUrl = useConductorProfile()?.photoUrl ?? null;
 
   useEffect(() => {
     if (shiftStatus === "empty") {
@@ -71,9 +74,9 @@ export default function ConductorDashboard() {
 
   if (shiftStatus === "error" || txnStatus === "error") {
     return (
-      <div className="min-h-screen bg-[#050F1A] flex items-center justify-center px-6">
+      <div className="min-h-screen bg-[#050F1A] light:bg-[#F8FAFC] flex items-center justify-center px-6">
         <div className="max-w-sm text-center">
-          <p className="text-red-300 text-sm">{shiftError || txnError}</p>
+          <p className="text-red-300 light:text-red-600 text-sm">{shiftError || txnError}</p>
         </div>
       </div>
     );
@@ -86,18 +89,13 @@ export default function ConductorDashboard() {
           DesktopDashboardBar itself instead of floating separately in the
           far corner, disconnected from the rest of the bar's controls. */}
       <div className="absolute right-4 top-4 z-30 hidden flex-col items-end gap-1 lg:flex xl:hidden">
-        <button
-          type="button"
-          onClick={openBreakModal}
+        <BreakToggleButton
+          isOnBreak={isOnBreak}
+          busy={breakBusy}
           disabled={breakBusy || !canOperate}
-          className={`rounded-xl border px-4 py-2 text-xs font-bold shadow-lg transition-colors disabled:cursor-wait disabled:opacity-60 ${
-            isOnBreak
-              ? "border-emerald-400/40 bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30"
-              : "border-amber-400/40 bg-amber-500/20 text-amber-300 hover:bg-amber-500/30"
-          }`}
-        >
-          {breakBusy ? "Updating..." : isOnBreak ? "Resume Duty" : "Take a Break"}
-        </button>
+          onClick={openBreakModal}
+          className="px-4 py-2 text-xs shadow-lg light:shadow-black/10"
+        />
       </div>
 
       {/* Floating top overlay: connectivity/device-guard banners stack above
@@ -116,6 +114,7 @@ export default function ConductorDashboard() {
           unitNumber={unitNumber}
           route={route}
           conductorName={conductorName}
+          conductorPhotoUrl={conductorPhotoUrl}
           elapsed={elapsed}
           status={status}
           setStatus={setStatus}
@@ -124,7 +123,6 @@ export default function ConductorDashboard() {
           total={liveTransactions.total}
           gcash={liveTransactions.gcash}
           cash={liveTransactions.cash}
-          voucher={liveTransactions.voucher}
           onHistoryClick={() => setShowHistory(true)}
           isOnBreak={isOnBreak}
           breakBusy={breakBusy}
@@ -137,13 +135,13 @@ export default function ConductorDashboard() {
         unitNumber={unitNumber}
         route={route}
         conductorName={conductorName}
+        conductorPhotoUrl={conductorPhotoUrl}
         elapsed={elapsed}
         status={status}
         setStatus={setStatus}
         total={liveTransactions.total}
         gcash={liveTransactions.gcash}
         cash={liveTransactions.cash}
-        voucher={liveTransactions.voucher}
         isOnBreak={isOnBreak}
         shiftTimeIn={shift?.timeIn}
         onPaymentClick={() => {
@@ -159,12 +157,12 @@ export default function ConductorDashboard() {
         unitNumber={unitNumber}
         route={route}
         conductorName={conductorName}
+        conductorPhotoUrl={conductorPhotoUrl}
         status={status}
         setStatus={setStatus}
         total={liveTransactions.total}
         gcash={liveTransactions.gcash}
         cash={liveTransactions.cash}
-        voucher={liveTransactions.voucher}
         isOnBreak={isOnBreak}
         breakBusy={breakBusy}
         shiftTimeIn={shift?.timeIn}

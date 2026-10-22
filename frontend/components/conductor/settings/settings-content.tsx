@@ -7,6 +7,8 @@ import { useAuth } from "@/contexts/auth-context";
 import { clearShift } from "@/lib/conductor/services/shift.service";
 import { useConductorShift } from "@/app/(conductor)/hooks/use-conductor-shift";
 import { useRemittanceData } from "@/app/(conductor)/hooks/use-remittance-data";
+import { useConductorProfile } from "@/app/(conductor)/hooks/use-conductor-profile";
+import { UserAvatar } from "@/components/admin/ui/user-avatar";
 import { SettingsSkeleton } from "@/components/conductor/ui/skeleton";
 import type { SignOutControl } from "@/components/commuter/profile/account-menu";
 
@@ -42,22 +44,9 @@ export default function SettingsContent({ showHeader = true, onSignOutControl }:
   const detailsHeadingId = useId();
   const { shift, status: shiftStatus, error: shiftError } = useConductorShift();
   const { history, transactions, status: remitStatus, error: remitError } = useRemittanceData();
-  // ── Fetch the conductor's real profile (username) from the API ──
-  const [conductorProfile, setConductorProfile] = useState<{ name: string | null; username: string | null; email: string | null } | null>(null);
-  useEffect(() => {
-    fetch("/api/conductor/profile", { headers: { Accept: "application/json" } })
-      .then(r => r.ok ? r.json() : null)
-      .then(json => {
-        if (json?.data) {
-          setConductorProfile({
-            name: json.data.name ?? null,
-            username: json.data.username ?? null,
-            email: json.data.email ?? null,
-          });
-        }
-      })
-      .catch(() => {});
-  }, []);
+  // The conductor's real profile (name, username, photo), shared with the
+  // shell's avatars so it's fetched once.
+  const conductorProfile = useConductorProfile();
 
   const lastSosClickRef = useRef<number | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -139,8 +128,6 @@ export default function SettingsContent({ showHeader = true, onSignOutControl }:
 
   const conductorName = conductorProfile?.name?.trim() || shift?.conductorName?.trim() || "Conductor";
   const username = conductorProfile?.username?.trim();
-  const nameParts = conductorName.split(/\s+/);
-  const initials = `${nameParts[0][0]}${nameParts.length > 1 ? nameParts[nameParts.length - 1][0] : ""}`.toUpperCase();
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 lg:py-8 space-y-6">
@@ -160,9 +147,15 @@ export default function SettingsContent({ showHeader = true, onSignOutControl }:
           <div className="absolute inset-6 rounded-full border border-[#99C1F1]/10" />
           <div className="absolute inset-12 rounded-full border border-[#99C1F1]/10" />
         </div>
-        <div aria-hidden="true" className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-[#62A0EA]/30 bg-[#1A5FB4] text-2xl font-bold text-white xl:h-20 xl:w-20 xl:border-[#99C1F1]/30 xl:bg-gradient-to-br xl:from-[#337DD2] xl:to-[#1A5FB4] xl:shadow-lg xl:shadow-[#050F1A]/30 xl:ring-4 xl:ring-white/5">
-          {initials}
-        </div>
+        {/* Same default image as the commuter profile until admin uploads a photo. */}
+        <UserAvatar
+          src={conductorProfile?.photoUrl}
+          alt=""
+          className="h-16 w-16 xl:h-20 xl:w-20"
+          iconClassName="h-8 w-8 xl:h-10 xl:w-10"
+          sizes="(min-width: 1280px) 80px, 64px"
+          surfaceClassName="rounded-2xl border border-[#62A0EA]/30 bg-[#1A5FB4] text-white xl:border-[#99C1F1]/30 xl:bg-gradient-to-br xl:from-[#337DD2] xl:to-[#1A5FB4] xl:shadow-lg xl:shadow-[#050F1A]/30 xl:ring-4 xl:ring-white/5"
+        />
         <div className="min-w-0 flex-1">
           <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#99C1F1]/80">Conductor account</p>
           <h2 id={profileHeadingId} className="break-words text-xl font-bold leading-snug tracking-tight text-white xl:text-2xl">

@@ -14,8 +14,8 @@ export function ThemeToggleIcons({ isLight, size = 20 }: { isLight: boolean; siz
 }
 
 export default function ProfileThemeToggle() {
-  // Real commuter appearance inside the commuter app; preview-only elsewhere
-  // (the conductor settings page reuses this toggle).
+  // The real appearance preference of whichever app it's in (the conductor
+  // settings page reuses this toggle).
   const [isLight, setIsLight] = useLightModeToggle();
 
   return (

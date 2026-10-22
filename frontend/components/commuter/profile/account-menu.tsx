@@ -21,12 +21,12 @@ export type SignOutControl = {
  * no longer sits alone at the bottom of the scroll. Below lg: the round
  * ProfileThemeToggle and the bottom Log out button stay as they were.
  *
- * Appearance shares ProfileThemeToggle's state: the real commuter preference
- * inside the commuter app, preview-only in the conductor app.
+ * Appearance shares ProfileThemeToggle's state: the real preference of
+ * whichever app (commuter or conductor) it's in.
  *
  * `trigger`: "appearance" (default) shows the current mode's moon/sun with a
  * chevron; "gear" is a bare settings gear that turns while the menu opens,
- * used by the commuter Profile.
+ * used by the commuter Profile and conductor Settings.
  */
 export default function AccountMenu({
   signOut,
