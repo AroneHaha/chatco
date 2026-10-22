@@ -214,6 +214,7 @@ Route::prefix('conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR', 'maint
     Route::get('/shift', [ConductorController::class, 'shiftStatus'])->middleware('throttle:conductor-read');
     Route::get('/shift-logs', [ConductorController::class, 'shiftLogs'])->middleware('throttle:conductor-read');
     Route::get('/profile', [ConductorController::class, 'profile'])->middleware('throttle:conductor-read');
+    Route::post('/profile/photo', [ConductorController::class, 'uploadProfilePhoto'])->middleware('throttle:conductor-write');
     Route::get('/units', [ConductorController::class, 'units'])->middleware('throttle:conductor-read');
     Route::get('/drivers', [ConductorController::class, 'drivers'])->middleware('throttle:conductor-read');
     Route::get('/receipt-settings', [ConductorController::class, 'receiptSettings'])->middleware('throttle:conductor-read');

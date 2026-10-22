@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Conductor;
 
+use App\Enums\ActivityLogCategory;
 use App\Http\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Conductor\InitiateGcashRequest;
@@ -15,6 +16,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\ConductorService;
+use App\Services\ActivityLogService;
 use App\Services\FeedbackService;
 use App\Services\LocationService;
 use App\Services\ShiftDeviceService;
@@ -40,6 +42,8 @@ class ConductorController extends Controller
 
     protected ShiftDeviceService $shiftDeviceService;
 
+    protected ActivityLogService $activityLog;
+
     public function __construct(
         ShiftService $shiftService,
         LocationService $locationService,
@@ -47,6 +51,7 @@ class ConductorController extends Controller
         ConductorService $conductorService,
         FeedbackService $feedbackService,
         ShiftDeviceService $shiftDeviceService,
+        ActivityLogService $activityLog,
     ) {
         $this->shiftService = $shiftService;
         $this->locationService = $locationService;
@@ -54,6 +59,7 @@ class ConductorController extends Controller
         $this->conductorService = $conductorService;
         $this->feedbackService = $feedbackService;
         $this->shiftDeviceService = $shiftDeviceService;
+        $this->activityLog = $activityLog;
     }
 
     /**
@@ -521,9 +527,40 @@ class ConductorController extends Controller
             'email' => $user->email,
             'role' => $user->role,
             'username' => $profile?->generated_username,
-            // Public R2 URL set by admin; null means the app shows its default avatar.
+            // Public R2 URL of the profile image; null means the app shows its default avatar.
             'profile_picture_url' => $profile?->profile_picture_url,
         ], 'Conductor profile retrieved');
+    }
+
+    /**
+     * POST /api/conductor/profile/photo
+     * Update the authenticated conductor's own public profile image.
+     */
+    public function uploadProfilePhoto(Request $request): JsonResponse
+    {
+        $request->validate([
+            'photo' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:3072', 'dimensions:max_width=4096,max_height=4096'],
+        ]);
+
+        $photoUrl = $this->conductorService->uploadProfilePhoto(
+            $request->user(),
+            $request->file('photo'),
+        );
+
+        if ($photoUrl === null) {
+            return $this->errorResponse('Conductor profile not found', 404);
+        }
+
+        $this->activityLog->record(
+            ActivityLogCategory::MEMBER,
+            'Changed their profile photo',
+            $request->user(),
+        );
+
+        return $this->successResponse(
+            ['profile_picture_url' => $photoUrl],
+            'Profile photo updated',
+        );
     }
 
     /**
