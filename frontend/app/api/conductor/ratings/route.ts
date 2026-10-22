@@ -1,7 +1,13 @@
 import { NextRequest } from "next/server";
 import { proxyToLaravel } from "@/lib/conductor/server/proxy";
 import { jsonData, jsonError } from "@/lib/conductor/server/response";
-import type { ConductorRating } from "@/lib/conductor/services/ratings.service";
+import type { ConductorRating, RatingMetrics } from "@/lib/conductor/services/ratings.service";
+
+interface RatingSummary {
+  average_rating: number;
+  total_count: number;
+  distribution: Record<string, number>;
+}
 
 /** Feedback row shape returned by Laravel `GET /conductor/ratings`. */
 interface FeedbackRow {
@@ -23,6 +29,7 @@ interface FeedbackRow {
 
 /**
  * GET /api/conductor/ratings?shift_id=…
+ * GET /api/conductor/ratings?scope=all_time returns numeric RatingMetrics only.
  *
  * Proxies to Laravel `GET /api/v1/conductor/ratings` (role:CONDUCTOR), which
  * returns the feedback rows for the shift (scoped to the auth conductor).
@@ -36,6 +43,35 @@ interface FeedbackRow {
  * conductor entry still renders sensibly.
  */
 export async function GET(request: NextRequest) {
+  if (request.nextUrl.searchParams.get("scope") === "all_time") {
+    const result = await proxyToLaravel(request, "/conductor/ratings?scope=all_time");
+    if (!result.ok) {
+      return jsonError(result.message ?? "Unable to load ratings.", result.status);
+    }
+
+    const { conductor, driver } = result.data as { conductor: RatingSummary; driver: RatingSummary };
+    const distribution = [1, 2, 3, 4, 5].map(
+      (star) => (conductor.distribution[String(star)] ?? 0) + (driver.distribution[String(star)] ?? 0),
+    ) as RatingMetrics["distribution"];
+    const totalRatings = conductor.total_count + driver.total_count;
+    const metrics: RatingMetrics = {
+      totalRatings,
+      averageRating: totalRatings > 0
+        ? Math.round(distribution.reduce((sum, count, index) => sum + count * (index + 1), 0) / totalRatings * 10) / 10
+        : 0,
+      overallSatisfaction: totalRatings > 0
+        ? Math.round((distribution[3] + distribution[4]) / totalRatings * 100)
+        : 0,
+      conductorAverage: conductor.average_rating,
+      conductorCount: conductor.total_count,
+      driverAverage: driver.average_rating,
+      driverCount: driver.total_count,
+      distribution,
+    };
+
+    return jsonData(metrics);
+  }
+
   const shiftId =
     request.nextUrl.searchParams.get("shift_id") ??
     request.nextUrl.searchParams.get("shiftId");

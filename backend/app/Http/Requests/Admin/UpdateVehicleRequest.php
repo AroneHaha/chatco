@@ -8,7 +8,7 @@ use Illuminate\Validation\Rule;
 /**
  * Validates PUT/PATCH /api/v1/admin/vehicles/{id}.
  *
- * Same rules as StoreVehicleRequest, but uniqueness checks exclude the
+ * Existing unit numbers remain editable. Uniqueness checks exclude the
  * current vehicle's ID so you can save without changing the plate/unit.
  * All fields are optional on update (partial update supported).
  */

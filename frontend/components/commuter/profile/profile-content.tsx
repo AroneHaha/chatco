@@ -3,7 +3,7 @@
 import { DiscountApplicationEntry } from './discount-application-entry';
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronRight, KeyRound, Loader2, LogOut, Mail, Pencil, Phone, Save, ShieldCheck, UserRound, X } from "lucide-react";
+import { Check, ChevronRight, CircleHelp, Clock, KeyRound, Loader2, LogOut, Mail, Pencil, Phone, Save, ShieldCheck, ShieldX, UserRound, X } from "lucide-react";
 import { useProfile } from "@/app/(commuter)/profile/use-profile";
 import { AccountStatus } from "@/app/(commuter)/profile/types";
 import { getCommuterTypeLabel } from "@/types";
@@ -161,35 +161,41 @@ export default function ProfileContent({ variant = "page", onSignOutControl }: {
     switch (status) {
       case "ACTIVE":
         return {
-          color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/30 light:text-emerald-700",
+          color: "text-emerald-300 bg-emerald-500/10 border-emerald-400/20 light:text-emerald-700 light:bg-emerald-50 light:border-emerald-200",
           text: "Verified",
+          icon: ShieldCheck,
         };
       case "PENDING_VERIFICATION":
       case "PENDING":
         return {
-          color: "text-amber-400 bg-amber-500/10 border-amber-500/30 light:text-amber-700",
+          color: "text-amber-300 bg-amber-500/10 border-amber-400/20 light:text-amber-700 light:bg-amber-50 light:border-amber-200",
           text: "Pending Verification",
+          icon: Clock,
         };
       case "DISCOUNT_REJECTED":
       case "REJECTED":
         return {
-          color: "text-red-400 bg-red-500/10 border-red-500/30 light:text-red-700",
+          color: "text-red-300 bg-red-500/10 border-red-400/20 light:text-red-700 light:bg-red-50 light:border-red-200",
           text: "Rejected",
+          icon: ShieldX,
         };
       case "APPROVED":
         return {
-          color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/30 light:text-emerald-700",
+          color: "text-emerald-300 bg-emerald-500/10 border-emerald-400/20 light:text-emerald-700 light:bg-emerald-50 light:border-emerald-200",
           text: "Approved",
+          icon: ShieldCheck,
         };
       default:
         return {
-          color: "text-slate-400 bg-slate-500/10 border-slate-500/30 light:text-slate-600",
+          color: "text-white/60 bg-white/5 border-white/15 light:text-slate-600 light:bg-slate-50 light:border-slate-200",
           text: status ?? "Unknown",
+          icon: CircleHelp,
         };
     }
   };
 
   const statusConfig = getStatusConfig(profile.accountStatus);
+  const StatusIcon = statusConfig.icon;
   const discountPercentage = profile.commuterType === "REGULAR" ? 0 : 20;
 
   const inputClasses =
@@ -226,19 +232,22 @@ export default function ProfileContent({ variant = "page", onSignOutControl }: {
               {profile.firstName} {profile.surname}
             </h2>
             <p className="text-white/50 text-sm mt-1 break-words light:text-gray-500">@{profile.username}</p>
-            <div className="flex flex-wrap items-center gap-2 mt-3">
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               <span
-                className={`${isPage ? "text-[11px] font-medium lg:text-[10px] lg:font-bold lg:uppercase lg:tracking-wider" : "text-[11px] font-medium"} px-2.5 py-1 rounded-full border ${statusConfig.color}`}
+                className={`inline-flex max-w-full items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-medium leading-tight ${statusConfig.color}`}
               >
-                {statusConfig.text}
+                <StatusIcon size={13} strokeWidth={1.8} aria-hidden="true" className="shrink-0" />
+                <span className="break-words">{statusConfig.text}</span>
               </span>
-              <span className={isPage ? "rounded-full border border-[#62A0EA]/30 bg-[#62A0EA]/10 px-2.5 py-1 text-[11px] font-medium text-[#99C1F1] light:border-[#1A5FB4]/30 light:bg-[#1A5FB4]/10 light:text-[#1A5FB4] lg:text-[10px] lg:font-bold lg:uppercase lg:tracking-wider" : "rounded-full border border-[#99C1F1]/20 bg-[#62A0EA]/10 px-2.5 py-1 text-[11px] font-medium text-[#B6D3F6] light:border-[#1A5FB4]/30 light:bg-[#1A5FB4]/10 light:text-[#1A5FB4]"}>
-                {getCommuterTypeLabel(profile.commuterType)}{" "}
-                {discountPercentage > 0 && `(${discountPercentage}% Off)`}
+              <span className="inline-flex max-w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-[#99C1F1]/20 bg-[#62A0EA]/5 px-2.5 py-1.5 text-[11px] font-medium leading-tight text-[#B6D3F6] light:border-[#1A5FB4]/20 light:bg-[#F0F7FF] light:text-[#1A5FB4]">
+                <span className="break-words">{getCommuterTypeLabel(profile.commuterType)}</span>
+                {discountPercentage > 0 && (
+                  <span className="border-l border-[#99C1F1]/25 pl-2 font-semibold whitespace-nowrap tabular-nums text-[#99C1F1] light:border-[#1A5FB4]/20 light:text-[#1A5FB4]">{discountPercentage}% off</span>
+                )}
               </span>
             </div>
           </div>
-          {isPage && <div className="hidden self-start lg:block"><AccountMenu signOut={{ request: () => setShowLogoutConfirm(true), locked: false }} /></div>}
+          {isPage && <div className="hidden self-start lg:block"><AccountMenu signOut={{ request: () => setShowLogoutConfirm(true), locked: false }} trigger="gear" /></div>}
         </div>
 
         <div className="space-y-2">

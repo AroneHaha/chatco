@@ -28,6 +28,7 @@ use App\Traits\ApiResponse;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -1551,7 +1552,7 @@ class AdminController extends Controller
         $total = $rows->count();
         $items = $rows->forPage($page, $perPage)->values();
 
-        return $this->successResponse([
+        $payload = [
             'current_page' => $page,
             'data' => $items,
             'from' => $items->isEmpty() ? null : (($page - 1) * $perPage) + 1,
@@ -1559,7 +1560,138 @@ class AdminController extends Controller
             'per_page' => $perPage,
             'to' => $items->isEmpty() ? null : (($page - 1) * $perPage) + $items->count(),
             'total' => $total,
-        ], 'Remittances retrieved');
+        ];
+        // Opt-in so the table's and Analytics' existing requests are unchanged.
+        // Aggregated over every filtered row, not just the returned page, so the
+        // admin summary cards stay correct past the first page of results.
+        if ($request->boolean('summary')) {
+            $trendBy = in_array($request->input('trend_by'), ['day', 'week', 'month'], true)
+                ? $request->input('trend_by')
+                : 'day';
+            // The trend ends on the exact date being viewed, otherwise today.
+            $trendEnd = $request->filled('date')
+                ? Carbon::parse($request->input('date'), 'Asia/Manila')->startOfDay()
+                : now('Asia/Manila')->startOfDay();
+            $payload['summary'] = $this->remittanceSummary($rows, $request->input('date_from'), $trendBy, $trendEnd);
+        }
+
+        return $this->successResponse($payload, 'Remittances retrieved');
+    }
+
+    /**
+     * Reconciliation totals for the Remittance Tracker's summary cards.
+     *
+     * Amounts only count shifts whose cash an admin has already declared, and
+     * only inside the requested period — `date_from` also pulls in recent
+     * PENDING carry-overs and last-24h active shifts, which are excluded here.
+     * The declaration counts keep those carry-overs on purpose: they mirror
+     * the table, which keeps a previous day's ended shift visible until its
+     * cash is declared. Still-active shifts never count as awaiting declaration.
+     *
+     * `trend` is the same set of figures per bucket, ending on `$trendEnd`
+     * (it feeds the cards' sparklines) — fleet-wide, ignoring the other
+     * filters. Declaration counts there are grouped by the shift's date, i.e.
+     * which days the still-undeclared shifts came from.
+     *
+     * @param  Collection<int, array<string, mixed>>  $rows
+     * @param  'day'|'week'|'month'  $trendBy
+     * @return array<string, mixed>
+     */
+    private function remittanceSummary(Collection $rows, ?string $dateFrom, string $trendBy, Carbon $trendEnd): array
+    {
+        $declaredStatuses = [
+            Remittance::STATUS_COMPLETE,
+            Remittance::STATUS_SHORTAGE,
+            Remittance::STATUS_OVERAGE,
+            'Remitted',
+        ];
+        $declared = $rows->filter(fn (array $row): bool => in_array($row['remittance_status'] ?? null, $declaredStatuses, true)
+            && (! $dateFrom || (string) ($row['date'] ?? '') >= $dateFrom));
+        $awaitingDeclaration = $rows->filter(fn (array $row): bool => ($row['remittance_status'] ?? null) === Remittance::STATUS_PENDING
+            && empty($row['is_active_shift']));
+        $overdueCount = $awaitingDeclaration->filter(fn (array $row): bool => ! empty($row['is_overdue']))->count();
+        $sum = fn (string $key): float => round((float) $declared->sum(fn (array $row): float => (float) ($row[$key] ?? 0)), 2);
+
+        return [
+            'total_passengers' => (int) $declared->sum(fn (array $row): int => (int) ($row['total_passengers'] ?? 0)),
+            'cash_total' => round((float) $declared->sum(fn (array $row): float => (float) ($row['cash_total'] ?? $row['total_collected'] ?? 0)), 2),
+            'gcash_total' => $sum('gcash_total'),
+            'shortage_total' => $sum('shortage'),
+            'overage_total' => $sum('overage'),
+            'for_cash_declaration_count' => $awaitingDeclaration->count() - $overdueCount,
+            'overdue_count' => $overdueCount,
+            'trend' => $this->remittanceTrend($declaredStatuses, $trendBy, $trendEnd),
+        ];
+    }
+
+    /**
+     * Sparkline buckets, oldest first, the last one ending on `$end`:
+     *   day   — 7 single days.
+     *   week  — 6 rolling 7-day windows, so the last one matches "Last 7 Days".
+     *   month — 6 calendar months, the last one running to `$end`.
+     *
+     * One grouped-by-date query over the whole span (at most ~6 months of
+     * rows, a range scan on remittances_date_index), then bucketed in PHP —
+     * portable across MySQL and SQLite, unlike DB-specific week/month
+     * functions. Active shifts have no Remittance row yet, so never appear.
+     *
+     * @param  list<string>  $declaredStatuses
+     * @param  'day'|'week'|'month'  $by
+     * @return list<array<string, mixed>>
+     */
+    private function remittanceTrend(array $declaredStatuses, string $by, Carbon $end): array
+    {
+        /** @var list<array{0: Carbon, 1: Carbon}> $buckets */
+        $buckets = match ($by) {
+            'week' => array_map(fn (int $n): array => [
+                $end->copy()->subDays(7 * $n + 6),
+                $end->copy()->subDays(7 * $n),
+            ], range(5, 0)),
+            'month' => array_map(fn (int $n): array => [
+                $end->copy()->startOfMonth()->subMonthsNoOverflow($n),
+                $n === 0 ? $end->copy() : $end->copy()->startOfMonth()->subMonthsNoOverflow($n)->endOfMonth()->startOfDay(),
+            ], range(5, 0)),
+            default => array_map(fn (int $n): array => [
+                $end->copy()->subDays($n),
+                $end->copy()->subDays($n),
+            ], range(6, 0)),
+        };
+
+        $now = now();
+        $declaredIn = implode(', ', array_fill(0, count($declaredStatuses), '?'));
+        $whenDeclared = fn (string $column): string => "COALESCE(SUM(CASE WHEN remittance_status IN ({$declaredIn}) THEN {$column} ELSE 0 END), 0)";
+
+        $days = Remittance::query()
+            ->where('date', '>=', $buckets[0][0]->toDateString())
+            ->where('date', '<=', $end->toDateString())
+            ->select('date')
+            ->selectRaw($whenDeclared('total_passengers').' AS passengers', $declaredStatuses)
+            ->selectRaw($whenDeclared('COALESCE(cash_total, total_collected)').' AS cash', $declaredStatuses)
+            ->selectRaw($whenDeclared('gcash_total').' AS gcash', $declaredStatuses)
+            ->selectRaw($whenDeclared('shortage').' AS shortage', $declaredStatuses)
+            ->selectRaw($whenDeclared('overage').' AS overage', $declaredStatuses)
+            ->selectRaw('COALESCE(SUM(CASE WHEN remittance_status = ? AND remittance_due_at < ? THEN 1 ELSE 0 END), 0) AS overdue', [Remittance::STATUS_PENDING, $now])
+            ->selectRaw('COALESCE(SUM(CASE WHEN remittance_status = ? AND (remittance_due_at IS NULL OR remittance_due_at >= ?) THEN 1 ELSE 0 END), 0) AS for_cash_declaration', [Remittance::STATUS_PENDING, $now])
+            ->groupBy('date')
+            ->get();
+
+        return array_map(function (array $bucket) use ($days): array {
+            [$start, $finish] = [$bucket[0]->toDateString(), $bucket[1]->toDateString()];
+            $inBucket = $days->filter(fn (Remittance $day): bool => (string) $day->date >= $start && (string) $day->date <= $finish);
+            $total = fn (string $key): float => round((float) $inBucket->sum(fn (Remittance $day): float => (float) $day->{$key}), 2);
+
+            return [
+                'start' => $start,
+                'end' => $finish,
+                'passengers' => (int) $total('passengers'),
+                'cash' => $total('cash'),
+                'gcash' => $total('gcash'),
+                'shortage' => $total('shortage'),
+                'overage' => $total('overage'),
+                'for_cash_declaration' => (int) $total('for_cash_declaration'),
+                'overdue' => (int) $total('overdue'),
+            ];
+        }, $buckets);
     }
 
     /**

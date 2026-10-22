@@ -58,18 +58,9 @@ export default function ConductorMetricsModal() {
   return (
     <div className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`} {...backdropDismiss}>
       <PopoverTail panelColor="#071A2E" anchorOffsetPx={anchorOffset} />
-      {/* xl:h (fixed, not max-h): only at xl:+ does the popover hold one
-          constant height across every content state (loading skeleton,
-          "no ratings"/"no shift" empty states, full gauge+cards) instead
-          of visibly shrinking once data replaces the skeleton — the
-          skeleton is sized to resemble the full/normal state, so a short
-          empty state would otherwise collapse the whole popover right
-          after it opens. Below xl:, the mobile/tablet sheet keeps its
-          original content-driven height (max-h only) — a short empty
-          state there just makes a short sheet, which reads fine full-width
-          and isn't what was reported. */}
+      {/* Keep the desktop panel stable across loading, empty and populated states. */}
       <div
-        className={`w-full sm:max-w-lg max-h-[85vh] sm:max-h-[80vh] xl:h-[70vh] overflow-y-auto bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-white/10 shadow-2xl modal-scroll popover-surface ${panelAnim}`}
+        className={`w-full sm:max-w-3xl max-h-[85vh] sm:max-h-[80vh] xl:h-[70vh] overflow-y-auto bg-[#071A2E] sm:rounded-xl rounded-t-xl border border-white/10 shadow-2xl modal-scroll popover-surface ${panelAnim}`}
         style={panelAnchorStyle}
       >
         {/* Header mirrors the Payment popover's — see ConductorEndOfDayModal. */}
@@ -86,7 +77,6 @@ export default function ConductorMetricsModal() {
               </svg>
             </button>
           </div>
-          <p className="text-sm text-white/40 mt-1">Shift ratings overview</p>
         </div>
 
         <MetricsContent showHeader={false} />

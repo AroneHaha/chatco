@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, type ComponentType } from "react";
 import { PROFILE_ANCHOR_ID } from "@/components/commuter/commuter-profile-modal";
 import { FARE_ANCHOR_ID } from "@/components/commuter/commuter-fare-modal";
+import { CommuterAvatar } from "@/components/commuter/commuter-avatar";
 
 export interface CommuterDockItem {
   href: string;
@@ -21,7 +22,8 @@ interface CommuterDockProps {
   pathname: string;
   /** Feedback opens the QR scanner overlay instead of routing — same as the sidebar/tab bar. */
   onFeedbackClick: () => void;
-  userInitial: string;
+  /** Public R2 URL of the commuter's photo; null shows the default image. */
+  userPhotoUrl: string | null;
   userName: string;
   userTypeLabel: string;
 }
@@ -44,7 +46,7 @@ export default function CommuterDock({
   items,
   pathname,
   onFeedbackClick,
-  userInitial,
+  userPhotoUrl,
   userName,
   userTypeLabel,
 }: CommuterDockProps) {
@@ -199,9 +201,7 @@ export default function CommuterDock({
 
         {/* User identity */}
         <div className="flex items-center gap-2.5 px-4">
-          <div className="w-8 h-8 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white text-sm font-bold flex-shrink-0 border-2 border-white/20 light:border-[#DAEEFF]">
-            {userInitial}
-          </div>
+          <CommuterAvatar src={userPhotoUrl} className="w-8 h-8" iconClassName="w-4 h-4" sizes="32px" />
           <div className="min-w-0 max-w-[130px]">
             <p className="text-white light:text-gray-900 text-xs font-semibold truncate leading-tight">{userName}</p>
             {userTypeLabel && <p className="text-white/40 light:text-gray-500 text-[10px] leading-tight truncate">{userTypeLabel}</p>}

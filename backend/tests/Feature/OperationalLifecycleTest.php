@@ -222,6 +222,110 @@ class OperationalLifecycleTest extends TestCase
         $this->assertSame(3, $row['total_passengers']);
     }
 
+    public function test_admin_remittance_summary_reports_reconciliation_totals_for_the_period(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $closeout = app(ShiftCloseoutService::class);
+        $endedShift = function (float $cash) use ($closeout): ShiftLog {
+            [$conductor, , , , $shift] = $this->activeShift();
+            $this->fare($shift, PaymentMethod::CASH, PaymentStatus::PAID, $cash, ['total_passengers' => 2]);
+            $closeout->close($shift->shift_id, null, ShiftCloseoutService::REASON_MANUAL, $conductor->id);
+
+            return $shift;
+        };
+
+        $closeout->recordCashDeclaration($endedShift(100)->shift_id, 75);
+        $closeout->recordCashDeclaration($endedShift(50)->shift_id, 60);
+        $endedShift(40);
+        $overdue = $endedShift(30);
+        Remittance::whereKey($overdue->shift_id)->update(['remittance_due_at' => now()->subMinute()]);
+        // Yesterday: a declared shortage (outside today's amounts) and an ended
+        // shift still awaiting declaration (kept in the count, like the table).
+        $yesterdayShort = $endedShift(20);
+        $closeout->recordCashDeclaration($yesterdayShort->shift_id, 10);
+        $carryOver = $endedShift(10);
+        Remittance::whereIn('shift_id', [$yesterdayShort->shift_id, $carryOver->shift_id])
+            ->update(['date' => now()->subDay()->toDateString()]);
+        // Still active: Pending, never ready for declaration.
+        [, , , , $active] = $this->activeShift();
+        $this->fare($active, PaymentMethod::CASH, PaymentStatus::PAID, 500);
+
+        $response = $this->actingAs($admin)
+            ->getJson('/api/v1/admin/remittances?summary=1&per_page=1&date_from='.now()->toDateString())
+            ->assertOk();
+
+        $this->assertCount(1, $response->json('data.data'));
+        $summary = $response->json('data.summary');
+        $this->assertSame(4, $summary['total_passengers']);
+        $this->assertEquals(150, $summary['cash_total']);
+        $this->assertEquals(0, $summary['gcash_total']);
+        $this->assertEquals(25, $summary['shortage_total']);
+        $this->assertEquals(10, $summary['overage_total']);
+        $this->assertSame(2, $summary['for_cash_declaration_count']);
+        $this->assertSame(1, $summary['overdue_count']);
+
+        // Default (day) trend: 7 zero-filled days, oldest first, ending today, by shift date.
+        $trend = collect($summary['trend']);
+        $this->assertCount(7, $trend);
+        $this->assertSame(now()->subDays(6)->toDateString(), $trend->first()['start']);
+        $today = $trend->last();
+        $this->assertSame(now()->toDateString(), $today['start']);
+        $this->assertSame(now()->toDateString(), $today['end']);
+        $this->assertSame(4, $today['passengers']);
+        $this->assertEquals(150, $today['cash']);
+        $this->assertEquals(25, $today['shortage']);
+        $this->assertEquals(10, $today['overage']);
+        $this->assertSame(1, $today['for_cash_declaration']);
+        $this->assertSame(1, $today['overdue']);
+        $yesterdayTrend = $trend->get(5);
+        $this->assertEquals(20, $yesterdayTrend['cash']);
+        $this->assertEquals(10, $yesterdayTrend['shortage']);
+        $this->assertSame(1, $yesterdayTrend['for_cash_declaration']);
+        $this->assertSame(0, $trend->get(0)['passengers']);
+
+        // Weekly: 6 rolling 7-day windows; the last one covers today and yesterday.
+        $weekly = collect($this->actingAs($admin)
+            ->getJson('/api/v1/admin/remittances?summary=1&per_page=1&trend_by=week&date_from='.now()->subDays(6)->toDateString())
+            ->json('data.summary.trend'));
+        $this->assertCount(6, $weekly);
+        $this->assertSame(now()->subDays(6)->toDateString(), $weekly->last()['start']);
+        $this->assertSame(now()->toDateString(), $weekly->last()['end']);
+        $this->assertEquals(170, $weekly->last()['cash']);
+        $this->assertEquals(35, $weekly->last()['shortage']);
+        $this->assertSame(2, $weekly->last()['for_cash_declaration']);
+
+        // Monthly: 6 calendar months, the last running to today.
+        $monthly = collect($this->actingAs($admin)
+            ->getJson('/api/v1/admin/remittances?summary=1&per_page=1&trend_by=month')
+            ->json('data.summary.trend'));
+        $this->assertCount(6, $monthly);
+        $this->assertSame(now()->startOfMonth()->toDateString(), $monthly->last()['start']);
+        $this->assertSame(now()->toDateString(), $monthly->last()['end']);
+        $this->assertSame(now()->startOfMonth()->subMonthsNoOverflow(5)->toDateString(), $monthly->first()['start']);
+        $this->assertEquals(170, $monthly->sum('cash'));
+
+        // An exact date anchors the trend on that day.
+        $anchored = $this->actingAs($admin)
+            ->getJson('/api/v1/admin/remittances?summary=1&per_page=1&date='.now()->subDay()->toDateString())
+            ->json('data.summary.trend');
+        $this->assertSame(now()->subDay()->toDateString(), end($anchored)['end']);
+        $this->assertEquals(20, end($anchored)['cash']);
+
+        // An exact date stays strictly on that day, carry-overs included.
+        $yesterday = $this->actingAs($admin)
+            ->getJson('/api/v1/admin/remittances?summary=1&date='.now()->subDay()->toDateString())
+            ->json('data.summary');
+        $this->assertEquals(10, $yesterday['shortage_total']);
+        $this->assertSame(1, $yesterday['for_cash_declaration_count']);
+        $this->assertSame(0, $yesterday['overdue_count']);
+
+        // Opt-in only: existing callers get the unchanged envelope.
+        $this->actingAs($admin)
+            ->getJson('/api/v1/admin/remittances')
+            ->assertOk()
+            ->assertJsonMissingPath('data.summary');
+    }
+
     public function test_conductor_remittance_submission_always_leaves_cash_pending_for_admin(): void
     {
         [$conductor, , , , $shift] = $this->activeShift();

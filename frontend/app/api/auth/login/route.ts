@@ -97,8 +97,15 @@ function issueSession(
   mustChangePassword: boolean
 ) {
   // A default-password account gets the session cookie (the setup page needs
-  // it) but is sent to Set New Password instead of its dashboard.
-  const redirectPath = mustChangePassword ? "/set-new-password" : getRoleDashboard(user.role);
+  // it) but is sent to Set New Password instead of its dashboard. A conductor
+  // with no active shift goes straight to unit verification — the shift was
+  // already checked above, so the dashboard isn't shown first only to
+  // redirect once its own shift check comes back empty.
+  const redirectPath = mustChangePassword
+    ? "/set-new-password"
+    : user.role === "CONDUCTOR" && !activeShift
+      ? "/unit-verification"
+      : getRoleDashboard(user.role);
   if (!redirectPath) {
     return NextResponse.json({ message: "Unable to sign in." }, { status: 403 });
   }

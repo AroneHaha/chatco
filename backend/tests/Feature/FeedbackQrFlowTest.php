@@ -356,23 +356,52 @@ class FeedbackQrFlowTest extends TestCase
         ]);
     }
 
-    public function test_commuter_can_submit_feedback_without_a_transaction_for_shift(): void
+    public function test_commuter_can_scan_unit_and_submit_feedback_without_any_transactions(): void
     {
         Transaction::query()->delete();
+        $this->assertDatabaseCount('transactions', 0);
 
-        $this->withHeader('Authorization', 'Bearer '.$this->commuterToken())
-            ->postJson('/api/v1/commuter/feedback', [
-                'shift_id' => $this->shift->shift_id,
-                'rating' => 5,
-                'conductor_rating' => 5,
-            ])
+        Sanctum::actingAs($this->commuter);
+
+        $scan = $this->postJson('/api/v1/qr/scan-public', [
+            'vehicle_id' => $this->vehicle->id,
+        ]);
+
+        $scan->assertOk()
+            ->assertJsonPath('data.shift_id', $this->shift->shift_id)
+            ->assertJsonPath('data.driver_id', $this->driver->id)
+            ->assertJsonPath('data.conductor_id', $this->conductor->id);
+
+        $this->postJson('/api/v1/commuter/feedback', [
+            'shift_id' => $scan->json('data.shift_id'),
+            'rating' => 5,
+            'comment' => 'Safe and smooth ride.',
+            'conductor_rating' => 5,
+            'conductor_comment' => 'Polite and helpful.',
+        ])
             ->assertStatus(201)
             ->assertJsonPath('message', 'Feedback submitted');
 
         $this->assertDatabaseHas('feedback', [
             'shift_id' => $this->shift->shift_id,
+            'vehicle_id' => $this->vehicle->id,
+            'driver_id' => $this->driver->id,
+            'conductor_id' => $this->conductor->id,
             'commuter_id' => $this->commuter->commuterProfile->id,
+            'rating' => 5,
+            'comment' => 'Safe and smooth ride.',
+            'conductor_rating' => 5,
+            'conductor_comment' => 'Polite and helpful.',
         ]);
+        $this->assertDatabaseCount('transactions', 0);
+
+        $this->postJson('/api/v1/commuter/feedback', [
+            'shift_id' => $scan->json('data.shift_id'),
+            'rating' => 4,
+            'conductor_rating' => 4,
+        ])->assertStatus(409);
+
+        $this->assertDatabaseCount('feedback', 1);
     }
 
     public function test_feedback_does_not_require_a_transaction_belonging_to_the_commuter(): void

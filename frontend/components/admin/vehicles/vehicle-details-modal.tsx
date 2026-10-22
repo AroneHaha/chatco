@@ -6,7 +6,6 @@ import { Modal } from '@/components/admin/ui/modal';
 import { UserAvatar } from '@/components/admin/ui/user-avatar';
 import { QRCodeCanvas } from 'qrcode.react';
 import {
-  Car,
   Phone,
   Download,
   Printer,
@@ -14,8 +13,8 @@ import {
   AlertCircle,
   Users,
   QrCode,
-  Route,
 } from 'lucide-react';
+import { mdiJeepney } from '@mdi/js';
 import {
   get as getVehicle,
   type AdminVehicle,
@@ -238,7 +237,10 @@ export function VehicleDetailsModal({ isOpen, vehicleId, onClose }: VehicleDetai
           <section aria-label="Vehicle overview" className="mb-4 flex flex-wrap items-center justify-between gap-4">
             <div className="flex min-w-0 flex-1 items-center gap-4">
               <div aria-hidden="true" className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-[#62A0EA]/20 bg-[#62A0EA]/10 text-[#99C1F1] admin-light:border-[#1A5FB4]/15 admin-light:bg-[#1A5FB4]/5 admin-light:text-[#1A5FB4]">
-                <Car size={28} strokeWidth={1.5} />
+                {/* Same jeepney glyph as the vehicle table's Unit column. */}
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor">
+                  <path d={mdiJeepney} />
+                </svg>
               </div>
               <div className="min-w-0">
                 <p className="text-xs text-slate-400 admin-light:text-slate-500">Unit number</p>
@@ -269,13 +271,6 @@ export function VehicleDetailsModal({ isOpen, vehicleId, onClose }: VehicleDetai
                   />
                   <DetailRow label="Date added" value={formatDate(vehicle.createdAt)} />
                 </dl>
-                <div className="mt-3 flex items-start gap-3 rounded-xl bg-[#0E1628]/60 p-3 admin-light:bg-slate-50">
-                  <Route size={18} aria-hidden="true" className="mt-0.5 shrink-0 text-[#99C1F1] admin-light:text-[#1A5FB4]" />
-                  <div className="min-w-0">
-                    <p className="text-xs text-slate-400 admin-light:text-slate-500">Assigned route</p>
-                    <p className="mt-1 break-words text-sm font-medium text-slate-200 admin-light:text-slate-800">{vehicle.route?.name || 'No route assigned'}</p>
-                  </div>
-                </div>
               </section>
 
               <section aria-labelledby="vehicle-crew-heading" className="mt-4 border-t border-[#2A3A55] pt-3 admin-light:border-[#E2E8F0]">

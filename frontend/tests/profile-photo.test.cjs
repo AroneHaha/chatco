@@ -96,6 +96,7 @@ function photoUI(upload = async () => ({ profileImageUrl: 'https://media.example
     '@/lib/api/client': { ApiError: class extends Error {} },
     '@/lib/commuter/services/profile.service': { uploadProfilePhoto: upload },
     './profile-photo-cropper': { default: 'Cropper' },
+    '@/components/admin/ui/user-avatar': { UserAvatar: 'UserAvatar' },
   });
   const profile = { firstName: 'Real', surname: 'User', profileImageUrl: 'https://media.example.test/old.jpg' };
   const flatten = node => Array.isArray(node) ? node.flatMap(flatten) : node && typeof node === 'object' && node.props ? [node, ...flatten(node.props.children)] : [];
@@ -137,10 +138,35 @@ test('failed web upload keeps the old image and supports retry', async () => {
   ui.render().find(n => n.type === 'Cropper').props.onConfirm(new File(['crop'], 'crop.jpg', { type: 'image/jpeg' }));
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(ui.uploaded.length, 0);
-  assert.equal(ui.render().find(n => n.type === 'img').props.src, ui.profile.profileImageUrl);
+  assert.equal(ui.render().find(n => n.type === 'UserAvatar').props.src, ui.profile.profileImageUrl);
   assert.equal(ui.render().find(n => n.type === 'button').props.disabled, false);
-  ui.render().find(n => n.type === 'img').props.onError();
-  assert.equal(ui.render().some(n => n.type === 'img'), false);
+});
+
+function avatarUI(props) {
+  const states = [];
+  let cursor = 0;
+  const react = {
+    useState(initial) { const i = cursor++; if (!(i in states)) states[i] = initial; return [states[i], value => { states[i] = typeof value === 'function' ? value(states[i]) : value; }]; },
+  };
+  const jsx = (type, p) => ({ type, props: p });
+  const { UserAvatar } = load('components/admin/ui/user-avatar.tsx', {
+    react, 'react/jsx-runtime': { jsx, jsxs: jsx }, 'next/image': 'Image', 'lucide-react': { UserRound: 'UserRound' },
+  });
+  const flatten = node => Array.isArray(node) ? node.flatMap(flatten) : node && typeof node === 'object' && node.props ? [node, ...flatten(node.props.children)] : [];
+  return () => { cursor = 0; return flatten(UserAvatar(props)); };
+}
+
+test('avatar shows the default until a photo exists, and falls back if the photo fails', () => {
+  const noPhoto = avatarUI({ src: null, alt: '', fallback: { type: 'span', props: { children: 'RU' } } });
+  assert.equal(noPhoto().some(n => n.type === 'img' || n.type === 'Image'), false);
+  assert.ok(noPhoto().some(n => n.props.children === 'RU'));
+
+  const render = avatarUI({ src: 'https://media.example.test/photo.jpg', alt: 'Your profile photo', fallback: { type: 'span', props: { children: 'RU' } } });
+  const photo = render().find(n => n.type === 'img');
+  assert.equal(photo.props.src, 'https://media.example.test/photo.jpg');
+  photo.props.onError();
+  assert.equal(render().some(n => n.type === 'img'), false);
+  assert.ok(render().some(n => n.props.children === 'RU'));
 });
 
 test('web photo result cannot update an unmounted profile', async () => {
@@ -159,5 +185,5 @@ test('cancelling photo crop retains the saved image and sends no upload', () => 
   ui.render().find(n => n.type === 'Cropper').props.onCancel();
   assert.equal(ui.render().some(n => n.type === 'Cropper'), false);
   assert.equal(count, 0);
-  assert.equal(ui.render().find(n => n.type === 'img').props.src, ui.profile.profileImageUrl);
+  assert.equal(ui.render().find(n => n.type === 'UserAvatar').props.src, ui.profile.profileImageUrl);
 });

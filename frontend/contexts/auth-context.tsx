@@ -22,6 +22,11 @@ interface AuthContextValue {
   logout: (redirectTo?: string) => Promise<void>;
   refresh: () => Promise<void>;
   updateProfilePicture: (url: string | null) => void;
+  /**
+   * Apply a change the caller already got back from the API (e.g. a new
+   * profile photo) to the shared profile, without refetching /me.
+   */
+  patchCommuterProfile: (patch: Partial<CommuterProfile>) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -160,6 +165,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.location.replace(redirectTo);
   }, []);
 
+  const patchCommuterProfile = useCallback((patch: Partial<CommuterProfile>) => {
+    setCommuterProfile(previous => previous ? { ...previous, ...patch } : previous);
+  }, []);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Refresh starts the initial auth request and manages its loading state.
     refresh();
@@ -174,6 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
     refresh,
     updateProfilePicture: url => setUser(current => current ? { ...current, profilePictureUrl: url } : current),
+    patchCommuterProfile,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

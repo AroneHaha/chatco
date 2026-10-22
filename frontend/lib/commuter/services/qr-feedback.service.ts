@@ -278,14 +278,26 @@ interface UnitQrPayload {
 }
 
 /**
+ * What a decoded unit-QR identifies. `unitNumber` / `plateNumber` are the
+ * labels printed into the QR — display-only, so the UI can name the unit
+ * even when the crew lookup fails (e.g. no crew on duty today). Null when
+ * the QR omits them.
+ */
+export interface ParsedUnitQr {
+  vehicleId: string;
+  unitNumber: string | null;
+  plateNumber: string | null;
+}
+
+/**
  * Parse a raw scanned string and decide whether it's a Chatco permanent
- * unit-QR. Returns the extracted `vehicleId` on success.
+ * unit-QR. Returns the extracted `vehicleId` plus the printed unit labels.
  *
  * @throws {QrFeedbackError} `invalid_format` if the string isn't JSON, or
  *   isn't a `{chatco:"unit-qr", vehicleId}` payload. The commuter UI uses
  *   this to show "This isn't a Chatco unit QR" without hitting the network.
  */
-export function parseUnitQr(raw: string): string {
+export function parseUnitQr(raw: string): ParsedUnitQr {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -309,7 +321,42 @@ export function parseUnitQr(raw: string): string {
     );
   }
 
-  return (parsed as UnitQrPayload).vehicleId;
+  const payload = parsed as UnitQrPayload;
+  const label = (value: unknown) =>
+    typeof value === "string" && value.trim() ? value.trim() : null;
+
+  return {
+    vehicleId: payload.vehicleId,
+    unitNumber: label(payload.unitNumber),
+    plateNumber: label(payload.plateNumber),
+  };
+}
+
+/**
+ * One-shot handoff from the nav-bar scan modal to /feedback. The modal
+ * resolves the crew before routing (so it can show "no crew" in place);
+ * priming lets the page's own scanPublic() for that vehicle reuse the result
+ * instead of repeating the request. Consumed on the next call either way,
+ * and short-lived, so it can never stand in for a later lookup.
+ */
+const PRIMED_CREW_TTL_MS = 10_000;
+let primedCrew: { crew: ScannedCrew; primedAt: number } | null = null;
+
+export function primeScannedCrew(crew: ScannedCrew): void {
+  primedCrew = { crew, primedAt: Date.now() };
+}
+
+function takePrimedCrew(vehicleId: string): ScannedCrew | null {
+  const primed = primedCrew;
+  primedCrew = null;
+  if (
+    !primed ||
+    primed.crew.vehicleId !== vehicleId ||
+    Date.now() - primed.primedAt > PRIMED_CREW_TTL_MS
+  ) {
+    return null;
+  }
+  return primed.crew;
 }
 
 /**
@@ -333,6 +380,9 @@ export function parseUnitQr(raw: string): string {
  *   - 5xx → `network`
  */
 export async function scanPublic(vehicleId: string): Promise<ScannedCrew> {
+  const primed = takePrimedCrew(vehicleId);
+  if (primed) return primed;
+
   try {
     const response = await api.post<ApiResponseEnvelope<RawScannedCrew>>(
       COMMUTER_API.feedbackQr.scanPublic,

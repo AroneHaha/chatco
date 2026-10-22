@@ -181,6 +181,7 @@ class CommuterEmailChangeTest extends TestCase
 
     public function test_daily_limit_counts_cancelled_flows_and_third_flow_can_finish(): void
     {
+        $this->travelTo(now()->startOfSecond());
         for ($i = 0; $i < 2; $i++) {
             $id = $this->start();
             $this->postAction('cancel', ['request_id' => $id])->assertOk();

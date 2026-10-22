@@ -21,14 +21,52 @@ export type RemittanceRow = RemittanceRecord;
 // Calls the real Laravel backend via the Next.js proxy.
 // No mock data, no localStorage fallback — admin sees only real DB data.
 
+/** Server-side totals for the summary cards (`?summary=1`), aggregated over
+ * every filtered row rather than only the returned page. */
+export interface RemittanceSummaryTotals {
+  passengers: number;
+  cash: number;
+  gcash: number;
+  shortage: number;
+  overage: number;
+  /** Ended shifts awaiting the admin's cash count, not yet overdue. */
+  forCashDeclaration: number;
+  overdue: number;
+  /** Sparkline buckets, oldest first, the last ending today (or on the exact
+   * date being viewed) — fleet-wide, ignores the other filters. */
+  trend: RemittanceTrendBucket[];
+}
+
+/** Sparkline bucket size: 7 days, 6 rolling weeks, or 6 calendar months. */
+export type RemittanceTrendBy = 'day' | 'week' | 'month';
+
+export interface RemittanceTrendBucket {
+  /** Inclusive YYYY-MM-DD bounds; equal for a single day. */
+  start: string;
+  end: string;
+  passengers: number;
+  cash: number;
+  gcash: number;
+  shortage: number;
+  overage: number;
+  forCashDeclaration: number;
+  overdue: number;
+}
+
 interface RemittancePage {
   records: RemittanceRecord[];
   total: number;
   lastPage: number;
+  summary: RemittanceSummaryTotals | null;
 }
 
-export async function fetchRemittances(page: number, search: string, date: string, status: RemittanceStatus | 'All', dateFrom = '', conductor = '', driver = '', perPage = 20): Promise<RemittancePage> {
+export async function fetchRemittances(page: number, search: string, date: string, status: RemittanceStatus | 'All', dateFrom = '', conductor = '', driver = '', perPage = 20, summaryTrendBy?: RemittanceTrendBy): Promise<RemittancePage> {
   const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
+  // Passing a trend granularity is what requests the summary aggregate.
+  if (summaryTrendBy) {
+    params.set('summary', '1');
+    params.set('trend_by', summaryTrendBy);
+  }
   if (search) params.set('search', search);
   // Exact date wins when set; otherwise fall back to the range preset's lower bound.
   if (date) params.set('date', date);
@@ -46,10 +84,33 @@ export async function fetchRemittances(page: number, search: string, date: strin
   // The backend now returns a paginator: { data: { data: [...], ... } }
   const paginator = json.data ?? {};
   const apiRecords = paginator.data ?? [];
+  const summary = paginator.summary;
   return {
     records: Array.isArray(apiRecords) ? apiRecords.map(mapLaravelRemittance) : [],
     total: Number(paginator.total ?? 0),
     lastPage: Number(paginator.last_page ?? 1),
+    summary: summary ? {
+      passengers: Number(summary.total_passengers ?? 0),
+      cash: Number(summary.cash_total ?? 0),
+      gcash: Number(summary.gcash_total ?? 0),
+      shortage: Number(summary.shortage_total ?? 0),
+      overage: Number(summary.overage_total ?? 0),
+      forCashDeclaration: Number(summary.for_cash_declaration_count ?? 0),
+      overdue: Number(summary.overdue_count ?? 0),
+      trend: Array.isArray(summary.trend)
+        ? summary.trend.map((day: Record<string, unknown>) => ({
+            start: String(day.start ?? ''),
+            end: String(day.end ?? ''),
+            passengers: Number(day.passengers ?? 0),
+            cash: Number(day.cash ?? 0),
+            gcash: Number(day.gcash ?? 0),
+            shortage: Number(day.shortage ?? 0),
+            overage: Number(day.overage ?? 0),
+            forCashDeclaration: Number(day.for_cash_declaration ?? 0),
+            overdue: Number(day.overdue ?? 0),
+          }))
+        : [],
+    } : null,
   };
 }
 
@@ -117,8 +178,9 @@ function mapLaravelRemittance(r: Record<string, unknown>): RemittanceRecord {
 
 // ─── Hook ──────────────────────────────────────────────────────────────
 
-export function useRemittanceData(page = 1, search = '', date = '', status: RemittanceStatus | 'All' = 'All', dateFrom = '', conductor = '', driver = '') {
+export function useRemittanceData(page = 1, search = '', date = '', status: RemittanceStatus | 'All' = 'All', dateFrom = '', conductor = '', driver = '', perPage = 20, summaryTrendBy?: RemittanceTrendBy) {
   const [records, setRecords] = useState<RemittanceRecord[]>([]);
+  const [summary, setSummary] = useState<RemittanceSummaryTotals | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
@@ -132,8 +194,9 @@ export function useRemittanceData(page = 1, search = '', date = '', status: Remi
     const request = (async () => {
       setError(null);
       try {
-        const data = await fetchRemittances(page, search, date, status, dateFrom, conductor, driver);
+        const data = await fetchRemittances(page, search, date, status, dateFrom, conductor, driver, perPage, summaryTrendBy);
         setRecords(data.records);
+        setSummary(data.summary);
         setTotal(data.total);
         setLastPage(data.lastPage);
       } catch (err: unknown) {
@@ -148,9 +211,12 @@ export function useRemittanceData(page = 1, search = '', date = '', status: Remi
 
     refreshInFlight.current = request;
     return request;
-  }, [date, dateFrom, page, search, status, conductor, driver]);
+  }, [date, dateFrom, page, search, status, conductor, driver, perPage, summaryTrendBy]);
 
   const refresh = useCallback(() => load(false), [load]);
+  // Same refetch without the loading state, so figures already on screen
+  // update in place (as the 30s poll does) instead of flashing a skeleton.
+  const refreshSilently = useCallback(() => load(true), [load]);
 
   useEffect(() => {
     void load(false);
@@ -173,5 +239,5 @@ export function useRemittanceData(page = 1, search = '', date = '', status: Remi
     };
   }, [load]);
 
-  return { records, total, lastPage, isLoading, error, refresh };
+  return { records, summary, total, lastPage, isLoading, error, refresh, refreshSilently };
 }

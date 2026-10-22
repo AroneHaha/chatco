@@ -38,6 +38,12 @@ export interface GcashInitiation {
   groupId?: string | null;
   multiplePaymentReference?: string | null;
   receipts?: Transaction[];
+  /** Status of the returned payment. initiate/pending can hand back an
+   *  existing PROCESSING payment (authorized, awaiting GCash) instead of a
+   *  new QR, so the UI must not assume "pending". */
+  status?: PaymentStatus;
+  /** PROCESSING past the backend's delay threshold — display-only. */
+  confirmationDelayed?: boolean;
 }
 
 interface LaravelReceipt {
@@ -113,6 +119,8 @@ interface InitiateResponse {
     group_id?: string | null;
     multiple_payment_reference?: string | null;
     receipts?: LaravelReceipt[];
+    status?: string;
+    confirmation_delayed?: boolean;
   };
 }
 
@@ -122,6 +130,7 @@ interface StatusResponse {
     paid_at: string | null;
     payer_name?: string | null;
     receipts?: LaravelReceipt[];
+    confirmation_delayed?: boolean;
   };
 }
 
@@ -171,6 +180,8 @@ export async function initiateGcash(input: {
       groupId: d.group_id,
       multiplePaymentReference: d.multiple_payment_reference,
       receipts: d.receipts?.map(mapReceipt),
+      status: d.status ? (d.status.toLowerCase() as PaymentStatus) : undefined,
+      confirmationDelayed: d.confirmation_delayed ?? false,
     };
   } catch (error) {
     if (error instanceof ApiError) {
@@ -192,15 +203,17 @@ interface PendingResponse {
     group_id?: string | null;
     multiple_payment_reference?: string | null;
     receipts?: LaravelReceipt[];
+    status?: string;
+    confirmation_delayed?: boolean;
   } | null;
 }
 
 /**
- * The conductor's resumable PENDING GCash payment for their active shift,
- * or null. Called when the fare modal opens so an interrupted payment
- * (navigation, refresh) re-displays the SAME QR instead of a new one.
- * The backend lazily expires stale rows, so a resumable result is always
- * still claimable.
+ * The conductor's active (PENDING or PROCESSING) GCash payment for their
+ * active shift, or null. Called when the fare modal opens so an interrupted
+ * payment (navigation, refresh) re-displays the SAME payment and its status
+ * instead of a new QR. The backend lazily expires stale PENDING rows; a
+ * PROCESSING row is never expired because GCash can still settle it.
  */
 export async function fetchPendingGcash(): Promise<GcashInitiation | null> {
   const response = await api.get<PendingResponse>(CONDUCTOR_API.payments.gcashPending);
@@ -217,6 +230,8 @@ export async function fetchPendingGcash(): Promise<GcashInitiation | null> {
     groupId: d.group_id,
     multiplePaymentReference: d.multiple_payment_reference,
     receipts: d.receipts?.map(mapReceipt),
+    status: d.status ? (d.status.toLowerCase() as PaymentStatus) : undefined,
+    confirmationDelayed: d.confirmation_delayed ?? false,
   };
 }
 
@@ -227,6 +242,8 @@ export async function fetchStatus(transactionId: string): Promise<{
   status: PaymentStatus;
   payerName: string | null;
   receipts: Transaction[];
+  /** PROCESSING past the backend's delay threshold — display-only. */
+  confirmationDelayed: boolean;
 }> {
   try {
     const response = await api.get<StatusResponse>(
@@ -236,6 +253,7 @@ export async function fetchStatus(transactionId: string): Promise<{
       status: (response.data.status?.toLowerCase() as PaymentStatus) ?? "pending",
       payerName: response.data.payer_name ?? null,
       receipts: (response.data.receipts ?? []).map(mapReceipt),
+      confirmationDelayed: response.data.confirmation_delayed ?? false,
     };
   } catch (error) {
     if (error instanceof ApiError) {
@@ -270,7 +288,8 @@ export async function simulate(
 /**
  * Cancel a PENDING GCash payment. Only the conductor of the shift that
  * owns the transaction can cancel it. The backend transitions PENDING →
- * CANCELLED through the state machine.
+ * CANCELLED through the state machine. A PROCESSING payment (already
+ * authorized, GCash still confirming) is refused with a 422.
  *
  * Use case: the commuter didn't scan the QR in time, or the conductor
  * wants to abort instead of waiting for the 5-minute TTL.

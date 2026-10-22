@@ -17,6 +17,7 @@ use App\Models\Vehicle;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Pagination\LengthAwarePaginator as Paginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -101,31 +102,95 @@ class AdminService
     /**
      * Create a new vehicle.
      *
-     * plate_number + unit_number uniqueness is enforced by the database
-     * (unique indexes) and by the Form Request validation.
+     * Allocate the unit number and insert the vehicle in one transaction so
+     * simultaneous requests cannot reserve the same number, and failed inserts
+     * do not consume a number. Existing unique indexes remain the final guard.
      *
      * @param  array  $data  Validated payload from StoreVehicleRequest.
      */
     public function createVehicle(array $data): Vehicle
     {
-        return DB::transaction(function () use ($data) {
-            $approved = ! empty($data['driver_id']) && ! empty($data['conductor_id']);
+        try {
+            return DB::transaction(function () use ($data) {
+                $number = $this->lockVehicleUnitSequence() + 1;
+                DB::table('vehicle_unit_sequences')->where('id', 1)->update(['last_number' => $number]);
 
-            return Vehicle::create([
-                'unit_number' => $data['unit_number'],
-                'plate_number' => $data['plate_number'],
-                'brand' => $data['brand'],
-                'model' => $data['model'],
-                'vehicle_type' => $data['vehicle_type'] ?? null,
-                'route_id' => $data['route_id'] ?? null,
-                'driver_id' => $data['driver_id'] ?? null,
-                'conductor_id' => $data['conductor_id'] ?? null,
-                'status' => $data['status'] ?? 'ACTIVE',
-                'capacity_status' => $data['capacity_status'] ?? 'AVAILABLE',
-                'assignment_date' => $approved ? now('Asia/Manila')->toDateString() : null,
-                'assignment_approved_at' => $approved ? now() : null,
-            ])->fresh(['route', 'driver', 'conductor']);
-        });
+                $approved = ! empty($data['driver_id']) && ! empty($data['conductor_id']);
+
+                return Vehicle::create([
+                    'unit_number' => 'UNIT-'.$number,
+                    'plate_number' => $data['plate_number'],
+                    'brand' => $data['brand'],
+                    'model' => $data['model'],
+                    'vehicle_type' => $data['vehicle_type'] ?? null,
+                    'route_id' => $data['route_id'] ?? null,
+                    'driver_id' => $data['driver_id'] ?? null,
+                    'conductor_id' => $data['conductor_id'] ?? null,
+                    'status' => $data['status'] ?? 'ACTIVE',
+                    'capacity_status' => $data['capacity_status'] ?? 'AVAILABLE',
+                    'assignment_date' => $approved ? now('Asia/Manila')->toDateString() : null,
+                    'assignment_approved_at' => $approved ? now() : null,
+                ])->fresh(['route', 'driver', 'conductor']);
+            }, 3);
+        } catch (UniqueConstraintViolationException $exception) {
+            // A second request may have registered this plate after validation.
+            if (Vehicle::withTrashed()->where('plate_number', $data['plate_number'])->exists()) {
+                throw ValidationException::withMessages([
+                    'plate_number' => ['The plate number has already been taken.'],
+                ]);
+            }
+
+            throw $exception;
+        }
+    }
+
+    /** Preview only: opening the form must not reserve or consume a number. */
+    public function previewVehicleUnitNumber(): string
+    {
+        $lastNumber = DB::table('vehicle_unit_sequences')->where('id', 1)->value('last_number');
+
+        return 'UNIT-'.(($lastNumber === null ? $this->highestVehicleUnitSuffix() : (int) $lastNumber) + 1);
+    }
+
+    /**
+     * Must be called inside the transaction that saves the vehicle. The first
+     * insert is safe even for an empty fleet; later callers lock the same row.
+     * Bootstrap once from all unit names, including soft-deleted vehicles.
+     */
+    private function lockVehicleUnitSequence(): int
+    {
+        // Updating only the primary key preserves the counter and acquires a
+        // write lock immediately, avoiding shared-lock upgrades on MySQL.
+        DB::table('vehicle_unit_sequences')->upsert(
+            [['id' => 1, 'last_number' => null]],
+            ['id'],
+            ['id'],
+        );
+        $lastNumber = DB::table('vehicle_unit_sequences')->where('id', 1)->lockForUpdate()->value('last_number');
+
+        if ($lastNumber !== null) {
+            return (int) $lastNumber;
+        }
+
+        return $this->highestVehicleUnitSuffix();
+    }
+
+    private function highestVehicleUnitSuffix(): int
+    {
+        $lastNumber = 0;
+        foreach (DB::table('vehicles')->select('unit_number')->orderBy('unit_number')->cursor() as $vehicle) {
+            $lastNumber = max($lastNumber, $this->vehicleUnitSuffix($vehicle->unit_number));
+        }
+
+        return $lastNumber;
+    }
+
+    /** Accept existing padded names and the spacing/dashes used in older units. */
+    private function vehicleUnitSuffix(string $unitNumber): int
+    {
+        return preg_match('/^UNIT\s*[-–—]\s*(\d+)$/iu', trim($unitNumber), $matches)
+            ? (int) $matches[1]
+            : 0;
     }
 
     /**
@@ -138,6 +203,8 @@ class AdminService
     public function updateVehicle(string $id, array $data): Vehicle
     {
         return DB::transaction(function () use ($id, $data) {
+            // Use the same lock order as creation when a unit is renamed.
+            $lastUnitNumber = array_key_exists('unit_number', $data) ? $this->lockVehicleUnitSequence() : null;
             $vehicle = Vehicle::query()->whereKey($id)->lockForUpdate()->firstOrFail();
             $previousStatus = $vehicle->status;
             $assignmentIsChanging = array_key_exists('driver_id', $data)
@@ -160,6 +227,12 @@ class AdminService
                 'capacity_status',
             ];
             $changes = array_intersect_key($data, array_flip($allowed));
+
+            if ($lastUnitNumber !== null) {
+                DB::table('vehicle_unit_sequences')->where('id', 1)->update([
+                    'last_number' => max($lastUnitNumber, $this->vehicleUnitSuffix($data['unit_number'])),
+                ]);
+            }
 
             if ($assignmentIsChanging) {
                 $driverId = array_key_exists('driver_id', $changes) ? $changes['driver_id'] : $vehicle->driver_id;

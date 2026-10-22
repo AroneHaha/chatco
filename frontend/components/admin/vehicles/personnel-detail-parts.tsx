@@ -7,18 +7,16 @@
 
 import type { ReactNode, Ref } from 'react';
 import { FileText, Loader2 } from 'lucide-react';
-import { getInitials } from '@/components/admin/layout/admin-identity';
+import { UserAvatar } from '@/components/admin/ui/user-avatar';
 
 export type PersonnelRole = 'Driver' | 'Conductor';
 
-// Role colour, same blue/amber split as the Personnel table's avatar and dot.
-const ROLE_STYLES: Record<PersonnelRole, { tile: string; text: string }> = {
+// Role colour, same blue/amber split as the Personnel table's role indicator.
+const ROLE_STYLES: Record<PersonnelRole, { text: string }> = {
   Driver: {
-    tile: 'border-[#62A0EA]/25 admin-light:border-[#1A5FB4]/25 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 text-[#99C1F1] admin-light:text-[#1A5FB4]',
     text: 'text-[#62A0EA] admin-light:text-[#1A5FB4]',
   },
   Conductor: {
-    tile: 'border-amber-400/25 bg-amber-400/10 text-amber-300 admin-light:text-amber-700',
     text: 'text-amber-400 admin-light:text-amber-700',
   },
 };
@@ -95,14 +93,7 @@ export function PersonnelHeader({ role, id, name, photoUrl, status, vehicle, par
   return (
     <header className="flex flex-col gap-5 pr-8 md:flex-row md:items-center md:justify-between">
       <div className="flex min-w-0 items-center gap-4">
-        {photoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={photoUrl} alt={name} className={`h-14 w-14 shrink-0 rounded-lg border object-cover ${roleStyle.tile}`} />
-        ) : (
-          <span aria-hidden="true" className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border text-lg font-semibold ${roleStyle.tile}`}>
-            {getInitials(name)}
-          </span>
-        )}
+        <UserAvatar src={photoUrl} alt={`Profile photo of ${name}`} className="h-14 w-14" iconClassName="h-6 w-6" sizes="56px" />
         <div className="min-w-0">
           <h2 className="truncate text-xl font-bold text-white admin-light:text-slate-900">{name}</h2>
           <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm">

@@ -563,7 +563,7 @@ Everything here requires role `A`. Rows marked `PUT/PATCH` accept either method.
 | SOS | GET | `/admin/sos` | | [admin-operations.md](admin-operations.md#get-adminsos) |
 | | PATCH | `/admin/sos/{id}/acknowledge` | admin-write | [admin-operations.md](admin-operations.md#patch-adminsosidacknowledge) |
 | | PATCH | `/admin/sos/{id}/resolve` | admin-write | [admin-operations.md](admin-operations.md#patch-adminsosidresolve) |
-| Feedback | GET | `/admin/feedback` | `?conductor_id=` or `?driver_id=` | [admin-operations.md](admin-operations.md#get-adminfeedback) |
+| Feedback | GET | `/admin/feedback` | `?conductor_id=` or `?driver_id=`, `rating`, `pagination=cursor` | [admin-operations.md](admin-operations.md#get-adminfeedback) |
 | Audit | GET | `/admin/activity-logs` | | [admin-operations.md](admin-operations.md#get-adminactivity-logs) |
 | | GET | `/admin/activity-logs/export` | | [admin-operations.md](admin-operations.md#get-adminactivity-logsexport) |
 

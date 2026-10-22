@@ -8,7 +8,7 @@ import { RemittanceSummary } from '@/components/admin/remittance/remittance-summ
 import { SearchBar } from '@/components/admin/ui/search-bar';
 import { ChevronUp } from 'lucide-react';
 import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
-import type { RemittanceStatus } from '@/app/(admin)/remittance/data/remittance-data';
+import type { RemittanceStatus, RemittanceTrendBy } from '@/app/(admin)/remittance/data/remittance-data';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useAdminNotifications } from '@/contexts/admin-notifications-context';
@@ -17,6 +17,15 @@ import { useAdminNotifications } from '@/contexts/admin-notifications-context';
 const todayStr = () => new Date().toLocaleDateString('en-CA');
 
 type RangePreset = 'today' | '7days' | 'month' | 'all';
+
+// Summary sparkline bucket per range: a short period gets a daily line, longer
+// ones zoom out so the line still shows a trend rather than one point.
+const TREND_BY_RANGE: Record<RangePreset, RemittanceTrendBy> = {
+  today: 'day',
+  '7days': 'week',
+  month: 'month',
+  all: 'month',
+};
 
 const RANGE_OPTIONS: { value: RangePreset; label: string }[] = [
   { value: 'today', label: 'Today' },
@@ -108,6 +117,9 @@ export default function RemittancePage() {
   // pattern as the conductor dashboard's MobileDashboardCard and the admin
   // Lost & Found page.
   const [isMobileFiltersExpanded, setIsMobileFiltersExpanded] = useState(true);
+  // Bumped after a cash declaration so the summary's counts and totals
+  // update immediately instead of waiting for its 30s poll.
+  const [summaryRefreshKey, setSummaryRefreshKey] = useState(0);
 
   const handlePickDate = (value: string) => {
     setSelectedDate(value);
@@ -148,138 +160,154 @@ export default function RemittancePage() {
         <h1 className="text-2xl font-bold text-white admin-light:text-slate-900">Remittance Tracker</h1>
       </StickyPageHeader>
 
-      <div className="flex shrink-0 flex-col gap-4 mb-4">
-        <RemittanceSummary
-          selectedDate={selectedDate}
-          dateFrom={rangeStart}
-          rangeLabel={RANGE_OPTIONS.find((option) => option.value === rangePreset)?.label ?? 'Today'}
-        />
+      {/* Below xl: the summary cards, filters and table stack top to bottom.
+          At xl: and up the cards move into a single column on the left,
+          beside the filters and table — not at lg:, where the ~700px
+          content column would squeeze the fixed-layout table's six columns. */}
+      <div className="flex flex-1 min-h-0 flex-col xl:flex-row xl:gap-4">
+        <aside className="mb-4 shrink-0 xl:mb-0 xl:flex xl:w-76 xl:flex-col xl:overflow-y-auto scrollbar-themed">
+          <RemittanceSummary
+            selectedDate={selectedDate}
+            dateFrom={rangeStart}
+            rangeLabel={RANGE_OPTIONS.find((option) => option.value === rangePreset)?.label ?? 'Today'}
+            // An exact date is a single day, so it gets the daily line too.
+            trendBy={selectedDate ? 'day' : TREND_BY_RANGE[rangePreset]}
+            refreshKey={summaryRefreshKey}
+            compact={!isMobileFiltersExpanded}
+          />
+        </aside>
 
-        {/* Mobile-only collapse for filters. The summary cards stay visible
-            regardless of the collapsed state.
-            The md:!max-h-none override means this never collapses at md:
-            and up (same breakpoint the toggle button itself disappears at,
-            below).
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="flex shrink-0 flex-col gap-4 mb-4">
+            {/* Mobile-only collapse for filters. The summary cards stay visible
+                regardless of the collapsed state, shrinking to a single swipeable
+                row while collapsed so the table gets the extra height.
+                The md:!max-h-none override means this never collapses at md:
+                and up (same breakpoint the toggle button itself disappears at,
+                below).
 
-            Every element inside — the outer search/date/dropdowns row, and
-            each sub-group within it — shares that one md: breakpoint
-            (previously a mix of sm:/lg:). Two independent breakpoints meant
-            the layout reflowed twice as the viewport narrowed (a "row" state
-            between lg and sm, then a second, different layout below sm) with
-            no collapse control in between (the toggle was md:hidden while
-            the row didn't break until lg) — that mismatch is what looked like
-            the date filter's position "changing" on smaller screens. One
-            shared breakpoint means exactly one transition: a single stacked
-            column below md:, one full row at md: and up.
+                Every element inside — the outer search/date/dropdowns row, and
+                each sub-group within it — shares that one md: breakpoint
+                (previously a mix of sm:/lg:). Two independent breakpoints meant
+                the layout reflowed twice as the viewport narrowed (a "row" state
+                between lg and sm, then a second, different layout below sm) with
+                no collapse control in between (the toggle was md:hidden while
+                the row didn't break until lg) — that mismatch is what looked like
+                the date filter's position "changing" on smaller screens. One
+                shared breakpoint means exactly one transition: a single stacked
+                column below md:, one full row at md: and up.
 
-            Within that row, `md:flex-wrap` on the outer row lets the 4
-            dropdowns (range/status/conductor/driver) drop to their own line
-            under search+date instead of forcing all 6 controls into one
-            non-wrapping ~1100px-wide row, which doesn't fit any admin
-            content column below roughly 1440px viewport width (sidebar +
-            padding already claim ~300-320px) and would otherwise clip on an
-            ordinary 1366px laptop. On that line, the 4 dropdowns are a 2x2
-            grid below lg: (their own ~644px still doesn't fit the ~464-500px
-            available at the bottom of the md: range) and a single row at
-            lg: and up, where it comfortably does. */}
-        <div
-          className="overflow-hidden transition-all duration-300 ease-in-out md:max-h-none!"
-          style={{ maxHeight: isMobileFiltersExpanded ? '700px' : '0px' }}
-        >
-          <div className="flex flex-col gap-4">
-            {/* Search + date (left) — range/status/conductor/driver dropdowns (right, shorter) */}
-            <div className="flex flex-col md:flex-row md:flex-wrap md:items-center gap-3 w-full">
-              <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-                <SearchBar
-                  placeholder="Search by Conductor or ID..."
-                  value={searchQuery}
-                  onChange={setSearchQuery}
-                  className="w-full md:w-64"
-                />
+                Within that row, `md:flex-wrap` on the outer row lets the 4
+                dropdowns (range/status/conductor/driver) drop to their own line
+                under search+date instead of forcing all 6 controls into one
+                non-wrapping ~1100px-wide row, which doesn't fit any admin
+                content column below roughly 1440px viewport width (sidebar +
+                padding already claim ~300-320px) and would otherwise clip on an
+                ordinary 1366px laptop. On that line, the 4 dropdowns are a 2x2
+                grid below lg: (their own ~644px still doesn't fit the ~464-500px
+                available at the bottom of the md: range) and a single row at
+                lg: and up, where it comfortably does. */}
+            <div
+              className="overflow-hidden transition-all duration-300 ease-in-out md:max-h-none!"
+              style={{ maxHeight: isMobileFiltersExpanded ? '700px' : '0px' }}
+            >
+              <div className="flex flex-col gap-4">
+                {/* Search + date (left) — range/status/conductor/driver dropdowns (right, shorter) */}
+                <div className="flex flex-col md:flex-row md:flex-wrap md:items-center gap-3 w-full">
+                  <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                    <SearchBar
+                      placeholder="Search by Conductor or ID..."
+                      value={searchQuery}
+                      onChange={setSearchQuery}
+                      className="w-full md:w-64"
+                    />
 
-                {/* popover: the filters wrapper above is overflow-hidden for
-                    the mobile collapse animation, which clipped an inline
-                    calendar; the top layer escapes it. */}
-                <AdminDatePicker
-                  accent="blue"
-                  popover
-                  yearNavigation
-                  ariaLabel="Filter remittances by date"
-                  clearLabel="Clear date"
-                  value={selectedDate}
-                  onChange={handlePickDate}
-                  max={todayStr()}
-                  triggerClassName="h-9.5 w-full text-sm"
-                  className="w-full md:w-48"
-                />
-              </div>
+                    {/* popover: the filters wrapper above is overflow-hidden for
+                        the mobile collapse animation, which clipped an inline
+                        calendar; the top layer escapes it. */}
+                    <AdminDatePicker
+                      accent="blue"
+                      popover
+                      yearNavigation
+                      ariaLabel="Filter remittances by date"
+                      clearLabel="Clear date"
+                      value={selectedDate}
+                      onChange={handlePickDate}
+                      max={todayStr()}
+                      triggerClassName="h-9.5 w-full text-sm"
+                      className="w-full md:w-48"
+                    />
+                  </div>
 
-              <div className="grid grid-cols-2 lg:flex lg:flex-row gap-3 w-full lg:w-auto lg:ml-auto">
-                {/* Shows every shift in range — Pending (still active/not yet
-                    remitted) and Remitted alike — so activity is one click away. */}
-                <select
-                  value={rangePreset}
-                  onChange={(e) => handlePickRange(e.target.value as RangePreset)}
-                  aria-label="Filter by date range"
-                  className="w-full lg:w-36 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 py-2 text-sm text-white admin-light:text-slate-900 scheme-dark admin-light:scheme-light"
-                >
-                  {RANGE_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                </select>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as RemittanceStatus | 'All')}
-                  aria-label="Filter by status"
-                  className="w-full lg:w-44 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 py-2 text-sm text-white admin-light:text-slate-900 scheme-dark admin-light:scheme-light"
-                >
-                  {quickFilters.map((filter) => <option key={filter} value={filter}>{filter}</option>)}
-                </select>
-                <select
-                  value={conductorFilter}
-                  onChange={(e) => setConductorFilter(e.target.value)}
-                  aria-label="Filter by conductor"
-                  className="w-full lg:w-36 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 py-2 text-sm text-white admin-light:text-slate-900 scheme-dark admin-light:scheme-light"
-                >
-                  <option value="">All conductors</option>
-                  {conductorOptions.map((name) => <option key={name} value={name}>{name}</option>)}
-                </select>
-                <select
-                  value={driverFilter}
-                  onChange={(e) => setDriverFilter(e.target.value)}
-                  aria-label="Filter by driver"
-                  className="w-full lg:w-36 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 py-2 text-sm text-white admin-light:text-slate-900 scheme-dark admin-light:scheme-light"
-                >
-                  <option value="">All drivers</option>
-                  {driverOptions.map((name) => <option key={name} value={name}>{name}</option>)}
-                </select>
+                  <div className="grid grid-cols-2 lg:flex lg:flex-row gap-3 w-full lg:w-auto lg:ml-auto">
+                    {/* Shows every shift in range — Pending (still active/not yet
+                        remitted) and Remitted alike — so activity is one click away. */}
+                    <select
+                      value={rangePreset}
+                      onChange={(e) => handlePickRange(e.target.value as RangePreset)}
+                      aria-label="Filter by date range"
+                      className="w-full lg:w-36 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 py-2 text-sm text-white admin-light:text-slate-900 scheme-dark admin-light:scheme-light"
+                    >
+                      {RANGE_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                    </select>
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value as RemittanceStatus | 'All')}
+                      aria-label="Filter by status"
+                      className="w-full lg:w-44 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 py-2 text-sm text-white admin-light:text-slate-900 scheme-dark admin-light:scheme-light"
+                    >
+                      {quickFilters.map((filter) => <option key={filter} value={filter}>{filter}</option>)}
+                    </select>
+                    <select
+                      value={conductorFilter}
+                      onChange={(e) => setConductorFilter(e.target.value)}
+                      aria-label="Filter by conductor"
+                      className="w-full lg:w-36 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 py-2 text-sm text-white admin-light:text-slate-900 scheme-dark admin-light:scheme-light"
+                    >
+                      <option value="">All conductors</option>
+                      {conductorOptions.map((name) => <option key={name} value={name}>{name}</option>)}
+                    </select>
+                    <select
+                      value={driverFilter}
+                      onChange={(e) => setDriverFilter(e.target.value)}
+                      aria-label="Filter by driver"
+                      className="w-full lg:w-36 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 py-2 text-sm text-white admin-light:text-slate-900 scheme-dark admin-light:scheme-light"
+                    >
+                      <option value="">All drivers</option>
+                      {driverOptions.map((name) => <option key={name} value={name}>{name}</option>)}
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setIsMobileFiltersExpanded((prev) => !prev)}
+              aria-expanded={isMobileFiltersExpanded}
+              aria-label={isMobileFiltersExpanded ? 'Collapse filters' : 'Expand filters'}
+              className="-mt-1 flex w-full shrink-0 items-center justify-center border-t border-white/5 admin-light:border-[#E2E8F0] py-1.5 text-slate-500 transition-colors hover:bg-white/5 admin-light:hover:bg-[#F8FAFC] hover:text-slate-300 admin-light:hover:text-slate-700 active:bg-white/10 admin-light:active:bg-slate-100 md:hidden"
+            >
+              <ChevronUp className={`h-4 w-4 transition-transform duration-300 ${isMobileFiltersExpanded ? 'rotate-180' : ''}`} />
+            </button>
+          </div>
+
+          {/* Table card — fills whatever vertical space is left, on every screen
+              size, instead of a fixed height that either clips or leaves a gap. */}
+          <div className="flex flex-1 min-h-0 flex-col bg-[#0B1220] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-xl p-3 sm:p-4">
+            <RemittanceTable
+              searchQuery={debouncedSearchQuery}
+              selectedDate={selectedDate}
+              dateFrom={selectedDate ? '' : rangeStart}
+              statusFilter={statusFilter}
+              conductorFilter={conductorFilter}
+              driverFilter={driverFilter}
+              autoOpenShiftId={autoOpenShiftId}
+              onAutoOpenHandled={() => setAutoOpenShiftId(null)}
+              onCashDeclared={() => setSummaryRefreshKey((key) => key + 1)}
+            />
           </div>
         </div>
-
-        <button
-          type="button"
-          onClick={() => setIsMobileFiltersExpanded((prev) => !prev)}
-          aria-expanded={isMobileFiltersExpanded}
-          aria-label={isMobileFiltersExpanded ? 'Collapse filters' : 'Expand filters'}
-          className="-mt-1 flex w-full shrink-0 items-center justify-center border-t border-white/5 admin-light:border-[#E2E8F0] py-1.5 text-slate-500 transition-colors hover:bg-white/5 admin-light:hover:bg-[#F8FAFC] hover:text-slate-300 admin-light:hover:text-slate-700 active:bg-white/10 admin-light:active:bg-slate-100 md:hidden"
-        >
-          <ChevronUp className={`h-4 w-4 transition-transform duration-300 ${isMobileFiltersExpanded ? 'rotate-180' : ''}`} />
-        </button>
-      </div>
-
-      {/* Table card — fills whatever vertical space is left, on every screen
-          size, instead of a fixed height that either clips or leaves a gap. */}
-      <div className="flex flex-1 min-h-0 flex-col bg-[#0B1220] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-xl p-3 sm:p-4">
-        <RemittanceTable
-          searchQuery={debouncedSearchQuery}
-          selectedDate={selectedDate}
-          dateFrom={selectedDate ? '' : rangeStart}
-          statusFilter={statusFilter}
-          conductorFilter={conductorFilter}
-          driverFilter={driverFilter}
-          autoOpenShiftId={autoOpenShiftId}
-          onAutoOpenHandled={() => setAutoOpenShiftId(null)}
-        />
       </div>
     </div>
   );

@@ -1394,6 +1394,163 @@ class TransactionFlowTest extends TestCase
         $this->assertNotNull($transaction->payment_checkout_url);
     }
 
+    // ─── Delayed (PROCESSING) GCash payments ────────────────────────
+
+    public function test_cancel_rejects_a_processing_payment_without_calling_the_provider(): void
+    {
+        $this->configurePayMongo();
+        $transaction = $this->createPendingGcashTransaction(['status' => PaymentStatus::PROCESSING->value]);
+        Http::fake();
+        Sanctum::actingAs($this->conductor);
+
+        $this->postJson("/api/v1/payments/{$transaction->transaction_id}/cancel")
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'GCash is still confirming this payment, so it cannot be cancelled. Wait for the confirmation to finish.');
+
+        $transaction->refresh();
+        $this->assertSame(PaymentStatus::PROCESSING, $transaction->status);
+        $this->assertNotNull($transaction->qr_token);
+        Http::assertNothingSent();
+    }
+
+    public function test_status_poll_reconciles_a_processing_payment_to_paid(): void
+    {
+        $this->configurePayMongo();
+        $transaction = $this->createPendingGcashTransaction(['status' => PaymentStatus::PROCESSING->value]);
+        Http::fake(fn () => Http::response([
+            'data' => ['id' => $transaction->payment_reference, 'attributes' => ['status' => 'succeeded']],
+        ]));
+        Sanctum::actingAs($this->conductor);
+
+        $this->getJson("/api/v1/payments/{$transaction->transaction_id}/status")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'PAID')
+            ->assertJsonPath('data.confirmation_delayed', false);
+
+        $this->assertSame(PaymentStatus::PAID, $transaction->fresh()->status);
+    }
+
+    public function test_stale_pending_payment_authorized_at_provider_is_not_expired(): void
+    {
+        // The commuter authorized just before the claim TTL lapsed and the
+        // webhook is late. Reconciliation must run before the lazy expiry so
+        // the payment becomes PROCESSING instead of being expired locally
+        // while PayMongo can still settle it.
+        $this->configurePayMongo();
+        $transaction = $this->createPendingGcashTransaction(['created_at' => now()->subMinutes(10)]);
+        Http::fake(fn () => Http::response([
+            'data' => ['id' => $transaction->payment_reference, 'attributes' => ['status' => 'processing']],
+        ]));
+        Sanctum::actingAs($this->conductor);
+
+        $this->getJson("/api/v1/payments/{$transaction->transaction_id}/status")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'PROCESSING');
+
+        $this->assertSame(PaymentStatus::PROCESSING, $transaction->fresh()->status);
+    }
+
+    public function test_processing_payment_is_never_expired_by_the_claim_ttl(): void
+    {
+        $transaction = $this->createPendingGcashTransaction([
+            'status' => PaymentStatus::PROCESSING->value,
+            'created_at' => now()->subMinutes(30),
+        ]);
+        Sanctum::actingAs($this->conductor);
+
+        $this->getJson("/api/v1/payments/{$transaction->transaction_id}/status")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'PROCESSING');
+
+        $this->artisan('payments:expire-stale')->assertSuccessful();
+
+        $this->assertSame(PaymentStatus::PROCESSING, $transaction->fresh()->status);
+    }
+
+    public function test_status_reports_confirmation_delayed_after_the_processing_threshold(): void
+    {
+        config(['payments.processing_delay_seconds' => 180]);
+        $transaction = $this->createPendingGcashTransaction(['status' => PaymentStatus::PROCESSING->value]);
+        Sanctum::actingAs($this->conductor);
+
+        $this->getJson("/api/v1/payments/{$transaction->transaction_id}/status")
+            ->assertOk()
+            ->assertJsonPath('data.confirmation_delayed', false);
+
+        DB::table('transactions')
+            ->where('transaction_id', $transaction->transaction_id)
+            ->update(['updated_at' => now()->subMinutes(4)]);
+
+        $this->getJson("/api/v1/payments/{$transaction->transaction_id}/status")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'PROCESSING')
+            ->assertJsonPath('data.confirmation_delayed', true);
+    }
+
+    public function test_initiate_returns_the_existing_processing_payment_instead_of_a_new_one(): void
+    {
+        $processing = $this->createPendingGcashTransaction([
+            'status' => PaymentStatus::PROCESSING->value,
+            'created_at' => now()->subMinutes(30),
+        ]);
+
+        $result = app(TransactionService::class)->initiateGcashFare($this->conductor, [
+            'final_amount' => 25.00, 'pickup_name' => 'Pulilan', 'dropoff_name' => 'Plaridel',
+        ]);
+
+        $this->assertSame($processing->transaction_id, $result['transaction']->transaction_id);
+        $this->assertSame(PaymentStatus::PROCESSING, $result['transaction']->status);
+        $this->assertSame(1, Transaction::where('shift_id', $this->shift->shift_id)
+            ->where('payment_method', PaymentMethod::GCASH->value)
+            ->count());
+    }
+
+    public function test_pending_lookup_resumes_a_processing_payment_with_its_status(): void
+    {
+        $processing = $this->createPendingGcashTransaction([
+            'status' => PaymentStatus::PROCESSING->value,
+            'created_at' => now()->subMinutes(30),
+        ]);
+        Sanctum::actingAs($this->conductor);
+
+        $this->getJson('/api/v1/conductor/payments/gcash/pending')
+            ->assertOk()
+            ->assertJsonPath('data.transaction_id', $processing->transaction_id)
+            ->assertJsonPath('data.status', 'PROCESSING');
+    }
+
+    public function test_pending_lookup_releases_a_payment_the_provider_reports_failed(): void
+    {
+        $this->configurePayMongo();
+        $transaction = $this->createPendingGcashTransaction(['status' => PaymentStatus::PROCESSING->value]);
+        Http::fake(fn () => Http::response([
+            'data' => ['id' => $transaction->payment_reference, 'attributes' => ['status' => 'failed']],
+        ]));
+        Sanctum::actingAs($this->conductor);
+
+        $this->getJson('/api/v1/conductor/payments/gcash/pending')
+            ->assertOk()
+            ->assertJsonPath('data', null);
+
+        $this->assertSame(PaymentStatus::FAILED, $transaction->fresh()->status);
+    }
+
+    public function test_scheduled_job_reconciles_processing_payments_nobody_is_polling(): void
+    {
+        $this->configurePayMongo();
+        $transaction = $this->createPendingGcashTransaction([
+            'status' => PaymentStatus::PROCESSING->value,
+            'created_at' => now()->subMinutes(30),
+        ]);
+        Http::fake(fn () => Http::response([
+            'data' => ['id' => $transaction->payment_reference, 'attributes' => ['status' => 'succeeded']],
+        ]));
+
+        $this->artisan('payments:expire-stale')->assertSuccessful();
+
+        $this->assertSame(PaymentStatus::PAID, $transaction->fresh()->status);
+    }
+
     public function test_conductor_cancel_invalidates_every_group_receipt(): void
     {
         config(['payments.gateways.paymongo.secret' => null]);

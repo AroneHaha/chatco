@@ -7,7 +7,7 @@ use Illuminate\Foundation\Http\FormRequest;
 /**
  * Validates POST /api/v1/admin/vehicles.
  *
- * plate_number + unit_number must be unique (422 on dup).
+ * plate_number must be unique (422 on dup). Unit numbers are server-generated.
  * brand + model are required.
  * vehicle_type, capacity_status, route_id, driver_id, conductor_id, status
  * are optional but validated for format/existence when present.
@@ -22,7 +22,7 @@ class StoreVehicleRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'unit_number'      => 'required|string|max:20|unique:vehicles,unit_number',
+            'unit_number'      => 'prohibited',
             'plate_number'     => 'required|string|max:20|unique:vehicles,plate_number',
             'brand'            => 'required|string|max:50',
             'model'            => 'required|string|max:50',
@@ -38,7 +38,7 @@ class StoreVehicleRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'unit_number.unique'  => 'The unit number has already been taken.',
+            'unit_number.prohibited' => 'The unit number is generated automatically.',
             'plate_number.unique' => 'The plate number has already been taken.',
             'vehicle_type.in'     => 'The vehicle type must be one of: Jeepney, Bus, Van, UV Express.',
             'capacity_status.in'  => 'The capacity status must be one of: AVAILABLE, STANDING, FULL.',

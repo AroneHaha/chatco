@@ -20,15 +20,15 @@ const PER_PAGE = 20;
 // ─── Status badge (covers the full PaymentStatus lifecycle) ──────────
 function getStatusBadge(status: PaymentStatus) {
   const badges: Record<PaymentStatus, { bg: string; text: string; label: string }> = {
-    paid: { bg: "bg-green-50", text: "text-green-600", label: "Paid" },
-    pending: { bg: "bg-yellow-50", text: "text-yellow-600", label: "Pending" },
-    processing: { bg: "bg-blue-50", text: "text-blue-600", label: "Processing" },
-    failed: { bg: "bg-red-50", text: "text-red-600", label: "Failed" },
-    cancelled: { bg: "bg-gray-100", text: "text-gray-500", label: "Cancelled" },
-    expired: { bg: "bg-gray-100", text: "text-gray-500", label: "Expired" },
-    refunded: { bg: "bg-purple-50", text: "text-purple-600", label: "Refunded" },
+    paid: { bg: "bg-green-500/10 light:bg-green-50", text: "text-green-400 light:text-green-600", label: "Paid" },
+    pending: { bg: "bg-yellow-500/10 light:bg-yellow-50", text: "text-yellow-400 light:text-yellow-600", label: "Pending" },
+    processing: { bg: "bg-blue-500/10 light:bg-blue-50", text: "text-blue-400 light:text-blue-600", label: "Processing" },
+    failed: { bg: "bg-red-500/10 light:bg-red-50", text: "text-red-400 light:text-red-600", label: "Failed" },
+    cancelled: { bg: "bg-white/10 light:bg-gray-100", text: "text-white/60 light:text-gray-500", label: "Cancelled" },
+    expired: { bg: "bg-white/10 light:bg-gray-100", text: "text-white/60 light:text-gray-500", label: "Expired" },
+    refunded: { bg: "bg-purple-500/10 light:bg-purple-50", text: "text-purple-400 light:text-purple-600", label: "Refunded" },
   };
-  return badges[status] ?? { bg: "bg-gray-50", text: "text-gray-600", label: status };
+  return badges[status] ?? { bg: "bg-white/5 light:bg-gray-50", text: "text-white/70 light:text-gray-600", label: status };
 }
 
 export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProps) {
@@ -143,18 +143,18 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
           row. A constant frame keeps the header, stats and tabs anchored and
           lets the list scroll inside it. Capped at 85vh so short viewports
           still fit. */}
-      <div className="relative bg-white sm:rounded-3xl rounded-t-3xl shadow-2xl w-full sm:max-w-md overflow-hidden flex flex-col pb-safe h-[85vh] sm:h-[620px] sm:max-h-[85vh]">
+      <div className="relative bg-[#071A2E] light:bg-white sm:rounded-3xl rounded-t-3xl shadow-2xl w-full sm:max-w-md overflow-hidden flex flex-col pb-safe h-[85vh] sm:h-[620px] sm:max-h-[85vh]">
         {/* Header */}
-        <div className="flex-shrink-0 flex items-center justify-between p-5 border-b border-gray-100">
+        <div className="flex-shrink-0 flex items-center justify-between p-5 border-b border-white/10 light:border-gray-100">
           <div>
-            <h2 className="text-lg font-bold text-[#071A2E]">Payment History</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Your ride payments</p>
+            <h2 className="text-lg font-bold text-white light:text-[#071A2E]">Payment History</h2>
+            <p className="text-xs text-white/60 light:text-gray-500 mt-0.5">Your ride payments</p>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
+            className="w-8 h-8 rounded-full bg-white/10 light:bg-gray-100 hover:bg-white/15 light:hover:bg-gray-200 flex items-center justify-center transition-colors"
           >
-            <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <svg className="w-4 h-4 text-white/60 light:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
             </svg>
           </button>
@@ -162,24 +162,24 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
 
         {/* Summary Stats */}
         <div className="flex-shrink-0 grid grid-cols-3 gap-2 px-5 pt-4 pb-2">
-          <div className="bg-[#F0F7FF] rounded-xl p-3 text-center">
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Total Spent</p>
-            <p className="text-sm font-bold text-[#071A2E] mt-0.5">₱{totalSpent.toFixed(0)}</p>
+          <div className="bg-[#1A5FB4]/15 light:bg-[#F0F7FF] rounded-xl p-3 text-center">
+            <p className="text-[10px] font-semibold text-white/50 light:text-gray-400 uppercase tracking-wider">Total Spent</p>
+            <p className="text-sm font-bold text-white light:text-[#071A2E] mt-0.5">₱{totalSpent.toFixed(0)}</p>
           </div>
-          <div className="bg-[#F0F7FF] rounded-xl p-3 text-center">
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Rides</p>
-            <p className="text-sm font-bold text-[#071A2E] mt-0.5">{rideCount}</p>
+          <div className="bg-[#1A5FB4]/15 light:bg-[#F0F7FF] rounded-xl p-3 text-center">
+            <p className="text-[10px] font-semibold text-white/50 light:text-gray-400 uppercase tracking-wider">Rides</p>
+            <p className="text-sm font-bold text-white light:text-[#071A2E] mt-0.5">{rideCount}</p>
           </div>
-          <div className="bg-[#F0F7FF] rounded-xl p-3 text-center">
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Avg Fare</p>
-            <p className="text-sm font-bold text-[#071A2E] mt-0.5">₱{avgFare.toFixed(0)}</p>
+          <div className="bg-[#1A5FB4]/15 light:bg-[#F0F7FF] rounded-xl p-3 text-center">
+            <p className="text-[10px] font-semibold text-white/50 light:text-gray-400 uppercase tracking-wider">Avg Fare</p>
+            <p className="text-sm font-bold text-white light:text-[#071A2E] mt-0.5">₱{avgFare.toFixed(0)}</p>
           </div>
         </div>
 
         {/* Under "All" the totals only cover the pages fetched so far, so say
             that rather than presenting a partial sum as the lifetime figure. */}
         {statsArePartial && !isLoading && (
-          <p className="flex-shrink-0 px-5 text-[10px] text-gray-400 text-center">
+          <p className="flex-shrink-0 px-5 text-[10px] text-white/50 light:text-gray-400 text-center">
             {filterNeedsMorePages
               ? "Loading the rest of this range…"
               : "Covers the rides loaded so far — tap Load more for the full total."}
@@ -200,7 +200,7 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
               className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-colors ${
                 timeFilter === tab.key
                   ? "bg-[#1A5FB4] text-white shadow-sm"
-                  : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                  : "bg-white/10 light:bg-gray-100 text-white/60 light:text-gray-500 hover:bg-white/15 light:hover:bg-gray-200"
               }`}
             >
               {tab.label}
@@ -212,11 +212,11 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
         <div className="flex-1 overflow-y-auto px-5 pb-6">
           {isLoading ? (
             <div className="flex items-center justify-center py-16">
-              <div className="w-8 h-8 border-2 border-[#1A5FB4] border-t-transparent rounded-full animate-spin" />
+              <div className="w-8 h-8 border-2 border-[#62A0EA] light:border-[#1A5FB4] border-t-transparent light:border-t-transparent rounded-full animate-spin" />
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <p className="text-red-500 font-medium text-sm mb-3">{error}</p>
+              <p className="text-red-400 light:text-red-500 font-medium text-sm mb-3">{error}</p>
               <button
                 onClick={() => loadPage(1, timeFilter)}
                 className="px-4 py-2 rounded-full text-xs font-semibold bg-[#1A5FB4] text-white"
@@ -228,14 +228,14 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
             // Still paging back toward the filter's cutoff — claiming there are
             // none yet would be a lie we'd contradict a moment later.
             <div className="flex items-center justify-center py-16">
-              <div className="w-8 h-8 border-2 border-[#1A5FB4] border-t-transparent rounded-full animate-spin" />
+              <div className="w-8 h-8 border-2 border-[#62A0EA] light:border-[#1A5FB4] border-t-transparent light:border-t-transparent rounded-full animate-spin" />
             </div>
           ) : history.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <svg className="w-16 h-16 text-gray-200 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+              <svg className="w-16 h-16 text-white/20 light:text-gray-200 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
               </svg>
-              <p className="text-gray-400 font-medium text-sm">
+              <p className="text-white/50 light:text-gray-400 font-medium text-sm">
                 {timeFilter === "all"
                   ? "No transactions found"
                   : "No rides in this period"}
@@ -252,39 +252,39 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
                   <div
                     key={tx.id}
                     className={`rounded-xl border transition-colors ${
-                      isExpanded ? "border-[#1A5FB4]/20 bg-[#F0F7FF]/50" : "border-gray-100 bg-white hover:bg-gray-50"
+                      isExpanded ? "border-[#62A0EA]/30 light:border-[#1A5FB4]/20 bg-[#1A5FB4]/15 light:bg-[#F0F7FF]/50" : "border-white/10 light:border-gray-100 bg-[#071A2E] light:bg-white hover:bg-white/5 light:hover:bg-gray-50"
                     }`}
                   >
                     <button
                       onClick={() => setExpandedId(isExpanded ? null : tx.id)}
                       className="w-full flex items-center gap-3 p-3 text-left"
                     >
-                      <div className="w-10 h-10 rounded-xl bg-[#F0F7FF] flex items-center justify-center flex-shrink-0">
-                        <svg className="w-5 h-5 text-[#1A5FB4]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <div className="w-10 h-10 rounded-xl bg-[#1A5FB4]/15 light:bg-[#F0F7FF] flex items-center justify-center flex-shrink-0">
+                        <svg className="w-5 h-5 text-[#62A0EA] light:text-[#1A5FB4]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" />
                         </svg>
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-[#071A2E] truncate">
+                        <p className="text-sm font-semibold text-white light:text-[#071A2E] truncate">
                           {tx.pickupName} → {tx.dropoffName}
                         </p>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[11px] text-gray-400">{date}</span>
-                          <span className="w-1 h-1 rounded-full bg-gray-300" />
-                          <span className="text-[11px] text-gray-400">{time}</span>
+                          <span className="text-[11px] text-white/50 light:text-gray-400">{date}</span>
+                          <span className="w-1 h-1 rounded-full bg-white/20 light:bg-gray-300" />
+                          <span className="text-[11px] text-white/50 light:text-gray-400">{time}</span>
                         </div>
                       </div>
 
                       <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
-                        <p className="text-sm font-bold text-[#071A2E]">- {formatPeso(tx.amount)}</p>
+                        <p className="text-sm font-bold text-white light:text-[#071A2E]">- {formatPeso(tx.amount)}</p>
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${badge.bg} ${badge.text}`}>
                           {badge.label}
                         </span>
                       </div>
 
                       <svg
-                        className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isExpanded ? "rotate-180" : ""}`}
+                        className={`w-4 h-4 text-white/50 light:text-gray-400 transition-transform flex-shrink-0 ${isExpanded ? "rotate-180" : ""}`}
                         fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
                       >
                         <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
@@ -293,38 +293,38 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
 
                     {isExpanded && (
                       <div className="px-3 pb-3 pt-0">
-                        <div className="bg-gray-50 rounded-lg p-3 space-y-2 text-xs">
+                        <div className="bg-white/5 light:bg-gray-50 rounded-lg p-3 space-y-2 text-xs">
                           <div className="flex justify-between">
-                            <span className="text-gray-400">Pickup</span>
-                            <span className="font-medium text-[#071A2E]">{tx.pickupName}</span>
+                            <span className="text-white/50 light:text-gray-400">Pickup</span>
+                            <span className="font-medium text-white light:text-[#071A2E]">{tx.pickupName}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-gray-400">Drop-off</span>
-                            <span className="font-medium text-[#071A2E]">{tx.dropoffName}</span>
+                            <span className="text-white/50 light:text-gray-400">Drop-off</span>
+                            <span className="font-medium text-white light:text-[#071A2E]">{tx.dropoffName}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-gray-400">Payment</span>
-                            <span className="font-medium text-[#071A2E]">{tx.method}</span>
+                            <span className="text-white/50 light:text-gray-400">Payment</span>
+                            <span className="font-medium text-white light:text-[#071A2E]">{tx.method}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-gray-400">Ref ID</span>
-                            <span className="font-mono text-[#071A2E]">{tx.id}</span>
+                            <span className="text-white/50 light:text-gray-400">Ref ID</span>
+                            <span className="font-mono text-white light:text-[#071A2E]">{tx.id}</span>
                           </div>
                           {tx.conductorName && (
                             <div className="flex justify-between">
-                              <span className="text-gray-400">Conductor</span>
-                              <span className="font-medium text-[#071A2E]">{tx.conductorName}</span>
+                              <span className="text-white/50 light:text-gray-400">Conductor</span>
+                              <span className="font-medium text-white light:text-[#071A2E]">{tx.conductorName}</span>
                             </div>
                           )}
                           {tx.unitNumber && (
                             <div className="flex justify-between">
-                              <span className="text-gray-400">Unit</span>
-                              <span className="font-medium text-[#071A2E]">{tx.unitNumber}</span>
+                              <span className="text-white/50 light:text-gray-400">Unit</span>
+                              <span className="font-medium text-white light:text-[#071A2E]">{tx.unitNumber}</span>
                             </div>
                           )}
                           <div className="flex justify-between">
-                            <span className="text-gray-400">Fare</span>
-                            <span className="font-bold text-[#071A2E]">{formatPeso(tx.amount)}</span>
+                            <span className="text-white/50 light:text-gray-400">Fare</span>
+                            <span className="font-bold text-white light:text-[#071A2E]">{formatPeso(tx.amount)}</span>
                           </div>
                         </div>
 
@@ -335,27 +335,27 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
                             indication anyone else was included. Absent entirely for a
                             normal individual payment. */}
                         {tx.group && (
-                          <div className="mt-2 bg-[#F0F7FF] rounded-lg p-3 space-y-1.5 text-xs border border-[#DAEEFF]">
+                          <div className="mt-2 bg-[#1A5FB4]/15 light:bg-[#F0F7FF] rounded-lg p-3 space-y-1.5 text-xs border border-[#62A0EA]/20 light:border-[#DAEEFF]">
                             <div className="flex items-center justify-between">
-                              <span className="font-semibold text-[#071A2E]">
+                              <span className="font-semibold text-white light:text-[#071A2E]">
                                 Group Payment · {tx.group.passengerCount} passenger{tx.group.passengerCount === 1 ? "" : "s"}
                               </span>
                               {tx.group.referenceNumber && (
-                                <span className="font-mono text-gray-400">{tx.group.referenceNumber}</span>
+                                <span className="font-mono text-white/50 light:text-gray-400">{tx.group.referenceNumber}</span>
                               )}
                             </div>
                             <div className="flex justify-between">
-                              <span className="text-gray-400">Total paid</span>
-                              <span className="font-semibold text-[#071A2E]">{formatPeso(tx.group.totalAmount)}</span>
+                              <span className="text-white/50 light:text-gray-400">Total paid</span>
+                              <span className="font-semibold text-white light:text-[#071A2E]">{formatPeso(tx.group.totalAmount)}</span>
                             </div>
-                            <div className="space-y-1 pt-1 border-t border-[#DAEEFF]">
+                            <div className="space-y-1 pt-1 border-t border-[#62A0EA]/20 light:border-[#DAEEFF]">
                               {tx.group.passengers.map((passenger) => (
                                 <div key={passenger.id} className="flex items-center justify-between">
-                                  <span className="text-gray-500">
+                                  <span className="text-white/60 light:text-gray-500">
                                     {passenger.isYou ? "You" : passenger.name ?? "Passenger"}
                                     {passenger.role ? ` · ${passenger.role}` : ""}
                                   </span>
-                                  <span className="font-medium text-[#071A2E]">{formatPeso(passenger.amount)}</span>
+                                  <span className="font-medium text-white light:text-[#071A2E]">{formatPeso(passenger.amount)}</span>
                                 </div>
                               ))}
                             </div>
@@ -371,7 +371,7 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
                             onClick={() => setActiveFeedbackRide(tx)}
                             className={`w-full mt-2 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${
                               tx.feedback
-                                ? "bg-green-50 text-green-700 hover:bg-green-100"
+                                ? "bg-green-500/10 light:bg-green-50 text-green-400 light:text-green-700 hover:bg-green-500/20 light:hover:bg-green-100"
                                 : "bg-[#1A5FB4] text-white hover:bg-[#155a9c]"
                             }`}
                           >
@@ -405,7 +405,7 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
                 <button
                   onClick={() => loadPage(page + 1, timeFilter)}
                   disabled={isLoadingMore}
-                  className="w-full mt-2 py-2.5 rounded-xl text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-60"
+                  className="w-full mt-2 py-2.5 rounded-xl text-xs font-semibold bg-white/10 light:bg-gray-100 text-white/70 light:text-gray-600 hover:bg-white/15 light:hover:bg-gray-200 disabled:opacity-60"
                 >
                   {isLoadingMore ? "Loading…" : "Load more"}
                 </button>
@@ -456,8 +456,8 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
 
       {/* S6-T7 — transient success toast (auto-dismisses after 2.5s). */}
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[120] bg-[#071A2E] text-white text-sm font-medium px-4 py-2.5 rounded-full shadow-lg flex items-center gap-2">
-          <svg className="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[120] bg-[#071A2E] light:bg-white text-white light:text-[#071A2E] border border-white/10 light:border-gray-200 text-sm font-medium px-4 py-2.5 rounded-full shadow-lg flex items-center gap-2">
+          <svg className="w-4 h-4 text-green-400 light:text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
           </svg>
           {toast}

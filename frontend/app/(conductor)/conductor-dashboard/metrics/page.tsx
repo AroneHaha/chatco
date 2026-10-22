@@ -12,7 +12,7 @@ import MetricsContent from "@/components/conductor/metrics/metrics-content";
  */
 export default function MetricsPage() {
   return (
-    <div className="lg:pl-64 xl:pl-0 min-h-screen bg-[#050F1A] pb-28 lg:pb-8">
+    <div className="min-h-screen bg-[#050F1A] pb-28 md:pb-8">
       <MetricsContent />
     </div>
   );
