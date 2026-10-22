@@ -71,6 +71,12 @@
   font-weight: 600;
 }
 
+/* Light theme: the track is pale, so darken the label toward the handle
+   colour instead of lightening it. */
+[data-theme='light'] .conductor-duty-slider .slide-commit__text--plain {
+  color: color-mix(in srgb, var(--sc-ink) 80%, black);
+}
+
 .conductor-duty-slider[data-phase='done'] {
   opacity: 1;
 }
