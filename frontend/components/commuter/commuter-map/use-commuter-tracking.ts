@@ -67,6 +67,8 @@ export interface CommuterTrackingResult {
   gpsStatus: GpsStatus;
   /** Live vehicles (real backend data) with positions */
   activeVehicles: MapVehicle[];
+  /** Re-fetch the live vehicle list now (e.g. when a unit is known to have left). */
+  refreshVehicles: () => Promise<void>;
   /** Conductor-radius validation result (null until GPS + first calculation) */
   radiusResult: ConductorRadiusResult | null;
   /** Whether commuter is within any conductor's 1km radius */
@@ -92,7 +94,7 @@ export function useCommuterTracking(): CommuterTrackingResult {
   const [arrowPos, setArrowPos] = useState<{ x: number; y: number; angle: number } | null>(null);
 
   // Live vehicle locations from the backend (seed fetch + Pusher updates).
-  const { vehicles: rawVehicles } = useVehicleLocations();
+  const { vehicles: rawVehicles, refresh: refreshVehicles } = useVehicleLocations();
 
   // Conductor radius validation result
   const [radiusResult, setRadiusResult] = useState<ConductorRadiusResult | null>(null);
@@ -203,6 +205,7 @@ export function useCommuterTracking(): CommuterTrackingResult {
     arrowPos,
     gpsStatus,
     activeVehicles,
+    refreshVehicles,
     radiusResult,
     isWithinAnyRadius,
     hasInitialCenteredRef,

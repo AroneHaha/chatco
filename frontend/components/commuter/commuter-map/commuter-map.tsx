@@ -65,6 +65,7 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
     arrowPos,
     gpsStatus,
     activeVehicles,
+    refreshVehicles,
     radiusResult,
     hasInitialCenteredRef,
     userInteractedRef,
@@ -206,6 +207,7 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
           commuterLocation={userActualLocation}
           gpsStatus={gpsStatus}
           onClose={closeDetails}
+          onUnavailable={refreshVehicles}
         />
       )}
 
