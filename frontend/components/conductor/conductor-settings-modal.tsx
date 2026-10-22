@@ -75,7 +75,7 @@ export default function ConductorSettingsModal() {
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-white">Settings</h2>
             <div className="flex items-center gap-3">
-              <AccountMenu signOut={signOutControl} lockedHint={LOGOUT_LOCKED_HINT} />
+              <AccountMenu signOut={signOutControl} lockedHint={LOGOUT_LOCKED_HINT} trigger="gear" />
               <button
                 onClick={close}
                 aria-label="Close"

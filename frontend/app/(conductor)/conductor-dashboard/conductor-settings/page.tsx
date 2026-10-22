@@ -26,7 +26,7 @@ export default function SettingsPage() {
           <p className="text-white/40 text-sm mt-1">Manage your app preferences and account</p>
         </div>
         <div className="lg:hidden"><ThemeToggle /></div>
-        <div className="hidden lg:block"><AccountMenu signOut={signOutControl} lockedHint={LOGOUT_LOCKED_HINT} /></div>
+        <div className="hidden lg:block"><AccountMenu signOut={signOutControl} lockedHint={LOGOUT_LOCKED_HINT} trigger="gear" /></div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-8">
         <SettingsContent showHeader={false} onSignOutControl={setSignOutControl} />
