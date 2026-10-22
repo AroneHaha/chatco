@@ -521,6 +521,8 @@ class ConductorController extends Controller
             'email' => $user->email,
             'role' => $user->role,
             'username' => $profile?->generated_username,
+            // Public R2 URL set by admin; null means the app shows its default avatar.
+            'profile_picture_url' => $profile?->profile_picture_url,
         ], 'Conductor profile retrieved');
     }
 
