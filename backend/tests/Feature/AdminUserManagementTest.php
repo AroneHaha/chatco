@@ -156,6 +156,27 @@ class AdminUserManagementTest extends TestCase
         $this->assertEquals('findme@gmail.com', $response->json('data.data.0.email'));
     }
 
+    public function test_list_searches_by_full_name_across_name_columns(): void
+    {
+        [, $headers] = $this->asAdmin();
+        $vice = $this->makeCommuter('vice@gmail.com');
+        $vice->commuterProfile->update(['first_name' => 'Vice', 'middle_name' => 'Jose', 'surname' => 'Ganda']);
+        $this->makeCommuter('other@gmail.com');
+        $conductor = $this->makeConductor();
+
+        $ids = fn (string $search) => collect(
+            $this->withHeaders($headers)->getJson('/api/v1/admin/users?search='.urlencode($search))->assertOk()->json('data.data')
+        )->pluck('id')->all();
+
+        $this->assertSame([$vice->id], $ids('Vice'));
+        $this->assertSame([$vice->id], $ids('vice ganda'));
+        $this->assertSame([$vice->id], $ids('  Ganda   Vice '));
+        $this->assertSame([$vice->id], $ids('Vice Jose Ganda'));
+        $this->assertSame([], $ids('vice mendoza'));
+        // A multi-word surname still matches as typed.
+        $this->assertSame([$conductor->id], $ids('Juan Dela Cruz'));
+    }
+
     public function test_list_leaves_out_the_signed_in_admin(): void
     {
         [$self, $headers] = $this->asAdmin();
