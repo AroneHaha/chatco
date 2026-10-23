@@ -357,5 +357,6 @@ export function mapTransaction(t: unknown): Transaction {
     })),
     // created_at is an ISO 8601 string; timestamp is epoch millis
     timestamp: new Date(txn.created_at).getTime(),
+    paymentStatus: txn.status as Transaction["paymentStatus"],
   };
 }
