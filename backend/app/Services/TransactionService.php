@@ -938,8 +938,11 @@ class TransactionService
                 abort(410, 'Transaction is no longer claimable');
             }
 
+            // Same cutoff as PaymentService::cancelIfStale() and the QR's
+            // expires_at; whole-minute rounding would let a 2-minute QR be
+            // claimed until 3:00.
             $createdAt = $transaction->created_at;
-            if ($createdAt && $createdAt->diffInMinutes(now()) > $this->claimTtlMinutes()) {
+            if ($createdAt && $createdAt->copy()->addMinutes($this->claimTtlMinutes())->isPast()) {
                 return ['expired' => true, 'transaction' => $transaction];
             }
 

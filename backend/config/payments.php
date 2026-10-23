@@ -45,9 +45,12 @@ return [
     | the payment WHILE the commuter is still on PayMongo's page, so their
     | authorization then fails.
     |
-    | Default: 10 minutes (the worst-case real-world flow comfortably fits).
+    | Default: 2 minutes, so an abandoned QR frees the conductor quickly. A
+    | commuter who takes longer than that in GCash (slow login or OTP) will
+    | have the payment cancelled and needs a new QR; raise this if that
+    | happens often.
     */
-    'gcash_claim_ttl_minutes' => (int) env('PAYMENT_GCASH_CLAIM_TTL', 10),
+    'gcash_claim_ttl_minutes' => (int) env('PAYMENT_GCASH_CLAIM_TTL', 2),
 
     /*
     |--------------------------------------------------------------------------
