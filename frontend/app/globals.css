@@ -357,11 +357,25 @@ body {
  * form controls (the <select>/<option> in HistorySection) keep an opaque bg.
  * .popover-header (each modal's sticky title bar) is excluded: it must stay
  * the solid panel color so scrolled content doesn't show through it. */
-.popover-surface div[class~="bg-[#071A2E]"]:not(.popover-header),
-.popover-surface section[class~="bg-[#071A2E]"]:not(.popover-header),
-.popover-surface button[class~="bg-[#071A2E]"]:not(.popover-header) {
+.popover-surface:not(.popover-surface-light) div[class~="bg-[#071A2E]"]:not(.popover-header),
+.popover-surface:not(.popover-surface-light) section[class~="bg-[#071A2E]"]:not(.popover-header),
+.popover-surface:not(.popover-surface-light) button[class~="bg-[#071A2E]"]:not(.popover-header) {
   background-color: rgb(255 255 255 / 0.05);
   border-color: rgb(255 255 255 / 0.1);
+}
+
+[data-theme="dark"] .popover-surface-light div[class~="bg-[#071A2E]"]:not(.popover-header),
+[data-theme="dark"] .popover-surface-light section[class~="bg-[#071A2E]"]:not(.popover-header),
+[data-theme="dark"] .popover-surface-light button[class~="bg-[#071A2E]"]:not(.popover-header) {
+  background-color: rgb(255 255 255 / 0.05);
+  border-color: rgb(255 255 255 / 0.1);
+}
+
+[data-theme="light"] .popover-surface-light div[class~="bg-[#071A2E]"]:not(.popover-header),
+[data-theme="light"] .popover-surface-light section[class~="bg-[#071A2E]"]:not(.popover-header),
+[data-theme="light"] .popover-surface-light button[class~="bg-[#071A2E]"]:not(.popover-header) {
+  background-color: #fff;
+  border-color: #e5e7eb;
 }
 
 /* ─── Feedback success countdown ring ──────────────────────────────────

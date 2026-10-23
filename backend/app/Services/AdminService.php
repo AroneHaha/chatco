@@ -1050,14 +1050,16 @@ class AdminService
         $query = Driver::with('vehicle');
 
         if (! empty($filters['search'])) {
-            $term = '%'.trim($filters['search']).'%';
-            $query->where(function (Builder $q) use ($term) {
-                $q->where('first_name', 'like', $term)
-                    ->orWhere('middle_name', 'like', $term)
-                    ->orWhere('last_name', 'like', $term)
-                    ->orWhere('contact', 'like', $term)
-                    ->orWhere('license_number', 'like', $term);
-            });
+            foreach ($this->searchWords($filters['search']) as $word) {
+                $term = '%'.$word.'%';
+                $query->where(function (Builder $q) use ($term) {
+                    $q->where('first_name', 'like', $term)
+                        ->orWhere('middle_name', 'like', $term)
+                        ->orWhere('last_name', 'like', $term)
+                        ->orWhere('contact', 'like', $term)
+                        ->orWhere('license_number', 'like', $term);
+                });
+            }
         }
 
         if (! empty($filters['status'])) {
@@ -1294,22 +1296,41 @@ class AdminService
 
     private function applySearch($query, string $term): void
     {
-        $like = '%'.$term.'%';
+        foreach ($this->searchWords($term) as $word) {
+            $like = '%'.$word.'%';
 
-        $query->where(function ($q) use ($like) {
-            $q->where('email', 'like', $like)
-                ->orWhereHas('adminProfile', fn ($p) => $p
-                    ->where('first_name', 'like', $like)
-                    ->orWhere('last_name', 'like', $like))
-                ->orWhereHas('conductorProfile', fn ($p) => $p
-                    ->where('first_name', 'like', $like)
-                    ->orWhere('last_name', 'like', $like)
-                    ->orWhere('generated_username', 'like', $like))
-                ->orWhereHas('commuterProfile', fn ($p) => $p
-                    ->where('first_name', 'like', $like)
-                    ->orWhere('surname', 'like', $like)
-                    ->orWhere('username', 'like', $like));
-        });
+            $query->where(function ($q) use ($like) {
+                $q->where('email', 'like', $like)
+                    ->orWhereHas('adminProfile', fn ($p) => $p
+                        ->where('first_name', 'like', $like)
+                        ->orWhere('middle_name', 'like', $like)
+                        ->orWhere('last_name', 'like', $like))
+                    ->orWhereHas('conductorProfile', fn ($p) => $p
+                        ->where('first_name', 'like', $like)
+                        ->orWhere('middle_name', 'like', $like)
+                        ->orWhere('last_name', 'like', $like)
+                        ->orWhere('generated_username', 'like', $like))
+                    ->orWhereHas('commuterProfile', fn ($p) => $p
+                        ->where('first_name', 'like', $like)
+                        ->orWhere('middle_name', 'like', $like)
+                        ->orWhere('surname', 'like', $like)
+                        ->orWhere('suffix', 'like', $like)
+                        ->orWhere('username', 'like', $like));
+            });
+        }
+    }
+
+    /**
+     * Split a search box value into words. A full name lives across separate
+     * first/middle/last columns, so matching the whole phrase against any one
+     * column finds nothing ("vice ganda"); instead every word has to match at
+     * least one searched column, in any order.
+     *
+     * @return list<string>
+     */
+    private function searchWords(string $search): array
+    {
+        return preg_split('/\s+/', trim($search), -1, PREG_SPLIT_NO_EMPTY) ?: [];
     }
 
     private function relationName(User $user): string
@@ -1496,13 +1517,17 @@ class AdminService
                 $query->whereHas('commuterProfile', fn (Builder $profile) => $profile->where('applied_type', $type));
             })
             ->when($filters['search'] ?? null, function (Builder $query, string $search) {
-                $term = '%'.trim($search).'%';
-                $query->whereHas('commuterProfile', fn (Builder $profile) => $profile
-                    ->where('first_name', 'like', $term)
-                    ->orWhere('surname', 'like', $term)
-                    ->orWhere('email', 'like', $term)
-                    ->orWhere('contact_number', 'like', $term)
-                    ->orWhere('rejection_reason', 'like', $term));
+                foreach ($this->searchWords($search) as $word) {
+                    $term = '%'.$word.'%';
+                    $query->whereHas('commuterProfile', fn (Builder $profile) => $profile
+                        ->where('first_name', 'like', $term)
+                        ->orWhere('middle_name', 'like', $term)
+                        ->orWhere('surname', 'like', $term)
+                        ->orWhere('suffix', 'like', $term)
+                        ->orWhere('email', 'like', $term)
+                        ->orWhere('contact_number', 'like', $term)
+                        ->orWhere('rejection_reason', 'like', $term));
+                }
             })
             ->with(['commuterProfile:id,first_name,middle_name,surname,birthdate,gender,email,contact_number,commuter_type,applied_type,account_status,id_image_url,profile_image_url,verified_at,rejection_reason,username,language_preference'])
             ->orderBy('updated_at', 'desc') // most recently rejected first

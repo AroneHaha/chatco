@@ -141,6 +141,20 @@ export default function LostFoundPage() {
   const [selectedDate, setSelectedDate] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 15;
+  // Tab/category/date/page changes wait this long before fetching, so a burst
+  // of filter clicks sends one request instead of one per click. Aborting a
+  // stale request in the browser doesn't help here: it has already reached
+  // Laravel and counted against the admin read rate limit.
+  const FILTER_FETCH_DELAY_MS = 250;
+  // Enter the loading state as soon as a filter changes, not when the delayed
+  // fetch starts, so the previous tab's items don't flash an empty state.
+  const fetchKey = `${currentPage}|${activeCategory}|${activeTab}|${debouncedSearchQuery}|${selectedDate}`;
+  const [loadingFor, setLoadingFor] = useState(fetchKey);
+  if (fetchKey !== loadingFor) {
+    setLoadingFor(fetchKey);
+    setIsLoading(true);
+    setListError(null);
+  }
 
   // Expired tab multi-select for bulk reactivation. Kept across pages so the
   // desk can gather items from several pages, but cleared whenever the tab
@@ -197,7 +211,13 @@ export default function LostFoundPage() {
       // A stale request cancelled in favor of a newer one — the newer
       // request owns isLoading/listError/items from here, don't touch them.
       if (err instanceof RequestCancelledError) return;
-      setListError(err instanceof LostFoundOperationError ? err.message : 'Unable to load lost items.');
+      setListError(
+        err instanceof LostFoundOperationError
+          ? err.code === 'rate_limited'
+            ? 'Too many requests in a short time. Wait a few seconds, then try again.'
+            : err.message
+          : 'Unable to load lost items.',
+      );
       setItems([]);
       setPageMeta({ page: currentPage, lastPage: 1, total: 0 });
       setIsLoading(false);
@@ -206,8 +226,11 @@ export default function LostFoundPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    void refresh(controller.signal);
-    return () => controller.abort();
+    const timer = window.setTimeout(() => void refresh(controller.signal), FILTER_FETCH_DELAY_MS);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
   }, [refresh]);
 
   useEffect(() => {

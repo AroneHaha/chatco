@@ -68,7 +68,8 @@ function VehicleMarkerImpl({
           dashArray: "4 8",
         }}
       />
-      <Marker position={position} icon={createJeepneyIcon(capacity, isWithinRadius)} eventHandlers={eventHandlers}>
+      {/* Keep vehicles above the commuter's location pin when icons overlap. */}
+      <Marker position={position} icon={createJeepneyIcon(capacity, isWithinRadius)} eventHandlers={eventHandlers} zIndexOffset={1000}>
         <UnitPopup
           title={plateNumber}
           status={{ label: config.label, tone: capacityTone(capacity) }}

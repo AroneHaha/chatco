@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowRight, Bell } from "lucide-react";
 import { Modal } from "@/components/shared/modal";
+import { APP_DIALOG as D } from "@/components/shared/app-dialog-styles";
 import { useAuth } from "@/contexts/auth-context";
 import { getRenewalState, setRenewalReminder, type RenewalState } from "@/lib/shared/services/student-renewal.service";
 
@@ -98,45 +99,55 @@ export default function StudentRenewalReminder() {
   // Counts down to whichever date the student has to act on next.
   const remaining = (correctionDue ? new Date(correctionDue).getTime() : notOpenYet ? opensAt : deadline) - at;
   const passed = remaining <= 0;
-  const urgent = !notOpenYet && (passed || remaining <= 72 * HOUR);
   const countdown = passed ? "Deadline passed" : notOpenYet ? `Opens in ${timeLeft(remaining)}` : `${timeLeft(remaining)} left`;
-  const countdownNote = correctionDue ? `Correction due ${formatDateTime(correctionDue)}`
-    : notOpenYet ? `Renewal opens ${formatDay(opensAt)}`
-      : `Renewal ${passed ? "closed" : "closes"} ${lastDay}`;
+  const dateRow = correctionDue ? { label: "Correction due", value: formatDateTime(correctionDue) }
+    : notOpenYet ? { label: "Renewal opens", value: formatDay(opensAt) }
+      : { label: passed ? "Renewal closed" : "Renewal closes", value: lastDay };
   const message = correctionDue
     ? "Check the reviewer’s note and send your corrected proof before the correction deadline."
     : notOpenYet
       ? "Have your current school ID or enrollment proof ready for when submissions open."
       : !renewal.discount_eligible
         ? "Regular fares apply until your renewal is approved. Submit your current school ID or enrollment proof to restore your student discount."
-        : `Submit your current school ID or enrollment proof by ${lastDay} to keep your student discount.`;
+        : "Submit your current school ID or enrollment proof to keep your student discount.";
 
   return (
     <div ref={dialogRef} className="relative z-100">
-      <Modal isOpen onClose={() => setClosed(true)} maxWidth="max-w-sm">
-        <div className="flex flex-col items-center pt-2 text-center">
-          <span aria-hidden="true" className={`flex h-14 w-14 items-center justify-center rounded-2xl ${urgent ? "bg-amber-200/10 text-amber-200" : "bg-[#62A0EA]/10 text-[#99C1F1]"}`}>
-            <Bell size={26} />
-          </span>
-          <h2 className="mt-5 text-lg font-bold text-white">{correctionDue ? "Enrollment proof needs a correction" : "Student renewal reminder"}</h2>
-          <p className="mt-2 text-sm leading-relaxed text-white/70">{message}</p>
-          <div className="mt-5 w-full rounded-lg bg-white/5 px-4 py-3">
-            <p className={`text-xl font-bold tabular-nums first-letter:uppercase ${urgent ? "text-amber-200" : "text-white"}`}>{countdown}</p>
-            <p className="mt-0.5 text-xs text-white/60">{countdownNote}</p>
+      <Modal isOpen onClose={() => setClosed(true)} maxWidth="max-w-sm" themed>
+        <div className="flex items-start gap-3 pr-8">
+          <Bell size={30} aria-hidden="true" className={`shrink-0 ${D.blueIcon}`} />
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold leading-snug text-white light:text-gray-900">{correctionDue ? "Enrollment proof needs a correction" : "Student renewal reminder"}</h2>
+            <p className="mt-1.5 text-sm leading-relaxed text-white/70 light:text-gray-600">{message}</p>
           </div>
         </div>
 
-        <div className="mt-6 flex flex-col gap-3">
-          <Link href="/student-renewal" onClick={() => setClosed(true)} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#1A5FB4] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#164A8F] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#99C1F1]">
+        <dl className={`mt-5 divide-y border-y text-sm ${D.divide} ${D.hairline}`}>
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 py-2.5">
+            <dt className={D.muted}>{dateRow.label}</dt>
+            <dd className="text-right font-medium text-white light:text-gray-900">{dateRow.value}</dd>
+          </div>
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 py-2.5">
+            <dt className={D.muted}>{notOpenYet ? "Status" : "Time left"}</dt>
+            <dd className={`text-right font-semibold tabular-nums first-letter:uppercase ${passed ? D.redText : "text-white light:text-gray-900"}`}>{countdown}</dd>
+          </div>
+        </dl>
+
+        <div className="mt-5 flex flex-col gap-2">
+          <Link href="/student-renewal" onClick={() => setClosed(true)} className={`${D.button} ${D.primary} w-full`}>
             {renewal.can_submit ? (correctionDue ? "Submit corrected proof" : "Renew student status") : "View renewal status"}
             <ArrowRight size={16} aria-hidden="true" />
           </Link>
-          <button type="button" onClick={() => choose("snooze")} className="min-h-11 w-full cursor-pointer rounded-lg border border-white/20 px-4 text-sm font-medium text-white/80 transition-colors hover:bg-white/5 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#99C1F1]">
-            Remind me tomorrow
-          </button>
-          <button type="button" onClick={() => choose("dismiss")} className="min-h-10 w-full cursor-pointer rounded-lg px-4 text-sm font-medium text-white/60 transition-colors hover:bg-white/5 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#99C1F1]">
-            Never remind me
-          </button>
+          {/* Stacked, not side by side: the panel is max-w-sm, so two columns
+              wrapped both labels onto two lines even on desktop. */}
+          <div className="flex flex-col gap-2">
+            <button type="button" onClick={() => choose("snooze")} className={`${D.button} ${D.secondary} cursor-pointer`}>
+              Remind me tomorrow
+            </button>
+            <button type="button" onClick={() => choose("dismiss")} className={`${D.button} cursor-pointer border-transparent text-white/60 hover:text-white light:text-gray-500 light:hover:text-gray-900`}>
+              Never remind me
+            </button>
+          </div>
         </div>
       </Modal>
     </div>

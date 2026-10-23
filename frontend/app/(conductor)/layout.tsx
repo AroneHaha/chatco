@@ -15,6 +15,7 @@ import MaintenanceGate from "@/components/shared/maintenance-gate";
 import ConductorConnectivityBanner from "@/components/conductor/conductor-connectivity-banner";
 import ConductorDeviceGuard from "@/components/conductor/conductor-device-guard";
 import { ConductorShiftProvider } from "@/app/(conductor)/hooks/use-conductor-shift";
+import { ConductorThemeProvider } from "@/contexts/conductor-theme-context";
 
 export default function ConductorLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -36,6 +37,7 @@ export default function ConductorLayout({ children }: { children: React.ReactNod
     <RequireRole role="CONDUCTOR">
     <MaintenanceGate>
       <ConductorShiftProvider>
+      <ConductorThemeProvider>
 <div className={`fixed inset-0 flex flex-col font-sans md:flex-row ${isUnitVerification ? "bg-[#050F1A]" : "bg-gray-50"}`}>
 
       {/* Desktop Sidebar — the 768–1279px range only. At xl:+ (1280px),
@@ -89,6 +91,7 @@ export default function ConductorLayout({ children }: { children: React.ReactNod
       {!isUnitVerification && <ConductorLocationBroadcaster />}
 
     </div>
+      </ConductorThemeProvider>
       </ConductorShiftProvider>
     </MaintenanceGate>
     </RequireRole>

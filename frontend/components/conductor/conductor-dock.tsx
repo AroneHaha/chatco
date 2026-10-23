@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useConductorShift } from "@/app/(conductor)/hooks/use-conductor-shift";
+import { useConductorProfile } from "@/app/(conductor)/hooks/use-conductor-profile";
+import { ConductorAvatar } from "@/components/conductor/conductor-avatar";
 
 // Full sidebar labels for the dock's own accessible names / tooltips; the
 // dock shows a shorter on-screen label for the two long ones (matching the
@@ -57,7 +59,7 @@ const paymentIconPath =
 export default function ConductorDock({ pathname }: { pathname: string }) {
   const { shift } = useConductorShift();
   const conductorName = shift?.conductorName ?? "Conductor";
-  const conductorInitial = conductorName.charAt(0).toUpperCase();
+  const conductorPhotoUrl = useConductorProfile()?.photoUrl ?? null;
   const statusLabel = shift?.isActive ? "Shift Active" : "No Active Shift";
 
   // Payment, End-of-Day, Metrics, and Settings are all buttons, not
@@ -140,7 +142,7 @@ export default function ConductorDock({ pathname }: { pathname: string }) {
 
   const navItemClass = (isActive: boolean) =>
     `relative z-10 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-colors whitespace-nowrap cursor-pointer ${
-      isActive ? "text-white" : "text-white/50 hover:text-white hover:bg-white/5"
+      isActive ? "text-white" : "text-white/50 hover:text-white hover:bg-white/5 light:text-gray-500 light:hover:text-gray-900 light:hover:bg-gray-100"
     }`;
 
   // Every dock item fires this on click, whether it navigates (Dashboard/
@@ -157,11 +159,11 @@ export default function ConductorDock({ pathname }: { pathname: string }) {
 
   return (
     <nav className="hidden xl:flex fixed inset-x-0 bottom-4 z-40 justify-center pointer-events-none">
-      <div className="flex items-stretch divide-x divide-white/10 bg-[#071A2E]/95 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl shadow-black/10 overflow-hidden pointer-events-auto">
+      <div className="flex items-stretch divide-x divide-white/10 bg-[#071A2E]/95 backdrop-blur-xl rounded-2xl border border-white/10 light:divide-gray-200 light:bg-white/95 light:border-gray-200 shadow-2xl shadow-black/10 overflow-hidden pointer-events-auto">
         {/* Logo */}
         <div className="flex items-center px-4">
-          <span className="text-white font-bold text-sm tracking-tight whitespace-nowrap">
-            CHATCO<span className="text-[#62A0EA]">.</span>
+          <span className="text-white light:text-gray-900 font-bold text-sm tracking-tight whitespace-nowrap">
+            CHATCO<span className="text-[#62A0EA] light:text-[#1A5FB4]">.</span>
           </span>
         </div>
 
@@ -291,12 +293,10 @@ export default function ConductorDock({ pathname }: { pathname: string }) {
 
         {/* User identity */}
         <div className="flex items-center gap-2.5 px-4">
-          <div className="w-8 h-8 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-            {conductorInitial}
-          </div>
+          <ConductorAvatar src={conductorPhotoUrl} className="w-8 h-8" iconClassName="w-4 h-4" sizes="32px" />
           <div className="min-w-0 max-w-[110px]">
-            <p className="text-white text-xs font-semibold truncate leading-tight">{conductorName}</p>
-            <p className="text-white/40 text-[10px] leading-tight truncate">{statusLabel}</p>
+            <p className="text-white light:text-gray-900 text-xs font-semibold truncate leading-tight">{conductorName}</p>
+            <p className="text-white/40 light:text-gray-500 text-[10px] leading-tight truncate">{statusLabel}</p>
           </div>
         </div>
       </div>

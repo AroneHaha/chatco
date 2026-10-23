@@ -16,13 +16,13 @@ export default function EndOfDayPage() {
   const router = useRouter();
 
   return (
-    <div className="min-h-screen bg-[#050F1A] pb-28">
-      <div className="sticky top-0 z-20 bg-[#050F1A]/90 backdrop-blur-xl border-b border-white/5">
+    <div className="min-h-screen bg-[#050F1A] light:bg-gray-50 pb-28">
+      <div className="sticky top-0 z-20 bg-[#050F1A]/90 light:bg-gray-50 backdrop-blur-xl border-b border-white/5 light:border-gray-200">
         <div className="flex items-center gap-3 px-4 py-3.5">
-          <button onClick={() => router.back()} className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/60 hover:bg-white/10 hover:text-white transition-all active:scale-95">
+          <button onClick={() => router.back()} className="w-9 h-9 rounded-xl bg-white/5 light:bg-white border border-white/10 light:border-gray-300 flex items-center justify-center text-white/60 light:text-gray-600 hover:bg-white/10 light:hover:bg-gray-100 hover:text-white light:hover:text-gray-900 transition-all active:scale-95">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
           </button>
-          <h1 className="text-white font-bold text-lg">End of Day Report</h1>
+          <h1 className="text-white light:text-gray-900 font-bold text-lg">End of Day Report</h1>
         </div>
       </div>
 

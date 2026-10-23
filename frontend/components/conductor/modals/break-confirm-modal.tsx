@@ -3,6 +3,7 @@
 // Uses the existing confirmation callback and parent busy/error state.
 import { useEffect, useRef, useState } from "react";
 import SlideCommit from "@/components/ui/slide-commit";
+import { useCommuterTheme } from "@/contexts/commuter-theme-context";
 
 interface BreakConfirmModalProps {
   isOnBreak: boolean;
@@ -27,6 +28,9 @@ export default function BreakConfirmModal({
   const [wasOnBreak] = useState(isOnBreak);
   const [sliderWidth, setSliderWidth] = useState(280);
   const [confirmed, setConfirmed] = useState(false);
+  // The slider takes inline colours, which `light:` classes can't reach;
+  // this is the conductor app's active theme (dark off light-ready routes).
+  const isLight = useCommuterTheme() === "light";
 
   const [prevBusy, setPrevBusy] = useState(busy);
   if (busy !== prevBusy) {
@@ -71,7 +75,6 @@ export default function BreakConfirmModal({
   });
 
   const locked = busy || confirmed;
-  const accent = wasOnBreak ? "emerald" : "amber";
   const title = wasOnBreak ? "Resume Duty?" : "Take a Break?";
   const description = wasOnBreak
     ? "You'll be marked back on duty and visible to commuters and hails again."
@@ -84,11 +87,11 @@ export default function BreakConfirmModal({
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={locked ? undefined : onClose}
       />
-      <div className="relative w-full sm:max-w-sm bg-[#0F2135] border border-white/[0.08] rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden pb-safe animate-fade-in">
+      <div className="relative w-full sm:max-w-sm bg-[#071A2E] border border-white/10 rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden pb-safe animate-fade-in light:bg-white light:border-gray-200 light:shadow-black/10">
         <button
           onClick={onClose}
           disabled={locked}
-          className="absolute top-3 right-3 w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-white/40 hover:bg-white/10 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed z-10"
+          className="absolute top-3 right-3 w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-white/40 hover:bg-white/10 hover:text-white light:bg-gray-100 light:text-gray-500 light:hover:bg-gray-200 light:hover:text-gray-900 transition-all disabled:opacity-30 disabled:cursor-not-allowed z-10"
           aria-label="Close modal"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -96,25 +99,15 @@ export default function BreakConfirmModal({
           </svg>
         </button>
 
-        <div className="p-6 pt-8 text-center">
-          <div
-            className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 border ${
-              accent === "emerald" ? "bg-emerald-500/10 border-emerald-500/20" : "bg-amber-500/10 border-amber-500/20"
-            }`}
-          >
-            <svg
-              className={`w-6 h-6 ${accent === "emerald" ? "text-emerald-400" : "text-amber-400"}`}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.5}
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-            </svg>
-          </div>
-
-          <h3 className="text-white font-bold text-base mb-2">{title}</h3>
-          <p className="text-white/40 text-sm leading-relaxed mb-6">{description}</p>
+        {/* Left-aligned like the other conductor popovers: the current state as
+            an eyebrow, then the question. No colour per state; the slider
+            carries the action. */}
+        <div className="p-6 pt-5">
+          <p className="pr-10 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/40 light:text-gray-500">
+            {wasOnBreak ? "On break" : "On duty"}
+          </p>
+          <h3 className="mt-1.5 text-lg font-bold text-white light:text-gray-900">{title}</h3>
+          <p className="mt-1 mb-6 text-sm leading-relaxed text-white/55 light:text-gray-500">{description}</p>
 
           <div ref={sliderContainerRef}>
             <SlideCommit
@@ -129,16 +122,17 @@ export default function BreakConfirmModal({
               width={sliderWidth}
               height={56}
               commitRatio={0.9}
-              trackColor={wasOnBreak ? "#163C3D" : "#34312D"}
-              handleColor={wasOnBreak ? "#34D399" : "#FBBF24"}
-              successColor={wasOnBreak ? "#34D399" : "#FBBF24"}
+              // Yellow only on the Take a Break slider; Resume Duty stays blue.
+              trackColor={wasOnBreak ? (isLight ? "#EEF2F7" : "#1A2540") : isLight ? "#FEF3C7" : "#34312D"}
+              handleColor={wasOnBreak ? (isLight ? "#1A5FB4" : "#62A0EA") : isLight ? "#F59E0B" : "#FBBF24"}
+              successColor={wasOnBreak ? (isLight ? "#1A5FB4" : "#62A0EA") : isLight ? "#F59E0B" : "#FBBF24"}
               disabled={locked}
               className="conductor-duty-slider"
             />
           </div>
 
           {error && (
-            <p role="alert" className="mt-3 rounded-lg bg-red-950/90 px-3 py-2 text-xs text-red-300">
+            <p role="alert" className="mt-3 rounded-lg bg-red-950/90 px-3 py-2 text-xs text-red-300 light:bg-red-50 light:text-red-700">
               {error}
             </p>
           )}

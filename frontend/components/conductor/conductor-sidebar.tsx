@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useConductorShift } from "@/app/(conductor)/hooks/use-conductor-shift";
+import { useConductorProfile } from "@/app/(conductor)/hooks/use-conductor-profile";
+import { ConductorAvatar } from "@/components/conductor/conductor-avatar";
 
 const navItems = [
   { href: "/conductor-dashboard", label: "Dashboard", icon: "M2.25 12l8.954-8.955a1.126 1.126 0 0 1 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" },
@@ -16,14 +18,14 @@ const paymentIconPath = "M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.4
 export default function ConductorSidebar({ pathname }: { pathname: string }) {
   const { shift } = useConductorShift();
   const conductorName = shift?.conductorName ?? "Conductor";
-  const conductorInitial = conductorName.charAt(0).toUpperCase();
+  const conductorPhotoUrl = useConductorProfile()?.photoUrl ?? null;
   const statusLabel = shift?.isActive ? "Shift Active" : "No Active Shift";
 
   return (
-    <aside className="w-64 bg-[#071A2E] flex flex-col border-r border-white/10">
+    <aside className="w-64 bg-[#071A2E] flex flex-col border-r border-white/10 light:bg-white light:border-gray-200">
       {/* Logo / Header */}
-      <div className="h-20 flex items-center px-6 border-b border-white/10">
-        <h1 className="text-white font-bold text-xl tracking-tight">CHATCO<span className="text-[#62A0EA]">.</span></h1>
+      <div className="h-20 flex items-center px-6 border-b border-white/10 light:border-gray-200">
+        <h1 className="text-white light:text-gray-900 font-bold text-xl tracking-tight">CHATCO<span className="text-[#62A0EA] light:text-[#1A5FB4]">.</span></h1>
       </div>
 
       {/* Nav Links */}
@@ -34,7 +36,7 @@ export default function ConductorSidebar({ pathname }: { pathname: string }) {
           className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
             pathname === navItems[0].href
               ? "bg-[#1A5FB4] text-white shadow-lg shadow-[#1A5FB4]/30"
-              : "text-white/50 hover:text-white hover:bg-white/5"
+              : "text-white/50 hover:text-white hover:bg-white/5 light:text-gray-500 light:hover:text-gray-900 light:hover:bg-gray-100"
           }`}
         >
           <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -50,7 +52,7 @@ export default function ConductorSidebar({ pathname }: { pathname: string }) {
               window.dispatchEvent(new CustomEvent("conductor:open-payment"));
             }
           }}
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 cursor-pointer text-white/50 hover:text-white hover:bg-white/5"
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 cursor-pointer text-white/50 hover:text-white hover:bg-white/5 light:text-gray-500 light:hover:text-gray-900 light:hover:bg-gray-100"
         >
           <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
             <path strokeLinecap="round" strokeLinejoin="round" d={paymentIconPath} />
@@ -68,7 +70,7 @@ export default function ConductorSidebar({ pathname }: { pathname: string }) {
               className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
                 isActive
                   ? "bg-[#1A5FB4] text-white shadow-lg shadow-[#1A5FB4]/30"
-                  : "text-white/50 hover:text-white hover:bg-white/5"
+                  : "text-white/50 hover:text-white hover:bg-white/5 light:text-gray-500 light:hover:text-gray-900 light:hover:bg-gray-100"
               }`}
             >
               <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -81,14 +83,12 @@ export default function ConductorSidebar({ pathname }: { pathname: string }) {
       </nav>
 
       {/* User Info Footer */}
-      <div className="p-4 border-t border-white/10">
+      <div className="p-4 border-t border-white/10 light:border-gray-200">
         <div className="flex items-center gap-3 px-2">
-          <div className="w-10 h-10 rounded-full bg-[#1A5FB4] flex items-center justify-center text-white font-bold flex-shrink-0">
-            {conductorInitial}
-          </div>
+          <ConductorAvatar src={conductorPhotoUrl} className="w-10 h-10" iconClassName="w-5 h-5" sizes="40px" />
           <div className="min-w-0">
-            <p className="text-white text-sm font-semibold truncate">{conductorName}</p>
-            <p className="text-white/40 text-xs">{statusLabel}</p>
+            <p className="text-white light:text-gray-900 text-sm font-semibold truncate">{conductorName}</p>
+            <p className="text-white/40 light:text-gray-500 text-xs">{statusLabel}</p>
           </div>
         </div>
       </div>

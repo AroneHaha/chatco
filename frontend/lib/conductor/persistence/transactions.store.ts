@@ -32,6 +32,8 @@ export interface Transaction {
   passengerBreakdown?: PassengerBreakdown[];
   timestamp: number;
   syncStatus?: "SYNCED" | "PENDING_SYNC";
+  /** Laravel payment status. Absent on fares recorded offline (not yet synced). */
+  paymentStatus?: "PENDING" | "PROCESSING" | "PAID" | "FAILED" | "CANCELLED" | "EXPIRED" | "REFUNDED";
 }
 
 export interface PendingCashTransaction {

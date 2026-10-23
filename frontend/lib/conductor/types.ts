@@ -23,6 +23,8 @@ export interface ConductorDriver {
   status: "available" | "on-shift" | "inactive" | "assigned";
   /** Same as ConductorUnit.unavailableReason. */
   unavailableReason?: string | null;
+  /** Public R2 URL of the driver's photo; null when none was uploaded. */
+  profilePictureUrl?: string | null;
 }
 
 export interface ConductorHailRequest {

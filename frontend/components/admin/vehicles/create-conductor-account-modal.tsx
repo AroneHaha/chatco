@@ -12,6 +12,7 @@ import {
   formatContactNumberInput as formatContactNumber,
 } from '@/lib/utils/format';
 
+import { InlineError } from '@/components/admin/ui/inline-error';
 // Mirrors AdminController::RELATIONSHIP_OPTIONS on the backend.
 const RELATIONSHIP_OPTIONS = ['Spouse', 'Parent', 'Sibling', 'Relative', 'Guardian', 'Friend', 'Other'];
 
@@ -183,14 +184,12 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
     }
   };
 
-  const inputClasses = "block min-h-11 w-full rounded-lg border border-[#2A3A55] bg-[#0E1628]/60 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 transition-colors focus:outline-none focus:ring-2 focus:ring-[#62A0EA]/50 disabled:opacity-50 admin-light:border-[#CBD5E1] admin-light:bg-slate-50 admin-light:text-slate-900 admin-light:placeholder:text-slate-400 admin-light:focus:ring-[#1A5FB4]/30";
+  const inputClasses = "block min-h-11 w-full rounded-lg border border-[#2A3A55] bg-[#0E1628] px-3 py-2.5 text-sm text-white placeholder:text-slate-500 transition-colors focus:outline-none focus:ring-2 focus:ring-[#62A0EA]/50 disabled:opacity-50 admin-light:border-[#CBD5E1] admin-light:bg-slate-50 admin-light:text-slate-900 admin-light:placeholder:text-slate-400 admin-light:focus:ring-[#1A5FB4]/30";
 
   return (
     <Modal adminThemed isOpen={isOpen} onClose={onClose} maxWidth="max-w-3xl" rounded="rounded-2xl">
       <header className="mb-4 flex items-center gap-3 border-b border-[#2A3A55] pb-4 pr-8 admin-light:border-[#E2E8F0]">
-        <div aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#62A0EA]/20 bg-[#62A0EA]/10 text-[#99C1F1] admin-light:border-[#1A5FB4]/15 admin-light:bg-[#1A5FB4]/5 admin-light:text-[#1A5FB4]">
-          <UserPlus size={23} strokeWidth={1.5} />
-        </div>
+        <UserPlus aria-hidden="true" size={28} strokeWidth={1.5} className="shrink-0 text-[#62A0EA] admin-light:text-[#1A5FB4]" />
         <div>
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#99C1F1] admin-light:text-[#1A5FB4]">Fleet Management</p>
           <h2 className="text-xl font-semibold tracking-tight text-white admin-light:text-slate-900">Create Conductor Account</h2>
@@ -199,13 +198,11 @@ export function CreateConductorAccountModal({ isOpen, onClose, onCreated }: Crea
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && (
-          <div role="alert" className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-            <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
-          </div>
+          <InlineError>{error}</InlineError>
         )}
 
         {/* Profile Picture Section */}
-        <div className="flex flex-wrap items-center gap-3 rounded-xl bg-[#0E1628]/60 p-3 admin-light:bg-slate-50">
+        <div className="flex flex-wrap items-center gap-3 rounded-xl bg-[#0E1628] p-3 admin-light:bg-slate-50">
           <UserAvatar src={useDefaultPicture ? null : profilePicture} alt="Conductor profile preview" className="h-14 w-14" iconClassName="h-6 w-6" sizes="56px" />
 
           <div className="min-w-0 flex-1 space-y-2">

@@ -17,6 +17,8 @@ import {
 import { defaultAppConfiguration, type AppConfiguration } from '@/app/(admin)/settings/data/settings-data';
 import { getSettings, updateSetting } from '@/lib/admin/services/setting.service';
 import { MAINTENANCE_ROLES, parseMaintenanceRoles, type MaintenanceRole } from '@/lib/maintenance';
+import { ADMIN_BUTTON, DetailRows, ModalKickerHeader } from '@/components/admin/ui/modal-parts';
+import { InlineError } from '@/components/admin/ui/inline-error';
 
 const ROLE_LABELS: Record<MaintenanceRole, string> = { COMMUTER: 'Commuters', CONDUCTOR: 'Conductors' };
 
@@ -130,53 +132,33 @@ function SaveConfirmation({
       }}
       className="fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-xl border border-[#23344F] admin-light:border-[#CBD5E1] bg-[#111A2B] admin-light:bg-white p-5 text-white admin-light:text-slate-900 shadow-2xl backdrop:bg-black/70 backdrop:backdrop-blur-sm"
     >
-      <span className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400 admin-light:text-amber-700">
-        <Save size={21} aria-hidden="true" />
-      </span>
-      <h2 id="config-confirm-title" className="text-lg font-semibold">
-        Save all configuration changes?
-      </h2>
-      <p id="config-confirm-description" className="mt-2 text-sm leading-relaxed text-slate-400 admin-light:text-slate-500">
-        {enabled
-          ? `Maintenance will apply to ${roles.map(role => ROLE_LABELS[role].toLowerCase()).join(' and ')}. They will see your notice when signing in. Admin access stays available.`
-          : 'Maintenance will be off. Commuters and conductors can sign in.'}
-      </p>
-      <p className="mt-2 text-sm leading-relaxed text-slate-400 admin-light:text-slate-500">
-        Valid ID will be {requireIdUpload ? 'required' : 'optional'} for regular commuter signup.
-        All changes apply after you confirm.
-      </p>
+      <ModalKickerHeader
+        kicker="Confirm action"
+        title="Save configuration?"
+        titleId="config-confirm-title"
+        description={<span id="config-confirm-description">All changes apply after you confirm. Admin access stays available.</span>}
+      />
+      <DetailRows
+        className="mt-4"
+        rows={[
+          { label: 'Maintenance', value: enabled ? `On · ${roles.map(role => ROLE_LABELS[role].toLowerCase()).join(', ')}` : 'Off' },
+          { label: 'Valid ID at signup', value: requireIdUpload ? 'Required' : 'Optional' },
+        ]}
+      />
       {enabled && (
-        <div className="mt-4 rounded-lg border border-[#23344F] admin-light:border-[#CBD5E1] bg-[#0E1628] admin-light:bg-[#F8FAFC] p-3">
-          <p className="text-xs font-medium text-slate-300 admin-light:text-slate-700">Message shown to users</p>
-          <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-400 admin-light:text-slate-500">
+        <div className="mt-4 rounded-md border border-[#2A3A55] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 admin-light:text-slate-500">Message shown to users</p>
+          <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-200 admin-light:text-slate-700">
             {message}
           </p>
         </div>
       )}
-      {error && (
-        <p
-          role="alert"
-          className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300 admin-light:text-red-700"
-        >
-          {error}
-        </p>
-      )}
-      <div className="mt-5 flex flex-wrap justify-end gap-2">
-        <button
-          type="button"
-          autoFocus
-          disabled={isSaving}
-          onClick={onCancel}
-          className="min-h-11 rounded-lg border border-[#23344F] admin-light:border-[#CBD5E1] px-4 text-sm font-medium text-slate-300 admin-light:text-slate-700 hover:bg-white/5 admin-light:hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8CB9F0] admin-light:focus-visible:ring-[#1A5FB4] disabled:opacity-50"
-        >
+      {error && <InlineError className="mt-4">{error}</InlineError>}
+      <div className="mt-5 flex flex-col-reverse gap-2 min-[380px]:flex-row">
+        <button type="button" autoFocus disabled={isSaving} onClick={onCancel} className={`flex-1 ${ADMIN_BUTTON.secondary}`}>
           Cancel
         </button>
-        <button
-          type="button"
-          disabled={isSaving}
-          onClick={onConfirm}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#62A0EA] admin-light:bg-[#1A5FB4] px-4 text-sm font-semibold text-white hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8CB9F0] admin-light:focus-visible:ring-[#1A5FB4] disabled:opacity-50"
-        >
+        <button type="button" disabled={isSaving} onClick={onConfirm} className={`flex-1 ${ADMIN_BUTTON.primary}`}>
           {isSaving && <LoaderCircle size={17} className="animate-spin" aria-hidden="true" />}
           {isSaving ? 'Saving...' : 'Confirm and save'}
         </button>

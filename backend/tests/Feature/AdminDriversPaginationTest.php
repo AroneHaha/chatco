@@ -107,6 +107,25 @@ class AdminDriversPaginationTest extends TestCase
         $suspendedOnly->assertOk()->assertJsonPath('data.total', 1);
     }
 
+    public function test_page_param_searches_by_full_name(): void
+    {
+        $admin = $this->makeAdmin();
+
+        $target = $this->makeDriver(1);
+        $target->update(['first_name' => 'Pedro', 'middle_name' => 'Santos', 'last_name' => 'Reyes']);
+        $this->makeDriver(2);
+
+        foreach (['Pedro Reyes', 'reyes pedro', 'Pedro Santos Reyes'] as $search) {
+            $response = $this->actingAs($admin)->getJson('/api/v1/admin/drivers?page=1&search='.urlencode($search));
+            $response->assertOk()->assertJsonPath('data.total', 1);
+            $this->assertSame($target->id, $response->json('data.data.0.id'));
+        }
+
+        $this->actingAs($admin)->getJson('/api/v1/admin/drivers?page=1&search='.urlencode('Pedro Driver'))
+            ->assertOk()
+            ->assertJsonPath('data.total', 0);
+    }
+
     public function test_page_param_forbidden_for_non_admin(): void
     {
         $conductor = User::create([

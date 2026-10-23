@@ -8,12 +8,19 @@ import type { CommuterProfile } from "@/types";
 import { UserAvatar } from "@/components/admin/ui/user-avatar";
 import ProfilePhotoCropper from "./profile-photo-cropper";
 
-export default function ProfilePhoto({ profile, onUploaded, className, helpId }: {
-  profile: CommuterProfile;
-  onUploaded: (profile: CommuterProfile) => void;
+type ProfilePhotoProps = {
   className: string;
   helpId?: string;
-}) {
+  iconClassName?: string;
+  sizes?: string;
+} & (
+  | { profile: CommuterProfile; onUploaded: (profile: CommuterProfile) => void; profileImageUrl?: never; onPhotoUploaded?: never; uploadPhoto?: never }
+  | { profileImageUrl: string | null | undefined; onPhotoUploaded: (url: string | null) => void; uploadPhoto: (file: File) => Promise<string | null>; profile?: never; onUploaded?: never }
+);
+
+export default function ProfilePhoto(props: ProfilePhotoProps) {
+  const { className, helpId, iconClassName, sizes } = props;
+  const profileImageUrl = props.uploadPhoto ? props.profileImageUrl : props.profile.profileImageUrl;
   const input = useRef<HTMLInputElement>(null);
   const busy = useRef(false);
   const mounted = useRef(true);
@@ -58,8 +65,13 @@ export default function ProfilePhoto({ profile, onUploaded, className, helpId }:
     busy.current = true;
     setUploading(true); setError("");
     try {
-      const updated = await uploadProfilePhoto(file);
-      if (mounted.current) onUploaded(updated);
+      if (!props.uploadPhoto) {
+        const updated = await uploadProfilePhoto(file);
+        if (mounted.current) props.onUploaded(updated);
+      } else {
+        const photoUrl = await props.uploadPhoto(file);
+        if (mounted.current) props.onPhotoUploaded(photoUrl);
+      }
     } catch (reason) {
       if (mounted.current) {
         const body = reason instanceof ApiError ? reason.body as { errors?: Record<string, string[]>; message?: string } : null;
@@ -72,16 +84,16 @@ export default function ProfilePhoto({ profile, onUploaded, className, helpId }:
   };
 
   return <div className="flex shrink-0 flex-col items-center gap-2">
-    <button type="button" className={`${className} disabled:opacity-50`} aria-label="Change profile photo" aria-describedby={helpId} disabled={uploading} onClick={() => input.current?.click()}>
+    <button type="button" className={`${className} cursor-pointer disabled:cursor-not-allowed disabled:opacity-50`} aria-label="Change profile photo" aria-describedby={helpId} disabled={uploading} onClick={() => input.current?.click()}>
       {/* The default person image shows until a photo is uploaded; the R2
           photo then covers it, served as a resized, cached copy rather than
           the full upload. */}
       <UserAvatar
-        src={profile.profileImageUrl}
+        src={profileImageUrl}
         alt="Your profile photo"
         className="h-full w-full"
-        iconClassName="h-10 w-10 sm:h-12 sm:w-12"
-        sizes="(min-width: 640px) 96px, 80px"
+        iconClassName={iconClassName ?? "h-10 w-10 sm:h-12 sm:w-12"}
+        sizes={sizes ?? "(min-width: 640px) 96px, 80px"}
         surfaceClassName="rounded-2xl"
       />
       <span aria-hidden="true" className="absolute -bottom-1.5 -right-1.5 flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#071A2E] bg-[#99C1F1] text-[#071A2E] light:border-white light:bg-[#1A5FB4] light:text-white"><Camera size={15} /></span>

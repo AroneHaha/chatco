@@ -1,10 +1,25 @@
 // components/conductor/remittance/OfficialReportModal.tsx
 import { type RemittanceRecord } from "@/lib/conductor/services/remittance.service";
 import { formatTime } from "@/lib/conductor/services/shift.service";
+import { FileText, X } from "lucide-react";
 import { fmt, fmtDate, fmtDateTime } from "@/app/(conductor)/conductor-dashboard/end-of-day/helpers";
-import { remittanceStatusVariant, REMITTANCE_STATUS_PILL_CLASSES } from "@/lib/shared/remittance-status";
+import { APP_DIALOG as D } from "@/components/shared/app-dialog-styles";
 
 interface OfficialReportModalProps { show: boolean; onClose: () => void; activeReport: RemittanceRecord; route: string; }
+
+/**
+ * Grand total = GCash + cash. `cashlessBreakdown` / `totalCashless` are NOT
+ * added on top: every GCASH payment is mapped to "GCash_Scanned"
+ * (lib/conductor/server/mappers.ts), so they hold the same money as
+ * `gcashTotal`, and adding them counted GCash twice. Prepaid and voucher no
+ * longer exist as separate methods. Matches the end-of-day summary and the
+ * admin remittance table (cash + GCash).
+ */
+function reportTotals(report: RemittanceRecord) {
+  const gcashTotal = report.gcashTotal ?? 0;
+  const cashTotal = report.cashTotal ?? 0;
+  return { gcashTotal, cashTotal, grandTotal: gcashTotal + cashTotal };
+}
 
 /** Escape text before interpolating it into the print HTML string — this is written via doc.write() into a live iframe, so unescaped `<`/`&` in a name or route would be parsed as markup. */
 function escapeHtml(value: string): string {
@@ -16,22 +31,8 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
-// Same status→category as the shared admin helper, re-skinned to this
-// printed report's own light-paper palette instead of Tailwind classes.
-const STATUS_PRINT_COLORS: Record<ReturnType<typeof remittanceStatusVariant>, { color: string; bg: string }> = {
-  success: { color: "#16a34a", bg: "#f0fdf4" },
-  info: { color: "#0284c7", bg: "#f0f9ff" },
-  warning: { color: "#d97706", bg: "#fffbeb" },
-  danger: { color: "#dc2626", bg: "#fef2f2" },
-  neutral: { color: "#475569", bg: "#f8fafc" },
-};
-
 export function buildPrintHTML(report: RemittanceRecord, route: string): string {
-  const { color: statusColor, bg: statusBg } = STATUS_PRINT_COLORS[remittanceStatusVariant(report.remittanceStatus)];
-
-  const gcashTotal = report.gcashTotal ?? 0;
-  const cashTotal = report.cashTotal ?? 0;
-  const grandTotal = gcashTotal + cashTotal + (report.totalCashless ?? 0);
+  const { gcashTotal, cashTotal, grandTotal } = reportTotals(report);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -166,16 +167,12 @@ export function buildPrintHTML(report: RemittanceRecord, route: string): string 
       font-weight: 600;
       color: #111;
     }
-    .status-badge {
+    .status-value {
       font-size: 10px;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.06em;
-      padding: 4px 10px;
-      border-radius: 999px;
-      background: ${statusBg};
-      color: ${statusColor};
-      border: 1px solid ${statusColor}33;
+      color: #475569;
     }
     .footer {
       text-align: center;
@@ -193,19 +190,6 @@ export function buildPrintHTML(report: RemittanceRecord, route: string): string 
       border-top: 1px solid #e2e8f0;
       margin: 16px 0;
     }
-    .dot {
-      display: inline-block;
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      margin-right: 8px;
-      vertical-align: middle;
-    }
-    .dot-blue { background: #3b82f6; }
-    .dot-green { background: #22c55e; }
-    .dot-amber { background: #f59e0b; }
-    .dot-purple { background: #a855f7; }
-    .dot-pink { background: #ec4899; }
   </style>
 </head>
 <body>
@@ -219,8 +203,8 @@ export function buildPrintHTML(report: RemittanceRecord, route: string): string 
     <div class="info-item"><label>Shift ID</label><span style="font-family:monospace">${escapeHtml(report.shiftId)}</span></div>
     <div class="info-item"><label>Conductor</label><span>${escapeHtml(report.conductorName)}</span></div>
     <div class="info-item"><label>Driver</label><span>${escapeHtml(report.driverName)}</span></div>
-    <div class="info-item"><label>Time In</label><span style="color:#16a34a">${escapeHtml(formatTime(report.timeIn))}</span></div>
-    <div class="info-item"><label>Time Out</label><span style="color:#dc2626">${escapeHtml(formatTime(report.timeOut))}</span></div>
+    <div class="info-item"><label>Time In</label><span>${escapeHtml(formatTime(report.timeIn))}</span></div>
+    <div class="info-item"><label>Time Out</label><span>${escapeHtml(formatTime(report.timeOut))}</span></div>
     <div class="info-item"><label>Unit Number</label><span>${escapeHtml(report.unitNumber)}</span></div>
     <div class="info-item"><label>Route</label><span>${escapeHtml(route)}</span></div>
   </div>
@@ -234,16 +218,13 @@ export function buildPrintHTML(report: RemittanceRecord, route: string): string 
     </thead>
     <tbody>
       <tr>
-        <td><span class="dot dot-blue"></span>GCash</td>
-        <td style="color:#2563eb">${fmt(gcashTotal)}</td>
+        <td>GCash</td>
+        <td>${fmt(gcashTotal)}</td>
       </tr>
       <tr>
-        <td><span class="dot dot-green"></span>Cash</td>
-        <td style="color:#16a34a">${fmt(cashTotal)}</td>
+        <td>Cash</td>
+        <td>${fmt(cashTotal)}</td>
       </tr>
-      ${report.cashlessBreakdown.gcashScanned > 0 ? `<tr><td><span class="dot dot-purple"></span>QR Scanned</td><td style="color:#a855f7">${fmt(report.cashlessBreakdown.gcashScanned)}</td></tr>` : ""}
-      ${report.cashlessBreakdown.gcashDirect > 0 ? `<tr><td><span class="dot dot-green"></span>Prepaid</td><td style="color:#22c55e">${fmt(report.cashlessBreakdown.gcashDirect)}</td></tr>` : ""}
-      ${report.cashlessBreakdown.voucher > 0 ? `<tr><td><span class="dot dot-amber"></span>Voucher</td><td style="color:#b45309">${fmt(report.cashlessBreakdown.voucher)}</td></tr>` : ""}
     </tbody>
     <tfoot>
       <tr>
@@ -267,7 +248,7 @@ export function buildPrintHTML(report: RemittanceRecord, route: string): string 
       <p class="status-label">Remittance Status</p>
       <p class="status-text">Submitted to Admin</p>
     </div>
-    <span class="status-badge">${escapeHtml(report.remittanceStatus)}</span>
+    <span class="status-value">${escapeHtml(report.remittanceStatus)}</span>
   </div>
 
   <div class="footer">
@@ -280,49 +261,70 @@ export function buildPrintHTML(report: RemittanceRecord, route: string): string 
 export default function OfficialReportModal({ show, onClose, activeReport, route }: OfficialReportModalProps) {
   if (!show) return null;
 
-  const gcashTotal = activeReport.gcashTotal ?? 0;
-  const cashTotal = activeReport.cashTotal ?? 0;
-  const grandTotal = gcashTotal + cashTotal + (activeReport.totalCashless ?? 0);
+  const { gcashTotal, cashTotal, grandTotal } = reportTotals(activeReport);
+  const details = [
+    { label: "Date", value: fmtDate(activeReport.date) },
+    { label: "Shift ID", value: activeReport.shiftId, mono: true },
+    { label: "Conductor", value: activeReport.conductorName },
+    { label: "Driver", value: activeReport.driverName },
+    { label: "Time in", value: formatTime(activeReport.timeIn) },
+    { label: "Time out", value: formatTime(activeReport.timeOut) },
+    { label: "Unit", value: activeReport.unitNumber },
+    { label: "Route", value: route },
+  ];
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-[#0F2135] border border-white/[0.08] rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl animate-slide-up max-h-[90vh] flex flex-col mb-16 sm:mb-0">
-        <div className="flex-shrink-0 px-6 pt-6 pb-4 border-b border-white/[0.06]"><div className="flex items-center justify-between"><div className="flex items-center gap-2"><div className="w-7 h-7 rounded-lg bg-[#1A5FB4] flex items-center justify-center"><svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg></div><h2 className="text-white font-bold text-sm">Official Report</h2></div><button onClick={onClose} className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-white/40 hover:bg-white/10 hover:text-white transition-all"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg></button></div></div>
-        <div className="flex-1 overflow-y-auto p-6 space-y-5">
-          <div className="text-center space-y-1"><h3 className="text-white font-extrabold text-xl tracking-wide">CHATCO</h3><p className="text-[10px] text-white/30 uppercase tracking-[0.2em] font-semibold">End of Day Remittance Report</p></div><div className="h-px bg-white/10" />
-          <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-            <div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Date</p><p className="text-xs font-semibold text-white/80 mt-0.5">{fmtDate(activeReport.date)}</p></div><div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Shift ID</p><p className="text-xs font-semibold text-white/80 mt-0.5 font-mono">{activeReport.shiftId}</p></div><div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Conductor</p><p className="text-xs font-semibold text-white/80 mt-0.5">{activeReport.conductorName}</p></div><div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Driver</p><p className="text-xs font-semibold text-white/80 mt-0.5">{activeReport.driverName}</p></div><div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Time In</p><p className="text-xs font-semibold text-emerald-400/80 mt-0.5">{formatTime(activeReport.timeIn)}</p></div><div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Time Out</p><p className="text-xs font-semibold text-red-400/80 mt-0.5">{formatTime(activeReport.timeOut)}</p></div><div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Unit Number</p><p className="text-xs font-semibold text-white/80 mt-0.5">{activeReport.unitNumber}</p></div><div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Route</p><p className="text-xs font-semibold text-white/80 mt-0.5">{route}</p></div>
-          </div>
-
-          {/* Payment Breakdown table */}
-          <div className="space-y-2">
-            <p className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Payment Breakdown</p>
-            <div className="bg-white/[0.03] border border-white/[0.05] rounded-xl overflow-hidden">
-              <table className="w-full">
-                <thead><tr className="border-b border-white/[0.06]"><th className="text-left text-[9px] font-bold text-white/30 uppercase tracking-wider px-3.5 py-2.5">Method</th><th className="text-right text-[9px] font-bold text-white/30 uppercase tracking-wider px-3.5 py-2.5">Amount</th></tr></thead>
-                <tbody className="divide-y divide-white/[0.03]">
-                  <tr><td className="px-3.5 py-2.5 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-blue-400" /><span className="text-xs text-white/60">GCash</span></td><td className="px-3.5 py-2.5 text-right text-xs font-bold text-blue-400 tabular-nums">{fmt(gcashTotal)}</td></tr>
-                  <tr><td className="px-3.5 py-2.5 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><span className="text-xs text-white/60">Cash</span></td><td className="px-3.5 py-2.5 text-right text-xs font-bold text-emerald-400 tabular-nums">{fmt(cashTotal)}</td></tr>
-                  {activeReport.cashlessBreakdown.gcashScanned > 0 && <tr><td className="px-3.5 py-2.5 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-purple-400" /><span className="text-xs text-white/60">QR Scanned</span></td><td className="px-3.5 py-2.5 text-right text-xs font-bold text-purple-400 tabular-nums">{fmt(activeReport.cashlessBreakdown.gcashScanned)}</td></tr>}
-                  {activeReport.cashlessBreakdown.gcashDirect > 0 && <tr><td className="px-3.5 py-2.5 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><span className="text-xs text-white/60">Prepaid</span></td><td className="px-3.5 py-2.5 text-right text-xs font-bold text-emerald-400 tabular-nums">{fmt(activeReport.cashlessBreakdown.gcashDirect)}</td></tr>}
-                  {activeReport.cashlessBreakdown.voucher > 0 && <tr><td className="px-3.5 py-2.5 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-amber-400" /><span className="text-xs text-white/60">Voucher</span></td><td className="px-3.5 py-2.5 text-right text-xs font-bold text-amber-400 tabular-nums">{fmt(activeReport.cashlessBreakdown.voucher)}</td></tr>}
-                </tbody>
-                <tfoot><tr className="bg-white/[0.03]"><td className="px-3.5 py-2.5 text-[10px] font-bold text-white/50 uppercase tracking-wider">Grand Total</td><td className="px-3.5 py-2.5 text-right text-sm font-extrabold text-white tabular-nums">{fmt(grandTotal)}</td></tr></tfoot>
-              </table>
-            </div>
-          </div>
-
-          <div className="h-px bg-white/[0.06]" />
-          <div className="flex items-center justify-between">
-            <div><span className="text-xs font-bold text-white/70 uppercase tracking-wider">Grand Total</span></div>
-            <span className="text-2xl font-extrabold text-[#62A0EA] tabular-nums">{fmt(grandTotal)}</span>
-          </div>
-          <div className="h-px bg-white/[0.06]" />
-          <div className="flex items-center justify-between bg-white/[0.03] border border-white/[0.05] rounded-xl px-4 py-3"><div><p className="text-[9px] font-bold text-white/25 uppercase tracking-wider">Remittance Status</p><p className="text-xs font-semibold text-white/60 mt-0.5">Submitted to Admin</p></div><span className={`text-[9px] font-bold uppercase tracking-wider border px-2.5 py-1 rounded-full ${REMITTANCE_STATUS_PILL_CLASSES[remittanceStatusVariant(activeReport.remittanceStatus)]}`}>{activeReport.remittanceStatus}</span></div>
-          <p className="text-[10px] text-white/15 text-center font-mono">Generated: {fmtDateTime()}</p>
+    <div className={D.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div role="dialog" aria-modal="true" aria-labelledby="official-report-title" className={`${D.panel} max-w-md overflow-hidden animate-fade-in`}>
+        <div className={`flex shrink-0 items-center gap-2.5 border-b px-5 py-4 pr-14 sm:px-6 ${D.hairline}`}>
+          <FileText size={22} aria-hidden="true" className={`shrink-0 ${D.blueIcon}`} />
+          <h2 id="official-report-title" className="text-base font-semibold text-white light:text-gray-900">Official report</h2>
+          <button type="button" onClick={onClose} aria-label="Close official report" className={D.close}><X size={18} /></button>
         </div>
-        <div className="flex-shrink-0 px-6 py-4 border-t border-white/[0.06] bg-[#0F2135]"><button onClick={onClose} className="w-full py-3 rounded-xl bg-white/5 border border-white/10 text-white/50 text-xs font-semibold hover:bg-white/10 transition-all">Close</button></div>
+
+        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
+          <div className="text-center">
+            <p className="text-xl font-bold tracking-[0.08em] text-white light:text-gray-900">CHATCO</p>
+            <p className={`mt-0.5 ${D.label}`}>End-of-day remittance report</p>
+          </div>
+
+          <dl className={`grid grid-cols-2 gap-x-4 gap-y-3 border-t pt-4 ${D.hairline}`}>
+            {details.map((item) => (
+              <div key={item.label} className="min-w-0">
+                <dt className={D.label}>{item.label}</dt>
+                <dd className={`mt-0.5 text-sm font-medium break-words text-white/90 light:text-gray-800 ${item.mono ? "font-mono text-xs" : ""}`}>{item.value}</dd>
+              </div>
+            ))}
+          </dl>
+
+          <section aria-labelledby="official-report-breakdown">
+            <h3 id="official-report-breakdown" className={D.label}>Payment breakdown</h3>
+            <dl className={`mt-1.5 divide-y border-y text-sm ${D.divide} ${D.hairline}`}>
+              <div className="flex items-baseline justify-between gap-4 py-2.5">
+                <dt className={D.muted}>GCash</dt>
+                <dd className="font-medium tabular-nums text-white light:text-gray-900">{fmt(gcashTotal)}</dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-4 py-2.5">
+                <dt className={D.muted}>Cash</dt>
+                <dd className="font-medium tabular-nums text-white light:text-gray-900">{fmt(cashTotal)}</dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-4 py-2.5">
+                <dt className="font-semibold text-white light:text-gray-900">Grand total</dt>
+                <dd className="text-lg font-bold tabular-nums text-white light:text-gray-900">{fmt(grandTotal)}</dd>
+              </div>
+            </dl>
+          </section>
+
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 text-sm">
+            <span className={D.muted}>Remittance status</span>
+            <span className="font-semibold text-white light:text-gray-900">{activeReport.remittanceStatus}</span>
+          </div>
+          <p className={`text-center font-mono text-[10px] ${D.muted}`}>Generated {fmtDateTime()}</p>
+        </div>
+
+        <div className={`shrink-0 border-t px-5 py-4 sm:px-6 ${D.hairline}`}>
+          <button type="button" onClick={onClose} className={`${D.button} ${D.secondary} w-full`}>Close</button>
+        </div>
       </div>
     </div>
   );

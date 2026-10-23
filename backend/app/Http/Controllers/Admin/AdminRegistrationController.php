@@ -47,7 +47,7 @@ use Illuminate\Validation\ValidationException;
  *
  * Thin controller — approve/reject business logic lives in AdminService.
  * store() is self-contained here because it mirrors AuthService::register()
- * but with admin-controlled fields (no email verification, gender optional).
+ * but with admin-controlled fields (no email verification, generated password).
  */
 class AdminRegistrationController extends Controller
 {
@@ -112,8 +112,8 @@ class AdminRegistrationController extends Controller
      * password but must set a new password before accessing any other feature.
      *
      * Mirrors AuthService::register() but:
-     *   - gender is optional (defaults to 'UNSPECIFIED') — the admin onsite
-     *     flow is faster and may not collect gender
+     *   - gender is required, same as self-registration; the onsite form
+     *     offers "Prefer not to say" for commuters who won't answer
      *   - no password collection: a random default password is generated,
      *     emailed to the commuter, and must be replaced at first sign-in
      *     (users.must_change_password, enforced by EnsurePasswordChanged)
@@ -138,7 +138,7 @@ class AdminRegistrationController extends Controller
             'middle_name' => ['nullable', 'string', 'max:100'],
             'surname' => ['required', 'string', 'max:100'],
             'birthdate' => ['required', 'date', 'before:today'],
-            'gender' => ['nullable', 'string', 'max:20'],
+            'gender' => ['required', 'string', 'max:20'],
             'email' => ['required', 'string', 'email:rfc', 'max:255'],
             'contact_number' => ['required', 'string', new PhilippineMobileNumber, new UniqueContactNumber],
             'username' => ['required', 'string', 'max:50', 'unique:commuter_profiles,username'],
@@ -215,7 +215,7 @@ class AdminRegistrationController extends Controller
                     'middle_name' => $validated['middle_name'] ?? null,
                     'surname' => $validated['surname'],
                     'birthdate' => $validated['birthdate'],
-                    'gender' => $validated['gender'] ?? 'UNSPECIFIED',
+                    'gender' => $validated['gender'],
                     'email' => $validated['email'],
                     'contact_number' => $validated['contact_number'],
                     'commuter_type' => $validated['applied_type'],

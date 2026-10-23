@@ -327,10 +327,7 @@ export default function ActivityLogsPage() {
           third of a small screen (same reasoning as the admin dashboard
           header). */}
       <StickyPageHeader className="flex shrink-0 items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#62A0EA]/15 admin-light:bg-[#1A5FB4]/10">
-            <History size={22} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />
-          </div>
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold leading-tight text-white admin-light:text-slate-900">Activity Logs</h1>
         </div>
         {/* Same single Export dropdown as Receipts and Analytics. Exports

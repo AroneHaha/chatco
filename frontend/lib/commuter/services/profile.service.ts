@@ -27,7 +27,7 @@ import { api } from "@/lib/api/client";
 import { createPasswordChangeClient } from "@/lib/shared/services/password-change.service";
 import { COMMUTER_API } from "@/lib/commuter/endpoints";
 import { compressImage, IMAGE_COMPRESSION } from "@/lib/utils/compress-image";
-import type { AccountStatus, CommuterProfile, CommuterType } from "@/types";
+import { toCommuterType, type AccountStatus, type CommuterProfile } from "@/types";
 
 // ─── Raw backend shapes ──────────────────────────────────────────────
 
@@ -101,8 +101,8 @@ function mapProfile(raw: ProfilePayload): CommuterProfile {
     birthdate: p.birthdate ?? "",
     gender: p.gender ?? "",
     contactNumber: p.contact_number ?? "",
-    commuterType: (p.commuter_type as CommuterType) ?? "REGULAR",
-    appliedType: (p.applied_type as CommuterType | null) ?? undefined,
+    commuterType: toCommuterType(p.commuter_type) ?? "REGULAR",
+    appliedType: toCommuterType(p.applied_type),
     username: p.username ?? "",
     languagePreference: p.language_preference ?? "English",
     accountStatus:

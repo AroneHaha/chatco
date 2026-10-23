@@ -19,22 +19,6 @@ interface ViewItemModalProps {
   isActing?: boolean;
 }
 
-/** Status as coloured text (no badge), same colour mapping the grid uses. */
-const getStatusTextClass = (status: LostFoundItem['status']): string => {
-  switch (status) {
-    case 'Released':
-    case 'Returned':
-    case 'Closed':
-      return 'text-emerald-300 admin-light:text-emerald-700';
-    case 'Claimed':
-      return 'text-[#8CB9F0] admin-light:text-[#1A5FB4]';
-    case 'Expired':
-    case 'Rejected':
-      return 'text-red-300 admin-light:text-red-700';
-    default:
-      return 'text-amber-300 admin-light:text-amber-700';
-  }
-};
 
 const categoryLabels = Object.fromEntries(itemCategories.map((category) => [category.value, category.label]));
 
@@ -162,7 +146,7 @@ export function ViewItemModal({
       type="button"
       onClick={() => fileInputRef.current?.click()}
       disabled={isPhotoBusy}
-      className={`flex h-full w-full flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-white/15 admin-light:border-[#CBD5E1] bg-white/[0.03] admin-light:bg-[#F8FAFC] px-2 text-center text-slate-400 admin-light:text-slate-500 transition-colors hover:border-[#62A0EA] admin-light:hover:border-[#1A5FB4] hover:text-[#8CB9F0] admin-light:hover:text-[#1A5FB4] focus:outline-none focus-visible:border-[#62A0EA] admin-light:focus-visible:border-[#1A5FB4] disabled:cursor-not-allowed disabled:opacity-50 ${large ? 'lg:px-6' : ''}`}
+      className={`flex h-full w-full flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#2A3A55] admin-light:border-[#CBD5E1] bg-[#131C2E] admin-light:bg-[#F8FAFC] px-2 text-center text-slate-400 admin-light:text-slate-500 transition-colors hover:border-[#62A0EA] admin-light:hover:border-[#1A5FB4] hover:text-[#8CB9F0] admin-light:hover:text-[#1A5FB4] focus:outline-none focus-visible:border-[#62A0EA] admin-light:focus-visible:border-[#1A5FB4] disabled:cursor-not-allowed disabled:opacity-50 ${large ? 'lg:px-6' : ''}`}
     >
       {isUploading ? (
         <span className="h-5 w-5 rounded-full border-2 border-current border-t-transparent animate-spin" aria-hidden="true" />
@@ -237,7 +221,7 @@ export function ViewItemModal({
         </p>
         <h2 className="break-words text-xl font-bold leading-tight text-white admin-light:text-slate-900 sm:text-2xl">{item.itemName}</h2>
         <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          <span className={`text-sm font-semibold ${getStatusTextClass(item.status)}`}>{item.status}</span>
+          <span className={`text-sm font-semibold text-slate-200 admin-light:text-slate-800`}>{item.status}</span>
           <span className="text-xs text-slate-500">Posted {formattedDate}</span>
         </div>
       </header>
@@ -308,7 +292,7 @@ export function ViewItemModal({
                     aria-label={isIdCopied ? 'Item ID copied' : 'Copy item ID'}
                     title={isIdCopied ? 'Copied' : 'Copy item ID'}
                   >
-                    {isIdCopied ? <Check className="h-3.5 w-3.5 text-emerald-400 admin-light:text-emerald-700" /> : <Copy className="h-3.5 w-3.5" />}
+                    {isIdCopied ? <Check className="h-3.5 w-3.5 text-[#62A0EA] admin-light:text-[#1A5FB4]" /> : <Copy className="h-3.5 w-3.5" />}
                   </button>
                 </span>
               </RecordRow>

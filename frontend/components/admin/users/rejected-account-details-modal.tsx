@@ -66,7 +66,6 @@ export function RejectedAccountDetailsModal({ isOpen, onClose, request }: Reject
               <p className={styles.personName}>{request.name}</p>
               <p className={styles.personMeta}>
                 <span>
-                  <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-red-400" />
                   Rejected
                 </span>
                 {request.commuterType && <span>{request.commuterType}</span>}

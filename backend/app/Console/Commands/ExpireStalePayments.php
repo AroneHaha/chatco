@@ -15,15 +15,18 @@ use Illuminate\Support\Facades\Log;
  * remain the primary mechanisms; this only covers rows nobody is looking at.
  *
  *   - stale PENDING rows: reconciled with the provider first (the commuter
- *     may already have authorized), then expired if still PENDING;
- *   - PROCESSING rows: reconciled only — they are never expired, because
+ *     may already have authorized), then cancelled if still PENDING;
+ *   - PROCESSING rows: reconciled only — they are never cancelled, because
  *     PayMongo can still settle them.
+ *
+ * A grouped payment is handled once, through the payer's row that holds the
+ * provider reference: its companion receipts have none to reconcile with.
  */
 class ExpireStalePayments extends Command
 {
     protected $signature = 'payments:expire-stale';
 
-    protected $description = 'Reconcile unresolved GCash payments with the provider and expire abandoned pending ones';
+    protected $description = 'Reconcile unresolved GCash payments with the provider and cancel abandoned pending ones';
 
     public function __construct(private PaymentService $payments)
     {
@@ -33,9 +36,10 @@ class ExpireStalePayments extends Command
     public function handle(): int
     {
         $ttl = max(1, (int) config('payments.gcash_claim_ttl_minutes', 10));
-        $expired = 0;
+        $cancelled = 0;
         $reconciled = 0;
         $failed = 0;
+        $handled = [];
 
         Transaction::query()
             ->where('payment_method', PaymentMethod::GCASH->value)
@@ -47,18 +51,27 @@ class ExpireStalePayments extends Command
                     });
             })
             ->orderBy('transaction_id')
-            ->chunkById(100, function ($transactions) use (&$expired, &$reconciled, &$failed): void {
+            ->chunkById(100, function ($transactions) use (&$cancelled, &$reconciled, &$failed, &$handled): void {
                 foreach ($transactions as $transaction) {
                     try {
-                        $before = $transaction->status;
-                        $result = $this->payments->reconcileIfDue($transaction);
+                        $gatewayRow = $this->payments->gatewayRowFor($transaction);
+                        if (isset($handled[$gatewayRow->transaction_id])) {
+                            continue;
+                        }
+                        $handled[$gatewayRow->transaction_id] = true;
+
+                        $before = $gatewayRow->status;
+                        $result = $this->payments->reconcileIfDue($gatewayRow);
                         if ($result->status !== $before) {
                             $reconciled++;
                         }
 
-                        $result = $this->payments->expireIfStale($result);
-                        if ($result->status === PaymentStatus::EXPIRED) {
-                            $expired++;
+                        // Eligibility is judged on the queried GCash row (fresh,
+                        // after reconciliation); the payment itself is cancelled
+                        // through its payer's row.
+                        $result = $this->payments->cancelIfStale($transaction->fresh());
+                        if ($result->status === PaymentStatus::CANCELLED) {
+                            $cancelled++;
                         }
                     } catch (\Throwable $error) {
                         $failed++;
@@ -71,7 +84,7 @@ class ExpireStalePayments extends Command
                 }
             }, 'transaction_id', 'transaction_id');
 
-        $this->info("Payment expiration summary: reconciled={$reconciled}, expired={$expired}, failed={$failed}.");
+        $this->info("Payment expiration summary: reconciled={$reconciled}, cancelled={$cancelled}, failed={$failed}.");
 
         return $failed > 0 ? self::FAILURE : self::SUCCESS;
     }

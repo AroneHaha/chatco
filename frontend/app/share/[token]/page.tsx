@@ -8,7 +8,7 @@ import dynamic from "next/dynamic";
 const TrackingMap = dynamic<{
   commuters?: import("@/components/admin/admin-commuter-map").CommuterData[];
   liveVehicles?: import("@/components/admin/admin-commuter-map").LiveVehicleMarker[];
-  sosLocations?: [number, number][];
+  sosLocations?: import("@/components/admin/admin-commuter-map").SosMapMarker[];
 }>(() => import("@/components/admin/admin-commuter-map"), {
   ssr: false,
   loading: () => <div className="w-full h-full bg-[#050F1A] flex items-center justify-center"><Loader2 className="w-8 h-8 text-[#62A0EA] animate-spin" /></div>,

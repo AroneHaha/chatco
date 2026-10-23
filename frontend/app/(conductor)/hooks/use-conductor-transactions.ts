@@ -14,7 +14,15 @@ interface TransactionSummary {
   total: number;
 }
 
-function summarizeTransactions(transactions: Transaction[]): TransactionSummary {
+function summarizeTransactions(allTransactions: Transaction[]): TransactionSummary {
+  // Only settled fares count, matching the backend's PAID-only earnings. A
+  // GCash fare is created PENDING at the full amount, so counting it early
+  // flashes that amount in the GCash total until the commuter pays — or
+  // covers it with a voucher and it drops to 0. Offline cash fares have no
+  // server status yet and are counted as recorded.
+  const transactions = allTransactions.filter(
+    (txn) => txn.paymentStatus === undefined || txn.paymentStatus === "PAID"
+  );
   const gcash = transactions
     .filter(
       (txn) =>

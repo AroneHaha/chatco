@@ -6,6 +6,7 @@ import { Modal } from '@/components/admin/ui/modal';
 import { Info, User, UserCheck } from 'lucide-react';
 import type { Vehicle } from '@/app/(admin)/vehicles/data/vehicles-data';
 
+import { InlineError } from '@/components/admin/ui/inline-error';
 interface EditVehicleModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -146,9 +147,7 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && (
-          <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-md">
-            <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
-          </div>
+          <InlineError>{error}</InlineError>
         )}
 
         <div>
@@ -206,7 +205,7 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
             <option value="INACTIVE" className="bg-gray-800 admin-light:bg-white">Out of Service / Damaged</option>
           </select>
           {currentStatusLabel !== 'Operating' && (
-            <p className="text-xs text-amber-400 admin-light:text-amber-700 mt-1">
+            <p className="text-xs text-slate-400 admin-light:text-slate-500 mt-1">
               Currently marked as: {currentStatusLabel}
             </p>
           )}
@@ -239,7 +238,7 @@ export function EditVehicleModal({ isOpen, onClose, onSaved, editingVehicle }: E
           </div>
         </div>
 
-        <div className="flex items-start gap-2.5 bg-[#62A0EA]/8 admin-light:bg-[#1A5FB4]/8 border border-[#62A0EA]/20 admin-light:border-[#1A5FB4]/20 rounded-md px-3.5 py-2.5">
+        <div className="flex items-start gap-2.5 bg-[#131C2E] admin-light:bg-[#F8FAFC] border border-[#2A3A55] admin-light:border-[#E2E8F0] rounded-md px-3.5 py-2.5">
           <Info size={15} className="text-[#62A0EA] admin-light:text-[#1A5FB4] flex-shrink-0 mt-0.5" />
           <p className="text-[11px] text-slate-300 admin-light:text-slate-700 leading-relaxed">
             Driver and conductor are assigned automatically when a conductor logs in and starts a

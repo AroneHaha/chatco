@@ -394,7 +394,7 @@ export function EditLostFoundModal({
       type="button"
       onClick={() => openPhotoPicker(null)}
       disabled={isSaving}
-      className={`flex h-full w-full flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-white/15 admin-light:border-[#CBD5E1] bg-white/[0.03] admin-light:bg-[#F8FAFC] px-2 text-center text-slate-400 admin-light:text-slate-500 transition-colors hover:border-[#62A0EA] admin-light:hover:border-[#1A5FB4] hover:text-[#8CB9F0] admin-light:hover:text-[#1A5FB4] focus:outline-none focus-visible:border-[#62A0EA] admin-light:focus-visible:border-[#1A5FB4] disabled:cursor-not-allowed disabled:opacity-50 ${large ? 'lg:px-6' : ''}`}
+      className={`flex h-full w-full flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#2A3A55] admin-light:border-[#CBD5E1] bg-[#131C2E] admin-light:bg-[#F8FAFC] px-2 text-center text-slate-400 admin-light:text-slate-500 transition-colors hover:border-[#62A0EA] admin-light:hover:border-[#1A5FB4] hover:text-[#8CB9F0] admin-light:hover:text-[#1A5FB4] focus:outline-none focus-visible:border-[#62A0EA] admin-light:focus-visible:border-[#1A5FB4] disabled:cursor-not-allowed disabled:opacity-50 ${large ? 'lg:px-6' : ''}`}
     >
       <ImagePlus className={large ? 'h-5 w-5 lg:h-6 lg:w-6' : 'h-5 w-5'} aria-hidden="true" />
       {large ? (
