@@ -172,9 +172,13 @@ class AppServiceProvider extends ServiceProvider
                 ->response($rateLimitResponse);
         });
 
-        // Admin read endpoints (e.g. user list/detail) — 60 req/min.
+        // Admin read endpoints (lists, details, filters) — 240 req/min per
+        // admin. These used to share conductor-read's 60/min bucket, so one
+        // page load (list + side queries), the notification poll and a few
+        // quick filter clicks could exhaust it. Aborted client requests still
+        // count here, so the headroom absorbs bursts while staying bounded.
         RateLimiter::for('admin-read', function (Request $request) use ($rateLimitResponse) {
-            return Limit::perMinute(60)
+            return Limit::perMinute(240)
                 ->by($request->user()?->id ?: $request->ip())
                 ->response($rateLimitResponse);
         });
