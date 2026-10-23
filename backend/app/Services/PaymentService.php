@@ -194,6 +194,8 @@ class PaymentService
      * Shared by status polling, the conductor's pending-payment lookup and
      * the payments:expire-stale scheduled job, so a delayed payment keeps
      * being reconciled even after the conductor closes the QR screen.
+     * Grouped payments are reconciled through their payer's row (see
+     * gatewayRowFor()); companion receipts have no reference of their own.
      *
      * Triggers for:
      *   - PENDING GCash rows (the common case — commuter is mid-checkout),
@@ -404,16 +406,23 @@ class PaymentService
     }
 
     /**
-     * Lazily expire a stale PENDING GCash transaction.
+     * Lazily cancel a stale PENDING GCash transaction.
      *
-     * Nothing proactively flips PENDING → EXPIRED (no cron on shared
-     * hosting), so every read path that cares about freshness calls this:
-     * status polling, the pending-resume lookup, and initiate's reuse check.
-     * Past the claim TTL the row is transitioned through the state machine
-     * (broadcasts PaymentStatusUpdated like any other change); otherwise the
-     * transaction is returned untouched.
+     * Every read path that cares about freshness calls this (status polling,
+     * the pending-resume lookup, initiate's reuse check, claim) and so does
+     * the payments:expire-stale job. Past the claim TTL the payment is
+     * cancelled through cancel(), which closes it at the provider first: a
+     * timed-out QR can then no longer be paid after the conductor has given
+     * up on it (and possibly collected cash instead). cancel() checks the
+     * provider's truth when the close is refused, so a payment that was paid
+     * or is still processing is recorded as such, never cancelled.
+     *
+     * A grouped payment is cancelled through the payer's row, the only one
+     * holding the provider reference. When the provider can't be reached the
+     * row stays PENDING and the next poll or job run retries, throttled per
+     * payment so pollers don't hammer the provider.
      */
-    public function expireIfStale(Transaction $transaction): Transaction
+    public function cancelIfStale(Transaction $transaction): Transaction
     {
         if ($transaction->status !== PaymentStatus::PENDING) {
             return $transaction;
@@ -426,11 +435,66 @@ class PaymentService
         $ttlMinutes = (int) config('payments.gcash_claim_ttl_minutes', 10);
         $createdAt = $transaction->created_at;
 
-        if ($createdAt && $createdAt->copy()->addMinutes($ttlMinutes)->isPast()) {
-            return $this->transitionTo($transaction, PaymentStatus::EXPIRED);
+        if (! $createdAt || $createdAt->copy()->addMinutes($ttlMinutes)->isFuture()) {
+            return $transaction;
         }
 
-        return $transaction;
+        $gatewayRow = $this->gatewayRowFor($transaction);
+        $throttleSeconds = max(5, (int) config('payments.reconcile_throttle_seconds', 30));
+        if (! Cache::add("payment.stale-cancel.{$gatewayRow->transaction_id}", now()->timestamp, $throttleSeconds)) {
+            return $transaction; // another reader is cancelling it (or just tried)
+        }
+
+        try {
+            $this->cancel($gatewayRow);
+        } catch (PaymentGatewayException $e) {
+            Log::warning('Stale payment cancellation deferred', [
+                'transaction_id' => $gatewayRow->transaction_id,
+                'reference' => $gatewayRow->payment_reference,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $transaction->fresh();
+    }
+
+    /**
+     * The row that carries a payment's provider reference: the transaction
+     * itself, or for a grouped payment the payer's row (companion receipts
+     * never hold one). Falls back to the given row when no reference exists
+     * yet, e.g. a group QR nobody has claimed.
+     */
+    public function gatewayRowFor(Transaction $transaction): Transaction
+    {
+        if (! $transaction->group_id || $transaction->payment_reference) {
+            return $transaction;
+        }
+
+        return Transaction::query()
+            ->where('group_id', $transaction->group_id)
+            ->whereNotNull('payment_reference')
+            ->first() ?? $transaction;
+    }
+
+    /**
+     * Close a provider payment that is being replaced, without touching local
+     * state. Returns the provider's status afterwards: CANCELLED once it can
+     * no longer be paid, or PAID/PROCESSING when the commuter already paid or
+     * is paying it, in which case it must not be replaced.
+     *
+     * @throws PaymentGatewayException when the provider can't be reached
+     */
+    public function voidIntent(string $reference): PaymentStatus
+    {
+        try {
+            return $this->gateway->cancelIntent($reference);
+        } catch (PaymentGatewayException $cancelError) {
+            try {
+                return $this->gateway->retrieveStatus($reference);
+            } catch (PaymentGatewayException) {
+                throw $cancelError;
+            }
+        }
     }
 
     /**
@@ -551,23 +615,28 @@ class PaymentService
             $attributes['payment_reconciliation_resolved_at'] = now();
         }
 
-        // A row can carry a voucher_id before the group's GCash charge actually
+        // A row can carry a voucher_id before the GCash charge actually
         // settles — TransactionService::redeemVoucherForGcash() applies the
-        // voucher to the payer's own portion of a grouped ride immediately (so
-        // it can't be double-spent) while the remaining companions' charge is
-        // still PENDING. If that charge never completes (FAILED/CANCELLED/
-        // EXPIRED instead of PAID), the voucher must be handed back — otherwise
-        // a commuter loses a real reward for a ride that never happened.
+        // voucher to the payer's own fare immediately (so it can't be
+        // double-spent) while the remaining charge is still PENDING. If that
+        // charge never completes (FAILED/CANCELLED/EXPIRED instead of PAID),
+        // the voucher must be handed back — otherwise a commuter loses a real
+        // reward for a ride that never happened. The row is unlinked too:
+        // transactions.voucher_id is unique, so a released voucher still
+        // linked here could never be redeemed again.
         if (in_array($target, [PaymentStatus::FAILED, PaymentStatus::CANCELLED, PaymentStatus::EXPIRED], true)) {
-            $voucherIdsToRelease = $transactions
-                ->filter(fn (Transaction $item): bool => $item->voucher_id !== null && $item->status !== PaymentStatus::PAID)
-                ->pluck('voucher_id');
+            $voucherRows = $transactions
+                ->filter(fn (Transaction $item): bool => $item->voucher_id !== null && $item->status !== PaymentStatus::PAID);
 
-            if ($voucherIdsToRelease->isNotEmpty()) {
+            if ($voucherRows->isNotEmpty()) {
                 Voucher::query()
-                    ->whereIn('id', $voucherIdsToRelease)
+                    ->whereIn('id', $voucherRows->pluck('voucher_id'))
                     ->where('status', 'USED')
                     ->update(['status' => Voucher::STATUS_AVAILABLE]);
+
+                Transaction::query()
+                    ->whereIn('transaction_id', $voucherRows->pluck('transaction_id'))
+                    ->update(['voucher_id' => null]);
             }
         }
 
@@ -576,6 +645,17 @@ class PaymentService
             ->update($attributes);
 
         if ($target === PaymentStatus::PAID) {
+            // A payer whose whole fare a voucher covered stays a GCash row
+            // while the companions' charge is owed (so polling, expiry and
+            // cancellation keep handling it); once that charge settles, the
+            // payer's seat is recorded as the voucher ride it is.
+            Transaction::query()
+                ->whereIn('transaction_id', $transactions->pluck('transaction_id'))
+                ->whereNotNull('voucher_id')
+                ->where('final_amount', '<=', 0)
+                ->where('payment_method', PaymentMethod::GCASH->value)
+                ->update(['payment_method' => PaymentMethod::VOUCHER->value]);
+
             $rewardableTransactions = Transaction::query()
                 ->whereIn('transaction_id', $transactions->pluck('transaction_id'))
                 ->whereNotNull('passenger_id')

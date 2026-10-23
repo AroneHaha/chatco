@@ -709,9 +709,8 @@ class TransactionService
      * The row is reconciled with the provider first (throttled), so a
      * delayed payment keeps being checked whenever the conductor opens the
      * fare screen, even with the QR screen closed and no scheduler running.
-     * Stale PENDING rows are then lazily flipped to EXPIRED (through the
-     * payment state machine), so callers never resume a QR that can no
-     * longer be claimed.
+     * Stale PENDING rows are then lazily cancelled (closed at the provider
+     * first), so callers never resume a QR that can no longer be claimed.
      */
     private function findActiveGcashForShift(string $shiftId): ?Transaction
     {
@@ -727,7 +726,7 @@ class TransactionService
         }
 
         $transaction = $this->paymentService->reconcileIfDue($transaction);
-        $transaction = $this->paymentService->expireIfStale($transaction);
+        $transaction = $this->paymentService->cancelIfStale($transaction);
 
         return $transaction->status->isPending() ? $transaction : null;
     }
@@ -941,11 +940,7 @@ class TransactionService
 
             $createdAt = $transaction->created_at;
             if ($createdAt && $createdAt->diffInMinutes(now()) > $this->claimTtlMinutes()) {
-                // Flip the row to EXPIRED so the DB matches the 410 we return —
-                // the conductor's status poll then sees EXPIRED and can restart.
-                $this->paymentService->expireIfStale($transaction);
-
-                return ['expired' => true];
+                return ['expired' => true, 'transaction' => $transaction];
             }
 
             // Idempotent: same commuter already claimed -> return the transaction
@@ -1077,6 +1072,12 @@ class TransactionService
         }, 3);
 
         if (($result['expired'] ?? false) === true) {
+            // Cancel the timed-out payment so the DB matches the 410 we return
+            // and the conductor's status poll sees it end. Done after the claim
+            // transaction: cancelling calls the provider and takes the shift
+            // lock, which must not happen while this row lock is held.
+            $this->paymentService->cancelIfStale($result['transaction']);
+
             abort(410, 'Transaction has expired');
         }
 
@@ -1699,6 +1700,16 @@ class TransactionService
      * expires, or is cancelled, transitionLocked() hands the voucher back
      * automatically — see the comment there.
      *
+     * While a charge is still owed the payer's row stays a GCASH row even
+     * when the voucher covers their whole fare: it holds the group's provider
+     * reference, and polling, reconciliation, timeout cancellation and the
+     * conductor's cancel all act on GCash rows only. transitionLocked()
+     * relabels it VOUCHER once the group settles.
+     *
+     * The checkout the claim created for the old amount is closed before the
+     * voucher is applied, so it can't also be paid. If the commuter already
+     * paid or is paying it, nothing changes and the voucher stays available.
+     *
      * @throws HttpException 404 (transaction not found), 403 (not this
      *                       commuter's transaction), 422 (not GCash, or no
      *                       eligible voucher), 409 (no longer redeemable —
@@ -1751,19 +1762,19 @@ class TransactionService
             $payerAmount = (float) $transaction->final_amount;
             $voucherDiscount = $voucher->discountForFare($payerAmount);
             $remainingPayerFare = round($payerAmount - $voucherDiscount, 2);
+            $remaining = $group ? round((float) $group->total_amount - $voucherDiscount, 2) : $remainingPayerFare;
 
             $voucher->update(['status' => 'USED']);
 
             $updates = [
-                'payment_method' => $remainingPayerFare > 0 ? PaymentMethod::GCASH->value : PaymentMethod::VOUCHER->value,
+                'payment_method' => $remaining > 0 ? PaymentMethod::GCASH->value : PaymentMethod::VOUCHER->value,
                 'voucher_id' => $voucher->id,
                 'final_amount' => $remainingPayerFare,
                 'discount_amount' => round((float) ($transaction->base_fare ?? $payerAmount) - $remainingPayerFare, 2),
                 'reward_eligible' => false,
             ];
 
-            $remaining = $group ? round((float) $group->total_amount - $voucherDiscount, 2) : $remainingPayerFare;
-
+            $intent = null;
             if ($remaining > 0) {
                 try {
                     $intent = $this->paymentService->createIntentFor(
@@ -1781,6 +1792,10 @@ class TransactionService
                 $updates['status'] = PaymentStatus::PAID->value;
                 $updates['paid_at'] = now();
             }
+
+            if ($transaction->payment_reference) {
+                $this->voidReplacedPayment($transaction->payment_reference, $intent?->reference);
+            }
             if ($group) {
                 $group->update(['total_amount' => max($remaining, 0)]);
             }
@@ -1790,5 +1805,50 @@ class TransactionService
 
             return $this->formatClaimResponse($transaction);
         }, 3);
+    }
+
+    /**
+     * Close the checkout a voucher is replacing so the old amount can't also
+     * be paid. Aborting rolls the redemption back (the voucher stays
+     * AVAILABLE) and closes the replacement checkout, which nobody has seen.
+     *
+     * @throws HttpException 409 (the old checkout is already paid or being
+     *                       paid), 502 (the provider can't be reached)
+     */
+    private function voidReplacedPayment(string $oldReference, ?string $newReference): void
+    {
+        try {
+            $status = $this->paymentService->voidIntent($oldReference);
+        } catch (PaymentGatewayException $e) {
+            report($e);
+            $this->discardIntent($newReference);
+            abort(502, 'Unable to update the GCash payment. Please try again.');
+        }
+
+        if (in_array($status, [PaymentStatus::CANCELLED, PaymentStatus::FAILED], true)) {
+            return;
+        }
+
+        $this->discardIntent($newReference);
+
+        if (in_array($status, [PaymentStatus::PAID, PaymentStatus::PROCESSING], true)) {
+            abort(409, 'Your GCash payment for this ride is already being processed.');
+        }
+
+        abort(502, 'Unable to update the GCash payment. Please try again.');
+    }
+
+    /** Best-effort close of a checkout that was created but will never be used. */
+    private function discardIntent(?string $reference): void
+    {
+        if ($reference === null) {
+            return;
+        }
+
+        try {
+            $this->paymentService->voidIntent($reference);
+        } catch (PaymentGatewayException $e) {
+            report($e);
+        }
     }
 }
