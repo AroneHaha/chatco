@@ -12,6 +12,7 @@ import {
   formatContactNumberInput as formatContactNumber,
 } from '@/lib/utils/format';
 
+import { InlineError } from '@/components/admin/ui/inline-error';
 interface EditUserModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -180,7 +181,7 @@ export function EditUserModal({ isOpen, onClose, onSave, editingUser }: EditUser
       </div>
       {isCommuter && editingUser && (
         <div className={`hidden lg:flex items-center gap-4 mt-6 mb-6 ${styles.profile}`}>
-          <div className={`flex shrink-0 items-center justify-center rounded-full border border-sky-400/25 ${styles.avatar}`}>
+          <div className={`flex shrink-0 items-center justify-center rounded-full border ${styles.avatar}`}>
             {editingUser.name.charAt(0)}
           </div>
           <div className={styles.identity}>
@@ -297,7 +298,7 @@ export function EditUserModal({ isOpen, onClose, onSave, editingUser }: EditUser
 
         {/* Conductor/Admin info note — explains why contact/DOB are absent */}
         {(isAdmin || isConductor) && !isDriver && (
-          <div className="p-3 bg-[#62A0EA]/5 admin-light:bg-[#1A5FB4]/5 border border-[#62A0EA]/20 admin-light:border-[#1A5FB4]/20 rounded-md">
+          <div className="p-3 bg-[#131C2E] admin-light:bg-[#F8FAFC] border border-[#2A3A55] admin-light:border-[#E2E8F0] rounded-md">
             <p className="text-xs text-slate-400 admin-light:text-slate-500">
               {isAdmin
                 ? 'Admin accounts don\'t have a status or contact number. Only the name is editable here.'
@@ -307,9 +308,7 @@ export function EditUserModal({ isOpen, onClose, onSave, editingUser }: EditUser
         )}
 
         {error && (
-          <div className={`bg-red-500/10 border border-red-500/30 rounded-md p-3 ${styles.formError}`}>
-            <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
-          </div>
+          <InlineError className={styles.formError}>{error}</InlineError>
         )}
 
         <div className={`flex justify-end gap-2 pt-4 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] ${styles.actions}`}>

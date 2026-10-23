@@ -7,8 +7,9 @@ import { UserAvatar } from '@/components/admin/ui/user-avatar';
 import sheet from './commuter-details.module.css';
 import { AlertTriangle, LoaderCircle, ZoomIn, X, IdCard, User, FileText, ExternalLink, Check } from 'lucide-react';
 import type { PendingRequest } from '@/app/(admin)/users/data/users-data';
-import { DISCOUNT_CATEGORIES, discountStatusLabel, educationSummary, schoolYearSummary, type DiscountApplication, type RenewalStatus } from '@/lib/shared/services/student-renewal.service';
+import { DISCOUNT_CATEGORIES, discountStatusLabel, educationSummary, schoolYearSummary, type DiscountApplication } from '@/lib/shared/services/student-renewal.service';
 
+import { InlineError } from '@/components/admin/ui/inline-error';
 function formatDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
@@ -53,10 +54,6 @@ const RENEWAL_DECISIONS = [
 type RenewalDecision = typeof RENEWAL_DECISIONS[number]['value'];
 
 // Rail status dot; unknown statuses fall back to neutral, never to success.
-const DISCOUNT_STATUS_DOT: Partial<Record<RenewalStatus, string>> = {
-  PENDING: 'bg-amber-400', NEEDS_CORRECTION: 'bg-amber-400', APPROVED: 'bg-emerald-400', REJECTED: 'bg-red-400',
-};
-
 interface ReviewRequestModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -141,7 +138,7 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
 
   const showingConfirm = showRejectConfirm || showApproveConfirm;
   const initials = `${request.firstName?.[0] ?? ''}${request.surname?.[0] ?? ''}`.toUpperCase() || '—';
-  const sectionClasses = 'rounded-xl border border-white/10 admin-light:border-[#E2E8F0] bg-white/[0.035] admin-light:bg-[#F8FAFC] p-4';
+  const sectionClasses = 'rounded-xl border border-[#2A3A55] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-[#F8FAFC] p-4';
   const fieldLabelClasses = 'text-[10px] font-semibold uppercase tracking-wider text-slate-500';
   const fieldValueClasses = 'mt-1 truncate text-sm font-medium text-white admin-light:text-slate-900';
   // `min-w-0` on each cell is required for `truncate` to work inside
@@ -260,7 +257,6 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
                 <p className={sheet.personName}>{request.name}</p>
                 <p className={sheet.personMeta}>
                   <span>
-                    <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${DISCOUNT_STATUS_DOT[renewal.status] ?? 'bg-slate-500'}`} />
                     {discountStatusLabel(renewal)}
                   </span>
                   <span>{isApplication ? `Wants ${category}` : 'Student renewal'}</span>
@@ -469,9 +465,9 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
         {/* Applicant identity strip — the one place a human name/email/type
             summary lives, so the admin doesn't have to scan the field grid
             below just to know who they're looking at. */}
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 admin-light:border-[#E2E8F0] bg-white/[0.035] admin-light:bg-[#F8FAFC] p-4">
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-[#2A3A55] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-[#F8FAFC] p-4">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#62A0EA]/15 admin-light:bg-[#1A5FB4]/15 text-sm font-bold text-[#8CB9F0] admin-light:text-[#1A5FB4]">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#2A3A55] admin-light:border-[#CBD5E1] bg-[#131C2E] admin-light:bg-[#F1F5F9] text-sm font-bold text-slate-200 admin-light:text-slate-700">
               {initials}
             </div>
             <div className="min-w-0">
@@ -481,7 +477,7 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
           </div>
           <div className="shrink-0 text-right">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Commuter Type</p>
-            <p className="text-sm font-semibold text-[#8CB9F0] admin-light:text-[#1A5FB4]">{request.commuterType}</p>
+            <p className="text-sm font-semibold text-white admin-light:text-slate-900">{request.commuterType}</p>
           </div>
         </div>
 
@@ -489,10 +485,10 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
             rejected before. Helps the admin spot applicants nearing the
             re-registration cooldown threshold. */}
         {request.rejectionCount > 0 && (
-          <div className="space-y-3 rounded-xl border border-amber-400/30 bg-amber-400/10 p-4">
+          <div className="space-y-3 rounded-xl border border-[#2A3A55] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-[#F8FAFC] p-4">
             <div className="flex items-start space-x-2">
-              <AlertTriangle size={16} className="text-amber-400 admin-light:text-amber-700 mt-0.5 shrink-0" />
-              <p className="text-sm text-amber-300 admin-light:text-amber-700">
+              <AlertTriangle size={16} aria-hidden="true" className="text-slate-400 admin-light:text-slate-500 mt-0.5 shrink-0" />
+              <p className="text-sm text-slate-200 admin-light:text-slate-800">
                 This applicant has been rejected{' '}
                 <span className="font-semibold">
                   {request.rejectionCount} {request.rejectionCount === 1 ? 'time' : 'times'}
@@ -502,10 +498,10 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
               </p>
             </div>
             {request.rejectionHistory.length > 0 && (
-              <div className="max-h-32 space-y-2 overflow-y-auto border-t border-amber-400/20 pt-2">
+              <div className="max-h-32 space-y-2 overflow-y-auto border-t border-[#2A3A55] admin-light:border-[#E2E8F0] pt-2">
                 {request.rejectionHistory.map((entry) => (
                   <div key={`${entry.attemptNumber}-${entry.rejectedAt}`} className="text-xs text-slate-300 admin-light:text-slate-700">
-                    <span className="font-semibold text-amber-300 admin-light:text-amber-700">Attempt {entry.attemptNumber}</span>
+                    <span className="font-semibold text-white admin-light:text-slate-900">Attempt {entry.attemptNumber}</span>
                     {' - '}{entry.reason}
                     <span className="ml-2 text-slate-500">{new Date(entry.rejectedAt).toLocaleDateString()}</span>
                   </div>
@@ -536,10 +532,10 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
             ) : documentIsPdf ? (
               // A PDF cannot be previewed inline, so it keeps the image's
               // frame and opens in a new tab instead.
-              <div className="flex aspect-3/4 w-full flex-col items-center justify-center gap-3 rounded-lg border border-white/10 admin-light:border-[#E2E8F0] bg-black/20 admin-light:bg-[#F1F5F9] px-3 text-center">
+              <div className="flex aspect-3/4 w-full flex-col items-center justify-center gap-3 rounded-lg border border-[#2A3A55] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F1F5F9] px-3 text-center">
                 <FileText size={28} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" aria-hidden="true" />
                 <p className="text-sm font-medium text-white admin-light:text-slate-900">PDF document</p>
-                <a href={request.idImageUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#62A0EA]/30 admin-light:border-[#1A5FB4]/30 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 px-3 text-sm font-semibold text-[#99C1F1] admin-light:text-[#1A5FB4] transition-colors hover:bg-[#62A0EA]/15 admin-light:hover:bg-[#1A5FB4]/15">
+                <a href={request.idImageUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#2A3A55] admin-light:border-[#CBD5E1] bg-[#131C2E] admin-light:bg-white px-3 text-sm font-semibold text-slate-200 admin-light:text-slate-700 transition-colors hover:bg-[#0E1628] admin-light:hover:bg-slate-50">
                   Open Document<ExternalLink size={14} aria-hidden="true" />
                 </a>
               </div>
@@ -569,7 +565,7 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
 
         {/* Sits with the decision controls, not at the top of the modal: a
             failed review leaves the admin at the bottom of a scrolled panel. */}
-        {errorMessage && <p role="alert" className="rounded-lg border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200 admin-light:text-red-800">{errorMessage}</p>}
+        {errorMessage && <InlineError>{errorMessage}</InlineError>}
 
         {/* Registration decision bar. The two button slots never move:
             Reject/Approve become Cancel/Confirm in place, so the confirm

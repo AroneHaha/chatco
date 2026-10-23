@@ -13,7 +13,7 @@ export function UserHistoryModal({ isOpen, onClose, logs }: UserHistoryModalProp
   return (
     <Modal adminThemed isOpen={isOpen} onClose={onClose}>
       <h2 className="text-xl font-bold text-white admin-light:text-slate-900 mb-4 flex items-center space-x-2">
-        <Clock size={20} className="text-sky-400 admin-light:text-sky-700" />
+        <Clock size={20} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />
         <span>Account History Log</span>
       </h2>
       

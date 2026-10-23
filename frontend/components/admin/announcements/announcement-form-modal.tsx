@@ -2,10 +2,11 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertTriangle, Check, PenLine } from 'lucide-react';
+import { Check, PenLine } from 'lucide-react';
 import { Modal } from '@/components/admin/ui/modal';
 import type { Announcement } from '@/lib/shared/services/announcement.service';
 
+import { InlineError } from '@/components/admin/ui/inline-error';
 // ─── Types ───────────────────────────────────────────────────────────
 
 export interface AnnouncementFormData {
@@ -293,10 +294,7 @@ export function AnnouncementFormModal({
 
         {/* Submit error (403, 401, network) */}
         {submitError && (
-          <div role="alert" className="mt-6 flex items-start gap-2 rounded-md border border-red-500/30 bg-red-500/10 p-3">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-400 admin-light:text-red-600" aria-hidden="true" />
-            <p className="text-xs font-medium text-red-400 admin-light:text-red-600">{submitError}</p>
-          </div>
+          <InlineError className="mt-6">{submitError}</InlineError>
         )}
 
         <div className="mt-6 flex items-center justify-end gap-2 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] pt-4">

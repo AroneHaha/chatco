@@ -6,7 +6,7 @@ import { Modal } from '@/components/admin/ui/modal';
 import { PageTabs, type PageTab } from '@/components/admin/ui/page-tabs';
 import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
 import { ConfirmPasswordModal } from '@/components/admin/ui/confirm-password-modal';
-import { History, KeyRound, Ban, User } from 'lucide-react';
+import { History, KeyRound, Ban, User, CheckCircle2 } from 'lucide-react';
 import type { Personnel } from '@/app/(admin)/vehicles/data/vehicles-data';
 import {
   PersonnelHeader,
@@ -20,6 +20,7 @@ import {
   formatDate,
 } from '@/components/admin/vehicles/personnel-detail-parts';
 
+import { InlineError } from '@/components/admin/ui/inline-error';
 interface ConductorDetail {
   id: string;
   first_name: string;
@@ -291,15 +292,14 @@ export function ConductorDetailModal({ conductor, onClose, onChanged }: Conducto
         {/* Result of Reset Credentials / Disable Account. Above the tabs so
             the new credentials stay readable whichever tab is open. */}
         {actionResult && (
-          <div className="mt-5 rounded-md border border-emerald-500/20 bg-emerald-500/10 p-3">
-            <p className="break-all font-mono text-xs text-emerald-400 admin-light:text-emerald-700">{actionResult}</p>
-          </div>
+          <p role="status" className="mt-5 flex items-start gap-1.5 break-all font-mono text-xs leading-relaxed text-slate-200 admin-light:text-slate-700">
+            <CheckCircle2 size={14} aria-hidden="true" className="mt-px shrink-0 text-[#62A0EA] admin-light:text-[#1A5FB4]" />
+            {actionResult}
+          </p>
         )}
 
         {error && (
-          <div className="mt-5 rounded-md border border-red-500/20 bg-red-500/10 p-3">
-            <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
-          </div>
+          <InlineError className="mt-5">{error}</InlineError>
         )}
 
         <PageTabs tabs={tabs} activeId={activeTab} onChange={setActiveTab} className="mt-6 mb-5" />
@@ -378,9 +378,7 @@ export function ConductorDetailModal({ conductor, onClose, onChanged }: Conducto
                 </div>
 
                 {shiftLogsError && (
-                  <div className="mb-3 shrink-0 rounded-md border border-red-500/20 bg-red-500/10 p-3">
-                    <p className="text-sm text-red-400 admin-light:text-red-600">{shiftLogsError}</p>
-                  </div>
+                  <InlineError className="mb-3 shrink-0">{shiftLogsError}</InlineError>
                 )}
 
                 <ShiftLedger

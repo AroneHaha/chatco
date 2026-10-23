@@ -173,9 +173,7 @@ function SosResolutionDialog({ alert, location, onCancel, onConfirm }: {
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-start gap-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-red-500 bg-transparent text-red-400">
-            <ShieldAlert size={22} aria-hidden="true" />
-          </span>
+          <ShieldAlert size={30} aria-hidden="true" className="shrink-0 text-red-400 admin-light:text-red-600" />
           <div className="min-w-0">
             <h2 id={titleId} className="text-lg font-bold">Confirm SOS resolution</h2>
             <p className="mt-1 text-sm leading-relaxed text-slate-400 admin-light:text-slate-500">Follow these response steps before closing the alert.</p>

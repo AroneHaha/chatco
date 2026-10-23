@@ -2,11 +2,12 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertTriangle, CheckCircle2, MapPin } from 'lucide-react';
+import { CheckCircle2, MapPin } from 'lucide-react';
 import { Modal } from '@/components/admin/ui/modal';
 import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
 import type { PickupSchedule } from '@/lib/shared/services/lost-found.service';
 
+import { InlineError } from '@/components/admin/ui/inline-error';
 /** Same text the backend falls back to (LostItemService::DEFAULT_PICKUP_REMINDER). */
 const DEFAULT_REMINDER = 'Bring a valid ID and the proof of ownership you submitted. Please note that approval does not guarantee release: staff will check your ID, proof and answers at pickup, and may still decline the claim if they do not match the item. If you do not come by the end of the pickup date, this approval is automatically cancelled and you will need to claim the item again.';
 /** Where pickups normally happen. Pre-filled on every approval and editable
@@ -147,10 +148,7 @@ export function ApproveClaimModal({ isOpen, claimantName, onClose, onConfirm }: 
         </div>
 
         {error && (
-          <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2">
-            <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-400 admin-light:text-red-600" />
-            <p className="text-xs leading-5 text-red-300 admin-light:text-red-700">{error}</p>
-          </div>
+          <InlineError>{error}</InlineError>
         )}
 
         <div className="flex justify-end gap-2 border-t border-white/10 admin-light:border-[#E2E8F0] pt-4">

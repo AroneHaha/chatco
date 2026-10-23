@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import type { Claim, ClaimStatus } from '@/app/(admin)/lost-found/data/lost-found-data';
 
+import { InlineError } from '@/components/admin/ui/inline-error';
 type ClaimAction = 'Approve' | 'Release' | 'Reject';
 
 interface ClaimsListModalProps {
@@ -53,14 +54,14 @@ function getClaimStatusMeta(claim: Claim): { label: string; className: string; i
   if (claim.noShowAt) return { label: 'Did not proceed', className: 'text-slate-300 admin-light:text-slate-700', icon: CalendarX2 };
   switch (claim.status) {
     case 'Pending':
-      return { label: 'Pending review', className: 'text-amber-300 admin-light:text-amber-700', icon: Clock3 };
+      return { label: 'Pending review', className: 'text-slate-200 admin-light:text-slate-800', icon: Clock3 };
     case 'Approved':
-      return { label: 'Approved', className: 'text-emerald-300 admin-light:text-emerald-700', icon: CheckCircle2 };
+      return { label: 'Approved', className: 'text-slate-200 admin-light:text-slate-800', icon: CheckCircle2 };
     case 'Released':
     case 'Returned':
       return { label: claim.status, className: 'text-[#8CB9F0] admin-light:text-[#1A5FB4]', icon: PackageCheck };
     case 'Rejected':
-      return { label: 'Rejected', className: 'text-red-300 admin-light:text-red-700', icon: XCircle };
+      return { label: 'Rejected', className: 'text-slate-200 admin-light:text-slate-800', icon: XCircle };
     default:
       return { label: claim.status, className: 'text-slate-300 admin-light:text-slate-700', icon: Clock3 };
   }
@@ -86,11 +87,11 @@ function getProcessTimeline(
 ): { label: string; date: string | null; tone: string; by: string | null }[] {
   return [
     { label: 'Submitted', date: claim.claimDate, tone: 'text-slate-300 admin-light:text-slate-700', by: null },
-    { label: 'Approved', date: claim.approvedAt ?? null, tone: 'text-emerald-300 admin-light:text-emerald-700', by: claim.reviewedByName ?? null },
+    { label: 'Approved', date: claim.approvedAt ?? null, tone: 'text-slate-200 admin-light:text-slate-800', by: claim.reviewedByName ?? null },
     // A no-show is closed by the daily job, not an admin, so it has no "by".
     claim.noShowAt
       ? { label: 'Not collected', date: claim.noShowAt, tone: 'text-slate-300 admin-light:text-slate-700', by: 'System' }
-      : { label: 'Rejected', date: claim.rejectedAt ?? null, tone: 'text-red-300 admin-light:text-red-700', by: claim.reviewedByName ?? null },
+      : { label: 'Rejected', date: claim.rejectedAt ?? null, tone: 'text-slate-200 admin-light:text-slate-800', by: claim.reviewedByName ?? null },
     { label: 'Released', date: claim.releasedAt ?? null, tone: 'text-[#8CB9F0] admin-light:text-[#1A5FB4]', by: releasedByName ?? null },
   ].filter((step) => Boolean(step.date));
 }
@@ -124,9 +125,9 @@ function getActionIcon(action: ClaimAction) {
 // One solid action per claim; Reject stays secondary so it never competes
 // with the move the desk usually makes.
 const actionButtonClasses: Record<ClaimAction, string> = {
-  Approve: 'bg-emerald-500 text-white hover:bg-emerald-600',
+  Approve: 'bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F]',
   Release: 'bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F]',
-  Reject: 'border border-red-400/30 text-red-300 admin-light:text-red-700 hover:bg-red-500/10 hover:text-red-200 admin-light:hover:text-red-800',
+  Reject: 'border border-[#2A3A55] bg-[#131C2E] text-red-400 hover:bg-[#0E1628] admin-light:border-[#CBD5E1] admin-light:bg-white admin-light:text-red-600 admin-light:hover:bg-slate-50',
 };
 
 // Every decision goes through a confirmation; this is what each one says.
@@ -314,7 +315,7 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
   // Same field treatment as the other admin forms: #1E2D45 hairline, the
   // darkest admin tone for the well, a soft Sky Blue ring on focus.
   const inputClasses = 'block h-10 w-full rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0B1120] admin-light:bg-white px-3 text-sm text-white admin-light:text-slate-900 outline-none transition-colors placeholder:text-slate-600 admin-light:placeholder:text-slate-400 focus:border-[#62A0EA]/50 admin-light:focus:border-[#1A5FB4]/50 focus:ring-1 focus:ring-[#62A0EA]/30 admin-light:focus:ring-[#1A5FB4]/30 disabled:cursor-not-allowed disabled:opacity-60';
-  const invalidInputClasses = 'border-red-500/50 bg-red-500/5 focus:border-red-400/60 focus:ring-red-400/30';
+  const invalidInputClasses = 'border-red-500 focus:border-red-400 focus:ring-red-400/30';
   const labelClasses = 'mb-1.5 block text-xs font-semibold text-slate-300 admin-light:text-slate-700';
   const closeManualForm = () => {
     setShowManualForm(false);
@@ -333,7 +334,7 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
           <h2 className="text-xl font-bold leading-tight text-white admin-light:text-slate-900 sm:text-2xl">Claims for Item</h2>
           <p className="mt-1 text-sm text-slate-500">
             {claims.length} claim {claims.length === 1 ? 'record' : 'records'}
-            {pendingCount > 0 && <span className="text-amber-300 admin-light:text-amber-700"> &middot; {pendingCount} awaiting review</span>}
+            {pendingCount > 0 && <span className="font-medium text-slate-300 admin-light:text-slate-700"> &middot; {pendingCount} awaiting review</span>}
           </p>
         </div>
         {/* Toggles the form below: solid Sky Blue like the other admin "add"
@@ -346,7 +347,7 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
           disabled={isSavingManual}
           className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4] active:scale-[0.98] disabled:opacity-50 ${
             showManualForm
-              ? 'border border-[#62A0EA]/40 admin-light:border-[#1A5FB4]/40 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 text-[#8CB9F0] admin-light:text-[#1A5FB4] hover:bg-[#62A0EA]/15 admin-light:hover:bg-[#1A5FB4]/15'
+              ? 'border border-[#2A3A55] admin-light:border-[#CBD5E1] bg-[#131C2E] admin-light:bg-white text-slate-200 admin-light:text-slate-700 hover:bg-[#0E1628] admin-light:hover:bg-slate-50'
               : 'bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F]'
           }`}
         >
@@ -529,7 +530,7 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
                     className={`grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none ${isExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
                   >
                     <div className="min-h-0 overflow-hidden">
-                      <div className="border-t border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0B1120]/40 admin-light:bg-[#F8FAFC]">
+                      <div className="border-t border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-[#F8FAFC]">
                         <div className="px-4 py-4 sm:px-5">
                           <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-3">
                             <Fact label="Submitted" value={formatClaimDate(claim.claimDate)} />
@@ -573,7 +574,7 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
                                 >
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
                                   <img src={photo.url} alt={`Proof photo ${index + 1}`} loading="lazy" className="h-full w-full object-cover transition-transform duration-300 ease-out group-hover/photo:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover/photo:scale-100" />
-                                  <span className="pointer-events-none absolute bottom-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-md bg-[#0B1120]/80 text-white opacity-0 transition-opacity group-hover/photo:opacity-100 group-focus-visible/photo:opacity-100">
+                                  <span className="pointer-events-none absolute bottom-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-md bg-[#0B1120] text-white opacity-0 transition-opacity group-hover/photo:opacity-100 group-focus-visible/photo:opacity-100">
                                     <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
                                   </span>
                                 </a>
@@ -655,7 +656,7 @@ export function ClaimsListModal({ isOpen, onClose, itemId, claims, releasedByNam
             </p>
             <p className="mt-2 text-xs leading-5 text-slate-400 admin-light:text-slate-500">{confirmationCopy[confirmTarget.action].effect}</p>
           </div>
-          {actionError && <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300 admin-light:text-red-700">{actionError}</p>}
+          {actionError && <InlineError>{actionError}</InlineError>}
           <div className="flex justify-end gap-2 border-t border-white/10 admin-light:border-[#E2E8F0] pt-4">
             <button ref={cancelActionRef} type="button" onClick={closeConfirmation} disabled={pendingAction !== null} className="min-h-10 rounded-lg border border-white/10 admin-light:border-[#E2E8F0] px-4 text-sm font-semibold text-slate-300 admin-light:text-slate-700 hover:bg-white/5 admin-light:hover:bg-[#F1F5F9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#62A0EA] admin-light:focus-visible:outline-[#1A5FB4] disabled:opacity-50">Cancel</button>
             <button type="button" onClick={() => void submitAction(confirmTarget.claim.id, confirmTarget.action)} disabled={pendingAction !== null} className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#62A0EA] admin-light:focus-visible:outline-[#1A5FB4] disabled:opacity-50 ${confirmationCopy[confirmTarget.action].button}`}>

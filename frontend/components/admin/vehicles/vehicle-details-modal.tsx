@@ -236,12 +236,10 @@ export function VehicleDetailsModal({ isOpen, vehicleId, onClose }: VehicleDetai
           <div className="min-w-0">
           <section aria-label="Vehicle overview" className="mb-4 flex flex-wrap items-center justify-between gap-4">
             <div className="flex min-w-0 flex-1 items-center gap-4">
-              <div aria-hidden="true" className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-[#62A0EA]/20 bg-[#62A0EA]/10 text-[#99C1F1] admin-light:border-[#1A5FB4]/15 admin-light:bg-[#1A5FB4]/5 admin-light:text-[#1A5FB4]">
-                {/* Same jeepney glyph as the vehicle table's Unit column. */}
-                <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor">
-                  <path d={mdiJeepney} />
-                </svg>
-              </div>
+              {/* Same jeepney glyph as the vehicle table's Unit column. */}
+              <svg aria-hidden="true" width="40" height="40" viewBox="0 0 24 24" fill="currentColor" className="shrink-0 text-[#62A0EA] admin-light:text-[#1A5FB4]">
+                <path d={mdiJeepney} />
+              </svg>
               <div className="min-w-0">
                 <p className="text-xs text-slate-400 admin-light:text-slate-500">Unit number</p>
                 <h3 className="mt-0.5 break-words text-3xl font-semibold tracking-tight text-white admin-light:text-slate-900">{vehicle.unitNumber || '—'}</h3>
@@ -258,13 +256,7 @@ export function VehicleDetailsModal({ isOpen, vehicleId, onClose }: VehicleDetai
                   <DetailRow
                     label="Status"
                     value={
-                      <span className={
-                        vehicle.status === 'ACTIVE'
-                          ? 'text-green-400 admin-light:text-green-700'
-                          : vehicle.status === 'MAINTENANCE'
-                            ? 'text-yellow-400 admin-light:text-yellow-700'
-                            : 'text-red-400 admin-light:text-red-600'
-                      }>
+                      <span className="text-slate-200 admin-light:text-slate-800">
                         {vehicle.statusLabel}
                       </span>
                     }
@@ -285,7 +277,7 @@ export function VehicleDetailsModal({ isOpen, vehicleId, onClose }: VehicleDetai
               </section>
             </div>
 
-            <section aria-labelledby="vehicle-qr-heading" className="min-w-0 self-stretch rounded-2xl border border-[#2A3A55] bg-[#0E1628]/60 p-4 admin-light:border-[#E2E8F0] admin-light:bg-slate-50">
+            <section aria-labelledby="vehicle-qr-heading" className="min-w-0 self-stretch rounded-2xl border border-[#2A3A55] bg-[#0E1628] p-4 admin-light:border-[#E2E8F0] admin-light:bg-slate-50">
               <div className="mb-3">
                 <h3 id="vehicle-qr-heading" className="flex items-center gap-2 text-sm font-semibold text-white admin-light:text-slate-900">
                   <QrCode size={16} aria-hidden="true" className="text-[#99C1F1] admin-light:text-[#1A5FB4]" />
