@@ -2,9 +2,9 @@
 
 import { Modal } from '@/components/shared/modal';
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import { AlertTriangle, CheckCircle, Info, Megaphone, Bell, ArrowUpRight } from 'lucide-react';
 import type { Announcement } from '@/lib/shared/services/announcement.service';
-import styles from './announcement-detail.module.css';
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
@@ -25,18 +25,19 @@ function formatRelativeTime(iso: string): string {
   });
 }
 
+// Type is told apart by its label and icon only (UI rule: no colour coding).
 function getStyle(type: string) {
   const t = (type ?? '').toLowerCase();
   if (['safety', 'warning', 'maintenance', 'alert', 'sos', 'service', 'weather'].some((k) => t.includes(k))) {
-    return { Icon: AlertTriangle, color: 'text-amber-400 admin-light:text-amber-700', bg: 'bg-amber-500/10', label: 'Advisory' };
+    return { Icon: AlertTriangle, label: 'Advisory' };
   }
   if (['promo', 'success', 'holiday', 'reward'].some((k) => t.includes(k))) {
-    return { Icon: CheckCircle, color: 'text-emerald-400 admin-light:text-emerald-700', bg: 'bg-emerald-500/10', label: 'Promo' };
+    return { Icon: CheckCircle, label: 'Promo' };
   }
   if (['system', 'route', 'schedule', 'fare'].some((k) => t.includes(k))) {
-    return { Icon: Info, color: 'text-blue-400 admin-light:text-blue-700', bg: 'bg-blue-500/10', label: 'System' };
+    return { Icon: Info, label: 'System' };
   }
-  return { Icon: Megaphone, color: 'text-slate-300 admin-light:text-slate-700', bg: 'bg-white/5 admin-light:bg-[#F8FAFC]', label: 'Announcement' };
+  return { Icon: Megaphone, label: 'Announcement' };
 }
 
 function formatCategory(value: string): string {
@@ -105,90 +106,80 @@ export function AnnouncementDetailModal({
     return null;
   }
 
-  const { Icon, color, bg, label } = getStyle(announcement.type);
+  const { Icon, label } = getStyle(announcement.type);
   const isNotification = Boolean(announcement.recipientId);
   const HeaderIcon = isNotification ? Bell : Megaphone;
   const action = managementView || showUpdatesCenterLink ? relatedAction(announcement) : null;
+  const created = new Date(announcement.createdAt);
+  const hasDate = !Number.isNaN(created.getTime());
+  const details: { label: string; value: ReactNode }[] = [
+    {
+      label: 'Type',
+      value: (
+        <span className="inline-flex items-center gap-1.5">
+          <Icon size={14} aria-hidden="true" className="shrink-0 text-slate-400 admin-light:text-slate-500" />
+          {formatCategory(announcement.type || label)}
+        </span>
+      ),
+    },
+    ...(announcement.status && !isNotification ? [{ label: 'Status', value: announcement.displayStatus }] : []),
+    ...(announcement.createdBy ? [{ label: 'Posted by', value: announcement.createdBy }] : []),
+    ...(hasDate ? [{
+      label: isNotification ? 'Received' : 'Published',
+      value: `${created.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })} · ${formatRelativeTime(announcement.createdAt)}`,
+    }] : []),
+  ];
+  const secondaryButton = 'inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md border border-[#2A3A55] bg-[#131C2E] px-4 text-sm font-semibold text-slate-200 transition-colors hover:bg-[#0E1628] min-[380px]:flex-none admin-light:border-[#CBD5E1] admin-light:bg-white admin-light:text-slate-700 admin-light:hover:bg-slate-50';
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} adminThemed maxWidth={managementView ? 'max-w-lg lg:max-w-2xl' : 'max-w-lg'}>
-      <div className={`space-y-4 ${managementView ? styles.management : ''}`}>
-        {managementView && (
-          <div className={`hidden lg:flex items-center gap-3 ${styles.header}`}>
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#62A0EA]/15 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4]">
-              <HeaderIcon size={22} aria-hidden="true" />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-white admin-light:text-slate-900">{isNotification ? 'Notification Details' : 'Announcement Details'}</h2>
-              <p className="mt-1 text-sm text-slate-400 admin-light:text-slate-500">{isNotification ? 'Operational update and related record' : 'Published announcement and posting information'}</p>
-            </div>
-          </div>
-        )}
-        {/* Type badge + timestamp. pr-8 keeps the timestamp clear of Modal's
-            absolutely-positioned close button, which sits at top-3 right-3 and
-            was printing straight over it. */}
-        <div className={`flex items-center justify-between gap-3 pr-8 ${styles.summary}`}>
-          <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${bg} ${color} ${styles.category}`}>
-            <Icon size={12} aria-hidden="true" />
-            {formatCategory(announcement.type || label)}
-          </div>
-          <span className="text-[11px] text-slate-500" title={new Date(announcement.createdAt).toLocaleString()}>
-            {formatRelativeTime(announcement.createdAt)}
-            {managementView && <span className="hidden lg:block mt-1 text-xs text-slate-400 admin-light:text-slate-500">{new Date(announcement.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>}
-          </span>
+      <header className="flex items-start gap-3 border-b border-[#2A3A55] pb-5 pr-8 admin-light:border-[#E2E8F0]">
+        <HeaderIcon size={28} aria-hidden="true" className="shrink-0 text-[#62A0EA] admin-light:text-[#1A5FB4]" />
+        <div className="min-w-0">
+          <h2 className="text-xl font-semibold tracking-tight text-white admin-light:text-slate-900">{isNotification ? 'Notification details' : 'Announcement details'}</h2>
+          <p className="mt-1 text-sm text-slate-400 admin-light:text-slate-500">{isNotification ? 'Operational update and related record' : 'Published announcement and posting information'}</p>
         </div>
+      </header>
 
-        {/* Title */}
-        <h2 className={`text-lg sm:text-xl font-bold text-white admin-light:text-slate-900 leading-tight ${styles.title}`}>
-          {announcement.title}
-        </h2>
-
-        {/* Meta — author + status (admin context only) */}
-        {(announcement.createdBy || (announcement.status && !isNotification)) && (
-          <div className={`flex flex-wrap items-center gap-3 text-[11px] text-slate-500 ${styles.metadata}`}>
-            {announcement.createdBy && (
-              <span>
-                Posted by <span className="text-slate-300 admin-light:text-slate-700">{announcement.createdBy}</span>
-              </span>
-            )}
-            {announcement.status && !isNotification && (
-              <span data-status={announcement.status} className={`${styles.status} px-2 py-0.5 rounded-full border ${
-                announcement.status === 'ARCHIVED'
-                  ? 'border-slate-500/30 admin-light:border-slate-300 bg-slate-500/10 text-slate-400 admin-light:text-slate-500'
-                  : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400 admin-light:text-emerald-700'
-              }`}>
-                {announcement.displayStatus}
-              </span>
-            )}
+      <dl className="mt-4 divide-y divide-[#2A3A55] border-b border-[#2A3A55] text-sm admin-light:divide-[#E2E8F0] admin-light:border-[#E2E8F0]">
+        {details.map((row) => (
+          <div key={row.label} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2.5">
+            <dt className="shrink-0 text-slate-400 admin-light:text-slate-500">{row.label}</dt>
+            <dd className="min-w-0 text-right font-medium break-words text-slate-200 admin-light:text-slate-800">{row.value}</dd>
           </div>
-        )}
+        ))}
+      </dl>
 
-        {/* Divider */}
-        <div className={`border-t border-white/5 admin-light:border-[#E2E8F0] ${styles.divider}`} />
+      {/* No inner max-height/scroller: a nested scroll region squeezed long
+          notices into half the panel. The Modal's own body scrolls instead. */}
+      <article className="mt-4 rounded-lg border border-[#2A3A55] bg-[#131C2E] p-4 admin-light:border-[#E2E8F0] admin-light:bg-[#F8FAFC]">
+        <h3 className="text-base font-semibold leading-snug break-words text-white sm:text-lg admin-light:text-slate-900">{announcement.title}</h3>
+        <p className="mt-2 text-sm leading-relaxed whitespace-pre-wrap break-words text-slate-300 admin-light:text-slate-700">{announcement.message}</p>
+      </article>
 
-        {/* Body — preserve whitespace + wrap long content.
-            No inner max-height/scroller: capping this at 55vh made a second,
-            nested scroll region inside the Modal's own one, so a long notice
-            was squeezed into just over half the panel while the rest of it sat
-            empty. Letting it grow lets the Modal's single scroll region use the
-            full 90vh. */}
-        <div className={`text-sm text-slate-300 admin-light:text-slate-700 leading-relaxed whitespace-pre-wrap break-words ${styles.message}`}>
-          {announcement.message}
+      {errorMessage && (
+        <p role="alert" className="mt-3 flex items-start gap-1.5 text-sm leading-relaxed text-red-400 admin-light:text-red-600">
+          <AlertTriangle size={15} aria-hidden="true" className="mt-0.5 shrink-0" />
+          {errorMessage}
+        </p>
+      )}
+
+      {/* Notifications close with the modal's X; Done stays on announcements. */}
+      {(managementView || showUpdatesCenterLink) && (!isNotification || showUpdatesCenterLink || action) && (
+        <div className="mt-5 flex flex-col-reverse gap-2 min-[380px]:flex-row min-[380px]:flex-wrap min-[380px]:justify-end">
+          {!isNotification && <button type="button" onClick={onClose} className={secondaryButton}>Done</button>}
+          {showUpdatesCenterLink && (
+            <Link href={`/announcements?tab=${isNotification ? 'notifications' : 'announcements'}&updateId=${encodeURIComponent(announcement.id)}`} onClick={onClose} className={secondaryButton}>
+              View in Updates Center <ArrowUpRight size={15} aria-hidden="true" />
+            </Link>
+          )}
+          {action && (
+            <Link href={action.href} onClick={onClose} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md border border-[#62A0EA] bg-[#62A0EA] px-4 text-sm font-semibold text-[#0B1120] transition-colors hover:bg-[#85B6F0] min-[380px]:flex-none admin-light:border-[#1A5FB4] admin-light:bg-[#1A5FB4] admin-light:text-white admin-light:hover:bg-[#164A8F]">
+              {action.label}<ArrowUpRight size={15} aria-hidden="true" />
+            </Link>
+          )}
         </div>
-        {errorMessage && <p role="alert" className="rounded-md border border-red-400/25 admin-light:border-red-200 bg-red-400/10 admin-light:bg-red-50 p-3 text-sm text-red-300 admin-light:text-red-700">{errorMessage}</p>}
-        {/* Notifications close with the modal's X; Done stays on announcements. */}
-        {(managementView || showUpdatesCenterLink) && (!isNotification || showUpdatesCenterLink || action) && (
-          <div className={`flex flex-wrap justify-end gap-2 ${styles.footer}`}>
-            {!isNotification && <button type="button" onClick={onClose} className="min-h-11 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] px-4 py-2.5 text-sm font-medium text-slate-300 admin-light:text-slate-700 transition-colors hover:bg-white/5 admin-light:hover:bg-[#F8FAFC]">Done</button>}
-            {showUpdatesCenterLink && (
-              <Link href={`/announcements?tab=${isNotification ? 'notifications' : 'announcements'}&updateId=${encodeURIComponent(announcement.id)}`} onClick={onClose} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[#62A0EA]/40 admin-light:border-[#1A5FB4]/40 px-4 py-2.5 text-sm font-medium text-[#62A0EA] admin-light:text-[#1A5FB4] transition-colors hover:bg-[#62A0EA]/10 admin-light:hover:bg-[#1A5FB4]/10">
-                View in Updates Center <ArrowUpRight size={15} aria-hidden="true" />
-              </Link>
-            )}
-            {action && <Link href={action.href} onClick={onClose} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-[#62A0EA] admin-light:bg-[#1A5FB4] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F]">{action.label}<ArrowUpRight size={15} aria-hidden="true" /></Link>}
-          </div>
-        )}
-      </div>
+      )}
     </Modal>
   );
 }
