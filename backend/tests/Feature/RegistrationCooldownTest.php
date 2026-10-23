@@ -113,6 +113,7 @@ class RegistrationCooldownTest extends TestCase
             'first_name' => 'Kiosk',
             'surname' => 'Applicant',
             'birthdate' => '1990-01-01',
+            'gender' => 'Male',
             'email' => 'repeat@example.com',
             'contact_number' => '09171234567',
             'username' => 'kioskuser',

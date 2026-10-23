@@ -282,6 +282,7 @@ export default function UsersPage() {
     middleName: string;
     lastName: string;
     birthday: string;
+    gender: string;
     username: string;
     email: string;
     phoneNumber: string;
@@ -312,6 +313,7 @@ export default function UsersPage() {
     if (data.middleName.trim()) formData.append('middle_name', data.middleName.trim());
     formData.append('surname', data.lastName);
     formData.append('birthdate', data.birthday);
+    formData.append('gender', data.gender);
     formData.append('email', data.email);
     formData.append('contact_number', data.phoneNumber);
     formData.append('username', data.username);

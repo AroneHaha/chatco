@@ -287,6 +287,7 @@ class FirstTimePasswordSetupTest extends TestCase
             'first_name' => 'Onsite',
             'surname' => 'Commuter',
             'birthdate' => '1995-01-01',
+            'gender' => 'Male',
             'email' => 'onsite.first@example.com',
             'contact_number' => '09171112224',
             'username' => 'onsite.first',

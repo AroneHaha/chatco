@@ -39,6 +39,7 @@ interface AddRegistrationModalProps {
     middleName: string;
     lastName: string;
     birthday: string;
+    gender: string;
     username: string;
     email: string;
     phoneNumber: string;
@@ -50,12 +51,16 @@ interface AddRegistrationModalProps {
   }) => Promise<void> | void;
 }
 
+// Same choices as the commuter's own signup form.
+const GENDER_OPTIONS = ['Male', 'Female', 'Prefer not to say'] as const;
+
 export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistrationModalProps) {
   const [formData, setFormData] = useState({
     firstName: '',
     middleName: '',
     lastName: '',
     birthday: '',
+    gender: '',
     username: '',
     email: '',
     phoneNumber: '',
@@ -183,6 +188,7 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
         middleName: '',
         lastName: '',
         birthday: '',
+        gender: '',
         username: '',
         email: '',
         phoneNumber: '',
@@ -323,8 +329,8 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
               </div>
             </div>
 
-            {/* Birthday & Commuter Type Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            {/* Birthday, gender & commuter type row */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
               <div>
                 <label htmlFor="onsite-birthday" className={labelClasses}>Date of birth</label>
                 <AdminDatePicker
@@ -342,6 +348,15 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
                   className="w-full"
                   triggerClassName="mt-1.5 h-11 w-full text-sm"
                 />
+              </div>
+              <div>
+                <label htmlFor="onsite-gender" className={labelClasses}>Gender</label>
+                <select id="onsite-gender" name="gender" value={formData.gender} onChange={handleChange} required disabled={isSubmitting} className={`${inputClasses} scheme-dark admin-light:scheme-light`}>
+                  <option value="" disabled className="bg-gray-800 admin-light:bg-white">Select gender</option>
+                  {GENDER_OPTIONS.map((option) => (
+                    <option key={option} value={option} className="bg-gray-800 admin-light:bg-white">{option}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label htmlFor="onsite-commuter-type" className={labelClasses}>Commuter type</label>
@@ -448,7 +463,7 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
             <dl className="mt-3 divide-y divide-[#2A3A55] admin-light:divide-[#E2E8F0] text-sm">
               <ReviewRow label="Commuter" onEdit={() => goToStep('details')} disabled={isSubmitting}>
                 <span className="block text-white admin-light:text-slate-900">{fullName}</span>
-                <span className="block text-slate-400 admin-light:text-slate-500">{formData.commuterType}, born {birthdayLabel}</span>
+                <span className="block text-slate-400 admin-light:text-slate-500">{formData.commuterType}, {formData.gender}, born {birthdayLabel}</span>
               </ReviewRow>
               <ReviewRow label="Valid ID" disabled={isSubmitting}>
                 {formData.idImageFile ? (

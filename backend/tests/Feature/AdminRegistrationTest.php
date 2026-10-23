@@ -263,6 +263,21 @@ class AdminRegistrationTest extends TestCase
         $this->assertSame('Dela Cruz', $user->commuterProfile->surname);
     }
 
+    public function test_onsite_registration_requires_gender(): void
+    {
+        Storage::fake('public');
+
+        $payload = $this->onsitePayload();
+        unset($payload['gender']);
+
+        $this->actingAs($this->admin)
+            ->post('/api/v1/admin/registrations', $payload, ['Accept' => 'application/json'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('gender');
+
+        $this->assertDatabaseMissing('users', ['email' => 'onsite.student@example.com']);
+    }
+
     // ── Onsite Student: the school details renewal asks for ──────
 
     public function test_onsite_student_requires_the_school_details(): void
@@ -353,6 +368,7 @@ class AdminRegistrationTest extends TestCase
             'first_name' => 'Onsite',
             'surname' => 'Student',
             'birthdate' => '2008-04-02',
+            'gender' => 'Female',
             'email' => 'onsite.student@example.com',
             'contact_number' => '09171112299',
             'username' => 'onsite.student',
