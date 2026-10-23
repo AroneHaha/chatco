@@ -161,169 +161,201 @@ function GcashReturnContent() {
     };
   }, [transactionId, stopPolling]);
 
+  const goToDashboard = () => router.push("/dashboard");
+
   // ─── No transaction ID in URL ───
   if (!transactionId) {
     return (
-      <div className="min-h-screen bg-[#071A2E] flex items-center justify-center p-4">
-        <div className="w-full max-w-sm bg-[#0E1628] border border-white/10 rounded-2xl p-8 text-center">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
-            <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
-          </div>
-          <h1 className="text-lg font-bold text-white mb-2">
-            Missing Transaction ID
-          </h1>
-          <p className="text-sm text-white/40 mb-6">
-            No transaction ID found in the URL. Please return to the dashboard and try again.
-          </p>
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="w-full py-3 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] text-white text-sm font-bold transition-all shadow-lg shadow-[#1A5FB4]/30"
-          >
-            Back to Dashboard
-          </button>
-        </div>
-      </div>
+      <ResultPanel
+        tone="error"
+        title="Missing transaction"
+        body="This link has no transaction reference. Go back to the dashboard and scan the conductor's QR code again."
+        onDone={goToDashboard}
+      />
     );
   }
 
-  // ─── Loading / processing state ───
+  // ─── Waiting on GCash (pending / processing) ───
+  // pollCount only decides when to add the "taking longer" note; it's a
+  // status check every 3s, not a payment retry, so it's never shown as a count.
   if (!status || status === "pending" || status === "processing") {
     return (
-      <div className="min-h-screen bg-[#071A2E] flex items-center justify-center p-4">
-        <div className="w-full max-w-sm bg-[#0E1628] border border-white/10 rounded-2xl p-8 text-center">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-[#1A5FB4] border-t-transparent animate-spin" />
-          <h1 className="text-lg font-bold text-white mb-2">
-            Processing your GCash payment
-          </h1>
-          <p className="text-sm text-white/40 mb-4">
-            We&apos;re confirming your payment with PayMongo. This usually takes a few seconds.
-          </p>
-          {transactionId && (
-            <p className="text-[10px] text-white/20 font-mono mb-4">
-              Ref: {transactionId}
-            </p>
-          )}
-          {pollCount > 5 && (
-            <p className="text-xs text-amber-400/60">
-              Still waiting… ({pollCount} attempts). If this takes too long, check your payment history later.
-            </p>
-          )}
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="w-full mt-4 py-2.5 rounded-xl border border-white/10 text-white/60 text-sm font-semibold hover:bg-white/5 transition-colors"
-          >
-            Back to Dashboard
-          </button>
-        </div>
-      </div>
+      <ResultPanel
+        tone="waiting"
+        title="Confirming your GCash payment"
+        body="We're checking with GCash. This usually takes a few seconds."
+        note={pollCount > 5
+          ? "This is taking longer than usual. You can leave this page; the result will show in your payment history."
+          : undefined}
+        reference={transactionId}
+        doneLabel="Back to Dashboard"
+        doneVariant="secondary"
+        onDone={goToDashboard}
+      />
     );
   }
 
-  // ─── Expired but still waiting for late settlement ───
-  // The QR's claim TTL lapsed, but the commuter may have completed PayMongo
-  // checkout seconds before — PayMongo's webhook can still arrive and flip
-  // the row EXPIRED→PAID. We keep polling for the grace window and show a
-  // distinct amber state so the commuter understands what's happening.
+  // ─── Older payments only: expired but still waiting for late settlement ───
+  // New payments are cancelled at the claim TTL instead; rows that were
+  // expired before that change can still settle during the grace window.
   if (status === "expired") {
     return (
-      <div className="min-h-screen bg-[#071A2E] flex items-center justify-center p-4">
-        <div className="w-full max-w-sm bg-[#0E1628] border border-amber-500/20 rounded-2xl p-8 text-center">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-amber-400 border-t-transparent animate-spin" />
-          <h1 className="text-lg font-bold text-white mb-2">
-            Waiting for PayMongo confirmation
-          </h1>
-          <p className="text-sm text-white/40 mb-4">
-            The payment session timed out, but if you already authorized on PayMongo, your payment may still be confirmed shortly.
-          </p>
-          {transactionId && (
-            <p className="text-[10px] text-white/20 font-mono mb-4">
-              Ref: {transactionId}
-            </p>
-          )}
-          {pollCount > 5 && (
-            <p className="text-xs text-amber-400/60">
-              Still listening for the late webhook… ({pollCount} attempts). Check your payment history if this continues.
-            </p>
-          )}
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="w-full mt-4 py-2.5 rounded-xl border border-white/10 text-white/60 text-sm font-semibold hover:bg-white/5 transition-colors"
-          >
-            Back to Dashboard
-          </button>
-        </div>
-      </div>
+      <ResultPanel
+        tone="waiting"
+        title="Waiting for GCash to confirm"
+        body="The payment session timed out. If you already approved it in GCash, it may still be confirmed in a moment."
+        note={pollCount > 5 ? "If nothing changes, check your payment history later." : undefined}
+        reference={transactionId}
+        doneLabel="Back to Dashboard"
+        doneVariant="secondary"
+        onDone={goToDashboard}
+      />
     );
   }
 
-  // ─── Success state ───
+  // ─── Success ───
   if (status === "paid") {
     return (
-      <div className="min-h-screen bg-[#071A2E] flex items-center justify-center p-4">
-        <div className="w-full max-w-sm bg-[#0E1628] border border-white/10 rounded-2xl p-8 text-center">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center">
-            <svg className="w-8 h-8 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-            </svg>
-          </div>
-          <h1 className="text-lg font-bold text-white mb-2">
-            Payment Successful!
-          </h1>
-          <p className="text-sm text-white/40 mb-6">
-            Your GCash payment has been confirmed. Have a safe trip!
-          </p>
-          {transactionId && (
-            <p className="text-[10px] text-white/20 font-mono mb-6">
-              Ref: {transactionId}
-            </p>
-          )}
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="w-full py-3 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] text-white text-sm font-bold transition-all shadow-lg shadow-[#1A5FB4]/30"
-          >
-            Back to Dashboard
-          </button>
-        </div>
-      </div>
+      <ResultPanel
+        tone="success"
+        title="Payment successful"
+        body="GCash confirmed your payment. Have a safe trip."
+        reference={transactionId}
+        onDone={goToDashboard}
+      />
     );
   }
 
-  // ─── Failure states ───
-  const failureMessages: Record<string, string> = {
-    failed: "Your GCash payment failed. Please try again or pay with cash.",
-    cancelled: "The payment was cancelled. Please try again or pay with cash.",
-    expired: "The payment session expired. Please ask the conductor to generate a new QR.",
-    refunded: "This payment was refunded.",
+  // ─── Not completed ───
+  // A cancelled or failed payment was checked with GCash first, so the
+  // commuter was not charged, and the backend returns any applied voucher.
+  const notCompleted: Record<string, { title: string; body: string; note?: string }> = {
+    failed: {
+      title: "Payment didn't go through",
+      body: "GCash didn't complete this payment, so you weren't charged.",
+      note: "If you applied a voucher, it's back in your rewards. Ask the conductor for a new QR code or pay in cash.",
+    },
+    cancelled: {
+      title: "Payment cancelled",
+      body: "This payment was cancelled before GCash confirmed it, so you weren't charged.",
+      note: "If you applied a voucher, it's back in your rewards. Ask the conductor for a new QR code or pay in cash.",
+    },
+    refunded: {
+      title: "Payment refunded",
+      body: "This payment was refunded to your GCash account.",
+    },
+  };
+  const outcome = notCompleted[status] ?? {
+    title: "Something went wrong",
+    body: "We couldn't confirm this payment. Check your payment history for its final status.",
   };
 
   return (
-    <div className="min-h-screen bg-[#071A2E] flex items-center justify-center p-4">
-      <div className="w-full max-w-sm bg-[#0E1628] border border-white/10 rounded-2xl p-8 text-center">
-        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
-          <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-          </svg>
-        </div>
-        <h1 className="text-lg font-bold text-white mb-2">
-          Payment {status.charAt(0).toUpperCase() + status.slice(1)}
-        </h1>
-        <p className="text-sm text-white/40 mb-6">
-          {failureMessages[status] ?? "Something went wrong with your payment."}
+    <ResultPanel
+      tone="error"
+      title={outcome.title}
+      body={outcome.body}
+      note={outcome.note}
+      reference={transactionId}
+      onDone={goToDashboard}
+    />
+  );
+}
+
+type ResultTone = "waiting" | "success" | "error";
+
+/**
+ * One composition for every state of the return page: the outcome reads
+ * first (mark + title), the explanation under it, the reference as a quiet
+ * ledger row, and a single action. Surfaces are solid navy steps, never
+ * tinted or see-through; red is reserved for the error mark.
+ */
+function ResultPanel({
+  tone,
+  title,
+  body,
+  note,
+  reference,
+  doneLabel = "Back to Dashboard",
+  doneVariant = "primary",
+  onDone,
+}: {
+  tone: ResultTone;
+  title: string;
+  body: string;
+  note?: string;
+  reference?: string;
+  doneLabel?: string;
+  doneVariant?: "primary" | "secondary";
+  onDone: () => void;
+}) {
+  return (
+    <main className="min-h-[100dvh] bg-[#050F1A] flex items-center justify-center px-4 py-8">
+      <section
+        aria-live="polite"
+        className="w-full max-w-sm rounded-2xl border border-[#1C3350] bg-[#071A2E] p-6"
+      >
+        <ResultMark tone={tone} />
+
+        <p className="mt-5 text-[10px] font-semibold uppercase tracking-[0.1em] text-white/40">
+          GCash payment
         </p>
-        {transactionId && (
-          <p className="text-[10px] text-white/20 font-mono mb-6">
-            Ref: {transactionId}
-          </p>
+        <h1 className="mt-1.5 text-xl font-bold leading-snug text-white">{title}</h1>
+        <p className="mt-2 text-sm leading-relaxed text-white/60">{body}</p>
+        {note && <p className="mt-3 text-sm leading-relaxed text-white/45">{note}</p>}
+
+        {reference && (
+          <div className="mt-6 flex items-center justify-between gap-3 border-t border-[#1C3350] pt-4">
+            <span className="text-xs text-white/40">Reference</span>
+            <span className="truncate font-mono text-xs text-white/70">{reference}</span>
+          </div>
         )}
+
         <button
-          onClick={() => router.push("/dashboard")}
-          className="w-full py-3 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] text-white text-sm font-bold transition-all shadow-lg shadow-[#1A5FB4]/30"
+          onClick={onDone}
+          className={`mt-6 w-full rounded-xl py-3 text-sm font-semibold transition-colors active:scale-[0.98] ${
+            doneVariant === "primary"
+              ? "bg-[#1A5FB4] text-white hover:bg-[#164A8F]"
+              : "border border-[#1C3350] bg-[#0B1E33] text-white/80 hover:bg-[#10273F]"
+          }`}
         >
-          Back to Dashboard
+          {doneLabel}
         </button>
-      </div>
+      </section>
+    </main>
+  );
+}
+
+function ResultMark({ tone }: { tone: ResultTone }) {
+  if (tone === "waiting") {
+    return (
+      <div
+        role="status"
+        aria-label="Checking payment"
+        className="h-11 w-11 rounded-full border-[3px] border-[#1C3350] border-t-[#62A0EA] animate-spin"
+      />
+    );
+  }
+
+  const isError = tone === "error";
+  return (
+    <div
+      className={`flex h-11 w-11 items-center justify-center rounded-xl border ${
+        isError ? "border-[#5C1F27] bg-[#2B1116]" : "border-[#1C3350] bg-[#0B1E33]"
+      }`}
+    >
+      <svg
+        className={`h-5 w-5 ${isError ? "text-red-400" : "text-[#62A0EA]"}`}
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={2.5}
+        aria-hidden="true"
+      >
+        {isError
+          ? <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+          : <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />}
+      </svg>
     </div>
   );
 }
@@ -338,10 +370,12 @@ export default function GcashReturnPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#050F1A] flex flex-col items-center justify-center p-6">
-          <div className="w-12 h-12 rounded-full border-2 border-white/15 border-t-[#62A0EA] animate-spin" />
-          <p className="mt-4 text-sm text-white/50">Confirming your payment…</p>
-        </div>
+        <main className="min-h-[100dvh] bg-[#050F1A] flex items-center justify-center px-4 py-8">
+          <section className="w-full max-w-sm rounded-2xl border border-[#1C3350] bg-[#071A2E] p-6">
+            <ResultMark tone="waiting" />
+            <p className="mt-5 text-sm text-white/60">Confirming your payment…</p>
+          </section>
+        </main>
       }
     >
       <GcashReturnContent />

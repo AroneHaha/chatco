@@ -432,10 +432,19 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
           return;
         }
 
-        // Hard-terminal failure statuses end immediately.
+        // Hard-terminal failure statuses end immediately. A poll only sees
+        // CANCELLED when the payment timed out (the backend closes it at
+        // PayMongo first) or was cancelled from another device — either way
+        // GCash never confirmed it, so nothing was charged.
         if (HARD_TERMINAL.includes(status)) {
           stopPolling();
-          setGcashError(`Payment ${status}.`);
+          setGcashError(
+            status === "cancelled"
+              ? "Payment cancelled. GCash didn't confirm a payment for this QR code, so the commuter wasn't charged. Generate a new QR code or collect cash."
+              : status === "failed"
+                ? "The commuter's GCash payment didn't go through, so they weren't charged. Generate a new QR code or collect cash."
+                : `Payment ${status}.`
+          );
           setStep("failed");
           return;
         }
@@ -1778,8 +1787,8 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
 
           {/* Live status and the QR's remaining time share one readout row. */}
           <div className="mt-4 flex items-center justify-between gap-3 border-y border-white/10 light:border-gray-200 bg-[#050F1A] light:bg-gray-50 px-5 py-3" aria-live="polite">
-            <span className={`flex min-w-0 items-center gap-2 text-xs font-semibold ${isStatusWarning ? "text-amber-300 light:text-amber-700" : "text-white/80 light:text-gray-800"}`}>
-              <span aria-hidden="true" className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${isStatusWarning ? "bg-amber-400" : "bg-[#62A0EA]"}`} />
+            <span className={`flex min-w-0 items-center gap-2 text-xs font-semibold ${isStatusWarning ? "text-white light:text-gray-900" : "text-white/80 light:text-gray-800"}`}>
+              <span aria-hidden="true" className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${isStatusWarning ? "bg-white/50 light:bg-gray-400" : "bg-[#62A0EA]"}`} />
               <span className="truncate">{statusLabel}</span>
             </span>
             {countdownLabel && !isConfirming && (
@@ -1801,7 +1810,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
             {process.env.NODE_ENV === "development" && (
               <button
                 onClick={handleSimulatePayment}
-                className="w-full py-2 rounded-xl border border-amber-500/20 light:border-amber-200 bg-amber-500/10 light:bg-amber-50 text-amber-400 light:text-amber-700 text-xs font-semibold hover:bg-amber-500/20 transition-colors"
+                className="w-full py-2 rounded-xl border border-[#1C3350] light:border-gray-200 bg-[#0B1E33] light:bg-gray-50 text-white/70 light:text-gray-700 text-xs font-semibold hover:bg-[#10273F] light:hover:bg-gray-100 transition-colors"
               >
                 [DEV] Simulate Payment Paid
               </button>
@@ -2332,16 +2341,16 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
       <div className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`} {...backdropDismiss}>
         <PopoverTail panelColor={panelTailColor} anchorOffsetPx={anchorOffset} className="light:border-gray-200" />
         <div className={`w-full sm:max-w-sm bg-[#071A2E] light:bg-white rounded-2xl border border-white/10 light:border-gray-200 shadow-2xl ${panelAnim}`} style={panelAnchorStyle}>
-          <div className="p-6 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/10 light:bg-red-50 border border-red-500/20 light:border-red-200 flex items-center justify-center">
-              <svg className="w-8 h-8 text-red-400 light:text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <div className="p-6">
+            <div className="w-11 h-11 mb-5 rounded-xl bg-[#2B1116] light:bg-red-50 border border-[#5C1F27] light:border-red-200 flex items-center justify-center">
+              <svg className="w-5 h-5 text-red-400 light:text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
               </svg>
             </div>
             <h2 className="text-lg font-bold text-white light:text-gray-900 mb-1">
-              Payment Failed
+              Payment not completed
             </h2>
-            <p className="text-sm text-white/40 light:text-gray-500 mb-6">
+            <p className="text-sm leading-relaxed text-white/60 light:text-gray-600 mb-6">
               {gcashError
                 ? gcashError
                 : selectedMethod === "GCash"
@@ -2351,19 +2360,15 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
             <div className="flex gap-3">
               <button
                 onClick={handleClose}
-                className="flex-1 py-3 rounded-xl border border-white/10 light:border-gray-200 text-white/60 light:text-gray-600 text-sm font-semibold hover:bg-white/5 light:hover:bg-gray-100 transition-colors"
+                className="flex-1 py-3 rounded-xl border border-[#1C3350] light:border-gray-200 bg-[#0B1E33] light:bg-white text-white/80 light:text-gray-800 text-sm font-semibold hover:bg-[#10273F] light:hover:bg-gray-100 active:scale-[0.98] transition-colors"
               >
                 Close
               </button>
               <button
                 onClick={() => setStep(isGroupMode ? "passengers" : "confirm")}
-                className={`flex-1 py-3 rounded-xl text-white text-sm font-bold transition-colors ${
-                  selectedMethod === "GCash"
-                    ? "bg-[#1A5FB4] hover:bg-[#164A8F]"
-                    : "bg-emerald-600 hover:bg-emerald-700"
-                }`}
+                className="flex-1 py-3 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] active:scale-[0.98] text-white text-sm font-bold transition-colors"
               >
-                Try Again
+                Try again
               </button>
             </div>
           </div>

@@ -280,11 +280,11 @@ export default function ScanModal({ onClose }: ScanModalProps) {
   if (step === "scanning") {
     return (
       <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
-        <div className="w-full sm:max-w-sm bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-white/10 shadow-2xl overflow-hidden">
+        <div className="w-full sm:max-w-sm bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-[#1C3350] shadow-2xl overflow-hidden">
           {/* Header */}
-          <div className="p-4 sm:p-5 border-b border-white/10 flex items-center justify-between">
+          <div className="p-4 sm:p-5 border-b border-[#1C3350] flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-[#1A5FB4]/15 border border-[#1A5FB4]/25 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-xl bg-[#0B1E33] border border-[#1C3350] flex items-center justify-center">
                 <svg className="w-5 h-5 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" />
                 </svg>
@@ -335,7 +335,7 @@ export default function ScanModal({ onClose }: ScanModalProps) {
           <div className="p-4 sm:p-5 space-y-3">
             {showManualEntry ? (
               <form onSubmit={handleManualSubmit} className="space-y-3">
-                <p className="text-center text-xs text-amber-400/70">
+                <p className="text-center text-xs text-white/60">
                   Camera unavailable — enter the token manually
                 </p>
                 <input
@@ -343,12 +343,12 @@ export default function ScanModal({ onClose }: ScanModalProps) {
                   value={manualToken}
                   onChange={(e) => setManualToken(e.target.value)}
                   placeholder="Paste qr_token here"
-                  className="w-full px-3 py-2.5 bg-[#0E1628] border border-white/10 rounded-xl text-white text-sm font-mono placeholder-white/20 focus:outline-none focus:border-[#62A0EA]/50"
+                  className="w-full px-3 py-2.5 bg-[#0B1E33] border border-[#1C3350] rounded-xl text-white text-sm font-mono placeholder-white/30 focus:outline-none focus:border-[#62A0EA]"
                 />
                 <button
                   type="submit"
                   disabled={!manualToken.trim()}
-                  className="w-full py-3.5 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] disabled:opacity-50 text-white text-sm font-bold transition-all shadow-lg shadow-[#1A5FB4]/30"
+                  className="w-full py-3.5 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 text-white text-sm font-bold transition-colors"
                 >
                   Claim Payment
                 </button>
@@ -375,8 +375,8 @@ export default function ScanModal({ onClose }: ScanModalProps) {
   if (step === "verifying") {
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-        <div className="w-full max-w-xs bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl p-8 text-center">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-[#1A5FB4] border-t-transparent animate-spin" />
+        <div className="w-full max-w-xs bg-[#071A2E] rounded-2xl border border-[#1C3350] shadow-2xl p-8 text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-[#1C3350] border-t-[#62A0EA] animate-spin" />
           <h2 className="text-lg font-bold text-white mb-2">
             Verifying Transaction
           </h2>
@@ -395,17 +395,18 @@ export default function ScanModal({ onClose }: ScanModalProps) {
   if (step === "voucher_offer" && claimResult) {
     return (
       <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
-        <div className="w-full sm:max-w-sm bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-white/10 shadow-2xl max-h-[95vh] sm:max-h-none overflow-y-auto">
-          <div className="p-5 sm:p-6 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-              <svg className="w-8 h-8 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <div className="w-full sm:max-w-sm bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-[#1C3350] shadow-2xl max-h-[95vh] sm:max-h-none overflow-y-auto">
+          <div className="p-5 sm:p-6">
+            <div className="w-11 h-11 mb-5 rounded-xl bg-[#0B1E33] border border-[#1C3350] flex items-center justify-center">
+              <svg className="w-5 h-5 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 0 1-1.043 3.296 3.745 3.745 0 0 1-3.296 1.043A3.745 3.745 0 0 1 12 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 0 1-3.296-1.043 3.745 3.745 0 0 1-1.043-3.296A3.745 3.745 0 0 1 3 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 0 1 1.043-3.296 3.746 3.746 0 0 1 3.296-1.043A3.745 3.745 0 0 1 12 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 0 1 3.296 1.043 3.746 3.746 0 0 1 1.043 3.296A3.745 3.745 0 0 1 21 12Z" />
               </svg>
             </div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-white/40 mb-1.5">Voucher available</p>
             <h2 className="text-lg font-bold text-white mb-1">
-              {claimResult.availableVoucher?.type === "DISCOUNT" ? "Use Your Discount Voucher?" : "Use Your Free-Ride Voucher?"}
+              {claimResult.availableVoucher?.type === "DISCOUNT" ? "Use your discount voucher?" : "Use your free-ride voucher?"}
             </h2>
-            <p className="text-sm text-white/40 mb-5">
+            <p className="text-sm leading-relaxed text-white/60 mb-5">
               {claimResult.availableVoucher?.type === "DISCOUNT"
                 ? `Your voucher takes up to ${formatCurrency(claimResult.availableVoucher.amount ?? 0)} off your own fare. Pay any remaining fare${claimResult.isGroup ? " and your companions’ fares" : ""} via GCash.`
                 : claimResult.isGroup
@@ -413,7 +414,7 @@ export default function ScanModal({ onClose }: ScanModalProps) {
                   : "Your voucher covers this entire ride for free."}
             </p>
 
-            <div className="bg-white/5 rounded-xl p-4 space-y-2 mb-5 text-left">
+            <div className="bg-[#0B1E33] border border-[#1C3350] rounded-xl p-4 space-y-2 mb-5">
               <div className="flex justify-between text-sm">
                 <span className="text-white/40">{claimResult.isGroup ? "Group total (GCash)" : "Amount due"}</span>
                 <span className="text-white font-bold">{formatCurrency(claimResult.amount)}</span>
@@ -429,13 +430,13 @@ export default function ScanModal({ onClose }: ScanModalProps) {
             <div className="flex flex-col gap-3">
               <button
                 onClick={handleUseVoucher}
-                className="w-full py-3 rounded-xl text-white text-sm font-bold transition-colors shadow-lg bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/30"
+                className="w-full py-3 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] active:scale-[0.98] text-white text-sm font-bold transition-colors"
               >
                 Use My Voucher
               </button>
               <button
                 onClick={handleDeclineVoucher}
-                className="w-full py-3 rounded-xl border border-white/10 text-white/60 text-sm font-semibold hover:bg-white/5 transition-colors"
+                className="w-full py-3 rounded-xl border border-[#1C3350] bg-[#0B1E33] text-white/80 text-sm font-semibold hover:bg-[#10273F] active:scale-[0.98] transition-colors"
               >
                 Pay with GCash Instead
               </button>
@@ -451,8 +452,8 @@ export default function ScanModal({ onClose }: ScanModalProps) {
   if (step === "redeeming_voucher") {
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-        <div className="w-full max-w-xs bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl p-8 text-center">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin" />
+        <div className="w-full max-w-xs bg-[#071A2E] rounded-2xl border border-[#1C3350] shadow-2xl p-8 text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-[#1C3350] border-t-[#62A0EA] animate-spin" />
           <h2 className="text-lg font-bold text-white mb-2">
             Redeeming Voucher
           </h2>
@@ -469,12 +470,12 @@ export default function ScanModal({ onClose }: ScanModalProps) {
   if (step === "confirm" && claimResult) {
     return (
       <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
-        <div className="w-full sm:max-w-sm bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-white/10 shadow-2xl max-h-[95vh] sm:max-h-none overflow-y-auto">
+        <div className="w-full sm:max-w-sm bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-[#1C3350] shadow-2xl max-h-[95vh] sm:max-h-none overflow-y-auto">
           <div className="p-5 sm:p-6">
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-[#1A5FB4]/15 border border-[#1A5FB4]/25 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-xl bg-[#0B1E33] border border-[#1C3350] flex items-center justify-center">
                   <svg className="w-5 h-5 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
                   </svg>
@@ -492,9 +493,9 @@ export default function ScanModal({ onClose }: ScanModalProps) {
             </div>
 
             {/* Transaction Details */}
-            <div className="bg-white/5 rounded-xl p-4 space-y-3 mb-5">
+            <div className="bg-[#0B1E33] border border-[#1C3350] rounded-xl p-4 space-y-3 mb-5">
               {/* Amount - prominent */}
-              <div className="text-center pb-3 border-b border-white/10">
+              <div className="text-center pb-3 border-b border-[#1C3350]">
                 <p className="text-[10px] text-white/30 uppercase tracking-wider font-semibold mb-1">Amount Due</p>
                 <p className="text-3xl font-extrabold text-white">{formatCurrency(claimResult.amount)}</p>
               </div>
@@ -506,12 +507,12 @@ export default function ScanModal({ onClose }: ScanModalProps) {
                 </span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className={claimResult.discountAmount > 0 ? "text-emerald-400" : "text-white/40"}>
+                <span className={claimResult.discountAmount > 0 ? "text-white/80" : "text-white/40"}>
                   {claimResult.discountAmount > 0
                     ? `${claimResult.passengerRole?.replaceAll('_', ' ') ?? "Verified"} discount`
                     : "Discount"}
                 </span>
-                <span className={claimResult.discountAmount > 0 ? "font-semibold text-emerald-400" : "text-white"}>
+                <span className={claimResult.discountAmount > 0 ? "font-semibold text-white" : "text-white"}>
                   -{formatCurrency(claimResult.discountAmount)}
                 </span>
               </div>
@@ -527,7 +528,7 @@ export default function ScanModal({ onClose }: ScanModalProps) {
               {/* Payment Method */}
               <div className="flex justify-between text-sm">
                 <span className="text-white/40">Method</span>
-                <span className="text-[#62A0EA] font-medium">GCash</span>
+                <span className="text-white font-medium">GCash</span>
               </div>
 
               {/* Transaction ID */}
@@ -538,14 +539,14 @@ export default function ScanModal({ onClose }: ScanModalProps) {
             </div>
 
             {/* GCash Notice */}
-            <div className="bg-[#1A5FB4]/10 border border-[#1A5FB4]/20 rounded-xl p-3 mb-5">
+            <div className="bg-[#0B1E33] border border-[#1C3350] rounded-xl p-3 mb-5">
               <div className="flex items-center gap-2 mb-1">
                 <svg className="w-4 h-4 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
                 </svg>
-                <span className="text-xs font-semibold text-[#62A0EA]">GCash Secure Payment</span>
+                <span className="text-xs font-semibold text-white">GCash secure payment</span>
               </div>
-              <p className="text-[10px] text-white/40">
+              <p className="text-[11px] leading-relaxed text-white/50">
                 {claimResult.checkoutUrl
                   ? "You'll be redirected to GCash's secure page to authorize this payment."
                   : "Dev mode - scanning completes the simulated payment."}
@@ -556,13 +557,13 @@ export default function ScanModal({ onClose }: ScanModalProps) {
             <div className="flex gap-3">
               <button
                 onClick={onClose}
-                className="flex-1 py-3 rounded-xl border border-white/10 text-white/60 text-sm font-semibold hover:bg-white/5 transition-colors"
+                className="flex-1 py-3 rounded-xl border border-[#1C3350] bg-[#0B1E33] text-white/80 text-sm font-semibold hover:bg-[#10273F] active:scale-[0.98] transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirmPayment}
-                className="flex-1 py-3 rounded-xl text-white text-sm font-bold transition-colors shadow-lg bg-[#1A5FB4] hover:bg-[#164A8F] shadow-[#1A5FB4]/30"
+                className="flex-1 py-3 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] active:scale-[0.98] text-white text-sm font-bold transition-colors"
               >
                 {claimResult.checkoutUrl ? "Pay with GCash" : "Confirm"}
               </button>
@@ -578,8 +579,8 @@ export default function ScanModal({ onClose }: ScanModalProps) {
   if (step === "redirecting") {
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-        <div className="w-full max-w-xs bg-[#071A2E] rounded-2xl border border-white/10 shadow-2xl p-8 text-center">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-[#1A5FB4] border-t-transparent animate-spin" />
+        <div className="w-full max-w-xs bg-[#071A2E] rounded-2xl border border-[#1C3350] shadow-2xl p-8 text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-[#1C3350] border-t-[#62A0EA] animate-spin" />
           <h2 className="text-lg font-bold text-white mb-2">
             Redirecting to GCash
           </h2>
@@ -596,23 +597,23 @@ export default function ScanModal({ onClose }: ScanModalProps) {
   if (step === "success" && claimResult) {
     return (
       <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
-        <div className="w-full sm:max-w-sm bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-white/10 shadow-2xl max-h-[95vh] sm:max-h-none overflow-y-auto">
-          <div className="p-5 sm:p-6 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center">
-              <svg className="w-8 h-8 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+        <div className="w-full sm:max-w-sm bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-[#1C3350] shadow-2xl max-h-[95vh] sm:max-h-none overflow-y-auto">
+          <div className="p-5 sm:p-6">
+            <div className="w-11 h-11 mb-5 rounded-xl bg-[#0B1E33] border border-[#1C3350] flex items-center justify-center">
+              <svg className="w-5 h-5 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
               </svg>
             </div>
             <h2 className="text-lg font-bold text-white mb-1">
-              {claimResult.amount <= 0 ? "Ride Covered by Voucher" : "Payment Claimed"}
+              {claimResult.amount <= 0 ? "Ride covered by voucher" : "Payment claimed"}
             </h2>
-            <p className="text-sm text-white/40 mb-4">
+            <p className="text-sm leading-relaxed text-white/60 mb-5">
               {claimResult.amount <= 0
                 ? "Your voucher covered this ride in full — nothing left to pay."
                 : "Your payment is being processed. Check your payment history for the final status."}
             </p>
 
-            <div className="bg-white/5 rounded-xl p-4 text-left space-y-2 mb-5">
+            <div className="bg-[#0B1E33] border border-[#1C3350] rounded-xl p-4 space-y-2 mb-5">
               <div className="flex justify-between text-sm">
                 <span className="text-white/40">Amount</span>
                 <span className="text-white font-bold">{formatCurrency(claimResult.amount)}</span>
@@ -631,7 +632,7 @@ export default function ScanModal({ onClose }: ScanModalProps) {
 
             <button
               onClick={onClose}
-              className="w-full py-3 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] text-white text-sm font-bold transition-all shadow-lg shadow-[#1A5FB4]/30"
+              className="w-full py-3 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] active:scale-[0.98] text-white text-sm font-bold transition-colors"
             >
               Done
             </button>
@@ -646,31 +647,31 @@ export default function ScanModal({ onClose }: ScanModalProps) {
   if (step === "failed") {
     return (
       <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
-        <div className="w-full sm:max-w-sm bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-white/10 shadow-2xl max-h-[95vh] sm:max-h-none overflow-y-auto">
-          <div className="p-5 sm:p-6 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
-              <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+        <div className="w-full sm:max-w-sm bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-[#1C3350] shadow-2xl max-h-[95vh] sm:max-h-none overflow-y-auto">
+          <div className="p-5 sm:p-6">
+            <div className="w-11 h-11 mb-5 rounded-xl bg-[#2B1116] border border-[#5C1F27] flex items-center justify-center">
+              <svg className="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
               </svg>
             </div>
             <h2 className="text-lg font-bold text-white mb-1">
-              Payment Failed
+              Payment not completed
             </h2>
-            <p className="text-sm text-white/40 mb-6">
+            <p className="text-sm leading-relaxed text-white/60 mb-6">
               {error ?? "Could not process the payment. The QR code may be invalid, expired, or already claimed by another commuter."}
             </p>
             <div className="flex gap-3">
               <button
                 onClick={onClose}
-                className="flex-1 py-3 rounded-xl border border-white/10 text-white/60 text-sm font-semibold hover:bg-white/5 transition-colors"
+                className="flex-1 py-3 rounded-xl border border-[#1C3350] bg-[#0B1E33] text-white/80 text-sm font-semibold hover:bg-[#10273F] active:scale-[0.98] transition-colors"
               >
                 Close
               </button>
               <button
                 onClick={() => { setStep("scanning"); setClaimResult(null); setError(null); }}
-                className="flex-1 py-3 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] text-white text-sm font-bold transition-colors"
+                className="flex-1 py-3 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] active:scale-[0.98] text-white text-sm font-bold transition-colors"
               >
-                Try Again
+                Try again
               </button>
             </div>
           </div>
