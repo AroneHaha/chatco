@@ -327,7 +327,7 @@ export default function ProfileContent({ variant = "page", onSignOutControl }: {
               <p className="text-red-200/60 text-xs light:text-red-800 mt-0.5 mb-2">
                 The ID you uploaded for the{" "}
                 <span className="font-bold text-red-300 light:text-red-700">
-                  {profile.appliedType}
+                  {profile.appliedType && getCommuterTypeLabel(profile.appliedType)}
                 </span>{" "}
                 discount was not approved. Your account is active, but you are
                 currently classified as a{" "}
@@ -414,7 +414,7 @@ export default function ProfileContent({ variant = "page", onSignOutControl }: {
               </label>
               <input
                 type="text"
-                value={profile.commuterType}
+                value={getCommuterTypeLabel(profile.commuterType)}
                 disabled
                 className={disabledInputClasses}
               />

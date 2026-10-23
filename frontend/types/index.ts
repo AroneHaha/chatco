@@ -18,6 +18,7 @@ export {
   getRoleDashboard,
   COMMUTER_TYPE_LABELS,
   getCommuterTypeLabel,
+  toCommuterType,
   DISCOUNTED_TYPES,
   DISCOUNT_RATE,
 } from "./user";
