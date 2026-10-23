@@ -20,6 +20,7 @@ const LIGHT_READY_ROUTES = new Set([
   "/conductor-dashboard/end-of-day",
   "/conductor-dashboard/metrics",
   "/conductor-dashboard/conductor-settings",
+  "/unit-verification",
 ]);
 
 export function ConductorThemeProvider({ children }: { children: ReactNode }) {

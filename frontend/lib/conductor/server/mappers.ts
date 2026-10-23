@@ -29,6 +29,7 @@ interface LaravelDriver {
   last_name: string;
   status: string;
   active_shift_id?: string | null;
+  profile_picture_url?: string | null;
   /** Only present with ?include_unavailable=1 (Unit Verification). */
   unavailable_reason?: string | null;
 }
@@ -180,6 +181,7 @@ export function mapDriver(d: unknown): ConductorDriver {
           ? "inactive"
           : "assigned",
     unavailableReason: reason,
+    profilePictureUrl: driver.profile_picture_url ?? null,
   };
 }
 

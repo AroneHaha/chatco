@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut } from "lucide-react";
+import Image from "next/image";
+import { ChevronLeft, LogOut } from "lucide-react";
+import { mdiJeepney } from "@mdi/js";
 import { startShift } from "@/lib/conductor/services/shift.service";
 import type { ConductorDriver, ConductorUnit } from "@/lib/conductor/types";
 import { useUnitVerification } from "@/app/(conductor)/hooks/use-unit-verification";
@@ -12,6 +14,8 @@ import DriverList from "@/components/conductor/unit-verification/DriverList";
 import StartShiftModal from "@/components/conductor/unit-verification/StartShiftModal";
 import { UnitVerificationSkeleton } from "@/components/conductor/ui/skeleton";
 import { useAuth } from "@/contexts/auth-context";
+import { useLightModeToggle } from "@/contexts/commuter-theme-context";
+import { ThemeToggleIcons } from "@/components/commuter/profile/profile-theme-toggle";
 
 type Step = "select-unit" | "select-driver";
 
@@ -20,6 +24,7 @@ export default function ConductorLoginPage() {
   const { logout } = useAuth();
   const { profile, units, drivers, status, error, refresh } = useUnitVerification();
   const { shift, status: shiftStatus, refresh: refreshShift } = useConductorShift();
+  const [isLight, setIsLight] = useLightModeToggle();
 
   const [step, setStep] = useState<Step>("select-unit");
   const [selectedUnit, setSelectedUnit] = useState<ConductorUnit | null>(null);
@@ -111,62 +116,78 @@ export default function ConductorLoginPage() {
   };
 
   return (
-    <div className="h-[100dvh] overflow-hidden bg-[#050F1A] flex flex-col">
-      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[500px] h-[400px] bg-[#1A5FB4]/5 rounded-full blur-[120px] pointer-events-none" />
-
+    <div className="h-[100dvh] overflow-hidden bg-[#050F1A] light:bg-gray-50 flex flex-col">
       <div className="relative flex min-h-0 flex-1 flex-col px-4 py-4 sm:py-6 max-w-md lg:max-w-lg mx-auto w-full">
-        <div className="mb-4 flex shrink-0 items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-extrabold text-white tracking-tight">
-              CHATCO<span className="text-[#62A0EA]">.</span>
-            </h1>
-            <p className="text-[10px] text-white/25 uppercase tracking-[0.2em] font-semibold mt-1">
-              Conductor Portal
-            </p>
+        <div className="mb-6 flex shrink-0 items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <Image src="/logo-transparent.png" alt="" width={40} height={40} className="shrink-0" priority />
+            <div className="min-w-0">
+              <p className="text-2xl font-extrabold text-white light:text-gray-900 tracking-tight">
+                CHATCO<span className="text-[#62A0EA] light:text-[#1A5FB4]">.</span>
+              </p>
+              <p className="text-[10px] text-slate-500 light:text-gray-500 uppercase tracking-[0.2em] font-semibold mt-1">
+                Conductor Portal
+              </p>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={handleLogout}
-            disabled={isLoggingOut}
-            className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white/55 transition-all hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <LogOut size={15} />
-            {isLoggingOut ? "Signing out" : "Logout"}
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            {/* Same light/dark preference and Moon/Sun swap as the profile
+                toggle, on every screen size, in this page's solid button style. */}
+            <button
+              type="button"
+              onClick={() => setIsLight(!isLight)}
+              aria-label="Toggle dark and light mode"
+              aria-pressed={isLight}
+              title={isLight ? "Light mode · Switch to dark mode" : "Dark mode · Switch to light mode"}
+              className="relative flex h-10 w-10 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-[#1C3350] light:border-gray-200 bg-[#0B1E33] light:bg-white text-slate-300 light:text-gray-700 transition-colors hover:bg-[#10273F] light:hover:bg-gray-100 hover:text-white light:hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1A5FB4]"
+            >
+              <ThemeToggleIcons isLight={isLight} size={18} />
+            </button>
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl border border-[#1C3350] light:border-gray-200 bg-[#0B1E33] light:bg-white px-3 text-xs font-semibold text-slate-300 light:text-gray-700 transition-colors hover:bg-[#10273F] light:hover:bg-gray-100 hover:text-white light:hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <LogOut size={15} />
+              {isLoggingOut ? "Signing out" : "Sign out"}
+            </button>
+          </div>
         </div>
 
         {status === "error" && error && (
-          <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-center">
-            <p className="text-sm text-red-300">{error}</p>
+          <div className="mb-4 rounded-xl border border-[#5C1F27] light:border-red-200 bg-[#2B1116] light:bg-red-50 px-4 py-3 text-center">
+            <p className="text-sm text-red-300 light:text-red-700">{error}</p>
             <button
+              type="button"
               onClick={() => void refresh()}
-              className="mt-2 text-xs font-semibold text-red-200 hover:text-white transition-colors"
+              className="mt-2 text-xs font-semibold text-red-200 light:text-red-700 hover:text-white light:hover:text-gray-900 transition-colors"
             >
               Retry
             </button>
           </div>
         )}
 
-
         {status === "empty" && (
-          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] px-6 py-10 text-center">
-            <p className="text-sm font-semibold text-white/70">No units available</p>
-            <p className="text-xs text-white/35 mt-2 leading-relaxed">
+          <div className="rounded-xl border border-[#1C3350] light:border-gray-200 bg-[#0B1E33] light:bg-white px-6 py-10 text-center">
+            <p className="text-sm font-semibold text-slate-200 light:text-gray-800">No units available</p>
+            <p className="text-xs text-slate-400 light:text-gray-600 mt-2 leading-relaxed">
               Active units will appear here when they are not assigned to another conductor or already on shift.
             </p>
           </div>
         )}
 
         {step === "select-unit" && units.length > 0 && (
-          <div className="flex min-h-0 flex-1 flex-col space-y-4 animate-fade-in">
-            <div className="text-center space-y-2 mb-4">
-              <h1 className="text-white font-bold text-xl">Select Your Unit</h1>
-              <p className="text-white/40 text-xs leading-relaxed max-w-xs mx-auto">
+          <div className="flex min-h-0 flex-1 flex-col animate-fade-in">
+            <div className="mb-4 shrink-0">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 light:text-gray-500">Step 1 of 2</p>
+              <h1 className="mt-1 text-xl font-bold text-white light:text-gray-900">Select your unit</h1>
+              <p className="mt-1 text-sm text-slate-400 light:text-gray-600">
                 Choose the vehicle unit assigned to you for this shift.
               </p>
             </div>
             {selectionError && (
-              <p role="alert" className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-2.5 text-center text-xs font-medium text-red-300">
+              <p role="alert" className="mb-3 shrink-0 rounded-xl border border-[#5C1F27] light:border-red-200 bg-[#2B1116] light:bg-red-50 px-4 py-2.5 text-xs font-medium text-red-300 light:text-red-700">
                 {selectionError}
               </p>
             )}
@@ -175,47 +196,51 @@ export default function ConductorLoginPage() {
         )}
 
         {step === "select-driver" && (
-          <div className="flex min-h-0 flex-1 flex-col space-y-4 animate-fade-in">
-            <button
-              onClick={goBack}
-              className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/60 hover:bg-white/10 hover:text-white transition-all active:scale-95"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-              </svg>
-            </button>
-
-            <div className="text-center space-y-2">
-              <h1 className="text-white font-bold text-xl">Select Your Driver</h1>
-              <p className="text-white/40 text-xs leading-relaxed max-w-xs mx-auto">
-                Choose the driver you will be assisting for today&apos;s shift.
-              </p>
+          <div className="flex min-h-0 flex-1 flex-col animate-fade-in">
+            <div className="mb-4 flex shrink-0 items-start gap-3">
+              <button
+                type="button"
+                onClick={goBack}
+                aria-label="Back to unit selection"
+                className="mt-0.5 flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-[#1C3350] light:border-gray-200 bg-[#0B1E33] light:bg-white text-slate-300 light:text-gray-700 transition-colors hover:bg-[#10273F] light:hover:bg-gray-100 hover:text-white light:hover:text-gray-900 active:scale-95"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 light:text-gray-500">Step 2 of 2</p>
+                <h1 className="mt-1 text-xl font-bold text-white light:text-gray-900">Select your driver</h1>
+                <p className="mt-1 text-sm text-slate-400 light:text-gray-600">
+                  Choose the driver you will be assisting for today&apos;s shift.
+                </p>
+              </div>
             </div>
 
             {selectedUnit && (
-              <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3.5 flex items-center gap-3 mb-2">
-                <div className="w-9 h-9 rounded-lg bg-[#1A5FB4]/15 flex items-center justify-center flex-shrink-0">
-                  <svg className="w-4.5 h-4.5 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0H6.375c-.621 0-1.125-.504-1.125-1.125V14.25m17.25 4.5V14.25A2.25 2.25 0 0 0 20.25 12H3.75A2.25 2.25 0 0 0 1.5 14.25v4.5" />
-                  </svg>
-                </div>
+              <div className="mb-4 flex shrink-0 items-center gap-3 border-y border-[#1C3350] light:border-gray-200 py-3">
+                <svg className="h-8 w-8 shrink-0 text-[#62A0EA] light:text-[#1A5FB4]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d={mdiJeepney} />
+                </svg>
                 <div className="min-w-0">
-                  <p className="text-sm font-bold text-white">{selectedUnit.unitNumber}</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 light:text-gray-500">Your unit</p>
+                  <p className="text-sm font-semibold text-white light:text-gray-900">
+                    {selectedUnit.unitNumber}
+                    <span className="ml-2 font-medium text-slate-400 light:text-gray-600">{selectedUnit.plateNumber}</span>
+                  </p>
                 </div>
               </div>
             )}
 
             {drivers.length === 0 ? (
-              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] px-6 py-8 text-center">
-                <p className="text-sm font-semibold text-white/70">No drivers available</p>
-                <p className="text-xs text-white/35 mt-2">
+              <div className="rounded-xl border border-[#1C3350] light:border-gray-200 bg-[#0B1E33] light:bg-white px-6 py-8 text-center">
+                <p className="text-sm font-semibold text-slate-200 light:text-gray-800">No drivers available</p>
+                <p className="text-xs text-slate-400 light:text-gray-600 mt-2">
                   Driver assignments will appear here once the backend connection is active.
                 </p>
               </div>
             ) : (
               <>
                 {selectionError && (
-                  <p role="alert" className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-2.5 text-center text-xs font-medium text-red-300">
+                  <p role="alert" className="mb-3 shrink-0 rounded-xl border border-[#5C1F27] light:border-red-200 bg-[#2B1116] light:bg-red-50 px-4 py-2.5 text-xs font-medium text-red-300 light:text-red-700">
                     {selectionError}
                   </p>
                 )}
