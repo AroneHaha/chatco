@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
-import { AlertTriangle, Trash2 } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
+import { ADMIN_BUTTON, ADMIN_FIELD, ADMIN_LABEL, DetailRows, ModalKickerHeader } from '@/components/admin/ui/modal-parts';
+import { InlineError } from '@/components/admin/ui/inline-error';
 
 interface DeleteUserModalProps {
   isOpen: boolean;
@@ -58,69 +60,42 @@ export function DeleteUserModal({ isOpen, onClose, onConfirm, user }: DeleteUser
 
   return (
     <Modal adminThemed isOpen={isOpen} onClose={handleClose}>
-      <div className="space-y-5">
-        <div className="flex items-start gap-4">
-          <div className="w-12 h-12 rounded-full bg-red-500/15 flex items-center justify-center flex-shrink-0 border-2 border-red-500/25">
-            <AlertTriangle size={24} className="text-red-400 admin-light:text-red-600" />
-          </div>
-          <div>
-            <h2 className="text-lg sm:text-xl font-bold text-white admin-light:text-slate-900">Delete User</h2>
-            <p className="text-sm text-slate-400 admin-light:text-slate-500 mt-1">
-              This will soft-delete the account and lock the user out of the system.
-              Their financial history (transactions, remittances) is preserved.
-            </p>
-          </div>
-        </div>
+      <ModalKickerHeader
+        kicker="Permanent action"
+        destructive
+        title="Delete user"
+        description="This soft-deletes the account and locks the user out of the system. Their transactions and remittances are kept."
+      />
 
-        {user && (
-          <div className="bg-[#0E1628] admin-light:bg-[#F8FAFC] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md p-4 space-y-1">
-            <p className="text-white admin-light:text-slate-900 font-medium">{user.name}</p>
-            <p className="text-sm text-slate-400 admin-light:text-slate-500">{user.email}</p>
-          </div>
-        )}
+      {user && <DetailRows className="mt-4" rows={[{ label: 'Name', value: user.name }, { label: 'Email', value: user.email }]} />}
 
-        {error && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-md p-3">
-            <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
-          </div>
-        )}
+      {/* Confirmation guard: prevents a misclick from deleting the account */}
+      <div className="mt-5">
+        <label htmlFor="delete-user-confirm" className={ADMIN_LABEL}>
+          Type <span className="text-white admin-light:text-slate-900">Delete</span> to continue
+        </label>
+        <input
+          id="delete-user-confirm"
+          type="text"
+          value={confirmText}
+          onChange={(e) => setConfirmText(e.target.value)}
+          disabled={isDeleting}
+          autoComplete="off"
+          placeholder="Delete"
+          className={`mt-2 ${ADMIN_FIELD}`}
+        />
+      </div>
 
-        {/* Confirmation guard — prevents a misclick from deleting the account */}
-        <div>
-          <label htmlFor="delete-user-confirm" className="block text-sm font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">
-            Type <span className="font-semibold text-white admin-light:text-slate-900">Delete</span> to continue <span className="text-red-400 admin-light:text-red-600">*</span>
-          </label>
-          <input
-            id="delete-user-confirm"
-            type="text"
-            value={confirmText}
-            onChange={(e) => setConfirmText(e.target.value)}
-            disabled={isDeleting}
-            autoComplete="off"
-            placeholder="Delete"
-            className="block w-full px-4 py-2.5 bg-[#0E1628] admin-light:bg-[#F8FAFC] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-white admin-light:text-slate-900 placeholder-slate-500 admin-light:placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-red-400 transition-colors disabled:opacity-50"
-          />
-        </div>
+      {error && <InlineError className="mt-3">{error}</InlineError>}
 
-        <div className="flex justify-end gap-2 pt-2 border-t border-[#1E2D45] admin-light:border-[#E2E8F0]">
-          <button
-            type="button"
-            onClick={handleClose}
-            disabled={isDeleting}
-            className="px-5 py-2.5 border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-slate-300 admin-light:text-slate-700 hover:bg-[#131C2E] admin-light:hover:bg-[#F1F5F9] transition-colors disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleConfirm}
-            disabled={isDeleting || confirmText !== 'Delete'}
-            className="flex items-center gap-2 px-5 py-2.5 bg-red-600 text-white font-medium rounded-md hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Trash2 size={16} />
-            {isDeleting ? 'Deleting...' : 'Delete User'}
-          </button>
-        </div>
+      <div className="mt-5 flex flex-col-reverse gap-2 min-[380px]:flex-row">
+        <button type="button" onClick={handleClose} disabled={isDeleting} className={`flex-1 ${ADMIN_BUTTON.secondary}`}>
+          Cancel
+        </button>
+        <button type="button" onClick={handleConfirm} disabled={isDeleting || confirmText !== 'Delete'} className={`flex-1 ${ADMIN_BUTTON.danger}`}>
+          <Trash2 size={16} aria-hidden="true" />
+          {isDeleting ? 'Deleting…' : 'Delete user'}
+        </button>
       </div>
     </Modal>
   );

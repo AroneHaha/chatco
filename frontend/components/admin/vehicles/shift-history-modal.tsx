@@ -3,9 +3,9 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
-import { Badge } from '@/components/admin/ui/badge';
 import { TablePagination } from '@/components/admin/ui/table-pagination';
-import { Clock, User, MapPin, Calendar, MonitorSmartphone, ShieldAlert } from 'lucide-react';
+import { Clock, User, MapPin, Calendar, MonitorSmartphone, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { InlineError } from '@/components/admin/ui/inline-error';
 import type { Vehicle } from '@/app/(admin)/vehicles/data/vehicles-data';
 
 interface ShiftLogEntry {
@@ -230,7 +230,7 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
           <p className="text-[10px] uppercase tracking-wider text-slate-500">Total Shifts</p>
         </div>
         <div className="bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md p-2.5 text-center">
-          <p className="text-lg font-bold text-emerald-400 admin-light:text-emerald-700">{activeCount}</p>
+          <p className="text-lg font-bold text-white admin-light:text-slate-900">{activeCount}</p>
           <p className="text-[10px] uppercase tracking-wider text-slate-500">Active</p>
         </div>
         <div className="bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md p-2.5 text-center">
@@ -240,15 +240,14 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
       </div>
 
       {error && (
-        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-md mb-3">
-          <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
-        </div>
+        <InlineError className="mb-3">{error}</InlineError>
       )}
 
       {recoveryMessage && (
-        <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-md mb-3">
-          <p className="text-sm text-emerald-300 admin-light:text-emerald-700">{recoveryMessage}</p>
-        </div>
+        <p role="status" className="mb-3 flex items-start gap-1.5 text-sm leading-relaxed text-slate-200 admin-light:text-slate-700">
+          <CheckCircle2 size={15} aria-hidden="true" className="mt-0.5 shrink-0 text-[#62A0EA] admin-light:text-[#1A5FB4]" />
+          {recoveryMessage}
+        </p>
       )}
 
       {/* Logs list */}
@@ -273,9 +272,7 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
                 <div className="flex items-start justify-between gap-3 mb-2">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <Badge variant={isActive ? 'success' : 'info'}>
-                        {isActive ? 'ACTIVE' : 'ENDED'}
-                      </Badge>
+                      <span className={`text-xs font-semibold ${isActive ? 'text-white admin-light:text-slate-900' : 'text-slate-400 admin-light:text-slate-500'}`}>{isActive ? 'Active' : 'Ended'}</span>
                       <span className="text-[10px] font-mono text-slate-500 truncate">
                         {log.shift_id.slice(0, 8)}
                       </span>
@@ -310,7 +307,7 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
                 {isActive && (
                   <div className="mt-2 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] pt-2">
                     <div className="flex items-start gap-2">
-                      <MonitorSmartphone size={14} className="mt-0.5 shrink-0 text-sky-400 admin-light:text-sky-700" />
+                      <MonitorSmartphone size={14} aria-hidden="true" className="mt-0.5 shrink-0 text-slate-400 admin-light:text-slate-500" />
                       <div className="min-w-0 flex-1">
                         <p className="text-[10px] uppercase tracking-wider text-slate-500">Operating device</p>
                         {log.operating_device_id ? (
@@ -323,10 +320,10 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
                             </p>
                           </>
                         ) : (
-                          <p className="text-xs font-semibold text-amber-300 admin-light:text-amber-700">Awaiting a conductor device claim</p>
+                          <p className="text-xs font-semibold text-slate-200 admin-light:text-slate-700">Awaiting a conductor device claim</p>
                         )}
                         {log.latest_device_recovery && (
-                          <div className="mt-1 text-[10px] text-amber-300/80 admin-light:text-amber-700">
+                          <div className="mt-1 text-[10px] text-slate-400 admin-light:text-slate-500">
                             <p>Last Admin recovery: {formatDateTime(log.latest_device_recovery.created_at)}</p>
                             <p className="line-clamp-2">Reason: {log.latest_device_recovery.reason}</p>
                           </div>
@@ -347,15 +344,15 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
                           setError(null);
                           setRecoveryMessage(null);
                         }}
-                        className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-amber-200 admin-light:text-amber-800 transition-colors hover:bg-amber-500/20"
+                        className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-[#2A3A55] bg-[#131C2E] px-2.5 py-1.5 text-[11px] font-semibold text-slate-200 transition-colors hover:bg-[#0E1628] admin-light:border-[#CBD5E1] admin-light:bg-white admin-light:text-slate-700 admin-light:hover:bg-slate-50"
                       >
                         <ShieldAlert size={12} /> Recover lost device
                       </button>
                     )}
 
                     {recoveryTarget === log.shift_id && (
-                      <div className="mt-3 rounded-md border border-amber-500/25 bg-amber-500/5 p-3">
-                        <p className="text-xs font-semibold text-amber-200 admin-light:text-amber-800">Emergency recovery only</p>
+                      <div className="mt-3 rounded-md border border-[#2A3A55] bg-[#131C2E] p-3 admin-light:border-[#E2E8F0] admin-light:bg-white">
+                        <p className="text-xs font-semibold text-white admin-light:text-slate-900">Emergency recovery only</p>
                         <p className="mt-1 text-[11px] leading-4 text-slate-400 admin-light:text-slate-500">
                           The server cannot see cash still stored only on a lost device. This action does not change transactions or remittance.
                         </p>
@@ -365,7 +362,7 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
                           maxLength={500}
                           rows={3}
                           placeholder="Explain why the device cannot perform a safe release (minimum 10 characters)."
-                          className="mt-2 w-full resize-none rounded-md border border-[#2B3A50] admin-light:border-[#E2E8F0] bg-[#07111F] admin-light:bg-white px-3 py-2 text-xs text-white admin-light:text-slate-900 outline-none focus:border-amber-400"
+                          className="mt-2 w-full resize-none rounded-md border border-[#2B3A50] admin-light:border-[#E2E8F0] bg-[#07111F] admin-light:bg-white px-3 py-2 text-xs text-white admin-light:text-slate-900 outline-none focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4]"
                         />
                         <label className="mt-2 flex cursor-pointer items-start gap-2 text-[11px] leading-4 text-slate-300 admin-light:text-slate-700">
                           <input
@@ -381,7 +378,7 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
                             type="button"
                             disabled={isRecovering}
                             onClick={cancelRecovery}
-                            className="rounded-md border border-white/10 admin-light:border-[#E2E8F0] px-3 py-1.5 text-[11px] text-slate-300 admin-light:text-slate-700 disabled:opacity-50"
+                            className="rounded-md border border-[#2A3A55] bg-[#131C2E] px-2.5 py-1.5 text-[11px] font-semibold text-slate-200 transition-colors hover:bg-[#0E1628] admin-light:border-[#CBD5E1] admin-light:bg-white admin-light:text-slate-700 admin-light:hover:bg-slate-50 disabled:opacity-50"
                           >
                             Cancel
                           </button>
@@ -389,7 +386,7 @@ export function ShiftHistoryModal({ isOpen, onClose, vehicle }: ShiftHistoryModa
                             type="button"
                             disabled={isRecovering || recoveryReason.trim().length < 10 || !riskAcknowledged}
                             onClick={() => void recoverDevice(log.shift_id)}
-                            className="rounded-md bg-amber-500 px-3 py-1.5 text-[11px] font-bold text-slate-950 disabled:cursor-not-allowed disabled:opacity-40"
+                            className="rounded-md border border-red-600 bg-red-600 px-3 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
                           >
                             {isRecovering ? 'Releasing…' : 'Confirm recovery'}
                           </button>
