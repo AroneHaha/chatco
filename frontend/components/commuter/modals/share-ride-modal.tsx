@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Loader2, MapPin, X } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, Loader2, MapPin, X } from "lucide-react";
+import { APP_DIALOG as D } from "@/components/shared/app-dialog-styles";
 import { haversineMeters } from "@/lib/utils/geo";
 
 // The public tracking page (app/share/[token]/page.tsx) polls every 5s, so
@@ -222,126 +223,99 @@ export default function ShareRideModal({ commuterName, lat: propLat, lng: propLn
     }
   }, [isStopping, onClose]);
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={!isLoading ? onClose : undefined} />
-      <div className="relative bg-[#071A2E] text-white border border-white/10 sm:rounded-2xl rounded-t-2xl shadow-2xl w-full sm:max-w-md max-h-[95dvh] overflow-y-auto animate-slide-in-from-bottom duration-300 pb-safe">
-        {/* Header */}
-        <div className="flex items-center justify-between gap-3 p-5 border-b border-white/10">
-          <h2 className="text-lg font-bold text-white">Share Live Location</h2>
-          <button onClick={onClose} aria-label="Close share live location" title="Close" className="w-8 h-8 shrink-0 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-white flex items-center justify-center transition-colors">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+  const stopsAt = expiresAt
+    ? new Date(expiresAt).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila" })
+    : null;
 
-        <div className="p-5 space-y-5">
+  return (
+    <div className={D.overlay} onClick={!isLoading ? (e) => { if (e.target === e.currentTarget) onClose(); } : undefined}>
+      <div role="dialog" aria-modal="true" aria-labelledby="share-ride-title" className={`${D.panel} max-w-md animate-fade-in`}>
+        <button type="button" onClick={onClose} aria-label="Close share live location" title="Close" className={D.close}>
+          <X className="h-5 w-5" />
+        </button>
+
+        <div className="space-y-5 p-5 sm:p-6">
+          <h2 id="share-ride-title" className={`${D.title} pr-10`}>Share live location</h2>
+
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-12 gap-3">
-              <Loader2 className="w-8 h-8 text-[#62A0EA] animate-spin" />
-              <p className="text-sm text-white/60">Creating your share link…</p>
+            <div className="flex flex-col items-center justify-center gap-3 py-10">
+              <Loader2 className={`h-8 w-8 animate-spin ${D.blueIcon}`} aria-hidden="true" />
+              <p className={`text-sm ${D.muted}`}>Creating your share link…</p>
             </div>
           ) : isStopped ? (
-            <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500/10 text-green-400">
-                <svg className="h-9 w-9" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
-              </div>
-              <h3 className="text-lg font-bold text-white">Location sharing stopped</h3>
-              <p className="text-sm text-white/60">The tracking link is no longer active.</p>
+            <div className="flex flex-col items-center gap-3 py-8 text-center">
+              <CheckCircle2 className={`h-10 w-10 ${D.blueIcon}`} aria-hidden="true" />
+              <h3 className={D.title}>Location sharing stopped</h3>
+              <p className={`text-sm ${D.muted}`}>The tracking link is no longer active.</p>
             </div>
           ) : error ? (
-            <div className="flex flex-col items-center justify-center py-8 gap-3">
-              <p className="text-sm text-red-400 text-center">{error}</p>
-              <button onClick={onClose} className="px-4 py-2 rounded-lg bg-white/5 text-white/80 text-sm font-semibold hover:bg-white/10">Close</button>
+            <div className="space-y-4">
+              <p role="alert" className={`flex items-start gap-2 text-sm leading-relaxed ${D.redText}`}>
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                {error}
+              </p>
+              <button type="button" onClick={onClose} className={`${D.button} ${D.secondary} w-full`}>Close</button>
             </div>
           ) : (
             <>
-              {/* GPS Status indicator */}
-              <div className={`flex items-center gap-2 p-3 rounded-lg text-xs font-medium ${
-                gpsStatus === "success" ? "bg-green-500/10 text-green-400 border border-green-500/20" :
-                gpsStatus === "error" ? "bg-red-500/10 text-red-400 border border-red-500/20" :
-                gpsStatus === "requesting" ? "bg-[#62A0EA]/10 text-[#62A0EA] border border-[#62A0EA]/20" :
-                "bg-white/5 text-white/60 border border-white/10"
-              }`}>
-                <MapPin size={14} className="shrink-0" />
-                {gpsStatus === "success" && "GPS connected — sharing live position"}
-                {gpsStatus === "error" && "GPS unavailable — sharing link without position. Move to an open area for better signal."}
-                {gpsStatus === "requesting" && "Connecting to GPS…"}
-                {gpsStatus === "idle" && "Waiting for GPS…"}
-              </div>
+              {/* Countdown: the one number a commuter checks at a glance. */}
+              <section aria-live="polite" aria-atomic="true">
+                <p className={D.label}>{isExpired ? "Link expired" : "Link active for"}</p>
+                <p className={`mt-1 text-4xl font-bold tracking-tight tabular-nums ${isExpired ? D.redText : "text-white light:text-gray-900"}`}>
+                  {isExpired ? "00:00" : formatTime(timeLeft)}
+                </p>
+                <p className={`mt-1 text-sm ${D.muted}`}>
+                  {isExpired
+                    ? "This link no longer shows your location."
+                    : stopsAt
+                      ? `${timeLeft <= 300 ? "Ending soon. " : ""}Stops sharing automatically at ${stopsAt}`
+                      : "Stops sharing automatically after 30 minutes"}
+                </p>
+              </section>
 
-              {/* Info Text */}
-              <p className="text-sm text-white/60 leading-relaxed">
-                Anyone with this link can track your live location on the map for 30 minutes.
-                <span className="font-semibold text-white/90"> Do not share with untrusted individuals.</span>
-              </p>
+              {!isExpired && (
+                <p className={`flex items-start gap-2 text-sm leading-relaxed ${gpsStatus === "error" ? D.redText : gpsStatus === "success" ? "text-white/85 light:text-gray-800" : D.muted}`}>
+                  {gpsStatus === "requesting"
+                    ? <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin" aria-hidden="true" />
+                    : <MapPin className={`mt-0.5 h-4 w-4 shrink-0 ${gpsStatus === "success" ? D.blueIcon : ""}`} aria-hidden="true" />}
+                  <span>
+                    {gpsStatus === "success" && "GPS connected, sharing your live position"}
+                    {gpsStatus === "error" && "GPS unavailable. The link works, but it can't show your position yet. Move to an open area for a better signal."}
+                    {gpsStatus === "requesting" && "Connecting to GPS…"}
+                    {gpsStatus === "idle" && "Waiting for GPS…"}
+                  </span>
+                </p>
+              )}
 
-              {/* URL Box */}
-              <div className="bg-[#0E1628] rounded-xl border border-white/10 p-1 flex items-center gap-2">
-                <div className="min-w-0 flex-1 px-3 py-2.5 truncate">
-                  <p className="text-xs text-white/60 font-medium truncate">{shareUrl}</p>
+              <div className="flex items-stretch gap-2">
+                <div className={`flex min-w-0 flex-1 items-center rounded-lg px-3 ${D.field}`}>
+                  <p className={`truncate font-mono text-xs ${isExpired ? "text-white/40 light:text-gray-400" : "text-white/80 light:text-gray-700"}`}>{shareUrl}</p>
                 </div>
                 <button
+                  type="button"
                   onClick={handleCopy}
                   disabled={isExpired}
-                  className={`px-4 py-2.5 rounded-lg text-xs font-semibold transition-all flex-shrink-0 ${
-                    isCopied
-                      ? "bg-green-500/15 text-green-400"
-                      : isExpired
-                        ? "bg-white/5 text-white/30 cursor-not-allowed"
-                        : "bg-[#1A5FB4] text-white hover:bg-[#164A8F] shadow-sm"
-                  }`}
+                  aria-label={isCopied ? "Link copied" : "Copy link"}
+                  className={`${D.button} ${D.primary} shrink-0`}
                 >
-                  {isCopied ? "Copied!" : "Copy"}
+                  {isCopied ? <><Check className="h-4 w-4" aria-hidden="true" />Copied</> : "Copy"}
                 </button>
               </div>
 
-              {/* Countdown Timer */}
-              <div className={`flex items-center justify-center gap-3 p-4 rounded-xl border transition-colors ${
-                isExpired
-                  ? "bg-red-500/10 border-red-500/20"
-                  : timeLeft <= 300
-                    ? "bg-amber-500/10 border-amber-500/20"
-                    : "bg-[#62A0EA]/10 border-[#62A0EA]/20"
-              }`}>
-                <svg className={`w-5 h-5 ${isExpired ? "text-red-400" : timeLeft <= 300 ? "text-amber-400" : "text-[#62A0EA]"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                </svg>
-                <div className="text-center">
-                  <p className={`text-2xl font-bold tabular-nums ${isExpired ? "text-red-400" : timeLeft <= 300 ? "text-amber-400" : "text-[#62A0EA]"}`}>
-                    {isExpired ? "00:00" : formatTime(timeLeft)}
-                  </p>
-                  <p className="text-[10px] font-medium text-white/60 uppercase mt-0.5">
-                    {isExpired ? "Link Expired" : "Time Remaining"}
-                  </p>
-                </div>
-              </div>
+              <p className={`text-xs leading-relaxed ${D.muted}`}>
+                Anyone with this link can track your live location on the map for 30 minutes.{" "}
+                <span className="font-semibold text-white/90 light:text-gray-800">Do not share it with people you don&apos;t trust.</span>{" "}
+                Keep this app open for live updates.
+              </p>
 
-              {/* Disclaimer */}
-              <div className="flex gap-2 bg-white/5 p-3 rounded-lg">
-                <svg className="w-4 h-4 text-white/50 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
-                </svg>
-                <p className="text-[11px] text-white/60 leading-relaxed">
-                  Link automatically stops sharing after 30 minutes. Keep this app open for live updates.
-                </p>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3 pt-1">
+              <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
                 {!isExpired && (
-                  <button
-                    onClick={handleStopSharing}
-                    disabled={isStopping}
-                    className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
-                  >
-                    {isStopping ? "Stopping…" : "Stop Sharing"}
+                  <button type="button" onClick={handleStopSharing} disabled={isStopping} className={`${D.button} ${D.dangerSecondary}`}>
+                    {isStopping ? "Stopping…" : "Stop sharing"}
                   </button>
                 )}
-                <button
-                  onClick={onClose}
-                  className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold border border-white/10 text-white/80 hover:bg-white/5 transition-colors"
-                >
-                  {isExpired ? "Close" : "Keep Sharing"}
+                <button type="button" onClick={onClose} className={`${D.button} ${isExpired ? `${D.secondary} min-[360px]:col-span-2` : D.primary}`}>
+                  {isExpired ? "Close" : "Keep sharing"}
                 </button>
               </div>
             </>

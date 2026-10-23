@@ -284,11 +284,9 @@ export default function ScanModal({ onClose }: ScanModalProps) {
           {/* Header */}
           <div className="p-4 sm:p-5 border-b border-[#1C3350] flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-[#0B1E33] border border-[#1C3350] flex items-center justify-center">
-                <svg className="w-5 h-5 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <svg aria-hidden="true" className="w-7 h-7 shrink-0 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" />
                 </svg>
-              </div>
               <div>
                 <h2 className="text-lg font-bold text-white">Scan QR Code</h2>
                 <p className="text-[11px] text-white/40">Point your camera at the conductor&apos;s QR</p>
@@ -397,11 +395,9 @@ export default function ScanModal({ onClose }: ScanModalProps) {
       <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
         <div className="w-full sm:max-w-sm bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-[#1C3350] shadow-2xl max-h-[95vh] sm:max-h-none overflow-y-auto">
           <div className="p-5 sm:p-6">
-            <div className="w-11 h-11 mb-5 rounded-xl bg-[#0B1E33] border border-[#1C3350] flex items-center justify-center">
-              <svg className="w-5 h-5 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <svg aria-hidden="true" className="w-9 h-9 mb-4 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 0 1-1.043 3.296 3.745 3.745 0 0 1-3.296 1.043A3.745 3.745 0 0 1 12 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 0 1-3.296-1.043 3.745 3.745 0 0 1-1.043-3.296A3.745 3.745 0 0 1 3 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 0 1 1.043-3.296 3.746 3.746 0 0 1 3.296-1.043A3.745 3.745 0 0 1 12 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 0 1 3.296 1.043 3.746 3.746 0 0 1 1.043 3.296A3.745 3.745 0 0 1 21 12Z" />
               </svg>
-            </div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-white/40 mb-1.5">Voucher available</p>
             <h2 className="text-lg font-bold text-white mb-1">
               {claimResult.availableVoucher?.type === "DISCOUNT" ? "Use your discount voucher?" : "Use your free-ride voucher?"}
@@ -475,11 +471,9 @@ export default function ScanModal({ onClose }: ScanModalProps) {
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-[#0B1E33] border border-[#1C3350] flex items-center justify-center">
-                  <svg className="w-5 h-5 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg aria-hidden="true" className="w-7 h-7 shrink-0 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
                   </svg>
-                </div>
                 <h2 className="text-lg font-bold text-white">Confirm Payment</h2>
               </div>
               <button
@@ -599,11 +593,9 @@ export default function ScanModal({ onClose }: ScanModalProps) {
       <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
         <div className="w-full sm:max-w-sm bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-[#1C3350] shadow-2xl max-h-[95vh] sm:max-h-none overflow-y-auto">
           <div className="p-5 sm:p-6">
-            <div className="w-11 h-11 mb-5 rounded-xl bg-[#0B1E33] border border-[#1C3350] flex items-center justify-center">
-              <svg className="w-5 h-5 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <svg aria-hidden="true" className="w-9 h-9 mb-4 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
               </svg>
-            </div>
             <h2 className="text-lg font-bold text-white mb-1">
               {claimResult.amount <= 0 ? "Ride covered by voucher" : "Payment claimed"}
             </h2>
@@ -649,11 +641,9 @@ export default function ScanModal({ onClose }: ScanModalProps) {
       <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
         <div className="w-full sm:max-w-sm bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-[#1C3350] shadow-2xl max-h-[95vh] sm:max-h-none overflow-y-auto">
           <div className="p-5 sm:p-6">
-            <div className="w-11 h-11 mb-5 rounded-xl bg-[#2B1116] border border-[#5C1F27] flex items-center justify-center">
-              <svg className="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <svg aria-hidden="true" className="w-9 h-9 mb-4 text-[#F07171]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
               </svg>
-            </div>
             <h2 className="text-lg font-bold text-white mb-1">
               Payment not completed
             </h2>
