@@ -700,15 +700,16 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
 
   // Color utility classes for pickup/dropoff indicators
   const pickupDotClass = isSameBarangay ? "bg-violet-500" : "bg-emerald-500";
-  const dropoffDotClass = isSameBarangay ? "bg-violet-500" : "bg-red-500";
-  const pickupBorderClass = isSameBarangay ? "border-violet-500/50 bg-violet-500/10 light:bg-violet-50" : "border-emerald-500/50 bg-emerald-500/10 light:bg-emerald-50";
-  const dropoffBorderClass = isSameBarangay ? "border-violet-500/50 bg-violet-500/10 light:bg-violet-50" : "border-red-500/50 bg-red-500/10 light:bg-red-50";
-  const pickupBadgeClass = isSameBarangay ? "text-violet-400 light:text-violet-700 bg-violet-500/10 light:bg-violet-50" : "text-emerald-400 light:text-emerald-700 bg-emerald-500/10 light:bg-emerald-50";
-  const dropoffBadgeClass = isSameBarangay ? "text-violet-400 light:text-violet-700 bg-violet-500/10 light:bg-violet-50" : "text-red-400 light:text-red-600 bg-red-500/10 light:bg-red-50";
+  const dropoffDotClass = isSameBarangay ? "bg-violet-500" : "bg-orange-500";
+  // Outline only: a selected card keeps the modal surface, no tinted fill.
+  const pickupBorderClass = isSameBarangay ? "border-violet-500" : "border-emerald-500";
+  const dropoffBorderClass = isSameBarangay ? "border-violet-500" : "border-orange-500";
+  const pickupBadgeClass = isSameBarangay ? "text-violet-400 light:text-violet-700" : "text-emerald-400 light:text-emerald-700";
+  const dropoffBadgeClass = isSameBarangay ? "text-violet-400 light:text-violet-700" : "text-orange-400 light:text-orange-700";
   const pickupTagClass = isSameBarangay ? "bg-violet-500 text-white" : "bg-emerald-500 text-white";
-  const dropoffTagClass = isSameBarangay ? "bg-violet-500 text-white" : "bg-red-500 text-white";
+  const dropoffTagClass = isSameBarangay ? "bg-violet-500 text-white" : "bg-orange-500 text-white";
   const pickupLabelClass = isSameBarangay ? "text-violet-400 light:text-violet-700" : "text-emerald-400 light:text-emerald-700";
-  const dropoffLabelClass = isSameBarangay ? "text-violet-400 light:text-violet-700" : "text-red-400 light:text-red-600";
+  const dropoffLabelClass = isSameBarangay ? "text-violet-400 light:text-violet-700" : "text-orange-400 light:text-orange-700";
 
   // ─── Clear location handlers (only reset location, NOT payment) ──
   const clearPickup = () => {
@@ -1145,7 +1146,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
 
               {/* Same barangay warning */}
               {isSameBarangay && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-500/10 light:bg-violet-50 border border-violet-500/20 light:border-violet-200">
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-violet-500">
                   <div className="w-2 h-2 rounded-full bg-violet-400 animate-pulse flex-shrink-0" />
                   <span className="text-[10px] text-violet-300 light:text-violet-700 font-medium">Same pickup & drop-off — both locations shown in violet</span>
                 </div>
@@ -1250,9 +1251,9 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
               const pointSubDropoffs = subDropoffPoints(point);
 
               // Color classes for barangay list items (green default, violet when same)
-              const itemPickupBg = isSameBarangay ? "bg-violet-500/15 light:bg-violet-50 border-violet-500/40 light:border-violet-300" : "bg-emerald-500/15 light:bg-emerald-50 border-emerald-500/40 light:border-emerald-300";
-              const itemDropoffBg = isSameBarangay ? "bg-violet-500/15 light:bg-violet-50 border-violet-500/40 light:border-violet-300" : "bg-emerald-500/15 light:bg-emerald-50 border-emerald-500/40 light:border-emerald-300";
-              const itemBothBg = "bg-violet-500/20 light:bg-violet-50 border-violet-500/40 light:border-violet-300";
+              const itemPickupBg = isSameBarangay ? "border-violet-500" : "border-emerald-500";
+              const itemDropoffBg = isSameBarangay ? "border-violet-500" : "border-orange-500";
+              const itemBothBg = "border-violet-500";
 
               return (
                 <div key={point.pointNumber} className="mb-1">
@@ -1368,12 +1369,12 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                         const isLandmarkSelected = isLandmarkPickup || isLandmarkDropoff;
 
                         // Pickup is green and drop-off is red; shared locations stay violet.
-                        const lmPickupBgCls = isSameBarangay ? "bg-violet-500/10 light:bg-violet-50 border-violet-500/30 light:border-violet-200" : "bg-emerald-500/10 light:bg-emerald-50 border-emerald-500/30 light:border-emerald-300";
-                        const lmDropoffBgCls = isSameBarangay ? "bg-violet-500/10 light:bg-violet-50 border-violet-500/30 light:border-violet-200" : "bg-red-500/10 light:bg-red-50 border-red-500/30 light:border-red-200";
+                        const lmPickupBgCls = isSameBarangay ? "border-violet-500" : "border-emerald-500";
+                        const lmDropoffBgCls = isSameBarangay ? "border-violet-500" : "border-orange-500";
                         const lmPickupDotCls = isSameBarangay ? "bg-violet-400" : "bg-emerald-400";
-                        const lmDropoffDotCls = isSameBarangay ? "bg-violet-400" : "bg-red-400";
+                        const lmDropoffDotCls = isSameBarangay ? "bg-violet-400" : "bg-orange-400";
                         const lmPickupTextCls = isSameBarangay ? "text-violet-400 light:text-violet-700" : "text-emerald-400 light:text-emerald-700";
-                        const lmDropoffTextCls = isSameBarangay ? "text-violet-400 light:text-violet-700" : "text-red-400 light:text-red-600";
+                        const lmDropoffTextCls = isSameBarangay ? "text-violet-400 light:text-violet-700" : "text-orange-400 light:text-orange-700";
 
                         return (
                           <div
@@ -1400,7 +1401,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                             className={`flex items-center gap-2 px-2 py-1.5 rounded-md w-full text-left transition-colors border cursor-pointer ${
                               isLandmarkSelected
                                 ? isLandmarkPickup && isLandmarkDropoff
-                                  ? "bg-violet-500/15 light:bg-violet-50 border-violet-500/30 light:border-violet-200"
+                                  ? "border-violet-500"
                                   : isLandmarkPickup
                                     ? lmPickupBgCls
                                     : lmDropoffBgCls
@@ -1426,7 +1427,7 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
                               <span className={`text-[8px] font-bold ${lmDropoffTextCls} bg-white/5 light:bg-gray-50 px-1 py-0.5 rounded ml-auto`}>DROP-OFF</span>
                             )}
                             {isLandmarkPickup && isLandmarkDropoff && (
-                              <span className="text-[8px] font-bold text-violet-400 light:text-violet-700 bg-violet-500/10 light:bg-violet-50 px-1 py-0.5 rounded ml-auto">BOTH</span>
+                              <span className="text-[8px] font-bold text-violet-400 light:text-violet-700 px-1 py-0.5 ml-auto">BOTH</span>
                             )}
                           </div>
                         );
