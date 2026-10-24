@@ -364,6 +364,15 @@ SQL;
                 : ($overage > 0 ? Remittance::STATUS_OVERAGE : Remittance::STATUS_COMPLETE),
             'remitted_at' => now(),
         ]);
+
+        // Reminders already sent for this shift are now answered; without
+        // this the conductor's reminder popup could still show "Remittance
+        // pending" right after the cash was declared.
+        $this->announcementService->markReadForReference(
+            $remittance->conductor_id,
+            'REMITTANCE_REMINDER',
+            $remittance->shift_id,
+        );
     }
 
     private function remittanceGraceMinutes(): int

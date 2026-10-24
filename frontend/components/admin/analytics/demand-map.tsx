@@ -9,9 +9,10 @@
 //
 // Client-only: Leaflet touches `window` at import time.
 
-import { MapContainer, TileLayer, CircleMarker, Tooltip } from "react-leaflet";
+import { MapContainer, CircleMarker, Tooltip } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { useAdminTheme } from "@/contexts/admin-theme-context";
+import MapBasemap from "@/components/maps/map-basemap";
 import type { AnalyticsHeatmapZone } from "@/lib/admin/services/analytics.service";
 
 interface Props {
@@ -49,10 +50,9 @@ export default function DemandMap({ zones }: Props) {
       scrollWheelZoom={false}
       className="h-full w-full rounded-md bg-[#0E1628] admin-light:bg-white"
     >
-      <TileLayer
-        className="map-tiles-mono"
+      <MapBasemap
+        theme={theme}
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url={`https://{s}.basemaps.cartocdn.com/${theme === "light" ? "light_all" : "dark_all"}/{z}/{x}/{y}{r}.png?key=${process.env.NEXT_PUBLIC_CARTO_API_KEY}`}
       />
       {zones.map(z => (
         <CircleMarker

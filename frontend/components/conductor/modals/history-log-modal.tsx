@@ -224,12 +224,14 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50">
+    // Phones: a bottom sheet that slides up over the dock (z-40) and reaches
+    // the screen edge, instead of stopping 64px short above the dimmed dock.
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 animate-modal-backdrop-in">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="history-log-title"
-        className="relative mb-16 flex h-[92dvh] max-h-[920px] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl border border-white/10 bg-[#071A2E] shadow-2xl sm:mx-4 sm:mb-0 sm:h-[90dvh] sm:rounded-2xl light:border-gray-200 light:bg-white light:shadow-black/10"
+        className="relative flex h-[92dvh] max-h-[920px] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl border border-b-0 border-white/10 bg-[#071A2E] shadow-2xl animate-modal-panel-in sm:mx-4 sm:h-[90dvh] sm:rounded-2xl sm:border-b light:border-gray-200 light:bg-white light:shadow-black/10"
       >
         {/* Readout first: what the current filter adds up to, then how it's filtered. */}
         <div className="shrink-0 px-5 pt-5 pb-4">
@@ -457,7 +459,7 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
           )}
         </div>
 
-        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-white/10 px-5 py-3 light:border-gray-200">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-white/10 px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] light:border-gray-200 sm:pb-3">
           <p className="text-[11px] tabular-nums text-white/45 light:text-gray-500">
             {totalTransactions > 0
               ? `${(safeCurrentPage - 1) * TRANSACTIONS_PER_PAGE + 1}–${Math.min(safeCurrentPage * TRANSACTIONS_PER_PAGE, totalTransactions)} of ${totalTransactions}`

@@ -16,11 +16,13 @@ import {
 export function PeakHoursChart({ data }: { data: AnalyticsHourlyPoint[] }) {
   const [hover, setHover] = useState<number | null>(null);
 
-  const { max, busiest, totalRides } = useMemo(() => {
+  const { max, busiest, peakHours, totalRides } = useMemo(() => {
     const max = Math.max(...data.map(d => d.count), 1);
     const busiest = data.reduce((a, b) => (b.count > a.count ? b : a), data[0]);
+    // The three busiest hours with rides carry the accent; the rest stay neutral.
+    const peakHours = new Set([...data].filter(d => d.count > 0).sort((a, b) => b.count - a.count).slice(0, 3).map(d => d.hour));
     const totalRides = data.reduce((s, d) => s + d.count, 0);
-    return { max, busiest, totalRides };
+    return { max, busiest, peakHours, totalRides };
   }, [data]);
 
   if (totalRides === 0) {
@@ -38,7 +40,7 @@ export function PeakHoursChart({ data }: { data: AnalyticsHourlyPoint[] }) {
       <div className="flex items-end gap-[3px] h-40" onMouseLeave={() => setHover(null)}>
         {data.map(d => {
           const pct = (d.count / max) * 100;
-          const isPeak = d.hour === busiest.hour;
+          const isPeak = peakHours.has(d.hour);
           const isHover = hover === d.hour;
           return (
             <button
@@ -50,12 +52,12 @@ export function PeakHoursChart({ data }: { data: AnalyticsHourlyPoint[] }) {
               className="flex-1 h-full flex flex-col justify-end group focus:outline-none focus:ring-1 focus:ring-[#62A0EA] rounded-sm"
             >
               <div
-                className={`w-full rounded-t-sm transition-all ${
+                className={`w-full rounded-t-sm transition-colors ${
                   isHover
-                    ? "bg-[#62A0EA] admin-light:bg-[#1A5FB4]"
+                    ? "bg-[#99C1F1] admin-light:bg-[#164A8F]"
                     : isPeak
-                      ? "bg-amber-500/80"
-                      : "bg-[#62A0EA]/40 group-hover:bg-[#62A0EA]/70 admin-light:bg-[#1A5FB4]/35 admin-light:group-hover:bg-[#1A5FB4]/65"
+                      ? "bg-[#62A0EA] admin-light:bg-[#1A5FB4]"
+                      : "bg-[#334155] admin-light:bg-[#CBD5E1]"
                 }`}
                 // Zero hours keep a 2px stub so the axis reads as continuous
                 // rather than looking like missing data.
@@ -85,13 +87,13 @@ export function PeakHoursChart({ data }: { data: AnalyticsHourlyPoint[] }) {
             </span>
             <div className="flex items-center gap-4 font-mono">
               <span className="text-white admin-light:text-slate-900 font-bold">{active.count} rides</span>
-              <span className="text-emerald-400 admin-light:text-emerald-700">{formatPeso(active.revenue)}</span>
+              <span className="text-slate-300 admin-light:text-slate-700">{formatPeso(active.revenue)}</span>
             </div>
           </>
         ) : (
           <>
             <span className="text-slate-500">Busiest hour</span>
-            <span className="font-mono text-amber-400 admin-light:text-amber-700">
+            <span className="font-mono text-white admin-light:text-slate-900">
               {formatHour(busiest.hour)}–{formatHour((busiest.hour + 1) % 24)} · {busiest.count} rides
             </span>
           </>

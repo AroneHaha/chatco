@@ -10,6 +10,7 @@ import ConductorEndOfDayModal from "@/components/conductor/conductor-end-of-day-
 import ConductorMetricsModal from "@/components/conductor/conductor-metrics-modal";
 import ConductorSettingsModal from "@/components/conductor/conductor-settings-modal";
 import ConductorSosModal from "@/components/conductor/conductor-sos-modal";
+import ConductorRemittanceReminder from "@/components/conductor/conductor-remittance-reminder";
 import ConductorLocationBroadcaster from "@/components/conductor/conductor-location-broadcaster";
 import MaintenanceGate from "@/components/shared/maintenance-gate";
 import ConductorConnectivityBanner from "@/components/conductor/conductor-connectivity-banner";
@@ -86,6 +87,10 @@ export default function ConductorLayout({ children }: { children: React.ReactNod
 
       {/* Keep SOS polling and resolution notifications alive across modules. */}
       <ConductorSosModal />
+
+      {/* Remittance reminders (Admin › Operations Rules) as a popup on every tab,
+          including unit verification before the next shift starts. */}
+      <ConductorRemittanceReminder canOpenPopover={!isUnitVerification} />
 
       {/* Broadcast conductor GPS while on shift (so commuters see the vehicle) */}
       {!isUnitVerification && <ConductorLocationBroadcaster />}

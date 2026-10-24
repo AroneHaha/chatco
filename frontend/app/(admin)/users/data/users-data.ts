@@ -15,7 +15,6 @@ import {
   remove as deleteUser,
   suspend as suspendUser,
   unsuspend as unsuspendUser,
-  disableConductor,
   type AdminUser,
   type UserListFilters,
   type PaginationMeta,
@@ -137,7 +136,6 @@ export interface UseUsersDataReturn {
   rejectRegistrationApi: (id: string, reason: string) => Promise<string>;
   suspendUserApi: (id: string, input: SuspendUserInput) => Promise<void>;
   unsuspendUserApi: (id: string) => Promise<void>;
-  disableConductorApi: (id: string, currentPassword: string) => Promise<void>;
 }
 
 function mapToActiveUser(u: AdminUser): ActiveUser {
@@ -515,11 +513,6 @@ export function useUsersData(activeTab: "active" | "pending" | "rejected" | "dis
     await fetchUsers(filters);
   }, [fetchUsers, filters]);
 
-  const disableConductorApi = useCallback(async (id: string, currentPassword: string) => {
-    await disableConductor(id, currentPassword);
-    await fetchUsers(filters);
-  }, [fetchUsers, filters]);
-
   const setPendingType = useCallback((type: registrationService.AppliedType | "") => {
     setPendingTypeState(type);
     setPendingPageState(1);
@@ -569,7 +562,6 @@ export function useUsersData(activeTab: "active" | "pending" | "rejected" | "dis
     rejectRegistrationApi,
     suspendUserApi,
     unsuspendUserApi,
-    disableConductorApi,
   };
 }
 

@@ -59,9 +59,13 @@ class Driver extends Model
         });
     }
 
+    /**
+     * The vehicle this driver is assigned to. Assignment is stored only in
+     * vehicles.driver_id; drivers.vehicle_id is never written.
+     */
     public function vehicle()
     {
-        return $this->belongsTo(Vehicle::class);
+        return $this->hasOne(Vehicle::class, 'driver_id');
     }
 
     /**

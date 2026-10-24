@@ -3,14 +3,15 @@
 import { useEffect, useId, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import {
-  ArrowRight, Bell, Check, CheckCheck, ChevronRight, CircleHelp,
-  Copy, Gift, GraduationCap, History, Loader2, QrCode, RefreshCw, Ticket,
+  ArrowRight, Bell, CheckCheck, ChevronRight, CircleHelp,
+  GraduationCap, Loader2, QrCode, RefreshCw, Ticket,
 } from "lucide-react";
+import { VoucherWallet } from "@/components/commuter/rewards/voucher-wallet";
 import { PageTabs } from "@/components/admin/ui/page-tabs";
 import { Modal } from "@/components/shared/modal";
 import { useAnnouncements } from "@/contexts/announcements-context";
 import { useRewards } from "./use-rewards";
-import type { Announcement, Voucher } from "./types";
+import type { Announcement, Voucher, VoucherTab } from "./types";
 import { announcementCategory } from "@/lib/shared/announcement-category";
 import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
@@ -38,7 +39,6 @@ export default function RewardsPage() {
   const [renewal, setRenewal] = useState<RenewalState | null>(null);
   const {
     data, isLoading, error, refetch, progressPercent, ridesRemaining,
-    showVoucherModal, setShowVoucherModal, activeVoucher, redeemVoucher,
   } = useRewards();
   const { announcements, isLoading: announcementsLoading, markAsRead, markAllAsRead, unreadCount } = useAnnouncements();
   const [section, setSection] = useState<"rewards" | "announcements">("rewards");
@@ -50,16 +50,15 @@ export default function RewardsPage() {
     window.addEventListener('focus', refreshRenewal);
     return () => { controller.abort(); window.removeEventListener('focus', refreshRenewal); };
   }, [commuterProfile?.commuterType, commuterProfile?.appliedType, section]);
-  const [voucherFilter, setVoucherFilter] = useState<"available" | "history">("available");
+  const [voucherTab, setVoucherTab] = useState<VoucherTab>("available");
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [showReceiptScan, setShowReceiptScan] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
-  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const dialogOpen = showHelp || showVoucherModal || selectedAnnouncement !== null;
+  const dialogOpen = showHelp || selectedAnnouncement !== null;
 
   // Keep keyboard focus in the active rewards dialog and restore its trigger.
   useEffect(() => {
@@ -71,7 +70,6 @@ export default function RewardsPage() {
     const handleKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setShowHelp(false);
-        setShowVoucherModal(false);
         setSelectedAnnouncement(null);
       }
       if (event.key !== "Tab") return;
@@ -89,15 +87,14 @@ export default function RewardsPage() {
       document.removeEventListener("keydown", handleKey);
       previous?.focus();
     };
-  }, [dialogOpen, setShowVoucherModal]);
+  }, [dialogOpen]);
 
   const available = (data?.vouchers ?? []).filter(voucher => voucherStatus(voucher) === "AVAILABLE");
-  const history = (data?.vouchers ?? []).filter(voucher => voucherStatus(voucher) !== "AVAILABLE");
-  const visibleVouchers = voucherFilter === "available" ? available : history;
+  // The wallet tabs reload whenever the usable set changes: a voucher earned,
+  // used by the conductor, or expired.
+  const walletResetKey = available.map(voucher => voucher.id).sort().join(",");
   const visibleAnnouncements = unreadOnly ? announcements.filter(item => !item.isRead) : announcements;
   const selectedCategory = selectedAnnouncement ? announcementCategory(selectedAnnouncement) : null;
-  const selectedVoucher = data?.vouchers.find(voucher => voucher.code === activeVoucher);
-  const selectedVoucherAvailable = selectedVoucher && voucherStatus(selectedVoucher) === "AVAILABLE";
   const progress = Math.min(100, Math.max(0, Number.isFinite(progressPercent) ? progressPercent : 0));
   const remaining = Math.max(0, ridesRemaining);
 
@@ -192,59 +189,15 @@ export default function RewardsPage() {
                   <p className="mt-4 text-xs leading-relaxed text-white/60 light:text-gray-500">GCash rides count automatically. Scan your cash receipt to add a paid ride.</p>
                 </section>
 
-                <section aria-labelledby="vouchers-title" className="pt-7">
-                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                    <h2 id="vouchers-title" className="text-sm font-bold uppercase text-white/70 lg:text-base lg:font-semibold lg:normal-case lg:text-white light:max-lg:text-gray-600 light:lg:text-gray-900"><span className="lg:hidden">My Vouchers</span><span className="hidden lg:inline">Your vouchers</span></h2>
-                    <div role="group" aria-label="Voucher filter" className="hidden gap-1 rounded-lg border border-white/10 p-1 light:border-gray-200 lg:flex">
-                      {(["available", "history"] as const).map(filter => (
-                        <button key={filter} aria-pressed={voucherFilter === filter} onClick={() => setVoucherFilter(filter)} className={`flex min-h-8 items-center gap-2 rounded-md px-3 text-xs font-medium transition-colors ${voucherFilter === filter ? "bg-white/10 text-white light:bg-gray-100 light:text-gray-900" : "text-white/50 hover:text-white light:text-gray-500 light:hover:text-gray-900"}`}>
-                          {filter === "history" && <History size={13} />}
-                          {filter === "available" ? `Available (${available.length})` : "History"}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {data.vouchers.length > 0 && (
-                    <ul className="space-y-3">
-                      {data.vouchers.map(voucher => {
-                        const status = voucherStatus(voucher);
-                        const expiry = formatDate(voucher.expiresAt);
-                        const matchesFilter = voucherFilter === "available" ? status === "AVAILABLE" : status !== "AVAILABLE";
-                        return (
-                          <li key={voucher.id} className={`flex flex-wrap items-center justify-between gap-4 rounded-2xl border p-5 lg:rounded-lg ${!matchesFilter ? "lg:hidden" : ""} ${status === "AVAILABLE" ? "border-emerald-500/30 bg-emerald-500/10 lg:border-[#62A0EA]/30 lg:bg-[#071A2E] light:lg:border-[#1A5FB4]/30 light:lg:bg-white" : status === "EXPIRED" ? "border-red-500/30 bg-red-500/10 lg:border-white/10 lg:bg-white/[0.02] light:lg:border-gray-200 light:lg:bg-white" : "border-white/10 bg-white/5 lg:bg-white/[0.02] light:border-gray-200 light:bg-white"}`}>
-                            <Gift size={24} aria-hidden="true" className={`shrink-0 lg:hidden ${status === "AVAILABLE" ? "text-emerald-400 light:text-emerald-600" : status === "EXPIRED" ? "text-red-400 light:text-red-600" : "text-white/40 light:text-gray-400"}`} />
-                            <div className="min-w-0 flex-1 basis-44">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <h3 className="text-base font-bold lg:text-sm lg:font-semibold">{voucher.type === "DISCOUNT" ? `₱${(voucher.amount ?? 0).toFixed(2)} Discount Voucher` : "Free Ride Voucher"}</h3>
-                                <span className={`text-xs ${status === "AVAILABLE" ? "text-emerald-300 light:text-emerald-700" : status === "EXPIRED" ? "text-white/50 light:text-gray-500" : "text-white/60 light:text-gray-500"}`}>
-                                  {status === "AVAILABLE" ? "Ready to use" : status === "USED" ? "Used" : "Expired"}
-                                </span>
-                              </div>
-                              <p className="mt-1 break-words text-xs text-white/50 light:text-gray-500">{voucher.rideOrigin}</p>
-                              {expiry && <p className="mt-3 text-xs text-white/70 light:text-gray-600">{status === "EXPIRED" ? "Expired" : "Valid until"} {expiry}</p>}
-                            </div>
-                            {status === "AVAILABLE" && (
-                              <button onClick={() => { setCopyStatus("idle"); redeemVoucher(voucher.id); }} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-[#1A5FB4] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#164A8F] lg:rounded-lg">
-                                <span className="lg:hidden">Use Voucher</span><span className="hidden lg:inline">Show code</span><ArrowRight size={16} className="hidden lg:block" />
-                              </button>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                  {data.vouchers.length === 0 && <div className="rounded-2xl border border-white/10 bg-[#071A2E] py-12 light:border-gray-200 light:bg-white text-center lg:hidden"><p className="text-sm text-white/50 light:text-gray-500">No vouchers yet. Keep riding to earn your first free ride!</p></div>}
-                  {visibleVouchers.length === 0 && (
-                    <div className="hidden border-y border-white/10 py-9 light:border-gray-200 lg:block">
-                      <h3 className="text-sm font-semibold">{voucherFilter === "available" ? "No available vouchers" : "No recent voucher history"}</h3>
-                      <p className="mt-2 text-sm leading-relaxed text-white/50 light:text-gray-500">
-                        {voucherFilter === "available" ? `Your next free ride voucher arrives after ${data.ridesNeeded} paid rides.` : "Used and expired vouchers appear here."}
-                      </p>
-                      {voucherFilter === "available" && <button onClick={() => setShowReceiptScan(true)} className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-[#99C1F1] hover:text-white light:text-[#1A5FB4] light:hover:text-[#164A8F]"><QrCode size={16} /> Scan a cash receipt</button>}
-                    </div>
-                  )}
-                  {data.archivedVoucherCount > 0 && <p className={`mt-4 text-xs text-white/50 light:text-gray-500 ${voucherFilter !== "history" ? "lg:hidden" : ""}`}>{data.archivedVoucherCount} older used or expired voucher{data.archivedVoucherCount === 1 ? " is" : "s are"} archived.</p>}
-                </section>
+                <VoucherWallet
+                  tab={voucherTab}
+                  onTabChange={setVoucherTab}
+                  availableCount={available.length}
+                  ridesRemaining={remaining || data.ridesNeeded}
+                  resetKey={walletResetKey}
+                  scrollRoot={scrollRef}
+                  onScanReceipt={() => setShowReceiptScan(true)}
+                />
               </>
             )
           ) : (
@@ -292,29 +245,9 @@ export default function RewardsPage() {
           <ol className="mt-6 space-y-5 text-sm leading-relaxed text-white/60 light:text-gray-600">
             <li><h3 className="mb-1 font-semibold text-white light:text-gray-900">1. Complete paid rides</h3>GCash rides count automatically. For cash rides, scan the QR on your conductor&apos;s receipt. Each receipt can be claimed once within its claim window.</li>
             <li><h3 className="mb-1 font-semibold text-white light:text-gray-900">2. Earn a free ride</h3>Every {data?.ridesNeeded ?? 10} paid rides earns a voucher. Your progress then starts toward the next voucher.</li>
-            <li><h3 className="mb-1 font-semibold text-white light:text-gray-900">3. Show your code</h3>Open an available voucher and show its code to the conductor. It is marked used after the conductor records your free fare.</li>
+            <li><h3 className="mb-1 font-semibold text-white light:text-gray-900">3. Use it with GCash</h3>When you scan the conductor&apos;s GCash QR to pay, we offer your available voucher. Accept it to get the ride free or discounted; any remaining fare is paid by GCash.</li>
           </ol>
           <p className="mt-6 border-t border-white/10 pt-4 text-xs leading-relaxed text-white/60 light:border-gray-200 light:text-gray-500">Check each voucher&apos;s expiry date before riding. Free rides paid with vouchers do not count toward the next reward.</p>
-        </Modal>
-        <Modal themed isOpen={showVoucherModal && !!activeVoucher} onClose={() => setShowVoucherModal(false)} maxWidth="max-w-sm">
-          <h2 className="pr-8 text-lg font-bold">{selectedVoucher?.type === "DISCOUNT" ? "Discount voucher" : "Free ride voucher"}</h2>
-          {selectedVoucherAvailable ? (
-            <>
-              <p className="mt-2 text-sm leading-relaxed text-white/60 light:text-gray-600">{selectedVoucher?.type === "DISCOUNT" ? `Show this code to the conductor for ₱${(selectedVoucher.amount ?? 0).toFixed(2)} off your fare. Pay any remaining fare in cash.` : "Show this code to the conductor for your free fare."}</p>
-              <div className="my-6 border-y border-white/10 py-6 light:border-gray-200">
-                <p className="text-xs text-white/50 light:text-gray-500">Voucher code</p>
-                <p className="mt-2 break-all font-mono text-2xl font-bold text-[#99C1F1] light:text-[#1A5FB4]">{activeVoucher}</p>
-                {selectedVoucher?.expiresAt && <p className="mt-3 text-xs text-white/60 light:text-gray-500">Valid until {formatDate(selectedVoucher.expiresAt)}</p>}
-              </div>
-              <button onClick={async () => {
-                try { await navigator.clipboard.writeText(activeVoucher ?? ""); setCopyStatus("copied"); }
-                catch { setCopyStatus("error"); }
-              }} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#1A5FB4] text-sm font-semibold text-white hover:bg-[#164A8F]">
-                {copyStatus === "copied" ? <Check size={16} /> : <Copy size={16} />}{copyStatus === "copied" ? "Code copied" : "Copy code"}
-              </button>
-              <p role="status" className="mt-3 text-xs leading-relaxed text-white/60 light:text-gray-500">{copyStatus === "error" ? "Could not copy. You can still show the code above." : "Opening this code does not use your voucher. The conductor records the free fare."}</p>
-            </>
-          ) : <p role="status" className="mt-4 text-sm text-white/60 light:text-gray-500">This voucher is no longer available. Close this window to check your vouchers.</p>}
         </Modal>
         <Modal themed isOpen={selectedAnnouncement !== null} onClose={() => setSelectedAnnouncement(null)} maxWidth="max-w-lg">
           {selectedAnnouncement && <>
@@ -324,7 +257,7 @@ export default function RewardsPage() {
             <p className="mt-5 whitespace-pre-wrap break-words border-t border-white/10 pt-5 text-sm leading-relaxed text-white/70 light:border-gray-200 light:text-gray-600">{selectedAnnouncement.message}</p>
             {selectedAnnouncement.rawType?.startsWith('DISCOUNT_APPLICATION') && <Link href="/discount-application" onClick={() => setSelectedAnnouncement(null)} className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#1A5FB4] px-4 text-sm font-semibold text-white hover:bg-[#164A8F]">View discount application<ArrowRight size={16} aria-hidden="true" /></Link>}
             {selectedAnnouncement.rawType?.startsWith('STUDENT_RENEWAL') && <div className="mt-5 space-y-3"><Link href="/student-renewal" onClick={() => setSelectedAnnouncement(null)} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#1A5FB4] px-4 text-sm font-semibold text-white hover:bg-[#164A8F]">{renewal?.can_submit ? 'Renew student status' : 'View renewal status'}<ArrowRight size={16} aria-hidden="true" /></Link>{renewal?.can_switch_to_regular && renewal.status !== 'PENDING' && renewal.status !== 'APPROVED' && <Link href="/student-renewal#regular" onClick={() => setSelectedAnnouncement(null)} className="inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-white/20 px-4 text-sm light:border-gray-300 light:text-gray-700">No Longer a Student</Link>}</div>}
-            {selectedAnnouncement.type === "VOUCHER" && <button type="button" onClick={() => { setSelectedAnnouncement(null); setSection("rewards"); setVoucherFilter("available"); }} className="mt-5 min-h-11 w-full rounded-lg bg-[#1A5FB4] px-4 text-sm font-semibold text-white hover:bg-[#164A8F]">View vouchers</button>}
+            {selectedAnnouncement.type === "VOUCHER" && <button type="button" onClick={() => { setSelectedAnnouncement(null); setSection("rewards"); setVoucherTab("available"); }} className="mt-5 min-h-11 w-full rounded-lg bg-[#1A5FB4] px-4 text-sm font-semibold text-white hover:bg-[#164A8F]">View vouchers</button>}
           </>}
         </Modal>
       </div>

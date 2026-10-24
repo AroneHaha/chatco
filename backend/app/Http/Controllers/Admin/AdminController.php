@@ -87,7 +87,13 @@ class AdminController extends Controller
      */
     public function analytics(Request $request): JsonResponse
     {
-        $request->validate(['pickup_period' => 'sometimes|in:week']);
+        // Malformed dates used to reach Carbon::parse and fail as a 500; a
+        // reversed range produced a negative window and a nonsense comparison.
+        $request->validate([
+            'pickup_period' => 'sometimes|in:week',
+            'date_from' => 'sometimes|nullable|date_format:Y-m-d',
+            'date_to' => ['sometimes', 'nullable', 'date_format:Y-m-d', Rule::when($request->filled('date_from'), 'after_or_equal:date_from')],
+        ]);
         $filters = [
             'date_from' => $request->string('date_from')->toString() ?: null,
             'date_to' => $request->string('date_to')->toString() ?: null,
@@ -791,7 +797,9 @@ class AdminController extends Controller
             // Revoke ALL tokens BEFORE soft-deleting — so the conductor is
             // instantly logged out everywhere and can't use the account.
             $user->tokens()->delete();
-            // Soft-deletes the user — cascades to conductor_profile via shared PK.
+            // Soft-deletes the user only. Soft deletes don't trigger the FK
+            // cascade, so the conductor_profiles row stays; anything counting
+            // current conductors must also check users.deleted_at.
             $user->delete();
         });
 
@@ -1313,7 +1321,14 @@ class AdminController extends Controller
     {
         $perPage = (int) $request->integer('per_page', 100);
 
-        $query = Transaction::with(['shiftLog', 'passenger', 'payer', 'passengerBreakdown', 'paymentGroup:id,reference_number'])
+        // The voucher a ride used, so Receipts can show it alongside the real
+        // payment method: a discount voucher leaves the row CASH/GCASH, and
+        // only voucher_id records that one was applied. withTrashed() keeps the
+        // code visible after an admin soft-deletes a voucher that was used.
+        $query = Transaction::with([
+            'shiftLog', 'passenger', 'payer', 'passengerBreakdown', 'paymentGroup:id,reference_number',
+            'voucher' => fn ($voucher) => $voucher->withTrashed()->select('id', 'code', 'type', 'amount'),
+        ])
             ->orderBy('created_at', 'desc');
 
         if ($request->has('shift_id')) {
@@ -1499,7 +1514,10 @@ class AdminController extends Controller
                     ->select('shift_id')
                     ->selectRaw('COALESCE(SUM(CASE WHEN payment_method = ? THEN final_amount ELSE 0 END), 0) AS cash_total', [PaymentMethod::CASH->value])
                     ->selectRaw('COALESCE(SUM(CASE WHEN payment_method = ? THEN final_amount ELSE 0 END), 0) AS gcash_total', [PaymentMethod::GCASH->value])
-                    ->selectRaw('COALESCE(SUM(total_passengers), 0) AS total_passengers')
+                    // Group payments are one row per seat, each repeating the
+                    // group size, so a grouped row counts as one passenger
+                    // (same rule as ShiftCloseoutService's remittance totals).
+                    ->selectRaw('COALESCE(SUM(CASE WHEN group_id IS NOT NULL THEN 1 WHEN total_passengers IS NULL OR total_passengers < 1 THEN 1 ELSE total_passengers END), 0) AS total_passengers')
                     ->groupBy('shift_id')
                     ->get()
                     ->keyBy('shift_id');

@@ -8,6 +8,7 @@ use App\Enums\PaymentStatus;
 use App\Enums\ShiftStatus;
 use App\Models\ActivityLog;
 use App\Models\Announcement;
+use App\Services\AnnouncementService;
 use App\Models\Driver;
 use App\Models\Hail;
 use App\Models\OverspeedEvent;
@@ -219,6 +220,32 @@ class OperationalLifecycleTest extends TestCase
         $this->assertSame(Remittance::STATUS_PENDING, $row['remittance_status']);
         $this->assertSame('45', (string) $row['cash_total']);
         $this->assertSame('80', (string) $row['gcash_total']);
+        $this->assertSame(3, $row['total_passengers']);
+    }
+
+    public function test_admin_remittances_count_each_group_seat_once_for_active_shifts(): void
+    {
+        $admin = User::factory()->admin()->create();
+        [, , , , $shift] = $this->activeShift();
+        $groupId = (string) Str::uuid();
+        PaymentGroup::create([
+            'id' => $groupId, 'reference_number' => 'MP-TEST-'.Str::random(8), 'shift_id' => $shift->shift_id,
+            'payment_method' => PaymentMethod::CASH->value, 'pickup_name' => 'A', 'dropoff_name' => 'B',
+            'passenger_count' => 3, 'passenger_breakdown' => [], 'total_amount' => 60,
+        ]);
+        foreach (range(1, 3) as $position) {
+            // Each seat row repeats the group size, as createGroupReceiptRows stores it.
+            $this->fare($shift, PaymentMethod::CASH, PaymentStatus::PAID, 20, [
+                'group_id' => $groupId, 'group_position' => $position, 'total_passengers' => 3,
+            ]);
+        }
+
+        $row = collect($this->actingAs($admin)
+            ->getJson('/api/v1/admin/remittances?date='.now()->toDateString())
+            ->assertOk()
+            ->json('data.data'))
+            ->firstWhere('shift_id', $shift->shift_id);
+
         $this->assertSame(3, $row['total_passengers']);
     }
 
@@ -661,6 +688,29 @@ class OperationalLifecycleTest extends TestCase
         Remittance::where('shift_id', $shift->shift_id)->update(['last_reminder_at' => now()->subHours(2)]);
         $this->artisan('remittances:send-reminders')->assertSuccessful();
         $this->assertSame(1, Announcement::where('type', 'REMITTANCE_REMINDER')->count());
+    }
+
+    public function test_conductor_reminder_feed_returns_only_unanswered_reminders(): void
+    {
+        [$conductor, , , , $shift] = $this->activeShift();
+        $this->fare($shift, PaymentMethod::CASH, PaymentStatus::PAID, 50);
+        app(ShiftCloseoutService::class)->close($shift->shift_id, null, ShiftCloseoutService::REASON_STALE);
+        Remittance::where('shift_id', $shift->shift_id)->update(['remittance_due_at' => now()->subMinute()]);
+        $this->artisan('remittances:send-reminders')->assertSuccessful();
+        // A different personal notice must not be returned by the type filter.
+        app(AnnouncementService::class)->notifyUser($conductor->id, 'LOST_ITEM_UPDATE', 'Other', 'Other notice');
+
+        $feed = fn () => $this->actingAs($conductor, 'sanctum')
+            ->getJson('/api/v1/announcements?unread_only=1&notifications_only=1&types=REMITTANCE_REMINDER')
+            ->assertOk();
+
+        $feed()->assertJsonCount(1, 'data.data')
+            ->assertJsonPath('data.data.0.type', 'REMITTANCE_REMINDER')
+            ->assertJsonPath('data.data.0.reference_id', $shift->shift_id);
+
+        // Declaring the cash answers the reminder, so the popup has nothing to show.
+        app(ShiftCloseoutService::class)->recordCashDeclaration($shift->shift_id, 50);
+        $feed()->assertJsonCount(0, 'data.data');
     }
 
     public function test_midnight_reset_closes_old_shift_preserves_pending_cash_and_does_not_clear_today_assignment(): void

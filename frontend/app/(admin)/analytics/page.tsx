@@ -10,17 +10,12 @@ import {
   TrendingDown,
   Minus,
   Smartphone,
-  Users,
-  Car,
   Banknote,
-  Clock,
-  AlertTriangle,
   BarChart3,
   FileText,
   Download,
   ChevronDown,
   Receipt,
-  ShieldCheck,
 } from 'lucide-react';
 import {
   useAnalytics,
@@ -28,6 +23,7 @@ import {
   formatPeso,
   formatNumber,
   formatDateRangeLabel,
+  formatShortDate,
   toLocalISODate,
   type AnalyticsData,
   type AnalyticsRange,
@@ -38,10 +34,13 @@ import { PickupPointsList } from '@/components/admin/analytics/pickup-points-lis
 import { DemandHeatmapData } from '@/components/admin/analytics/demand-heatmap-data';
 import { DailyRevenueChart } from '@/components/admin/analytics/daily-revenue-chart';
 import { PeakHoursChart } from '@/components/admin/analytics/peak-hours-chart';
+import { PerformanceTable } from '@/components/admin/analytics/performance-table';
+import { MetricPairTile } from '@/components/admin/analytics/metric-pair-tile';
 import type { PickupPoint } from '@/app/(admin)/analytics/data/analytics-data';
 import { SkeletonCard } from '@/components/admin/ui/skeleton';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
 import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
+import { InlineError } from '@/components/admin/ui/inline-error';
 import { exportReport, type ReportFormat } from '@/lib/utils/export-report';
 import type {
   AnalyticsRemittance,
@@ -112,6 +111,7 @@ function MetricCard({
   icon: Icon,
   current,
   previous,
+  emphasis = false,
 }: {
   label: string;
   value: string;
@@ -120,126 +120,49 @@ function MetricCard({
   /** Supply both to render a period-over-period delta. */
   current?: number;
   previous?: number;
+  /** The headline card: larger figure. */
+  emphasis?: boolean;
 }) {
   return (
-    <div className="border rounded-lg p-4 flex items-center space-x-4 bg-[#131C2E] admin-light:bg-white border-[#1E2D45] admin-light:border-[#E2E8F0]">
-      <div className="p-3 rounded-full text-slate-300 admin-light:text-slate-600 shrink-0 bg-[#0E1628] admin-light:bg-[#F1F5F9]">
-        <Icon size={22} />
+    <div className="h-full min-w-0 flex flex-col gap-1.5 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white px-5 py-4">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 admin-light:text-slate-500">{label}</p>
+        <Icon size={18} aria-hidden="true" className="shrink-0 text-slate-500" />
       </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-xs font-medium text-slate-400 admin-light:text-slate-500 uppercase tracking-wider">{label}</p>
-        {/* title carries the full value: the truncate here used to clip large
-            peso figures on narrow/mobile cards with no way to read them. */}
-        <p className="text-xl font-bold text-white admin-light:text-slate-900 truncate" title={value}>{value}</p>
-        <div className="flex items-center gap-1.5 mt-0.5">
-          {current !== undefined && previous !== undefined && (
-            <DeltaBadge current={current} previous={previous} />
-          )}
-          {sublabel && <p className="text-xs text-slate-500 truncate">{sublabel}</p>}
-        </div>
+      {/* title carries the full value: the truncate here used to clip large
+          peso figures on narrow/mobile cards with no way to read them. */}
+      <p className={`${emphasis ? 'text-2xl sm:text-3xl' : 'text-xl sm:text-2xl'} font-bold leading-tight tabular-nums text-white admin-light:text-slate-900 truncate`} title={value}>{value}</p>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+        {current !== undefined && previous !== undefined && (
+          <DeltaBadge current={current} previous={previous} />
+        )}
+        {sublabel && <p className="text-xs text-slate-400 admin-light:text-slate-500 truncate">{sublabel}</p>}
       </div>
     </div>
   );
 }
+
+/** 545 → "9h 5m"; under an hour → "45m". */
+function formatMinutes(minutes: number): string {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return hours > 0 ? `${hours}h ${rest}m` : `${rest}m`;
+}
+
+/** Overview panel surface. */
+const PANEL = 'bg-[#131C2E] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-lg p-5';
+/** Chart beside a column of two tiles; both columns share the row's height. */
+const ROW_CHART_TILES = 'grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]';
 
 // A small uppercase "eyebrow" that groups a block of cards under a named
 // category — the dashboard used to lay all 8 KPI tiles out as two visually
 // identical rows with nothing distinguishing "money" from "operations to
-// watch." `live` uses a static green dot to distinguish current activity
-// from range-scoped groups.
-function SectionEyebrow({ children, live = false }: { children: React.ReactNode; live?: boolean }) {
+// watch."
+function SectionEyebrow({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2">
-      {live ? (
-        <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
-      ) : (
-        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#62A0EA]" />
-      )}
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#62A0EA]" />
       <h2 className="text-xs font-semibold text-slate-400 admin-light:text-slate-500 uppercase tracking-wider">{children}</h2>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// PAYMENT SPLIT DONUT
-// ═══════════════════════════════════════════════════════════════════════
-
-function PaymentSplitDonut({ data }: { data: AnalyticsData['payment_split'] }) {
-  const cashTotal = data.cash.total;
-  const gcashTotal = data.gcash.total;
-  const grandTotal = cashTotal + gcashTotal;
-
-  // Ride counts include vouchers; revenue does not (voucher fares are ₱0).
-  // The ring is drawn by revenue share, so voucher sits outside it and is
-  // reported as a separate row instead of being silently dropped.
-  const totalRides = data.cash.count + data.gcash.count + data.voucher.count;
-
-  const cashPct = grandTotal > 0 ? (cashTotal / grandTotal) * 100 : 0;
-  const gcashPct = grandTotal > 0 ? (gcashTotal / grandTotal) * 100 : 0;
-
-  if (totalRides === 0) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-center text-slate-600 admin-light:text-slate-500 text-sm">
-        No paid transactions in this date range.
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex-1 flex flex-col justify-center gap-6 sm:flex-row sm:items-center w-full">
-      {/* Decorative: every value in the ring is stated in the legend beside
-          it, and a conic-gradient div is unreadable to assistive tech. */}
-      <div className="relative w-40 h-40 flex-shrink-0 mx-auto sm:mx-0" aria-hidden="true">
-        <div
-          className="w-full h-full rounded-full"
-          style={{
-            background: `conic-gradient(#10b981 0% ${cashPct}%, #3b82f6 ${cashPct}% 100%)`,
-          }}
-        />
-        <div className="absolute inset-5 bg-[#131C2E] admin-light:bg-white rounded-full flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-[10px] text-slate-500 uppercase tracking-wider">Rides</p>
-            <p className="text-2xl font-bold text-white admin-light:text-slate-900">{formatNumber(totalRides)}</p>
-            <p className="text-[10px] text-slate-500">total</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex-1 space-y-3 w-full">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-emerald-500 flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-slate-300 admin-light:text-slate-700">Cash</p>
-            <p className="text-xs text-slate-500">{data.cash.count} rides · {cashPct.toFixed(1)}% of revenue</p>
-          </div>
-          <p className="text-sm font-bold text-emerald-400 admin-light:text-emerald-700 font-mono">{formatPeso(cashTotal)}</p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-blue-500 flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-slate-300 admin-light:text-slate-700">GCash</p>
-            <p className="text-xs text-slate-500">{data.gcash.count} rides · {gcashPct.toFixed(1)}% of revenue</p>
-          </div>
-          <p className="text-sm font-bold text-blue-400 admin-light:text-blue-700 font-mono">{formatPeso(gcashTotal)}</p>
-        </div>
-
-        <div className="flex items-center gap-2 pt-3 border-t border-[#1E2D45] admin-light:border-[#E2E8F0]">
-          <div className="w-3 h-3 rounded-full bg-pink-500 flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-slate-300 admin-light:text-slate-700">Voucher</p>
-            <p className="text-xs text-slate-500">
-              {data.voucher.count} free reward rides
-            </p>
-          </div>
-          <p className="text-sm font-bold text-slate-500 font-mono">{formatPeso(data.voucher.total)}</p>
-        </div>
-
-        <div className="flex items-center justify-between pt-3 border-t border-[#1E2D45] admin-light:border-[#E2E8F0]">
-          <p className="text-xs font-medium text-slate-400 admin-light:text-slate-500 uppercase tracking-wider">Total Revenue</p>
-          <p className="text-base font-bold text-white admin-light:text-slate-900 font-mono">{formatPeso(grandTotal)}</p>
-        </div>
-      </div>
     </div>
   );
 }
@@ -466,11 +389,13 @@ function OverviewTab({
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <SkeletonCard count={4} height="80px" adminThemed />
+          <SkeletonCard count={4} height="112px" adminThemed />
         </div>
-        <div className="grid lg:grid-cols-2 gap-6">
-          <SkeletonCard count={2} height="300px" adminThemed />
-          <SkeletonCard count={2} height="300px" adminThemed />
+        <div className={ROW_CHART_TILES}>
+          <SkeletonCard count={1} height="470px" adminThemed />
+          <div className="grid gap-6 lg:grid-rows-2">
+            <SkeletonCard count={2} height="223px" adminThemed />
+          </div>
         </div>
       </div>
     );
@@ -497,113 +422,154 @@ function OverviewTab({
   const health = data.gcash_health;
 
   const hasShortage = data.remittances.total_shortage > 0;
+  // Each method's share of revenue (voucher rides are free, so excluded).
+  const revenueShare = (amount: number) =>
+    data.totals.total_fares > 0 ? ` · ${((amount / data.totals.total_fares) * 100).toFixed(1)}% of revenue` : '';
+
+  const remittances = data.remittances;
+  const bestDay = data.daily_series.reduce<AnalyticsData['daily_series'][number] | null>(
+    (best, day) => (day.total > 0 && (!best || day.total > best.total) ? day : best),
+    null,
+  );
 
   return (
     <div className="space-y-6">
       {/* ── Revenue: the range-scoped money metrics, with period-over-period
-          deltas. First group an admin scans — "how much did we make." ── */}
-      <div className="space-y-3">
-        <SectionEyebrow>Revenue</SectionEyebrow>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard
-            label="Total Fares" value={formatPeso(data.totals.total_fares)}
-            sublabel={`${formatNumber(data.totals.paid_count)} paid rides`}
-            icon={TrendingUp}
-            current={data.totals.total_fares} previous={prev.total_fares}
-          />
-          <MetricCard
-            label="Cash Total" value={formatPeso(data.totals.cash_total)}
-            sublabel={`${data.payment_split.cash.count} rides`}
-            icon={Banknote}
-            current={data.totals.cash_total} previous={prev.cash_total}
-          />
-          <MetricCard
-            label="GCash Total" value={formatPeso(data.totals.gcash_total)}
-            sublabel={`${data.payment_split.gcash.count} rides`}
-            icon={Smartphone}
-            current={data.totals.gcash_total} previous={prev.gcash_total}
-          />
-          <MetricCard
-            label="Avg Fare" value={formatPeso(data.totals.avg_fare)}
-            sublabel="per paying ride"
-            icon={Receipt}
-            current={data.totals.avg_fare} previous={prev.avg_fare}
-          />
+          deltas. Total Fares leads and is the widest. ── */}
+      <div className="grid lg:grid-cols-[1.5fr_1fr_1fr_1fr] gap-4">
+        <MetricCard
+          label="Total Fares" value={formatPeso(data.totals.total_fares)}
+          sublabel={data.totals.discount_total > 0 ? `after ${formatPeso(data.totals.discount_total)} in discounts` : 'no discounts given'}
+          icon={TrendingUp} emphasis
+          current={data.totals.total_fares} previous={prev.total_fares}
+        />
+        {/* Below lg the other three are one equal-width swipe row that bleeds
+            to the screen edge (offsets match the admin main's p-4 / md:p-6),
+            with the next card peeking in. At lg the wrapper is `contents`, so
+            the cards become ordinary cells of the four-column grid. */}
+        <div className="-mx-4 px-4 md:-mx-6 md:px-6 scroll-px-4 md:scroll-px-6 flex gap-4 overflow-x-auto snap-x snap-mandatory scrollbar-hide lg:contents">
+          {[
+            { label: 'Cash Total', value: data.totals.cash_total, previous: prev.cash_total, icon: Banknote, sublabel: `${data.payment_split.cash.count} rides${revenueShare(data.totals.cash_total)}` },
+            { label: 'GCash Total', value: data.totals.gcash_total, previous: prev.gcash_total, icon: Smartphone, sublabel: `${data.payment_split.gcash.count} rides${revenueShare(data.totals.gcash_total)}` },
+            { label: 'Avg Fare', value: data.totals.avg_fare, previous: prev.avg_fare, icon: Receipt, sublabel: 'per paying passenger' },
+          ].map(card => (
+            <div key={card.label} className="w-[72%] sm:w-[44%] shrink-0 snap-start lg:w-auto">
+              <MetricCard
+                label={card.label} value={formatPeso(card.value)}
+                sublabel={card.sublabel} icon={card.icon}
+                current={card.value} previous={card.previous}
+              />
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* ── Rides & Operations Health: volume plus the things worth watching
-          (payment reliability, what's still pending, what didn't reconcile).
-          Second group — "how's the operation running." ── */}
-      <div className="space-y-3">
-        <SectionEyebrow>Rides &amp; Operations Health</SectionEyebrow>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard
-            label="Passengers" value={formatNumber(data.totals.total_passengers)}
-            sublabel={`incl. ${data.totals.voucher_count} voucher rides`}
-            icon={Users}
-            current={data.totals.total_passengers} previous={prev.total_passengers}
-          />
-          <MetricCard
-            label="GCash Success" value={health.success_rate === null ? '—' : `${health.success_rate}%`}
-            sublabel={health.success_rate === null ? 'no gateway attempts' : `${health.failed + health.expired + health.cancelled} unsettled`}
-            icon={ShieldCheck}
-          />
-          <MetricCard
-            label="Pending" value={formatNumber(data.totals.pending_count)}
-            sublabel="awaiting payment" icon={Clock}
-          />
-          <MetricCard
-            label="Shortage" value={formatPeso(data.remittances.total_shortage)}
-            sublabel={hasShortage ? `${data.remittances.shortage_rate}% of collected` : 'No shortage'}
-            icon={AlertTriangle}
-          />
-        </div>
-      </div>
-
-      {/* ── Live fleet status ──
-          Deliberately separated from the cards above: these are point-in-time
-          "right now" counts, not range aggregates, and mixing the two in one
-          grid invited them to be read as scoped to the selected window. */}
-      <div className="bg-[#131C2E] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-lg p-4">
-        <div className="mb-3">
-          <SectionEyebrow live>Live Fleet — current status, not affected by the date range</SectionEyebrow>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <MetricCard
-            label="Active Vehicles" value={`${data.fleet.active_vehicles} / ${data.fleet.total_vehicles}`}
-            sublabel="on active shift now" icon={Car}
-          />
-          <MetricCard
-            label="Active Conductors" value={`${data.fleet.active_conductors} / ${data.fleet.total_conductors}`}
-            sublabel="on shift now" icon={Users}
-          />
-        </div>
-      </div>
-
-      {/* ── Charts ── */}
-      <div className="bg-[#131C2E] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-lg p-5">
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-          <h2 className="text-lg font-bold text-white admin-light:text-slate-900">Daily Revenue</h2>
-          <div className="flex items-center gap-3 text-xs">
-            <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-emerald-500" /><span className="text-slate-400 admin-light:text-slate-500">Cash</span></span>
-            <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-blue-500" /><span className="text-slate-400 admin-light:text-slate-500">GCash</span></span>
-            <span className="flex items-center gap-1.5"><div className="w-4 h-0.5 rounded-full bg-amber-500" /><span className="text-slate-400 admin-light:text-slate-500">7-day avg</span></span>
+      {/* ── Bento rows. Each row is one grid whose items stretch to the
+          tallest cell, so panel edges always line up — including when the
+          chart's "View as table" opens. ── */}
+      <div className={ROW_CHART_TILES}>
+        <section className={`${PANEL} min-w-0 flex flex-col`}>
+          <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+            <div className="min-w-0">
+              <h2 className="text-lg font-bold text-white admin-light:text-slate-900">Daily Revenue</h2>
+              <p className="text-xs text-slate-400 admin-light:text-slate-500">
+                {bestDay ? `Best day ${formatShortDate(bestDay.date)} · ${formatPeso(bestDay.total)}` : 'Cash and GCash fares per day'}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 admin-light:text-slate-500">
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[#475569] admin-light:bg-[#94A3B8]" />Cash</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[#62A0EA] admin-light:bg-[#1A5FB4]" />GCash</span>
+              <span className="flex items-center gap-1.5"><span className="w-4 h-0.5 bg-[#E2E8F0] admin-light:bg-[#334155]" />7-day avg</span>
+            </div>
           </div>
+          <DailyRevenueChart data={data.daily_series} height={300} />
+        </section>
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-1 lg:grid-rows-2">
+          <MetricPairTile
+            title="Cash in Transit"
+            main={{
+              label: 'Awaiting remittance',
+              value: formatPeso(remittances.awaiting_amount),
+              note: remittances.awaiting_count > 0
+                ? `${formatNumber(remittances.awaiting_count)} ${remittances.awaiting_count === 1 ? 'shift' : 'shifts'} not yet remitted`
+                : 'all shifts remitted',
+            }}
+            second={{
+              label: 'Shortage',
+              value: formatPeso(remittances.total_shortage),
+              note: hasShortage ? `${remittances.shortage_rate}% of collected` : 'no shortage',
+            }}
+          />
+          <MetricPairTile
+            title="Safety"
+            main={{
+              label: 'SOS alerts',
+              value: formatNumber(data.safety.sos_alerts),
+              note: data.safety.sos_alerts === 0 ? 'none raised' : data.safety.sos_open > 0 ? `${formatNumber(data.safety.sos_open)} still open` : 'all resolved',
+            }}
+            second={{
+              label: 'Overspeeding',
+              value: formatNumber(data.safety.overspeed_episodes),
+              note: data.safety.overspeed_top_speed === null ? 'none recorded' : `top speed ${data.safety.overspeed_top_speed} km/h`,
+            }}
+          />
         </div>
-        <DailyRevenueChart data={data.daily_series} />
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        <div className="bg-[#131C2E] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-lg p-5">
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+        <section className={`${PANEL} min-w-0 sm:col-span-2 lg:col-span-1`}>
           <h2 className="text-lg font-bold text-white admin-light:text-slate-900 mb-1">Peak Hours</h2>
-          <p className="text-xs text-slate-500 mb-4">Rides by hour of day across the selected range</p>
+          <p className="text-xs text-slate-400 admin-light:text-slate-500 mb-4">Rides by hour of day; the three busiest hours are highlighted</p>
           <PeakHoursChart data={data.hourly_series} />
-        </div>
-        <div className="bg-[#131C2E] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-lg p-5 flex flex-col">
-          <h2 className="text-lg font-bold text-white admin-light:text-slate-900 mb-1">Payment Method Split</h2>
-          <p className="text-xs text-slate-500 mb-4">Ring shows revenue share; voucher rides are free</p>
-          <PaymentSplitDonut data={data.payment_split} />
+        </section>
+        <MetricPairTile
+          title="Riders & Payments"
+          main={{
+            label: 'Passengers',
+            value: formatNumber(data.totals.total_passengers),
+            note: `incl. ${formatNumber(data.totals.voucher_count)} voucher rides`,
+          }}
+          mainDelta={<DeltaBadge current={data.totals.total_passengers} previous={prev.total_passengers} />}
+          second={{
+            label: 'GCash success',
+            value: health.success_rate === null ? '—' : `${health.success_rate}%`,
+            note: health.success_rate === null ? 'no gateway attempts' : `${formatNumber(health.failed + health.expired + health.cancelled)} unsettled`,
+          }}
+        />
+        <MetricPairTile
+          title="Service"
+          main={{
+            label: 'Driver rating',
+            value: data.service.driver_rating === null ? '—' : `${data.service.driver_rating.toFixed(1)} / 5`,
+            note: data.service.review_count === 0
+              ? 'no reviews yet'
+              : `${data.service.conductor_rating === null ? 'conductor not rated' : `conductor ${data.service.conductor_rating.toFixed(1)}`} · ${formatNumber(data.service.review_count)} ${data.service.review_count === 1 ? 'review' : 'reviews'}`,
+          }}
+          second={{
+            label: 'Shifts run',
+            value: formatNumber(data.service.shifts_run),
+            note: data.service.avg_shift_minutes === null ? 'none ended yet' : `avg ${formatMinutes(data.service.avg_shift_minutes)} per shift`,
+          }}
+        />
+      </div>
+
+      {/* ── Who earned it: fare revenue per unit and per conductor, ranked.
+          Revenue uses the same window as Total Fares, so each table sums to it. ── */}
+      <div className="space-y-3">
+        <SectionEyebrow>Unit &amp; Conductor Performance</SectionEyebrow>
+        <div className="grid lg:grid-cols-2 gap-6">
+          <PerformanceTable
+            title="Revenue by Unit"
+            nameLabel="Unit"
+            rows={data.performance.units.map(unit => ({ id: unit.vehicle_id, name: unit.unit_number, detail: unit.plate_number, shifts: unit.shifts, passengers: unit.passengers, revenue: unit.revenue }))}
+            emptyMessage="No shifts in this date range."
+          />
+          <PerformanceTable
+            title="Revenue by Conductor"
+            nameLabel="Conductor"
+            rows={data.performance.conductors.map(conductor => ({ id: conductor.conductor_id, name: conductor.name, shifts: conductor.shifts, passengers: conductor.passengers, revenue: conductor.revenue }))}
+            emptyMessage="No shifts in this date range."
+          />
         </div>
       </div>
     </div>
@@ -763,31 +729,32 @@ export default function AnalyticsPage() {
         <h1 className="text-2xl font-bold text-white admin-light:text-slate-900">Financial &amp; Operations Analytics</h1>
       </StickyPageHeader>
 
-      <div className="-mt-4 md:mt-0 flex items-center gap-1.5 min-w-0 text-sm text-slate-400 admin-light:text-slate-500">
-        {data ? (
-          <>
-            <CalendarDays size={14} className="text-slate-500 shrink-0" />
-            <span className="truncate">
-              {formatDateRangeLabel(data.date_range.from, data.date_range.to)}
-              <span className="text-slate-600 admin-light:text-slate-500"> · vs </span>
-              {formatDateRangeLabel(data.previous_range.from, data.previous_range.to)}
-            </span>
-          </>
-        ) : (
-          <span className="truncate">Conductor remittances, payment breakdowns, and commuter demand.</span>
+      <div className="-mt-4 md:mt-0 space-y-1 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0 text-sm text-slate-400 admin-light:text-slate-500">
+          {data ? (
+            <>
+              <CalendarDays size={14} className="text-slate-500 shrink-0" />
+              <span className="truncate">
+                {formatDateRangeLabel(data.date_range.from, data.date_range.to)}
+                <span className="text-slate-600 admin-light:text-slate-500"> · vs </span>
+                {formatDateRangeLabel(data.previous_range.from, data.previous_range.to)}
+              </span>
+            </>
+          ) : (
+            <span className="truncate">Conductor remittances, payment breakdowns, and commuter demand.</span>
+          )}
+        </div>
+
+        {/* Custom-range feedback, under the range it explains. Selecting
+            "Custom" used to fall back to the backend's 30-day default while
+            the UI still showed Custom selected. An unfinished pick is
+            guidance (muted text); a reversed range is an error (red). */}
+        {rangeInvalid ? (
+          <InlineError className="pl-5">The start date is after the end date. Showing the last 30 days until the range is fixed.</InlineError>
+        ) : customIncomplete && (
+          <p className="pl-5 text-sm text-slate-500">Choose a start and an end date to apply the custom range. Until then, this shows the last 30 days.</p>
         )}
       </div>
-
-      {/* Custom-range feedback. Selecting "Custom" used to fall back to the
-          backend's 30-day default while the UI still showed Custom selected. */}
-      {(rangeInvalid || customIncomplete) && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300">
-          <AlertTriangle size={14} className="flex-shrink-0" />
-          {rangeInvalid
-            ? 'Start date is after the end date — showing the default 30-day window until the range is valid.'
-            : 'Pick both a start and an end date — showing the default 30-day window in the meantime.'}
-        </div>
-      )}
 
       {/* Tabs + range control share one row: tabs on the left, filters
           flush right against the same border. The range control still
@@ -834,7 +801,8 @@ export default function AnalyticsPage() {
           </div>
 
           {preset === 'custom' && (
-            <div className="flex flex-wrap items-center gap-1">
+            // Below lg the range spans the full width, the two dates sharing it equally.
+            <div className="flex w-full items-center gap-2 lg:w-auto lg:gap-1">
               <AdminDatePicker
                 value={customFrom}
                 onChange={setCustomFrom}
@@ -844,9 +812,9 @@ export default function AnalyticsPage() {
                 popover
                 yearNavigation
                 triggerClassName="h-9 w-full"
-                className="w-36"
+                className="min-w-0 flex-1 lg:w-36 lg:flex-none"
               />
-              <span className="text-slate-500 text-xs">to</span>
+              <span className="shrink-0 text-slate-500 text-xs">to</span>
               <AdminDatePicker
                 value={customTo}
                 onChange={setCustomTo}
@@ -857,7 +825,7 @@ export default function AnalyticsPage() {
                 yearNavigation
                 align="right"
                 triggerClassName="h-9 w-full"
-                className="w-36"
+                className="min-w-0 flex-1 lg:w-36 lg:flex-none"
               />
             </div>
           )}

@@ -332,11 +332,25 @@ class AdminService
         // Drives the GCash settlement-success metric. Previously only
         // PENDING was surfaced, so FAILED/EXPIRED/CANCELLED payments — the
         // ones that actually need chasing — were invisible.
-        $statusRows = DB::table('transactions')
-            ->select('status', DB::raw('COUNT(*) as status_count'))
+        //
+        // One grouped query feeds both the per-row status breakdown and the
+        // per-payment GCash figures: a group payment is one row per seat, so
+        // GCash attempts are counted once per payment (group_id, or the row
+        // itself when ungrouped) instead of once per seat.
+        $statusMethodRows = DB::table('transactions')
+            ->select(
+                'status',
+                'payment_method',
+                DB::raw('COUNT(*) as row_count'),
+                DB::raw('COUNT(DISTINCT COALESCE(group_id, transaction_id)) as payment_count')
+            )
             ->whereBetween('created_at', [$dateFrom, $dateTo])
-            ->groupBy('status')
-            ->pluck('status_count', 'status');
+            ->groupBy('status', 'payment_method')
+            ->get();
+        $statusRows = $statusMethodRows->groupBy('status')->map(fn ($rows) => $rows->sum('row_count'));
+        $gcashPayments = $statusMethodRows
+            ->where('payment_method', 'GCASH')
+            ->mapWithKeys(fn ($row) => [$row->status => (int) $row->payment_count]);
 
         // Statuses the app can actually produce. REFUNDED is deliberately not
         // here: nothing in the product initiates a refund, so it would be a
@@ -359,12 +373,9 @@ class AdminService
 
         // Gateway-settled attempts only — cash never goes through this
         // lifecycle, so including it would flatter the success rate.
-        $gcashAttempts = (int) DB::table('transactions')
-            ->where('payment_method', 'GCASH')
-            ->whereIn('status', ['PAID', 'FAILED', 'CANCELLED', 'EXPIRED'])
-            ->whereBetween('created_at', [$dateFrom, $dateTo])
-            ->count();
-        $gcashSettled = $current['gcash_count'];
+        $gcashOutcome = fn (string $status): int => (int) ($gcashPayments[$status] ?? 0);
+        $gcashSettled = $gcashOutcome('PAID');
+        $gcashAttempts = $gcashSettled + $gcashOutcome('FAILED') + $gcashOutcome('CANCELLED') + $gcashOutcome('EXPIRED');
 
         // ── Payment split (counts + sums), now including VOUCHER ───────────
         $paymentSplit = [
@@ -447,19 +458,29 @@ class AdminService
         // above are windowed on created_at, so a shift running past midnight
         // can land in a different bucket than its fares. The two are related
         // but do not reconcile exactly; the UI labels them accordingly.
+        //
+        // A shift that ended before its cash was handed in is PENDING with
+        // shortage = the whole expected cash (nothing physically remitted yet).
+        // That is cash in transit, not missing cash, so it is reported as
+        // "awaiting" and kept out of the shortage figure and its rate.
         $remittanceBase = Remittance::query()
             ->whereBetween('date', [$dateFrom->toDateString(), $dateTo->toDateString()]);
+        $pending = Remittance::STATUS_PENDING;
 
         $remittanceTotals = $remittanceBase
             ->selectRaw('COUNT(*) as remittance_count')
             ->selectRaw('COALESCE(SUM(remitted_amount), 0) as total_remitted')
             ->selectRaw('COALESCE(SUM(total_collected), 0) as total_collected')
-            ->selectRaw('COALESCE(SUM(shortage), 0) as total_shortage')
+            ->selectRaw('COALESCE(SUM(CASE WHEN remittance_status <> ? THEN total_collected ELSE 0 END), 0) as settled_collected', [$pending])
+            ->selectRaw('COALESCE(SUM(CASE WHEN remittance_status <> ? THEN shortage ELSE 0 END), 0) as total_shortage', [$pending])
+            ->selectRaw('COALESCE(SUM(CASE WHEN remittance_status = ? THEN 1 ELSE 0 END), 0) as awaiting_count', [$pending])
+            ->selectRaw('COALESCE(SUM(CASE WHEN remittance_status = ? THEN total_collected ELSE 0 END), 0) as awaiting_amount', [$pending])
             ->first();
 
         $remittanceCount = (int) ($remittanceTotals->remittance_count ?? 0);
         $totalRemitted = (float) ($remittanceTotals->total_remitted ?? 0);
         $totalCollected = (float) ($remittanceTotals->total_collected ?? 0);
+        $settledCollected = (float) ($remittanceTotals->settled_collected ?? 0);
         $totalShortage = (float) ($remittanceTotals->total_shortage ?? 0);
 
         // ── Fleet counts ───────────────────────────────────────────────────
@@ -469,8 +490,14 @@ class AdminService
         $activeVehicles = (int) Vehicle::whereNotNull('active_shift_id')->count();
 
         // Active conductors = conductors with an ACTIVE shift right now.
-        // Total conductors = all conductor profiles (non-deleted).
-        $totalConductors = (int) DB::table('conductor_profiles')->count();
+        // Total conductors = conductors still on the roster. Removing a
+        // conductor soft-deletes the user only (soft deletes don't cascade),
+        // so the profile row survives and the user's deleted_at decides.
+        $totalConductors = (int) DB::table('conductor_profiles')
+            ->join('users', 'users.id', '=', 'conductor_profiles.id')
+            ->whereNull('users.deleted_at')
+            ->whereNull('conductor_profiles.deleted_at')
+            ->count();
         $activeConductors = (int) ShiftLog::where('status', 'ACTIVE')->distinct('conductor_id')->count('conductor_id');
 
         // Dashboard pickups use the current calendar week and the major fare
@@ -543,6 +570,7 @@ class AdminService
             ->toArray();
 
         $prevTotalFares = $previous['cash_total'] + $previous['gcash_total'];
+        $shiftSummary = $this->shiftSummary($dateFrom, $dateTo);
 
         return [
             'date_range' => [
@@ -565,14 +593,15 @@ class AdminService
                 'paid_count' => $current['cash_count'] + $current['gcash_count'],
                 // Every PAID row including voucher rides = bodies carried.
                 'total_passengers' => $current['passenger_count'],
+                'paying_passengers' => $current['paying_passenger_count'],
                 'pending_count' => $pendingCount,
                 'voucher_count' => $voucherCount,
-                // Mean revenue per paying ride. Normalises the headline total
-                // so a busy-but-cheap window is distinguishable from a quiet
-                // one. Guarded against divide-by-zero on an empty window.
-                'avg_fare' => $current['cash_count'] + $current['gcash_count'] > 0
-                    ? round($totalFares / ($current['cash_count'] + $current['gcash_count']), 2)
-                    : 0.0,
+                // Fare given away in the window (discounts, vouchers, free rides).
+                'discount_total' => $current['discount_total'],
+                // Mean revenue per paying passenger. Normalises the headline
+                // total so a busy-but-cheap window is distinguishable from a
+                // quiet one.
+                'avg_fare' => $this->averageFare($current),
             ],
             // Same shape as `totals`, for the preceding window. The frontend
             // derives percentage deltas from these rather than the backend
@@ -588,9 +617,7 @@ class AdminService
                 // count) before this field existed, which compared two
                 // different kinds of numbers.
                 'total_passengers' => $previous['passenger_count'],
-                'avg_fare' => $previous['cash_count'] + $previous['gcash_count'] > 0
-                    ? round($prevTotalFares / ($previous['cash_count'] + $previous['gcash_count']), 2)
-                    : 0.0,
+                'avg_fare' => $this->averageFare($previous),
             ],
             'payment_split' => $paymentSplit,
             'daily_series' => $dailySeries,
@@ -599,9 +626,9 @@ class AdminService
             'gcash_health' => [
                 'attempts' => $gcashAttempts,
                 'settled' => $gcashSettled,
-                'failed' => $statusBreakdown['FAILED'],
-                'expired' => $statusBreakdown['EXPIRED'],
-                'cancelled' => $statusBreakdown['CANCELLED'],
+                'failed' => $gcashOutcome('FAILED'),
+                'expired' => $gcashOutcome('EXPIRED'),
+                'cancelled' => $gcashOutcome('CANCELLED'),
                 'success_rate' => $gcashAttempts > 0
                     ? round(($gcashSettled / $gcashAttempts) * 100, 1)
                     : null,
@@ -611,12 +638,15 @@ class AdminService
                 'total_collected' => $totalCollected,
                 'total_shortage' => $totalShortage,
                 'count' => $remittanceCount,
-                // Shortage as a share of what was collected. An absolute peso
-                // figure alone can't distinguish ₱500 short on ₱600 from ₱500
-                // short on ₱600,000.
-                'shortage_rate' => $totalCollected > 0
-                    ? round(($totalShortage / $totalCollected) * 100, 2)
+                // Shortage as a share of the cash expected from remitted
+                // shifts. An absolute peso figure alone can't distinguish ₱500
+                // short on ₱600 from ₱500 short on ₱600,000.
+                'shortage_rate' => $settledCollected > 0
+                    ? round(($totalShortage / $settledCollected) * 100, 2)
                     : 0.0,
+                // Ended shifts whose cash hasn't been handed in yet.
+                'awaiting_count' => (int) ($remittanceTotals->awaiting_count ?? 0),
+                'awaiting_amount' => (float) ($remittanceTotals->awaiting_amount ?? 0),
             ],
             'fleet' => [
                 'active_vehicles' => $activeVehicles,
@@ -626,7 +656,158 @@ class AdminService
             ],
             'pickup_points' => $pickupPoints,
             'heatmap_zones' => $heatmapZones,
+            'service' => [
+                'shifts_run' => $shiftSummary['shifts_run'],
+                'avg_shift_minutes' => $shiftSummary['avg_shift_minutes'],
+                ...$this->ratingSummary($dateFrom, $dateTo),
+            ],
+            'safety' => $this->safetySummary($dateFrom, $dateTo),
+            'performance' => [
+                'units' => $shiftSummary['units'],
+                'conductors' => $shiftSummary['conductors'],
+            ],
         ];
+    }
+
+    /**
+     * Shifts run in the window, and revenue/passengers per unit and per
+     * conductor.
+     *
+     * Shifts are those that started in the window or took fares in it (one
+     * that began just before the window but earned inside it counts), and the
+     * shifts_run card uses that same set, so it equals the tables' shift
+     * totals. Revenue and passengers use the same PAID-by-created_at window as
+     * the headline totals, attributed to the shift's unit and conductor
+     * snapshot, so per-unit revenue sums exactly to total_fares.
+     *
+     * @return array{shifts_run: int, avg_shift_minutes: int|null, units: list<array<string, mixed>>, conductors: list<array<string, mixed>>}
+     */
+    private function shiftSummary(Carbon $from, Carbon $to): array
+    {
+        $shiftColumns = ['shift_logs.shift_id', 'shift_logs.vehicle_id', 'shift_logs.unit_number', 'shift_logs.plate_number', 'shift_logs.conductor_id', 'shift_logs.conductor_name', 'shift_logs.time_in', 'shift_logs.time_out'];
+
+        $started = DB::table('shift_logs')
+            ->select($shiftColumns)
+            ->whereBetween('time_in', [$from, $to])
+            ->orderByDesc('time_in')
+            ->get();
+
+        // Same passenger rule as the totals: a group seat row counts once.
+        $earned = DB::table('transactions')
+            ->join('shift_logs', 'shift_logs.shift_id', '=', 'transactions.shift_id')
+            ->select($shiftColumns)
+            ->selectRaw("COALESCE(SUM(CASE WHEN transactions.payment_method IN ('CASH', 'GCASH') THEN transactions.final_amount ELSE 0 END), 0) as revenue")
+            ->selectRaw('SUM(CASE
+                WHEN transactions.group_id IS NOT NULL THEN 1
+                WHEN transactions.total_passengers IS NULL OR transactions.total_passengers < 1 THEN 1
+                ELSE transactions.total_passengers
+            END) as passengers')
+            ->where('transactions.status', 'PAID')
+            ->whereBetween('transactions.created_at', [$from, $to])
+            ->groupBy($shiftColumns)
+            ->get()
+            ->keyBy('shift_id');
+
+        // Every shift that started or earned in the window, newest first so
+        // each unit/conductor takes its latest label.
+        $shifts = $started->keyBy('shift_id');
+        foreach ($earned as $shiftId => $row) {
+            if (! $shifts->has($shiftId)) {
+                $shifts->put($shiftId, $row);
+            }
+        }
+        $shifts = $shifts->sortByDesc('time_in');
+
+        // Only ended shifts have a length; a time_out before time_in (a bad
+        // clock) is left out rather than averaged in as a negative length.
+        $lengths = $shifts
+            ->filter(fn ($shift) => $shift->time_out !== null)
+            ->map(fn ($shift) => Carbon::parse($shift->time_in)->diffInMinutes(Carbon::parse($shift->time_out), false))
+            ->filter(fn ($minutes) => $minutes >= 0);
+        $avgShiftMinutes = $lengths->isEmpty() ? null : (int) round($lengths->avg());
+
+        $units = [];
+        $conductors = [];
+        foreach ($shifts as $shiftId => $shift) {
+            $revenue = (float) ($earned->get($shiftId)->revenue ?? 0);
+            $passengers = (int) ($earned->get($shiftId)->passengers ?? 0);
+
+            $units[$shift->vehicle_id] ??= ['vehicle_id' => $shift->vehicle_id, 'unit_number' => $shift->unit_number, 'plate_number' => $shift->plate_number, 'shifts' => 0, 'passengers' => 0, 'revenue' => 0.0];
+            $units[$shift->vehicle_id]['shifts']++;
+            $units[$shift->vehicle_id]['passengers'] += $passengers;
+            $units[$shift->vehicle_id]['revenue'] += $revenue;
+
+            $conductors[$shift->conductor_id] ??= ['conductor_id' => $shift->conductor_id, 'name' => $shift->conductor_name, 'shifts' => 0, 'passengers' => 0, 'revenue' => 0.0];
+            $conductors[$shift->conductor_id]['shifts']++;
+            $conductors[$shift->conductor_id]['passengers'] += $passengers;
+            $conductors[$shift->conductor_id]['revenue'] += $revenue;
+        }
+
+        $rank = fn (array $rows, string $label) => collect($rows)
+            ->map(fn (array $row) => [...$row, 'revenue' => round($row['revenue'], 2)])
+            ->sortBy([['revenue', 'desc'], [$label, 'asc']])
+            ->values()
+            ->all();
+
+        return [
+            'shifts_run' => $shifts->count(),
+            'avg_shift_minutes' => $avgShiftMinutes,
+            'units' => $rank($units, 'unit_number'),
+            'conductors' => $rank($conductors, 'name'),
+        ];
+    }
+
+    /**
+     * Commuter ride ratings submitted in the window. `rating` is the ride /
+     * driver rating every review has; the conductor rating is optional.
+     *
+     * @return array{review_count: int, driver_rating: float|null, conductor_rating: float|null}
+     */
+    private function ratingSummary(Carbon $from, Carbon $to): array
+    {
+        $row = DB::table('feedback')
+            ->whereBetween('created_at', [$from, $to])
+            ->selectRaw('COUNT(*) as review_count, AVG(rating) as driver_rating, AVG(conductor_rating) as conductor_rating')
+            ->first();
+
+        return [
+            'review_count' => (int) ($row->review_count ?? 0),
+            'driver_rating' => $row?->driver_rating !== null ? round((float) $row->driver_rating, 1) : null,
+            'conductor_rating' => $row?->conductor_rating !== null ? round((float) $row->conductor_rating, 1) : null,
+        ];
+    }
+
+    /**
+     * SOS alerts raised and overspeeding episodes recorded in the window.
+     *
+     * @return array{sos_alerts: int, sos_open: int, overspeed_episodes: int, overspeed_top_speed: int|null}
+     */
+    private function safetySummary(Carbon $from, Carbon $to): array
+    {
+        $sos = DB::table('sos_alerts')
+            ->whereBetween('created_at', [$from, $to])
+            ->selectRaw("COUNT(*) as total, COALESCE(SUM(CASE WHEN status <> 'RESOLVED' THEN 1 ELSE 0 END), 0) as still_open")
+            ->first();
+
+        $overspeed = DB::table('overspeed_events')
+            ->whereBetween('date', [$from->toDateString(), $to->toDateString()])
+            ->selectRaw('COUNT(*) as episodes, MAX(top_speed) as top_speed')
+            ->first();
+
+        return [
+            'sos_alerts' => (int) ($sos->total ?? 0),
+            'sos_open' => (int) ($sos->still_open ?? 0),
+            'overspeed_episodes' => (int) ($overspeed->episodes ?? 0),
+            'overspeed_top_speed' => $overspeed?->top_speed !== null ? (int) $overspeed->top_speed : null,
+        ];
+    }
+
+    /** Revenue per paying passenger in one aggregated window; 0 when nobody paid. */
+    private function averageFare(array $window): float
+    {
+        return $window['paying_passenger_count'] > 0
+            ? round(($window['cash_total'] + $window['gcash_total']) / $window['paying_passenger_count'], 2)
+            : 0.0;
     }
 
     /**
@@ -635,18 +816,28 @@ class AdminService
      * Extracted so the current and immediately-preceding windows can be
      * aggregated identically for period-over-period deltas.
      *
-     * @return array{cash_total: float, gcash_total: float, voucher_total: float, cash_count: int, gcash_count: int, voucher_count: int, paid_count: int, passenger_count: int}
+     * @return array{cash_total: float, gcash_total: float, voucher_total: float, cash_count: int, gcash_count: int, voucher_count: int, paid_count: int, passenger_count: int, paying_passenger_count: int, discount_total: float}
      */
     private function aggregateTransactionWindow(Carbon $from, Carbon $to): array
     {
         // One grouped query rather than six independent aggregates — the old
         // code cloned the base builder and hit the table once per figure.
+        //
+        // Passengers: a group payment stores one row per seat, and each of
+        // those rows repeats the whole group size in total_passengers, so a
+        // grouped row counts as one passenger (same rule as
+        // ShiftCloseoutService). An ungrouped row may carry several.
         $rows = DB::table('transactions')
             ->select(
                 'payment_method',
                 DB::raw('COUNT(*) as method_count'),
                 DB::raw('SUM(final_amount) as method_total'),
-                DB::raw('SUM(total_passengers) as passenger_count')
+                DB::raw('SUM(CASE
+                    WHEN group_id IS NOT NULL THEN 1
+                    WHEN total_passengers IS NULL OR total_passengers < 1 THEN 1
+                    ELSE total_passengers
+                END) as passenger_count'),
+                DB::raw('SUM(COALESCE(discount_amount, 0)) as discount_total')
             )
             ->where('status', 'PAID')
             ->whereBetween('created_at', [$from, $to])
@@ -672,6 +863,11 @@ class AdminService
             'voucher_count' => $countFor('VOUCHER'),
             'paid_count' => $countFor('CASH') + $countFor('GCASH') + $countFor('VOUCHER'),
             'passenger_count' => $passengersFor('CASH') + $passengersFor('GCASH') + $passengersFor('VOUCHER'),
+            // Passengers who paid money (cash or GCash), the base for avg fare.
+            'paying_passenger_count' => $passengersFor('CASH') + $passengersFor('GCASH'),
+            // Fare given away: student/senior/PWD discounts, discount vouchers
+            // and free reward rides (whose discount is the whole fare).
+            'discount_total' => round((float) $rows->sum(fn ($row) => (float) $row->discount_total), 2),
         ];
     }
 
