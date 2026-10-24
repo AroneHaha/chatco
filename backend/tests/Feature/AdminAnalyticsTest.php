@@ -8,6 +8,9 @@ use App\Models\AdminProfile;
 use App\Models\ConductorProfile;
 use App\Models\Driver;
 use App\Models\FarePoint;
+use App\Models\Feedback;
+use App\Models\PaymentGroup;
+use App\Models\Remittance;
 use App\Models\Route;
 use App\Models\ShiftLog;
 use App\Models\Transaction;
@@ -16,6 +19,7 @@ use App\Models\Vehicle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
@@ -279,6 +283,211 @@ class AdminAnalyticsTest extends TestCase
                     'fleet'         => ['active_vehicles', 'total_vehicles', 'active_conductors', 'total_conductors'],
                 ],
             ]);
+    }
+
+    private function makeGroup(string $method, int $seats): string
+    {
+        $groupId = (string) Str::uuid();
+        PaymentGroup::create([
+            'id' => $groupId, 'reference_number' => 'MP-TEST-'.Str::random(8), 'shift_id' => $this->shiftId,
+            'payment_method' => $method, 'pickup_name' => 'A', 'dropoff_name' => 'B',
+            'passenger_count' => $seats, 'passenger_breakdown' => [], 'total_amount' => 0,
+        ]);
+
+        return $groupId;
+    }
+
+    /** Another shift on the seeded crew, for a second remittance row (remittances are keyed by shift). */
+    private function extraShift(): string
+    {
+        $shift = ShiftLog::findOrFail($this->shiftId);
+        $shiftId = 'shift-analytics-'.uniqid();
+        ShiftLog::create([
+            ...$shift->only(['conductor_id', 'driver_id', 'vehicle_id', 'conductor_name', 'driver_name', 'unit_number', 'plate_number']),
+            'shift_id' => $shiftId, 'time_in' => now()->subHours(4), 'status' => ShiftStatus::ENDED, 'is_active' => false,
+        ]);
+
+        return $shiftId;
+    }
+
+    private function makeRemittance(string $shiftId, string $status, float $collected, float $remitted): void
+    {
+        $shift = ShiftLog::findOrFail($shiftId);
+        Remittance::create([
+            ...$shift->only(['shift_id', 'conductor_id', 'driver_id', 'vehicle_id', 'conductor_name', 'driver_name', 'unit_number', 'time_in']),
+            'date' => now()->toDateString(), 'time_out' => now(),
+            'total_collected' => $collected, 'cash_total' => $collected, 'gcash_total' => 0,
+            'remitted_amount' => $remitted, 'shortage' => max(0, $collected - $remitted), 'overage' => 0,
+            'remittance_status' => $status, 'total_passengers' => 1,
+        ]);
+    }
+
+    public function test_group_seats_count_once_and_avg_fare_is_per_paying_passenger(): void
+    {
+        $admin = $this->makeAdmin();
+        // Cash group of 3 seats: one row per seat, each repeating the group size.
+        $groupId = $this->makeGroup('CASH', 3);
+        foreach (range(1, 3) as $position) {
+            $this->makeTransaction('PAID', 'CASH', 50.00, null, [
+                'group_id' => $groupId, 'group_position' => $position, 'total_passengers' => 3, 'discount_amount' => 0,
+            ]);
+        }
+        // One ungrouped multi-passenger cash row carrying 2 passengers.
+        $this->makeTransaction('PAID', 'CASH', 100.00, null, ['total_passengers' => 2, 'discount_amount' => 10]);
+        // A free reward ride: no revenue, but a passenger and a full-fare discount.
+        $this->makeTransaction('PAID', 'VOUCHER', 0.00, null, ['total_passengers' => 1, 'discount_amount' => 25]);
+
+        $totals = $this->actingAs($admin)->getJson('/api/v1/admin/analytics')->assertOk()->json('data.totals');
+
+        $this->assertSame(6, $totals['total_passengers']); // 3 seats + 2 + 1, not 3*3 + 2 + 1
+        $this->assertSame(5, $totals['paying_passengers']);
+        $this->assertEquals(50.0, $totals['avg_fare']); // 250 / 5 paying passengers
+        $this->assertEquals(35.0, $totals['discount_total']);
+        $this->assertSame(4, $totals['paid_count']); // rows settled for money, unchanged meaning
+    }
+
+    public function test_gcash_success_counts_each_payment_once(): void
+    {
+        $admin = $this->makeAdmin();
+        // One settled two-seat group payment and one failed single payment.
+        $groupId = $this->makeGroup('GCASH', 2);
+        foreach (range(1, 2) as $position) {
+            $this->makeTransaction('PAID', 'GCASH', 40.00, null, ['group_id' => $groupId, 'group_position' => $position, 'total_passengers' => 2]);
+        }
+        $this->makeTransaction('FAILED', 'GCASH', 40.00);
+
+        $health = $this->actingAs($admin)->getJson('/api/v1/admin/analytics')->assertOk()->json('data.gcash_health');
+
+        $this->assertSame(2, $health['attempts']);
+        $this->assertSame(1, $health['settled']);
+        $this->assertSame(1, $health['failed']);
+        $this->assertEquals(50.0, $health['success_rate']);
+    }
+
+    public function test_unremitted_shift_is_awaiting_not_shortage(): void
+    {
+        $admin = $this->makeAdmin();
+        $this->makeRemittance($this->shiftId, 'SHORTAGE', 1000, 900);
+        // Ended but cash not handed in yet: stored with shortage = all expected cash.
+        $this->makeRemittance($this->extraShift(), 'PENDING', 500, 0);
+
+        $remittances = $this->actingAs($admin)->getJson('/api/v1/admin/analytics')->assertOk()->json('data.remittances');
+
+        $this->assertEquals(100.0, $remittances['total_shortage']);
+        $this->assertEquals(10.0, $remittances['shortage_rate']);
+        $this->assertSame(1, $remittances['awaiting_count']);
+        $this->assertEquals(500.0, $remittances['awaiting_amount']);
+        // Unchanged meaning, read by the dashboard's Pending Remittance card.
+        $this->assertEquals(1500.0, $remittances['total_collected']);
+        $this->assertEquals(900.0, $remittances['total_remitted']);
+    }
+
+    public function test_removed_conductors_are_not_counted_in_fleet_total(): void
+    {
+        $admin = $this->makeAdmin();
+        $removed = User::create(['email' => 'gone@test.com', 'password' => Hash::make('x'), 'role' => UserRole::CONDUCTOR]);
+        ConductorProfile::create([
+            'id' => $removed->id, 'first_name' => 'G', 'last_name' => 'One',
+            'birthday' => '1990-01-01', 'generated_username' => 'g_one', 'generated_password' => Hash::make('x'),
+        ]);
+        $removed->delete(); // what Fleet Management's Remove Personnel does
+
+        $this->actingAs($admin)->getJson('/api/v1/admin/analytics')
+            ->assertOk()
+            ->assertJsonPath('data.fleet.total_conductors', 1);
+    }
+
+    public function test_shifts_and_per_unit_revenue_reconcile_with_total_fares(): void
+    {
+        $admin = $this->makeAdmin();
+        ShiftLog::whereKey($this->shiftId)->update(['time_out' => now()->subHours(2)]); // 6h shift
+        $this->makeTransaction('PAID', 'CASH', 100.00, null, ['total_passengers' => 2]);
+        $this->makeTransaction('PAID', 'GCASH', 50.00, null, ['total_passengers' => 1]);
+        $this->makeTransaction('PAID', 'VOUCHER', 0.00, null, ['total_passengers' => 1]);
+        $this->makeTransaction('PENDING', 'GCASH', 999.00); // never revenue
+        $this->makeTransaction('PAID', 'CASH', 70.00, now()->subDays(40)); // outside the window
+
+        $second = $this->extraShift(); // same crew, still running (no time_out)
+        $this->makeTransaction('PAID', 'CASH', 30.00, null, ['shift_id' => $second, 'total_passengers' => 1]);
+
+        $data = $this->actingAs($admin)->getJson('/api/v1/admin/analytics')->assertOk()->json('data');
+
+        $this->assertSame(2, $data['service']['shifts_run']);
+        $this->assertSame(360, $data['service']['avg_shift_minutes']); // only the ended shift
+        $this->assertCount(1, $data['performance']['units']);
+        $unit = $data['performance']['units'][0];
+        $this->assertSame('UNIT-1', $unit['unit_number']);
+        $this->assertSame(2, $unit['shifts']);
+        $this->assertSame(5, $unit['passengers']); // 2 + 1 + voucher 1 + 1
+        $this->assertEquals(180.0, $unit['revenue']);
+        $this->assertEquals($data['totals']['total_fares'], $unit['revenue']);
+        $this->assertSame('C One', $data['performance']['conductors'][0]['name']);
+        $this->assertEquals(180.0, $data['performance']['conductors'][0]['revenue']);
+    }
+
+    public function test_ratings_and_safety_are_scoped_to_the_window(): void
+    {
+        $admin = $this->makeAdmin();
+        $shift = ShiftLog::findOrFail($this->shiftId);
+        $review = fn (int $rating, ?int $conductorRating, $createdAt = null) => tap(Feedback::create([
+            'id' => (string) Str::uuid(), 'shift_id' => $shift->shift_id, 'vehicle_id' => $shift->vehicle_id,
+            'driver_id' => $shift->driver_id, 'conductor_id' => $shift->conductor_id,
+            'commuter_id' => User::factory()->commuter()->create()->id,
+            'rating' => $rating, 'conductor_rating' => $conductorRating,
+        ]), fn (Feedback $feedback) => $createdAt && DB::table('feedback')->where('id', $feedback->id)->update(['created_at' => $createdAt]));
+        $review(5, 4);
+        $review(4, null); // conductor rating is optional
+        $review(1, 1, now()->subDays(40)); // outside the window
+
+        $sender = User::factory()->commuter()->create()->id;
+        DB::table('sos_alerts')->insert([
+            ['id' => (string) Str::uuid(), 'commuter_id' => $sender, 'lat' => 14.8, 'lng' => 120.8, 'status' => 'RESOLVED', 'created_at' => now(), 'updated_at' => now()],
+            ['id' => (string) Str::uuid(), 'commuter_id' => $sender, 'lat' => 14.8, 'lng' => 120.8, 'status' => 'ACTIVE', 'created_at' => now(), 'updated_at' => now()],
+            ['id' => (string) Str::uuid(), 'commuter_id' => $sender, 'lat' => 14.8, 'lng' => 120.8, 'status' => 'ACTIVE', 'created_at' => now()->subDays(40), 'updated_at' => now()],
+        ]);
+        foreach ([[62, now()], [71, now()], [99, now()->subDays(40)]] as [$speed, $day]) {
+            DB::table('overspeed_events')->insert([
+                'shift_id' => $this->shiftId, 'top_speed' => $speed, 'threshold' => 50,
+                'date' => $day->toDateString(), 'last_logged_at' => $day, 'created_at' => $day, 'updated_at' => $day,
+            ]);
+        }
+
+        $data = $this->actingAs($admin)->getJson('/api/v1/admin/analytics')->assertOk()->json('data');
+
+        $this->assertSame(2, $data['service']['review_count']);
+        $this->assertEquals(4.5, $data['service']['driver_rating']);
+        $this->assertEquals(4.0, $data['service']['conductor_rating']);
+        $this->assertSame(['sos_alerts' => 2, 'sos_open' => 1, 'overspeed_episodes' => 2, 'overspeed_top_speed' => 71], $data['safety']);
+    }
+
+    public function test_malformed_or_reversed_dates_are_rejected_not_a_server_error(): void
+    {
+        $admin = $this->makeAdmin();
+
+        $this->actingAs($admin)->getJson('/api/v1/admin/analytics?date_from=abc')
+            ->assertUnprocessable()->assertJsonValidationErrors('date_from');
+        $this->actingAs($admin)->getJson('/api/v1/admin/analytics?date_from=2026-10-10&date_to=2026-10-01')
+            ->assertUnprocessable()->assertJsonValidationErrors('date_to');
+        $this->actingAs($admin)->getJson('/api/v1/admin/analytics?date_to='.now()->toDateString())
+            ->assertOk();
+    }
+
+    public function test_shift_started_before_the_window_but_earning_in_it_counts_once(): void
+    {
+        $admin = $this->makeAdmin();
+        $windowStart = now()->subDays(29)->startOfDay(); // default 30-day window
+        ShiftLog::whereKey($this->shiftId)->update([
+            'time_in' => $windowStart->copy()->subHours(2), // the night before the window
+            'time_out' => $windowStart->copy()->addHours(4), // a 6h shift
+        ]);
+        $this->makeTransaction('PAID', 'CASH', 40.00, $windowStart->copy()->addHour(), ['total_passengers' => 1]);
+
+        $data = $this->actingAs($admin)->getJson('/api/v1/admin/analytics')->assertOk()->json('data');
+
+        $this->assertSame(1, $data['service']['shifts_run']);
+        $this->assertSame(360, $data['service']['avg_shift_minutes']);
+        $this->assertSame(1, $data['performance']['units'][0]['shifts']);
+        $this->assertEquals(40.0, $data['performance']['units'][0]['revenue']);
     }
 
     public function test_analytics_forbidden_for_non_admin(): void

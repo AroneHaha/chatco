@@ -223,6 +223,32 @@ class OperationalLifecycleTest extends TestCase
         $this->assertSame(3, $row['total_passengers']);
     }
 
+    public function test_admin_remittances_count_each_group_seat_once_for_active_shifts(): void
+    {
+        $admin = User::factory()->admin()->create();
+        [, , , , $shift] = $this->activeShift();
+        $groupId = (string) Str::uuid();
+        PaymentGroup::create([
+            'id' => $groupId, 'reference_number' => 'MP-TEST-'.Str::random(8), 'shift_id' => $shift->shift_id,
+            'payment_method' => PaymentMethod::CASH->value, 'pickup_name' => 'A', 'dropoff_name' => 'B',
+            'passenger_count' => 3, 'passenger_breakdown' => [], 'total_amount' => 60,
+        ]);
+        foreach (range(1, 3) as $position) {
+            // Each seat row repeats the group size, as createGroupReceiptRows stores it.
+            $this->fare($shift, PaymentMethod::CASH, PaymentStatus::PAID, 20, [
+                'group_id' => $groupId, 'group_position' => $position, 'total_passengers' => 3,
+            ]);
+        }
+
+        $row = collect($this->actingAs($admin)
+            ->getJson('/api/v1/admin/remittances?date='.now()->toDateString())
+            ->assertOk()
+            ->json('data.data'))
+            ->firstWhere('shift_id', $shift->shift_id);
+
+        $this->assertSame(3, $row['total_passengers']);
+    }
+
     public function test_admin_remittance_summary_reports_reconciliation_totals_for_the_period(): void
     {
         $admin = User::factory()->admin()->create();
