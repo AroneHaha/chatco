@@ -32,24 +32,25 @@ return [
     | GCash Claim TTL (minutes)
     |--------------------------------------------------------------------------
     | How long a conductor-generated binding QR / PENDING GCash transaction
-    | stays claimable before it is considered expired. Past this age the row
-    | is lazily transitioned to EXPIRED (PaymentService::expireIfStale) by
-    | status polling / pending-resume / initiate, freeing the conductor to
-    | start a new payment.
+    | stays claimable before it times out. Past this age the payment is
+    | lazily cancelled (PaymentService::cancelIfStale) by status polling /
+    | pending-resume / initiate / claim / payments:expire-stale, freeing the
+    | conductor to start a new payment. Cancelling closes the payment at
+    | PayMongo first, so a timed-out QR can't be paid later; a payment
+    | PayMongo reports as paid or still processing is never cancelled.
     |
     | IMPORTANT: This TTL covers the ENTIRE flow — QR generation → commuter
     | scan → PayMongo redirect → GCash login + OTP → authorize → webhook.
-    | The real-world flow can take 3-5 minutes. Setting this too low causes
-    | the transaction to expire WHILE the commuter is on PayMongo's page →
-    | the webhook arrives after EXPIRED → the conductor UI already showed
-    | "expired" and stopped polling. The EXPIRED→PAID transition IS allowed
-    | (late-settlement), but the conductor's UI won't see it.
+    | The real-world flow can take 3-5 minutes. Setting this too low cancels
+    | the payment WHILE the commuter is still on PayMongo's page, so their
+    | authorization then fails.
     |
-    | Default: 10 minutes (the worst-case real-world flow comfortably fits).
-    | The conductor UI keeps polling for a 60s grace window AFTER the row
-    | expires, so a late webhook that flips EXPIRED→PAID is still surfaced.
+    | Default: 2 minutes, so an abandoned QR frees the conductor quickly. A
+    | commuter who takes longer than that in GCash (slow login or OTP) will
+    | have the payment cancelled and needs a new QR; raise this if that
+    | happens often.
     */
-    'gcash_claim_ttl_minutes' => (int) env('PAYMENT_GCASH_CLAIM_TTL', 10),
+    'gcash_claim_ttl_minutes' => (int) env('PAYMENT_GCASH_CLAIM_TTL', 2),
 
     /*
     |--------------------------------------------------------------------------

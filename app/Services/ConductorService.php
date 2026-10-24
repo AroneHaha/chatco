@@ -5,9 +5,49 @@ namespace App\Services;
 use App\Models\Remittance;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 
 class ConductorService
 {
+    /**
+     * Store and replace the authenticated conductor's public profile photo.
+     * Upload storage stays outside the DB transaction; failed profile writes
+     * remove the newly stored object, while the prior image is deleted only
+     * after the replacement commits.
+     */
+    public function uploadProfilePhoto(User $conductor, UploadedFile $photo): ?string
+    {
+        if (! $conductor->conductorProfile()->exists()) {
+            return null;
+        }
+
+        $media = app(MediaStorageService::class);
+        try {
+            $url = $media->storeProfileImage($photo, 'conductor', $conductor->id);
+        } catch (\Throwable $error) {
+            report($error);
+            abort(502, 'The photo could not be stored. Please try again.');
+        }
+
+        try {
+            $profile = DB::transaction(function () use ($conductor, $url, $media) {
+                $profile = $conductor->conductorProfile()->lockForUpdate()->firstOrFail();
+                $previous = $profile->profile_picture_url;
+                $profile->profile_picture_url = $url;
+                $profile->save();
+                DB::afterCommit(fn () => $media->deletePublicUrl($previous));
+
+                return $profile;
+            });
+        } catch (\Throwable $error) {
+            $media->deletePublicUrl($url);
+            throw $error;
+        }
+
+        return $profile->profile_picture_url;
+    }
+
     /**
      * List the authenticated conductor's own remittances, ordered by date desc.
      *
@@ -20,11 +60,12 @@ class ConductorService
      * @param  int  $perPage  Page size (defaults to 15, matching the other
      *                        list endpoints like ShiftService::getShiftLogs).
      */
-    public function listRemittances(User $conductor, int $perPage = 15): LengthAwarePaginator
+    public function listRemittances(User $conductor, int $perPage = 15, string $filter = 'ALL'): LengthAwarePaginator
     {
         $conductorId = $conductor->conductorProfile?->id ?? $conductor->id;
 
         $paginator = Remittance::where('conductor_id', $conductorId)
+            ->when($filter !== 'ALL', fn ($query) => $query->where('date', '>=', now()->subDays($filter === 'WEEK' ? 7 : 31)->toDateString()))
             ->with([
                 'shift:shift_id,conductor_id,driver_id,vehicle_id,route_id,time_in,time_out,status',
                 'vehicle:id,unit_number,plate_number,route_id',

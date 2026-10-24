@@ -76,7 +76,7 @@ class LocationService
      * NOTE: the Cache::remember TTL means a changed limit takes up to 60s to
      * take effect on live pings.
      */
-    private function speedLimitKmh(): int
+    public function speedLimitKmh(): int
     {
         return (int) Cache::remember('overspeed.limit_kmh', 60, function () {
             return (int) (Setting::where('key', 'speed_limit_kmh')->value('value') ?? 50);
