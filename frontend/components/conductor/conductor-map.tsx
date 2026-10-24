@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle } from "react-leaflet";
+import { MapContainer, Marker, Popup, Polyline, Circle } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { mdiJeepney } from "@mdi/js";
@@ -11,6 +11,9 @@ import type { ConductorHailRequest } from "@/lib/conductor/types";
 import { useRouteGeometry } from "@/hooks/use-route-geometry";
 import DynamicRouteViewport from "@/components/maps/dynamic-route-viewport";
 import UnitPopup, { capacityTone } from "@/components/maps/unit-popup";
+import { MAP_COLORS } from "@/components/maps/map-theme";
+import MapBasemap from "@/components/maps/map-basemap";
+import { useCommuterTheme } from "@/contexts/commuter-theme-context";
 
 const RADIUS_M = 1000;
 const ROUTE_COORDS: [number, number][] = [
@@ -79,6 +82,9 @@ export default function ConductorMap({
   onHailAction,
 }: ConductorMapProps) {
   const routeGeometry = useRouteGeometry(ROUTE_COORDS);
+  // Conductor app theme (shared context); stays dark on routes not yet light-ready.
+  const theme = useCommuterTheme();
+  const mapColors = MAP_COLORS[theme];
   const [isDomReady, setIsDomReady] = useState(false);
   const [vehiclePosition, setVehiclePosition] = useState<L.LatLngTuple>(routeGeometry.center);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -167,7 +173,7 @@ export default function ConductorMap({
   }), []);
 
   if (!isDomReady) {
-    return <div ref={containerRef} className="absolute inset-0 bg-[#050F1A]" />;
+    return <div ref={containerRef} className="absolute inset-0" style={{ background: mapColors.surface }} />;
   }
 
   return (
@@ -178,21 +184,21 @@ export default function ConductorMap({
         zoomControl={false}
         attributionControl={false}
         className="w-full h-full"
-        style={{ background: '#050F1A' }}
+        style={{ background: mapColors.surface }}
         maxBounds={routeGeometry.mapBoundsArray}
         maxBoundsViscosity={1.0}
         minZoom={11}
       >
         <DynamicRouteViewport routeBounds={routeGeometry.routeBounds} mapBounds={routeGeometry.mapBounds} />
-        <TileLayer className="map-tiles-mono" url={`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${process.env.NEXT_PUBLIC_CARTO_API_KEY}`} />
+        <MapBasemap theme={theme} />
 
-        <Polyline positions={routeGeometry.routeCoords} pathOptions={{ color: '#62A0EA', weight: 8, opacity: 0.2, lineCap: 'round', lineJoin: 'round' }} />
-        <Polyline positions={routeGeometry.routeCoords} pathOptions={{ color: '#62A0EA', weight: 4, opacity: 0.9, dashArray: '10 10', lineCap: 'round', lineJoin: 'round' }} />
+        <Polyline positions={routeGeometry.routeCoords} pathOptions={{ color: mapColors.route, weight: 8, opacity: 0.2, lineCap: 'round', lineJoin: 'round' }} />
+        <Polyline positions={routeGeometry.routeCoords} pathOptions={{ color: mapColors.route, weight: 4, opacity: 0.9, dashArray: '10 10', lineCap: 'round', lineJoin: 'round' }} />
 
         {/* 1km Radius Circle — conductor's operational pickup zone */}
-        {/* Neutral white so the zone doesn't compete with the marker, which
-            already carries the capacity/break colour. */}
-        <Circle center={vehiclePosition} radius={RADIUS_M} pathOptions={{ color: '#FFFFFF', fillColor: '#FFFFFF', fillOpacity: 0.05, weight: 1.5, opacity: 0.3, dashArray: '8 4' }} />
+        {/* Neutral (white on dark, navy on light) so the zone doesn't compete
+            with the marker, which already carries the capacity/break colour. */}
+        <Circle center={vehiclePosition} radius={RADIUS_M} pathOptions={{ color: mapColors.neutral, fillColor: mapColors.neutral, fillOpacity: 0.05, weight: 1.5, opacity: 0.3, dashArray: '8 4' }} />
 
         <Marker position={vehiclePosition} icon={vehicleIcon}>
           <UnitPopup
@@ -244,7 +250,7 @@ export default function ConductorMap({
           border: none !important;
         }
         .leaflet-container {
-          background: #050F1A !important;
+          background: ${mapColors.surface} !important;
           font-family: inherit !important;
         }
         .leaflet-popup-content-wrapper {

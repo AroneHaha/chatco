@@ -17,6 +17,8 @@ import { Marker, Circle } from "react-leaflet";
 import UnitPopup, { capacityTone } from "@/components/maps/unit-popup";
 import { formatDistance } from "@/lib/shared/geo/nearby-detector";
 import { getCapacityConfig, createJeepneyIcon, type VehicleCapacity } from "./commuter-map-icons";
+import { MAP_COLORS } from "@/components/maps/map-theme";
+import { useCommuterTheme } from "@/contexts/commuter-theme-context";
 
 export interface VehicleMarkerProps {
   vehicleId: string;
@@ -44,6 +46,7 @@ function VehicleMarkerImpl({
   estimatedArrivalMinutes,
 }: VehicleMarkerProps) {
   const config = getCapacityConfig(capacity);
+  const mapColors = MAP_COLORS[useCommuterTheme()];
   const position: [number, number] = [lat, lng];
   const eventHandlers = useMemo(() => ({
     click: (event: import("leaflet").LeafletEvent) => {
@@ -60,10 +63,10 @@ function VehicleMarkerImpl({
         center={position}
         radius={1000}
         pathOptions={{
-          color: isWithinRadius ? "#FFFFFF" : "#62A0EA",
+          color: isWithinRadius ? mapColors.neutral : mapColors.route,
           weight: 1,
           opacity: isWithinRadius ? 0.4 : 0.15,
-          fillColor: isWithinRadius ? "#FFFFFF" : "#62A0EA",
+          fillColor: isWithinRadius ? mapColors.neutral : mapColors.route,
           fillOpacity: isWithinRadius ? 0.04 : 0.01,
           dashArray: "4 8",
         }}

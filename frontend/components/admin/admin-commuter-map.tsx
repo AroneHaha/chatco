@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef, type ReactNode } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents, Circle, Tooltip } from "react-leaflet";
+import { MapContainer, Marker, Popup, Polyline, useMap, useMapEvents, Circle, Tooltip } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { mdiJeepney } from "@mdi/js";
@@ -10,6 +10,9 @@ import { formatElapsedMinutes } from "@/lib/utils/display";
 import { useRouteGeometry } from "@/hooks/use-route-geometry";
 import DynamicRouteViewport from "@/components/maps/dynamic-route-viewport";
 import UnitPopup, { capacityTone } from "@/components/maps/unit-popup";
+import { MAP_COLORS } from "@/components/maps/map-theme";
+import MapBasemap from "@/components/maps/map-basemap";
+import { useAdminTheme } from "@/contexts/admin-theme-context";
 
 // --- 1. TYPES (kept — these define the API contract) ---
 type VehicleCapacity = "AVAILABLE" | "STANDING" | "FULL";
@@ -356,6 +359,9 @@ export default function AdminCommuterMap({
   focusNonce?: number;
 }) {
   const routeGeometry = useRouteGeometry(ROUTE_COORDS);
+  // Dark outside the admin app (the public share page renders this map too).
+  const [theme] = useAdminTheme();
+  const mapColors = MAP_COLORS[theme];
   const [isDomReady, setIsDomReady] = useState(false);
   const [userActualLocation, setUserActualLocation] = useState<[number, number] | null>(null);
   const [showMapPin, setShowMapPin] = useState(false);
@@ -418,7 +424,7 @@ export default function AdminCommuterMap({
     iconSize: [24, 24], iconAnchor: [12, 12],
   }), []);
 
-  if (!isDomReady) return <div className="w-full h-full bg-[#050F1A] rounded-xl" />;
+  if (!isDomReady) return <div className="w-full h-full rounded-xl" style={{ background: mapColors.surface }} />;
 
   return (
     <div className="admin-map-wrapper w-full h-full rounded-xl overflow-hidden">
@@ -428,7 +434,7 @@ export default function AdminCommuterMap({
         zoomControl={false}
         attributionControl={false}
         className="admin-map-container"
-        style={{ background: '#050F1A' }}
+        style={{ background: mapColors.surface }}
         maxBounds={routeGeometry.mapBoundsArray}
         maxBoundsViscosity={1.0}
         minZoom={11}
@@ -438,10 +444,10 @@ export default function AdminCommuterMap({
         <DynamicRouteViewport routeBounds={routeGeometry.routeBounds} mapBounds={routeGeometry.mapBounds} />
         <LocationFinder userLocationRef={userLocationRef} setUserActualLocation={setUserActualLocation} setShowMapPin={setShowMapPin} setArrowPos={setArrowPos} routeBounds={routeGeometry.routeBounds} mapBounds={routeGeometry.mapBounds} />
         <MapFocuser target={focusPosition} nonce={focusNonce} />
-        <TileLayer className="map-tiles-mono" url={`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${process.env.NEXT_PUBLIC_CARTO_API_KEY}`} />
+        <MapBasemap theme={theme} />
 
-        <Polyline positions={routeGeometry.routeCoords} pathOptions={{ color: '#62A0EA', weight: 8, opacity: 0.2, lineCap: 'round', lineJoin: 'round' }} />
-        <Polyline positions={routeGeometry.routeCoords} pathOptions={{ color: '#62A0EA', weight: 4, opacity: 0.9, dashArray: '10 10', lineCap: 'round', lineJoin: 'round' }} />
+        <Polyline positions={routeGeometry.routeCoords} pathOptions={{ color: mapColors.route, weight: 8, opacity: 0.2, lineCap: 'round', lineJoin: 'round' }} />
+        <Polyline positions={routeGeometry.routeCoords} pathOptions={{ color: mapColors.route, weight: 4, opacity: 0.9, dashArray: '10 10', lineCap: 'round', lineJoin: 'round' }} />
 
         {/* --- DEMAND HEATMAP CIRCLES --- */}
         {demandZones.map((zone) => {
@@ -595,7 +601,7 @@ export default function AdminCommuterMap({
         }
 
         .leaflet-container {
-          background: #050F1A !important;
+          background: ${mapColors.surface} !important;
           font-family: inherit !important;
         }
 

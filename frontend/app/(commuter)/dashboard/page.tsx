@@ -16,7 +16,7 @@ import SosModal from "@/components/commuter/modals/sos-modal";
 
 const CommuterMap = dynamic(
   () => import("@/components/commuter/commuter-map/commuter-map"),
-  { ssr: false, loading: () => <div className="absolute inset-0 bg-[#050F1A]" /> }
+  { ssr: false, loading: () => <div className="absolute inset-0 bg-[#050F1A] light:bg-[#F7F5F2]" /> }
 );
 
 const ScanModal = dynamic(
@@ -334,7 +334,7 @@ export default function CommuterHome() {
 
 
   return (
-    <div className="relative h-full w-full bg-[#050F1A]">
+    <div className="relative h-full w-full bg-[#050F1A] light:bg-[#F7F5F2]">
       {/* --- ACTUAL MAP --- */}
       <div className="absolute inset-0 z-0 lg:right-[336px] xl:right-0">
         <CommuterMap onNearbyVehiclesChange={handleNearbyVehiclesChange} />

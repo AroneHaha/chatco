@@ -16,7 +16,7 @@
 // to be updated to call API endpoints instead of client-side calculations.
 
 import { useState, useEffect, useMemo, useCallback, useSyncExternalStore } from "react";
-import { MapContainer, TileLayer, Marker, Polyline } from "react-leaflet";
+import { MapContainer, Marker, Polyline } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { mdiAccount } from "@mdi/js";
 import { distanceToPolylineMeters } from "@/lib/utils/geo";
@@ -29,6 +29,9 @@ import VehicleMarker from "./vehicle-marker";
 import UnitDetailsPanel from "./unit-details-panel";
 import DynamicRouteViewport from "@/components/maps/dynamic-route-viewport";
 import UnitPopup from "@/components/maps/unit-popup";
+import { MAP_COLORS } from "@/components/maps/map-theme";
+import MapBasemap from "@/components/maps/map-basemap";
+import { useCommuterTheme } from "@/contexts/commuter-theme-context";
 
 // --- MAIN COMPONENT ---
 
@@ -58,6 +61,8 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
   const selectVehicle = useCallback((vehicleId: string) => setSelectedVehicleId(vehicleId), []);
   const closeDetails = useCallback(() => setSelectedVehicleId(null), []);
   const routeGeometry = useRouteGeometry(ROUTE_COORDS);
+  const theme = useCommuterTheme();
+  const mapColors = MAP_COLORS[theme];
 
   const {
     userActualLocation,
@@ -112,7 +117,7 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
 
   const commuterIcon = useMemo(() => createCommuterIcon(), []);
 
-  if (!isDomReady) return <div className="absolute inset-0 bg-[#050F1A]" />;
+  if (!isDomReady) return <div className="absolute inset-0" style={{ background: mapColors.surface }} />;
 
   // Build lookup sets for O(1) within-radius checks
   const withinRadiusIds = new Set((radiusResult?.withinRadius || []).map((v) => v.id));
@@ -126,14 +131,14 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
           className="absolute z-[1000] flex flex-col items-center pointer-events-none select-none"
           style={{ left: `${arrowPos.x}%`, top: `${arrowPos.y}%`, transform: `translate(-50%, -50%)` }}
         >
-          <svg className="w-8 h-8 text-[#62A0EA] drop-shadow-lg animate-pulse" style={{ transform: `rotate(${arrowPos.angle}deg)` }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+          <svg className="w-8 h-8 text-[#62A0EA] light:text-[#1A5FB4] drop-shadow-lg animate-pulse" style={{ transform: `rotate(${arrowPos.angle}deg)` }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
           </svg>
           <span className="mt-1 text-[9px] font-bold text-white bg-[#071A2E]/90 backdrop-blur-sm px-1.5 py-0.5 rounded-md shadow-lg border border-white/20">You</span>
         </div>
       )}
 
-      <MapContainer center={routeGeometry.center} zoom={12} zoomControl={false} attributionControl={false} className="commuter-map-container" style={{ background: '#050F1A' }} maxBounds={routeGeometry.mapBoundsArray} maxBoundsViscosity={1.0} minZoom={isDesktop ? 13 : 11}>
+      <MapContainer center={routeGeometry.center} zoom={12} zoomControl={false} attributionControl={false} className="commuter-map-container" style={{ background: mapColors.surface }} maxBounds={routeGeometry.mapBoundsArray} maxBoundsViscosity={1.0} minZoom={isDesktop ? 13 : 11}>
         {routeGeometry.source === "fallback" && (
           <div className="pointer-events-none absolute left-3 top-3 z-[1000] rounded-md border border-amber-300/30 bg-amber-950/90 px-2 py-1 text-[10px] font-medium text-amber-100 shadow-lg">
             Published route unavailable — showing local fallback
@@ -151,10 +156,10 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
           routeBounds={routeGeometry.routeBounds}
           mapBounds={routeGeometry.mapBounds}
         />
-        <TileLayer className="map-tiles-mono" url={`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${process.env.NEXT_PUBLIC_CARTO_API_KEY}`} />
+        <MapBasemap theme={theme} />
 
-        <Polyline positions={routeGeometry.routeCoords} pathOptions={{ color: '#62A0EA', weight: 8, opacity: 0.2, lineCap: 'round', lineJoin: 'round' }} />
-        <Polyline positions={routeGeometry.routeCoords} pathOptions={{ color: '#62A0EA', weight: 4, opacity: 0.9, dashArray: '10 10', lineCap: 'round', lineJoin: 'round' }} />
+        <Polyline positions={routeGeometry.routeCoords} pathOptions={{ color: mapColors.route, weight: 8, opacity: 0.2, lineCap: 'round', lineJoin: 'round' }} />
+        <Polyline positions={routeGeometry.routeCoords} pathOptions={{ color: mapColors.route, weight: 4, opacity: 0.9, dashArray: '10 10', lineCap: 'round', lineJoin: 'round' }} />
 
         {/* --- COMMUTER LOCATION PIN --- */}
         {showMapPin && userActualLocation && (
@@ -227,7 +232,7 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
         }
 
         .custom-commuter-icon, .custom-jeepney-icon { background: transparent !important; border: none !important; }
-        .leaflet-container { background: #050F1A !important; font-family: inherit !important; }
+        .leaflet-container { background: ${mapColors.surface} !important; font-family: inherit !important; }
         .leaflet-popup-content-wrapper { background: white !important; border-radius: 12px !important; box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important; padding: 0 !important; }
         .leaflet-popup-content { margin: 12px 16px !important; color: #071A2E !important; line-height: 1.4 !important; }
         .leaflet-popup-tip { background: white !important; }

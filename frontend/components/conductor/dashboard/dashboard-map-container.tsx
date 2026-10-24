@@ -6,7 +6,7 @@ import type { ConductorStatus } from "./use-dashboard-state";
 
 const ConductorMap = dynamic(() => import("@/components/conductor/conductor-map"), {
   ssr: false,
-  loading: () => <div className="absolute inset-0 bg-[#050F1A]" />,
+  loading: () => <div className="absolute inset-0 bg-[#050F1A] light:bg-[#F7F5F2]" />,
 });
 
 interface DashboardMapContainerProps {
