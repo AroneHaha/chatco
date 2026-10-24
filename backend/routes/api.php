@@ -136,6 +136,7 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER', 'mainten
     Route::post('/change-password/confirm', [PasswordChangeController::class, 'confirm'])->middleware('throttle:account-security');
     Route::get('/trips', [CommuterController::class, 'trips'])->middleware('throttle:conductor-read');
     Route::get('/rewards', [CommuterController::class, 'rewards'])->middleware('throttle:conductor-read');
+    Route::get('/vouchers', [CommuterController::class, 'vouchers'])->middleware('throttle:commuter-read');
     Route::post('/location', [CommuterController::class, 'updateLocation'])->middleware('throttle:commuter-hail');
 
     // Share Live Location — commuter generates a tracking link

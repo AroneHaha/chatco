@@ -76,11 +76,21 @@ class PaymentController extends Controller
      * one of their available vouchers. Solo rides settle at ₱0 immediately;
      * grouped rides only cover the payer's seat, and the response's
      * checkout_url/amount are updated to the companions' remaining total.
+     *
+     * `voucher_ids` (group rides only) spends several vouchers at once, one
+     * per seat, so the payer can cover companions too — see
+     * TransactionService::redeemVouchersForGroupGcash().
      */
     public function redeemVoucher(Request $request, string $id): JsonResponse
     {
-        $validated = $request->validate(['voucher_id' => ['nullable', 'uuid']]);
-        $result = $this->transactionService->redeemVoucherForGcash($request->user(), $id, $validated['voucher_id'] ?? null);
+        $validated = $request->validate([
+            'voucher_id' => ['nullable', 'uuid'],
+            'voucher_ids' => ['nullable', 'array', 'min:1', 'max:50'],
+            'voucher_ids.*' => ['required', 'uuid', 'distinct'],
+        ]);
+        $result = isset($validated['voucher_ids'])
+            ? $this->transactionService->redeemVouchersForGroupGcash($request->user(), $id, $validated['voucher_ids'])
+            : $this->transactionService->redeemVoucherForGcash($request->user(), $id, $validated['voucher_id'] ?? null);
 
         return $this->successResponse($result, 'Voucher redeemed');
     }

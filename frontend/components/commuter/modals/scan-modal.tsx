@@ -5,9 +5,11 @@ import { Html5Qrcode } from "html5-qrcode";
 import {
   claimGcash,
   redeemVoucherForGcash,
+  redeemVouchersForGroupGcash,
   simulatePayment,
   type ClaimResult,
 } from "@/lib/commuter/services/payment.service";
+import { GroupVoucherPicker } from "@/components/commuter/modals/group-voucher-picker";
 import { ApiError } from "@/lib/api/client";
 import { formatCurrency } from "@/lib/shared/fare/fare-calculator";
 
@@ -217,13 +219,17 @@ export default function ScanModal({ onClose }: ScanModalProps) {
   }, [proceedToPayment]);
 
   // ─── Voucher offer: use it, or decline and pay normally ───
-  const handleUseVoucher = useCallback(async () => {
+  // A group payment passes the vouchers the payer picked (one per seat); a
+  // solo ride uses its single offered voucher.
+  const handleUseVoucher = useCallback(async (voucherIds?: string[]) => {
     if (!claimResult) return;
     setStep("redeeming_voucher");
     setError(null);
 
     try {
-      const redeemed = await redeemVoucherForGcash(claimResult.transactionId, claimResult.availableVoucher?.id);
+      const redeemed = voucherIds
+        ? await redeemVouchersForGroupGcash(claimResult.transactionId, voucherIds)
+        : await redeemVoucherForGcash(claimResult.transactionId, claimResult.availableVoucher?.id);
       setClaimResult(redeemed);
       await proceedToPayment(redeemed);
     } catch (err) {
@@ -390,6 +396,22 @@ export default function ScanModal({ onClose }: ScanModalProps) {
   // Shown once, right after claim, only when the commuter has an eligible
   // voucher. Declining falls straight through to the normal GCash flow.
 
+  // A group payer can spend one voucher per passenger, so they pick from
+  // all of theirs instead of the single-voucher offer below.
+  if (step === "voucher_offer" && claimResult && claimResult.seats.length > 1 && claimResult.availableVouchers.length > 0) {
+    return (
+      <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
+        <div className="w-full sm:max-w-sm bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-[#1C3350] shadow-2xl max-h-[95vh] overflow-y-auto">
+          <GroupVoucherPicker
+            claim={claimResult}
+            onUse={(voucherIds) => void handleUseVoucher(voucherIds)}
+            onPayInstead={handleDeclineVoucher}
+          />
+        </div>
+      </div>
+    );
+  }
+
   if (step === "voucher_offer" && claimResult) {
     return (
       <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
@@ -425,7 +447,7 @@ export default function ScanModal({ onClose }: ScanModalProps) {
 
             <div className="flex flex-col gap-3">
               <button
-                onClick={handleUseVoucher}
+                onClick={() => void handleUseVoucher()}
                 className="w-full py-3 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] active:scale-[0.98] text-white text-sm font-bold transition-colors"
               >
                 Use My Voucher

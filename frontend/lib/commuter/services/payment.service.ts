@@ -95,9 +95,26 @@ export interface ClaimResult {
    * own portion of this ride (their own seat only — never the whole group). */
   voucherAvailable: boolean;
   availableVoucher?: { id: string; type: "FREE_RIDE" | "DISCOUNT" | "REWARD"; amount: number | null } | null;
-  /** True when this ride is part of a multi-passenger group payment — a
-   * voucher only ever covers the caller's own seat, never the companions'. */
+  /** True when this ride is part of a multi-passenger group payment. */
   isGroup: boolean;
+  /** Group payments only: every voucher the payer can spend, one per seat. */
+  availableVouchers: VoucherOption[];
+  /** Group payments only: each seat and its current fare (payer included). */
+  seats: GroupSeat[];
+}
+
+export interface VoucherOption {
+  id: string;
+  type: "FREE_RIDE" | "DISCOUNT" | "REWARD";
+  amount: number | null;
+  expiresAt: string | null;
+}
+
+export interface GroupSeat {
+  position: number;
+  passengerType: string | null;
+  fare: number;
+  isPayer: boolean;
 }
 
 /** Result of binding a scanned paper cash receipt to the commuter. */
@@ -235,26 +252,23 @@ export async function fetchPaymentHistory(
   };
 }
 
-/**
- * Claim a GCash transaction by scanning the conductor's binding QR.
- * @throws {ApiError} 404 (bad token) / 410 (expired or paid) / 409 (claimed by another)
- */
-export async function claimGcash(qrToken: string): Promise<ClaimResult> {
-  const response = await api.post<Envelope<{
-    transaction_id: string;
-    checkout_url: string | null;
-    amount: number;
-    regular_amount: number;
-    discount_amount: number;
-    passenger_role: string | null;
-    pickup_name: string | null;
-    dropoff_name: string | null;
-    voucher_available: boolean;
-    available_voucher?: { id: string; type: "FREE_RIDE" | "DISCOUNT" | "REWARD"; amount: string | number | null } | null;
-    is_group: boolean;
-  }>>(COMMUTER_API.payments.claim, { qr_token: qrToken });
+interface RawClaimResult {
+  transaction_id: string;
+  checkout_url: string | null;
+  amount: number;
+  regular_amount: number;
+  discount_amount: number;
+  passenger_role: string | null;
+  pickup_name: string | null;
+  dropoff_name: string | null;
+  voucher_available: boolean;
+  available_voucher?: { id: string; type: VoucherOption["type"]; amount: string | number | null } | null;
+  is_group: boolean;
+  available_vouchers?: { id: string; type: VoucherOption["type"]; amount: string | number | null; expires_at: string | null }[];
+  seats?: { position: number; passenger_type: string | null; fare: string | number; is_payer: boolean }[];
+}
 
-  const d = response.data;
+function mapClaimResult(d: RawClaimResult): ClaimResult {
   return {
     transactionId: d.transaction_id,
     checkoutUrl: d.checkout_url,
@@ -270,7 +284,28 @@ export async function claimGcash(qrToken: string): Promise<ClaimResult> {
       amount: d.available_voucher.amount == null ? null : Number(d.available_voucher.amount),
     } : null,
     isGroup: Boolean(d.is_group),
+    availableVouchers: (d.available_vouchers ?? []).map((v) => ({
+      id: v.id,
+      type: v.type,
+      amount: v.amount == null ? null : Number(v.amount),
+      expiresAt: v.expires_at ?? null,
+    })),
+    seats: (d.seats ?? []).map((seat) => ({
+      position: Number(seat.position),
+      passengerType: seat.passenger_type,
+      fare: Number(seat.fare) || 0,
+      isPayer: Boolean(seat.is_payer),
+    })),
   };
+}
+
+/**
+ * Claim a GCash transaction by scanning the conductor's binding QR.
+ * @throws {ApiError} 404 (bad token) / 410 (expired or paid) / 409 (claimed by another)
+ */
+export async function claimGcash(qrToken: string): Promise<ClaimResult> {
+  const response = await api.post<Envelope<RawClaimResult>>(COMMUTER_API.payments.claim, { qr_token: qrToken });
+  return mapClaimResult(response.data);
 }
 
 /**
@@ -287,37 +322,30 @@ export async function claimGcash(qrToken: string): Promise<ClaimResult> {
  *                    reduced companions-only intent)
  */
 export async function redeemVoucherForGcash(transactionId: string, voucherId?: string): Promise<ClaimResult> {
-  const response = await api.post<Envelope<{
-    transaction_id: string;
-    checkout_url: string | null;
-    amount: number;
-    regular_amount: number;
-    discount_amount: number;
-    passenger_role: string | null;
-    pickup_name: string | null;
-    dropoff_name: string | null;
-    voucher_available: boolean;
-    available_voucher?: { id: string; type: "FREE_RIDE" | "DISCOUNT" | "REWARD"; amount: string | number | null } | null;
-    is_group: boolean;
-  }>>(COMMUTER_API.payments.redeemVoucher(transactionId), voucherId ? { voucher_id: voucherId } : {});
+  const response = await api.post<Envelope<RawClaimResult>>(
+    COMMUTER_API.payments.redeemVoucher(transactionId),
+    voucherId ? { voucher_id: voucherId } : {},
+  );
+  return mapClaimResult(response.data);
+}
 
-  const d = response.data;
-  return {
-    transactionId: d.transaction_id,
-    checkoutUrl: d.checkout_url,
-    amount: Number(d.amount) || 0,
-    regularAmount: Number(d.regular_amount) || Number(d.amount) || 0,
-    discountAmount: Number(d.discount_amount) || 0,
-    passengerRole: d.passenger_role,
-    pickupName: d.pickup_name,
-    dropoffName: d.dropoff_name,
-    voucherAvailable: Boolean(d.voucher_available),
-    availableVoucher: d.available_voucher ? {
-      ...d.available_voucher,
-      amount: d.available_voucher.amount == null ? null : Number(d.available_voucher.amount),
-    } : null,
-    isGroup: Boolean(d.is_group),
-  };
+/**
+ * Spend several vouchers on a group GCash payment, one per seat: free rides
+ * cover the dearest seats, discounts come off the rest of the group total
+ * (see lib/commuter/group-voucher-plan.ts for the preview of the same rule).
+ * The response carries the remaining total and its new checkout; a zero
+ * total settles the whole group immediately.
+ *
+ * @throws {ApiError} 409 (no longer redeemable, or vouchers already applied)
+ *                    / 422 (voucher unavailable, or more than the ride needs)
+ *                    / 502 (gateway error re-issuing the remaining charge)
+ */
+export async function redeemVouchersForGroupGcash(transactionId: string, voucherIds: string[]): Promise<ClaimResult> {
+  const response = await api.post<Envelope<RawClaimResult>>(
+    COMMUTER_API.payments.redeemVoucher(transactionId),
+    { voucher_ids: voucherIds },
+  );
+  return mapClaimResult(response.data);
 }
 
 /**

@@ -2313,6 +2313,127 @@ SQL);
         $this->assertSame(59.6, app(TransactionService::class)->getShiftEarnings($this->conductor, $this->shift->shift_id)['gcash_total']);
     }
 
+    /** Payer + the given companions on a claimed group GCash QR; returns the payer's row. */
+    private function claimedGroup(array $companions): Transaction
+    {
+        config(['payments.gateways.paymongo.secret' => null]);
+        $this->forgetGateway();
+        $txn = app(TransactionService::class)->initiateGcashFare($this->conductor, [
+            'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos', 'group_passengers' => $companions,
+        ])['transaction'];
+        app(TransactionService::class)->claimGcash($this->commuter1, $txn->qr_token);
+
+        return $txn->fresh();
+    }
+
+    public function test_group_claim_lists_every_voucher_and_seat_for_the_payer(): void
+    {
+        $vouchers = collect([$this->createRewardVoucher($this->commuter1), $this->createRewardVoucher($this->commuter1, ['type' => 'DISCOUNT', 'amount' => 5])]);
+        $txn = $this->claimedGroup([['type' => 'REGULAR', 'quantity' => 2]]);
+        $claim = app(TransactionService::class)->claimGcash($this->commuter1, $txn->qr_token);
+
+        $this->assertEqualsCanonicalizing($vouchers->pluck('id')->all(), array_column($claim['available_vouchers'], 'id'));
+        $this->assertSame([17.0, 17.0, 17.0], array_column($claim['seats'], 'fare'));
+        $this->assertSame([true, false, false], array_column($claim['seats'], 'is_payer'));
+    }
+
+    public function test_two_free_rides_cover_two_of_four_seats_and_settle_as_voucher_rides(): void
+    {
+        $free = [$this->createRewardVoucher($this->commuter1), $this->createRewardVoucher($this->commuter1)];
+        $txn = $this->claimedGroup([['type' => 'REGULAR', 'quantity' => 3]]);
+
+        $redeemed = app(TransactionService::class)->redeemVouchersForGroupGcash($this->commuter1, $txn->transaction_id, array_column($free, 'id'));
+
+        // Four ₱17 seats, two covered: only two are charged.
+        $this->assertSame(34.0, $redeemed['amount']);
+        $this->assertSame(34.0, (float) $txn->paymentGroup()->firstOrFail()->total_amount);
+        $rows = Transaction::where('group_id', $txn->group_id)->orderBy('group_position')->get();
+        $this->assertSame(2, $rows->whereNotNull('voucher_id')->count());
+        $this->assertSame(2, $rows->filter(fn ($row) => (float) $row->final_amount === 0.0)->count());
+        $this->assertTrue($rows->every(fn ($row) => $row->status === PaymentStatus::PENDING));
+        $this->assertSame(['USED', 'USED'], [$free[0]->fresh()->status, $free[1]->fresh()->status]);
+
+        app(PaymentService::class)->transitionTo($txn->fresh(), PaymentStatus::PAID);
+        $rows = Transaction::where('group_id', $txn->group_id)->get();
+        $this->assertSame(2, $rows->where('payment_method', PaymentMethod::VOUCHER)->count());
+        $this->assertSame(2, $rows->where('payment_method', PaymentMethod::GCASH)->count());
+        $this->assertSame(34.0, app(TransactionService::class)->getShiftEarnings($this->conductor, $this->shift->shift_id)['gcash_total']);
+    }
+
+    public function test_group_free_rides_take_the_dearest_seats_and_discounts_come_off_the_rest(): void
+    {
+        $free = $this->createRewardVoucher($this->commuter1);
+        $discount = $this->createRewardVoucher($this->commuter1, ['type' => 'DISCOUNT', 'amount' => 20]);
+        // Seats: payer ₱17, companion ₱17, two PWD ₱13.60.
+        $txn = $this->claimedGroup([['type' => 'REGULAR', 'quantity' => 1], ['type' => 'PWD', 'quantity' => 2]]);
+
+        $redeemed = app(TransactionService::class)->redeemVouchersForGroupGcash($this->commuter1, $txn->transaction_id, [$free->id, $discount->id]);
+
+        // Free ride: the payer's ₱17 seat (ties go to the payer). The ₱20
+        // discount clears the other ₱17 seat and takes ₱3 off a PWD seat.
+        $this->assertSame(24.2, $redeemed['amount']);
+        $rows = Transaction::where('group_id', $txn->group_id)->orderBy('group_position')->get();
+        $this->assertSame([0.0, 0.0, 10.6, 13.6], $rows->map(fn ($row) => (float) $row->final_amount)->all());
+        $this->assertSame($free->id, $rows[0]->voucher_id);
+        $this->assertSame($discount->id, $rows[1]->voucher_id);
+        $this->assertFalse((bool) $rows[0]->reward_eligible);
+    }
+
+    public function test_group_vouchers_covering_every_seat_settle_at_once(): void
+    {
+        $free = [$this->createRewardVoucher($this->commuter1), $this->createRewardVoucher($this->commuter1)];
+        $txn = $this->claimedGroup([['type' => 'REGULAR', 'quantity' => 1]]);
+
+        $redeemed = app(TransactionService::class)->redeemVouchersForGroupGcash($this->commuter1, $txn->transaction_id, array_column($free, 'id'));
+
+        $this->assertSame(0.0, $redeemed['amount']);
+        $this->assertNull($redeemed['checkout_url']);
+        $rows = Transaction::where('group_id', $txn->group_id)->get();
+        $this->assertTrue($rows->every(fn ($row) => $row->status === PaymentStatus::PAID && $row->payment_method === PaymentMethod::VOUCHER));
+    }
+
+    public function test_failed_group_charge_hands_every_voucher_back(): void
+    {
+        $free = [$this->createRewardVoucher($this->commuter1), $this->createRewardVoucher($this->commuter1)];
+        $txn = $this->claimedGroup([['type' => 'REGULAR', 'quantity' => 3]]);
+        app(TransactionService::class)->redeemVouchersForGroupGcash($this->commuter1, $txn->transaction_id, array_column($free, 'id'));
+
+        app(PaymentService::class)->transitionTo($txn->fresh(), PaymentStatus::FAILED);
+
+        $this->assertSame(['AVAILABLE', 'AVAILABLE'], [$free[0]->fresh()->status, $free[1]->fresh()->status]);
+        $this->assertSame(0, Transaction::where('group_id', $txn->group_id)->whereNotNull('voucher_id')->count());
+    }
+
+    public function test_group_voucher_redemption_rejects_wasted_foreign_and_repeat_vouchers(): void
+    {
+        $txn = $this->claimedGroup([['type' => 'REGULAR', 'quantity' => 1]]);
+        $svc = app(TransactionService::class);
+
+        $three = [$this->createRewardVoucher($this->commuter1), $this->createRewardVoucher($this->commuter1), $this->createRewardVoucher($this->commuter1)];
+        $this->assertAbort(422, fn () => $svc->redeemVouchersForGroupGcash($this->commuter1, $txn->transaction_id, array_column($three, 'id')));
+
+        $zero = $this->createRewardVoucher($this->commuter1, ['type' => 'DISCOUNT', 'amount' => 0]);
+        $this->assertAbort(422, fn () => $svc->redeemVouchersForGroupGcash($this->commuter1, $txn->transaction_id, [$three[0]->id, $zero->id]));
+
+        $foreign = $this->createRewardVoucher($this->commuter2);
+        $this->assertAbort(422, fn () => $svc->redeemVouchersForGroupGcash($this->commuter1, $txn->transaction_id, [$foreign->id]));
+
+        $this->assertSame(0, Voucher::where('status', 'USED')->count());
+        $svc->redeemVouchersForGroupGcash($this->commuter1, $txn->transaction_id, [$three[0]->id]);
+        $this->assertAbort(409, fn () => $svc->redeemVouchersForGroupGcash($this->commuter1, $txn->transaction_id, [$three[1]->id]));
+    }
+
+    public function test_redeem_endpoint_accepts_several_voucher_ids(): void
+    {
+        $free = [$this->createRewardVoucher($this->commuter1), $this->createRewardVoucher($this->commuter1)];
+        $txn = $this->claimedGroup([['type' => 'REGULAR', 'quantity' => 3]]);
+
+        $this->actingAs($this->commuter1, 'sanctum')
+            ->postJson("/api/v1/commuter/payments/{$txn->transaction_id}/redeem-voucher", ['voucher_ids' => array_column($free, 'id')])
+            ->assertOk()
+            ->assertJsonPath('data.amount', 34);
+    }
+
     public function test_invalid_discount_values_and_wrong_owners_do_not_consume_vouchers(): void
     {
         $voucher = $this->createRewardVoucher($this->commuter1, ['type' => 'DISCOUNT', 'amount' => -5]);
