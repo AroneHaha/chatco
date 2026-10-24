@@ -285,6 +285,7 @@ Route::prefix('vehicles')->middleware(['auth:sanctum', 'maintenance'])->group(fu
 */
 Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(function () {
     Route::post('/admins', [AdminAccountController::class, 'store'])->middleware('throttle:conductor-write');
+    Route::post('/account/profile/photo', [AdminAccountController::class, 'updatePhoto'])->middleware('throttle:conductor-write');
     Route::get('/dashboard', [AdminController::class, 'dashboard']);
     // The signed-in admin's own password: same two-step emailed-code flow
     // as commuters (Settings > Profile & Security).

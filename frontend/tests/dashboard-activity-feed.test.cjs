@@ -16,7 +16,8 @@ function load(file, react, service, globals = {}) {
     exports, AbortController, ...globals,
     require(name) {
       if (name === 'react') return { ...React, ...react };
-      if (name === '@/lib/shared/services/activity-log.service') return { listForAdmin: service };
+      if (name === '@/lib/shared/services/activity-log.service') return { listForAdmin: service, getActivityLogCategoryLabel: category => category };
+      if (name === '@/lib/utils/display') return load('lib/utils/display.ts', react, service);
       if (name === '@/lib/utils/format') return load('lib/utils/format.ts', react, service);
       if (name === 'next/link') return props => React.createElement('a', props);
       return require(name);
@@ -103,7 +104,7 @@ test('loads today in pages of ten, blocks overlapping calls, deduplicates and st
   assert.equal(feed.read().activityFeed.hasMore, false);
   await feed.read().activityFeed.loadMore();
   assert.equal(feed.activityRequests.length, 3);
-  assert.deepEqual(feed.activityRequests.map(params => ({ dateRange: params.dateRange, page: params.page, perPage: params.perPage })), [1, 2, 3].map(number => ({ dateRange: 'today', page: number, perPage: 10 })));
+  assert.deepEqual(feed.activityRequests.map(params => ({ dateRange: params.dateRange, page: params.page, perPage: params.perPage })), [1, 2, 3].map(number => ({ dateRange: 'today', page: number, perPage: 5 })));
 });
 
 test('failed later pages retain entries and retry the same page without reloading other cards', async () => {
@@ -175,16 +176,14 @@ function find(element, match) {
   return null;
 }
 
-test('timeline loads near the bottom, fills short panes, pauses on errors and provides retry', () => {
+test('activity preview shows five timestamped entries, loading, retry and an empty state', () => {
   const runner = hooks();
   let calls = 0;
-  const props = { activeVehicles: '2', recentVehicles: [], recentLostFound: [], recentUsers: [], recentAnnouncements: [], recentActivityLogs: rows(0, 10), activityFeed: { isLoading: false, hasMore: true, error: null, loadMore: async () => { calls++; } } };
+  const props = { recentShifts: [], recentClaims: [], recentUsers: [], recentNotifications: [], recentActivityLogs: rows(0, 10), activityFeed: { isLoading: false, hasMore: true, error: null, loadMore: async () => { calls++; } } };
   const { DashboardPreviewCards } = load('components/admin/dashboard/dashboard-preview-cards.tsx', runner.react, null, { ResizeObserver: class { observe() {} disconnect() {} } });
-  const pane = { scrollHeight: 900, clientHeight: 200, scrollTop: 0 };
   const read = () => {
     const tree = runner.render(() => DashboardPreviewCards(props));
-    const timeline = find(tree, element => element.props?.['aria-label'] === 'Recent activity timeline');
-    timeline.props.ref.current = pane;
+    const timeline = find(tree, element => element.props?.['aria-label'] === 'Recent activity logs');
     runner.flush();
     return { tree, timeline };
   };
@@ -193,27 +192,20 @@ test('timeline loads near the bottom, fills short panes, pauses on errors and pr
   assert.equal(timestamp.props.dateTime, props.recentActivityLogs[0].createdAt);
   assert.equal(timestamp.props.children, '10:00 AM');
   assert.match(timestamp.props.title, /Philippine time/);
-  rendered.timeline.props.onScroll({ currentTarget: pane });
-  assert.equal(calls, 0);
-  pane.scrollTop = 680;
-  rendered.timeline.props.onScroll({ currentTarget: pane });
-  assert.equal(calls, 1);
+  assert.ok(find(rendered.timeline, element => element.props?.title === 'Activity 4'));
+  assert.equal(find(rendered.timeline, element => element.props?.title === 'Activity 5'), null);
   props.activityFeed = { ...props.activityFeed, isLoading: true };
   rendered = read();
-  rendered.timeline.props.onScroll({ currentTarget: pane });
-  assert.equal(calls, 1);
+  assert.ok(find(rendered.timeline, element => element.props?.role === 'status'));
+  assert.equal(calls, 0);
   props.activityFeed = { ...props.activityFeed, isLoading: false, error: 'Failed' };
   rendered = read();
-  rendered.timeline.props.onScroll({ currentTarget: pane });
+  assert.ok(find(rendered.timeline, element => element.props?.role === 'alert'));
+  find(rendered.timeline, element => element.type === 'button').props.onClick();
   assert.equal(calls, 1);
-  find(rendered.tree, element => element.type === 'button').props.onClick();
-  assert.equal(calls, 2);
-  pane.scrollHeight = 150;
-  props.activityFeed = { ...props.activityFeed, error: null };
-  read();
-  assert.equal(calls, 3);
-  props.activityFeed = { ...props.activityFeed, hasMore: false };
+  props.recentActivityLogs = [];
+  props.activityFeed = { ...props.activityFeed, error: null, hasMore: false };
   rendered = read();
-  rendered.timeline.props.onScroll({ currentTarget: pane });
-  assert.equal(calls, 3);
+  assert.ok(find(rendered.timeline, element => element.props?.children === 'No activity today.'));
+  assert.equal(calls, 1);
 });

@@ -60,11 +60,12 @@ class ConductorService
      * @param  int  $perPage  Page size (defaults to 15, matching the other
      *                        list endpoints like ShiftService::getShiftLogs).
      */
-    public function listRemittances(User $conductor, int $perPage = 15): LengthAwarePaginator
+    public function listRemittances(User $conductor, int $perPage = 15, string $filter = 'ALL'): LengthAwarePaginator
     {
         $conductorId = $conductor->conductorProfile?->id ?? $conductor->id;
 
         $paginator = Remittance::where('conductor_id', $conductorId)
+            ->when($filter !== 'ALL', fn ($query) => $query->where('date', '>=', now()->subDays($filter === 'WEEK' ? 7 : 31)->toDateString()))
             ->with([
                 'shift:shift_id,conductor_id,driver_id,vehicle_id,route_id,time_in,time_out,status',
                 'vehicle:id,unit_number,plate_number,route_id',

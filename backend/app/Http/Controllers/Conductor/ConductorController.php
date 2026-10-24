@@ -154,11 +154,13 @@ class ConductorController extends Controller
      */
     public function remittancesIndex(Request $request): JsonResponse
     {
+        $validated = $request->validate(['filter' => 'nullable|in:ALL,WEEK,MONTH']);
         $perPage = (int) $request->integer('per_page', 15);
 
         $remittances = $this->conductorService->listRemittances(
             $request->user(),
             $perPage,
+            $validated['filter'] ?? 'ALL',
         );
 
         return $this->successResponse($remittances, 'Remittance history retrieved');
@@ -197,6 +199,11 @@ class ConductorController extends Controller
      * Read-only receipt configuration for the conductor's completed-fare UI.
      * The general admin settings store remains protected by role:ADMIN.
      */
+    public function safetySettings(): JsonResponse
+    {
+        return $this->successResponse(['speed_limit_kmh' => $this->locationService->speedLimitKmh()], 'Safety settings retrieved');
+    }
+
     public function receiptSettings(): JsonResponse
     {
         $defaults = [
@@ -527,6 +534,7 @@ class ConductorController extends Controller
             'email' => $user->email,
             'role' => $user->role,
             'username' => $profile?->generated_username,
+            'contact_number' => $profile?->contact,
             // Public R2 URL of the profile image; null means the app shows its default avatar.
             'profile_picture_url' => $profile?->profile_picture_url,
         ], 'Conductor profile retrieved');

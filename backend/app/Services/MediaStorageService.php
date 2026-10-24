@@ -40,14 +40,19 @@ class MediaStorageService
 
     public function storeCommuterId(UploadedFile $file, string $userId): string
     {
-        $extension = strtolower($file->getClientOriginalExtension() ?: 'jpg');
+        $extension = $this->safeImageExtension($file);
         $filename = $userId.'-'.Str::random(16).'.'.$extension;
 
-        return $file->storeAs(
+        $path = $file->storeAs(
             "ids/commuters/{$userId}",
             $filename,
             config('filesystems.uploads.private_id_disk', 'r2_private'),
         );
+        if (! $path) {
+            throw new \RuntimeException('The ID image could not be stored.');
+        }
+
+        return $path;
     }
 
     /** Store a public object and return its URL for the existing API contract. */

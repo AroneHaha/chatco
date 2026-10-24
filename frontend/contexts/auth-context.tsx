@@ -21,6 +21,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<string>;
   logout: (redirectTo?: string) => Promise<void>;
   refresh: () => Promise<void>;
+  updateProfilePicture: (url: string | null) => void;
   /**
    * Apply a change the caller already got back from the API (e.g. a new
    * profile photo) to the shared profile, without refetching /me.
@@ -65,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             email: data.user.email,
             role: data.user.role,
             name: data.user.name,
+            profilePictureUrl: data.user.profile_picture_url ?? null,
           };
           setUser(authUser);
 
@@ -112,6 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: data.user.email,
         role: data.user.role,
         name: data.user.name,
+        profilePictureUrl: data.user.profile_picture_url ?? null,
       };
 
       if (authUser.role === "CONDUCTOR") {
@@ -179,6 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login,
     logout,
     refresh,
+    updateProfilePicture: url => setUser(current => current ? { ...current, profilePictureUrl: url } : current),
     patchCommuterProfile,
   };
 

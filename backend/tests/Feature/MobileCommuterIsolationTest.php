@@ -19,6 +19,38 @@ class MobileCommuterIsolationTest extends TestCase
     private User $commuter;
     private User $conductor;
 
+    public function test_mobile_share_uses_frontend_url_and_updates_the_same_link(): void
+    {
+        config(['app.frontend_url' => 'https://viewer.chatco.test']);
+        Sanctum::actingAs($this->commuter);
+        $created = $this->postJson('/api/v1/mobile/commuter/share-ride', ['lat' => 14.8, 'lng' => 120.9])->assertCreated();
+        $token = $created->json('data.token');
+        $this->assertSame('https://viewer.chatco.test/share/'.$token, $created->json('data.share_url'));
+        $this->postJson('/api/v1/mobile/commuter/share-ride', ['token' => $token, 'lat' => 14.81, 'lng' => 120.91])
+            ->assertOk()->assertJsonPath('data.token', $token);
+        $this->assertSame(1, \App\Models\SharedRideLink::count());
+        $this->assertEquals(14.81, \App\Models\SharedRideLink::first()->lat);
+    }
+
+    public function test_inflight_mobile_share_update_cannot_resurrect_stopped_or_expired_link(): void
+    {
+        Sanctum::actingAs($this->commuter);
+        $token = $this->postJson('/api/v1/mobile/commuter/share-ride')->assertCreated()->json('data.token');
+        $this->deleteJson('/api/v1/mobile/commuter/share-ride')->assertOk();
+        $this->postJson('/api/v1/mobile/commuter/share-ride', ['token' => $token, 'lat' => 14.8, 'lng' => 120.9])->assertStatus(409);
+        $this->assertSame(0, \App\Models\SharedRideLink::where('is_active', true)->count());
+        $this->assertSame(1, \App\Models\SharedRideLink::count());
+        \App\Models\SharedRideLink::query()->update(['is_active' => true, 'expires_at' => now()->subMinute()]);
+        $this->postJson('/api/v1/mobile/commuter/share-ride', ['token' => $token, 'lat' => 14.8, 'lng' => 120.9])->assertStatus(409);
+        $this->assertSame(1, \App\Models\SharedRideLink::count());
+    }
+
+    public function test_mobile_email_change_rejects_conductor_role(): void
+    {
+        Sanctum::actingAs($this->conductor);
+        $this->postJson('/api/v1/mobile/commuter/change-email/start')->assertForbidden();
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

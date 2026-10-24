@@ -47,6 +47,7 @@ class ShareRideController extends Controller
             'lat' => 'nullable|numeric',
             'lng' => 'nullable|numeric',
             'rotate' => 'nullable|boolean',
+            'token' => 'nullable|string|max:100',
         ]);
 
         // Deactivating the old link and creating/reusing one below must be
@@ -58,6 +59,19 @@ class ShareRideController extends Controller
         // lock-a-stable-parent-row pattern elsewhere in the app.
         [$link, $created] = DB::transaction(function () use ($profile, $validated, $request) {
             CommuterProfile::where('id', $profile->id)->lockForUpdate()->first();
+
+            // A live update must never resurrect an expired or stopped share.
+            if (! empty($validated['token'])) {
+                $existing = SharedRideLink::where('commuter_id', $profile->id)
+                    ->where('token', $validated['token'])->where('is_active', true)
+                    ->where('expires_at', '>', now())->first();
+                abort_unless($existing, 409, 'This sharing session has ended.');
+                if (isset($validated['lat'], $validated['lng'])) {
+                    $existing->update(['lat' => $validated['lat'], 'lng' => $validated['lng'], 'last_updated_at' => now()]);
+                }
+
+                return [$existing, false];
+            }
 
             // A "start sharing" action (rotate=true) mints a brand-new token every
             // time: deactivate any existing active link so the new URL is unique
@@ -105,7 +119,7 @@ class ShareRideController extends Controller
         return $this->successResponse([
             'token' => $link->token,
             'expires_at' => $link->expires_at->toIso8601String(),
-            'share_url' => url("/share/{$link->token}"),
+            'share_url' => rtrim(config('app.frontend_url'), '/')."/share/{$link->token}",
         ], $created ? 'Share link created' : 'Share link retrieved', $created ? 201 : 200);
     }
 
@@ -122,9 +136,11 @@ class ShareRideController extends Controller
             return $this->errorResponse('Commuter profile required.', 422);
         }
 
-        SharedRideLink::where('commuter_id', $profile->id)
-            ->where('is_active', true)
-            ->update(['is_active' => false]);
+        DB::transaction(function () use ($profile) {
+            CommuterProfile::where('id', $profile->id)->lockForUpdate()->first();
+            SharedRideLink::where('commuter_id', $profile->id)
+                ->where('is_active', true)->update(['is_active' => false]);
+        }, 3);
 
         return $this->successResponse(null, 'Share link deactivated');
     }

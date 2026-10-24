@@ -140,6 +140,8 @@ class PaymentController extends Controller
             $query->where('created_at', '>=', $cutoff);
         }
 
+        $summary = (clone $query)->where('status', 'PAID')
+            ->selectRaw('COUNT(*) as ride_count, COALESCE(SUM(final_amount), 0) as total_spent')->first();
         $payments = $query->orderByDesc('created_at')->paginate($perPage);
 
         // Group payments (conductor recorded fare for several passengers,
@@ -203,7 +205,14 @@ class PaymentController extends Controller
             );
         });
 
-        return $this->successResponse($payments, 'Payment history retrieved');
+        $payload = $payments->toArray();
+        $payload['summary'] = [
+            'ride_count' => (int) $summary->ride_count,
+            'total_spent' => (float) $summary->total_spent,
+            'average_fare' => $summary->ride_count ? round($summary->total_spent / $summary->ride_count, 2) : 0,
+        ];
+
+        return $this->successResponse($payload, 'Payment history retrieved');
     }
 
     /**
