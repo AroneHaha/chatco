@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
 import { Car, Info, Loader2, Plus } from 'lucide-react';
 
+import { InlineError } from '@/components/admin/ui/inline-error';
 interface AddVehicleModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -152,7 +153,7 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
     }
   };
 
-  const inputClasses = "block min-h-11 w-full rounded-lg border border-[#2A3A55] bg-[#0E1628]/60 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 transition-colors focus:outline-none focus:ring-2 focus:ring-[#62A0EA]/50 admin-light:border-[#CBD5E1] admin-light:bg-slate-50 admin-light:text-slate-900 admin-light:placeholder:text-slate-400 admin-light:focus:ring-[#1A5FB4]/30";
+  const inputClasses = "block min-h-11 w-full rounded-lg border border-[#2A3A55] bg-[#0E1628] px-3 py-2.5 text-sm text-white placeholder:text-slate-500 transition-colors focus:outline-none focus:ring-2 focus:ring-[#62A0EA]/50 admin-light:border-[#CBD5E1] admin-light:bg-slate-50 admin-light:text-slate-900 admin-light:placeholder:text-slate-400 admin-light:focus:ring-[#1A5FB4]/30";
 
   return (
     <>
@@ -166,9 +167,7 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
       </header>
       <form onSubmit={handleReview} className="space-y-4">
         {error && (
-          <div role="alert" className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-            <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
-          </div>
+          <InlineError>{error}</InlineError>
         )}
 
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -250,7 +249,7 @@ export function AddVehicleModal({ isOpen, onClose, onSave }: AddVehicleModalProp
         </div>
 
         {/* Information note explaining the new assignment workflow */}
-        <div className="flex items-start gap-2.5 rounded-xl bg-[#0E1628]/60 px-3.5 py-3 admin-light:bg-slate-50">
+        <div className="flex items-start gap-2.5 rounded-xl bg-[#0E1628] px-3.5 py-3 admin-light:bg-slate-50">
           <Info size={16} aria-hidden="true" className="mt-0.5 shrink-0 text-[#99C1F1] admin-light:text-[#1A5FB4]" />
           <p className="text-xs leading-relaxed text-slate-400 admin-light:text-slate-500">
             Driver and conductor assignments are linked when a conductor starts a shift.

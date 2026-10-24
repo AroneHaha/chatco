@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
-import { jsonData, jsonError } from "@/lib/conductor/server/response";
+import { jsonData, jsonError, jsonValidationError } from "@/lib/conductor/server/response";
+import { proxyToLaravel } from "@/lib/conductor/server/proxy";
 
 /**
  * GET /api/conductor/profile
@@ -30,4 +31,28 @@ export async function GET(request: NextRequest) {
     // Laravel unreachable.
     return jsonError("Unable to reach the backend service. Please try again.", 502);
   }
+}
+
+/** POST /api/conductor/profile/photo — authenticated multipart profile photo upload. */
+export async function POST(request: NextRequest) {
+  let body: FormData;
+  try {
+    body = await request.formData();
+  } catch {
+    return jsonError("Invalid photo upload.", 400);
+  }
+
+  const result = await proxyToLaravel(request, "/conductor/profile/photo", {
+    method: "POST",
+    body,
+  });
+
+  if (!result.ok) {
+    if (result.status === 422) {
+      return jsonValidationError(result.message ?? "The photo is invalid.", result.errors, result.status);
+    }
+    return jsonError(result.message ?? "Unable to upload profile photo.", result.status);
+  }
+
+  return jsonData(result.data);
 }

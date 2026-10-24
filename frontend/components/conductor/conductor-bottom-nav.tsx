@@ -41,7 +41,7 @@ export default function ConductorBottomNav({ pathname }: { pathname: string }) {
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-50 pb-safe">
-      <div className="bg-[#0B1E33]/90 backdrop-blur-2xl shadow-[0_-4px_30px_rgba(0,0,0,0.3)] border-t border-white/[0.06]">
+      <div className="bg-[#0B1E33]/90 backdrop-blur-2xl shadow-[0_-4px_30px_rgba(0,0,0,0.3)] border-t border-white/[0.06] light:bg-white/90 light:shadow-[0_-4px_24px_rgba(15,23,42,0.08)] light:border-gray-200">
         <div ref={navRowRef} className="relative flex items-end justify-around px-4 pt-1 pb-1 md:pt-1.5 md:pb-1.5">
           <MobileNavHighlight highlightRef={highlightRef} />
 
@@ -61,12 +61,12 @@ export default function ConductorBottomNav({ pathname }: { pathname: string }) {
                     else iconRefs.current.delete(item.href);
                   }}
                   className={`relative flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-full transition-colors duration-300 ${
-                  isActive ? "" : "hover:bg-white/[0.06]"
+                  isActive ? "" : "hover:bg-white/[0.06] light:hover:bg-gray-900/[0.05]"
                 }`}>
-                  <item.icon className={`w-[17px] h-[17px] md:w-[18px] md:h-[18px] transition-colors duration-300 ${isActive ? "text-white" : "text-white/40 group-hover:text-white/70"}`} />
+                  <item.icon className={`w-[17px] h-[17px] md:w-[18px] md:h-[18px] transition-colors duration-300 ${isActive ? "text-white" : "text-white/40 group-hover:text-white/70 light:text-gray-400 light:group-hover:text-gray-600"}`} />
                 </div>
                 <span className={`text-[10px] font-medium mt-0.5 md:mt-1 transition-colors duration-300 leading-none ${
-                  isActive ? "text-white" : "text-white/30 group-hover:text-white/50"
+                  isActive ? "text-white light:text-[#1A5FB4]" : "text-white/30 group-hover:text-white/50 light:text-gray-400 light:group-hover:text-gray-600"
                 }`}>
                   {item.label}
                 </span>
@@ -79,10 +79,10 @@ export default function ConductorBottomNav({ pathname }: { pathname: string }) {
             onClick={() => window.dispatchEvent(new CustomEvent("conductor:open-payment"))}
             className="flex flex-col items-center justify-center relative -mt-[50px] mb-0.5 md:mb-1 group z-10 pointer-events-auto cursor-pointer"
           >
-            <div className="w-[52px] h-[52px] md:w-[56px] md:h-[56px] rounded-full bg-[#1A5FB4] flex items-center justify-center shadow-lg shadow-[#1A5FB4]/30 hover:bg-[#165a9f] active:scale-[0.92] transition-all duration-200 ring-4 ring-[#0B1E33]/80">
+            <div className="w-[52px] h-[52px] md:w-[56px] md:h-[56px] rounded-full bg-[#1A5FB4] flex items-center justify-center shadow-lg shadow-[#1A5FB4]/30 hover:bg-[#165a9f] active:scale-[0.92] transition-all duration-200 ring-4 ring-[#0B1E33]/80 light:ring-white">
               <PaymentIcon className="w-5 h-5 md:w-6 md:h-6 text-white" />
             </div>
-            <span className="text-[9px] font-semibold text-white/50 mt-0.5 md:mt-1 group-hover:text-white/70 transition-colors leading-none">
+            <span className="text-[9px] font-semibold text-white/50 mt-0.5 md:mt-1 group-hover:text-white/70 light:text-gray-500 light:group-hover:text-gray-700 transition-colors leading-none">
               Payment
             </span>
           </button>
@@ -103,12 +103,12 @@ export default function ConductorBottomNav({ pathname }: { pathname: string }) {
                     else iconRefs.current.delete(item.href);
                   }}
                   className={`relative flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-full transition-colors duration-300 ${
-                  isActive ? "" : "hover:bg-white/[0.06]"
+                  isActive ? "" : "hover:bg-white/[0.06] light:hover:bg-gray-900/[0.05]"
                 }`}>
-                  <item.icon className={`w-[17px] h-[17px] md:w-[18px] md:h-[18px] transition-colors duration-300 ${isActive ? "text-white" : "text-white/40 group-hover:text-white/70"}`} />
+                  <item.icon className={`w-[17px] h-[17px] md:w-[18px] md:h-[18px] transition-colors duration-300 ${isActive ? "text-white" : "text-white/40 group-hover:text-white/70 light:text-gray-400 light:group-hover:text-gray-600"}`} />
                 </div>
                 <span className={`text-[10px] font-medium mt-0.5 md:mt-1 transition-colors duration-300 leading-none ${
-                  isActive ? "text-white" : "text-white/30 group-hover:text-white/50"
+                  isActive ? "text-white light:text-[#1A5FB4]" : "text-white/30 group-hover:text-white/50 light:text-gray-400 light:group-hover:text-gray-600"
                 }`}>
                   {item.label}
                 </span>

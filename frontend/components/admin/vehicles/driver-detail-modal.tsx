@@ -19,6 +19,7 @@ import {
   formatDate,
 } from '@/components/admin/vehicles/personnel-detail-parts';
 
+import { InlineError } from '@/components/admin/ui/inline-error';
 interface DriverDetail {
   id: string;
   first_name: string;
@@ -227,9 +228,7 @@ export function DriverDetailModal({ driver, onClose }: DriverDetailModalProps) {
       />
 
       {error && (
-        <div className="mt-5 rounded-md border border-red-500/20 bg-red-500/10 p-3">
-          <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
-        </div>
+        <InlineError className="mt-5">{error}</InlineError>
       )}
 
       <PageTabs tabs={tabs} activeId={activeTab} onChange={setActiveTab} className="mt-6 mb-5" />
@@ -316,9 +315,7 @@ export function DriverDetailModal({ driver, onClose }: DriverDetailModalProps) {
               </div>
 
               {shiftLogsError && (
-                <div className="mb-3 shrink-0 rounded-md border border-red-500/20 bg-red-500/10 p-3">
-                  <p className="text-sm text-red-400 admin-light:text-red-600">{shiftLogsError}</p>
-                </div>
+                <InlineError className="mb-3 shrink-0">{shiftLogsError}</InlineError>
               )}
 
               <ShiftLedger

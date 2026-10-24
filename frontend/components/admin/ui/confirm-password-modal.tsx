@@ -1,7 +1,7 @@
 // components/admin/ui/confirm-password-modal.tsx
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
 import { AlertTriangle, Eye, EyeOff, Loader2, Lock } from 'lucide-react';
 
@@ -15,23 +15,21 @@ interface ConfirmPasswordModalProps {
   title: string;
   description: string;
   confirmLabel: string;
-  /** 'danger' uses red accents for destructive actions (e.g. disabling an
-   *  account); 'default' uses amber for sensitive-but-reversible ones. */
+  /** 'danger' uses red for destructive actions (e.g. disabling an account);
+   *  'default' uses the normal primary button for sensitive-but-reversible ones. */
   variant?: 'default' | 'danger';
 }
 
 const VARIANTS = {
   default: {
-    iconBg: 'bg-amber-400/20',
-    icon: 'text-amber-400 admin-light:text-amber-700',
-    ring: 'focus:ring-amber-400',
-    button: 'bg-amber-500 hover:bg-amber-600',
+    kicker: 'Confirm action',
+    kickerTone: 'text-slate-400 admin-light:text-slate-500',
+    button: 'border-[#62A0EA] bg-[#62A0EA] text-[#0B1120] hover:bg-[#85B6F0] admin-light:border-[#1A5FB4] admin-light:bg-[#1A5FB4] admin-light:text-white admin-light:hover:bg-[#164A8F]',
   },
   danger: {
-    iconBg: 'bg-red-400/20',
-    icon: 'text-red-400 admin-light:text-red-600',
-    ring: 'focus:ring-red-400',
-    button: 'bg-red-600 hover:bg-red-700',
+    kicker: 'Permanent action',
+    kickerTone: 'text-red-400 admin-light:text-red-600',
+    button: 'border-red-600 bg-red-600 text-white hover:bg-red-700 hover:border-red-700',
   },
 };
 
@@ -48,6 +46,7 @@ export function ConfirmPasswordModal({
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fieldId = useId();
 
   // Reset the form whenever the modal transitions to open — same
   // conditional-setState-during-render pattern used by DeletePersonnelModal.
@@ -81,31 +80,21 @@ export function ConfirmPasswordModal({
 
   return (
     <Modal adminThemed isOpen={isOpen} onClose={isSubmitting ? () => {} : onClose} maxWidth="max-w-md">
-      <div className="flex items-center gap-3 mb-6">
-        <div className={`p-2 ${accent.iconBg} rounded-lg`}>
-          <AlertTriangle className={accent.icon} size={24} />
-        </div>
-        <div>
-          <h2 className="text-xl font-bold text-white admin-light:text-slate-900">{title}</h2>
-          <p className="text-sm text-slate-400 admin-light:text-slate-500">{description}</p>
-        </div>
-      </div>
+      <header className="border-b border-[#2A3A55] pb-5 pr-8 admin-light:border-[#E2E8F0]">
+        <p className={`text-[11px] font-semibold uppercase tracking-widest ${accent.kickerTone}`}>{accent.kicker}</p>
+        <h2 className="mt-1.5 text-xl font-semibold tracking-tight break-words text-white sm:text-2xl admin-light:text-slate-900">{title}</h2>
+        <p className="mt-1.5 text-sm leading-relaxed text-slate-400 admin-light:text-slate-500">{description}</p>
+      </header>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-        {error && (
-          <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-md flex items-start gap-2">
-            <AlertTriangle size={16} className="text-red-400 admin-light:text-red-600 flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
-          </div>
-        )}
-
+      <form onSubmit={handleSubmit} className="mt-5 space-y-5">
         <div>
-          <label className="block text-sm font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">
-            Enter your admin password to continue <span className="text-red-400 admin-light:text-red-600">*</span>
+          <label htmlFor={fieldId} className="block text-[11px] font-semibold uppercase tracking-widest text-slate-400 admin-light:text-slate-500">
+            Admin password
           </label>
-          <div className="relative">
-            <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+          <div className="relative mt-2">
+            <Lock size={16} aria-hidden="true" className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
             <input
+              id={fieldId}
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -114,34 +103,42 @@ export function ConfirmPasswordModal({
               autoComplete="current-password"
               autoFocus
               placeholder="Password"
-              className={`block w-full pl-10 pr-10 py-2.5 bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-white admin-light:text-slate-900 placeholder-slate-500 admin-light:placeholder-slate-400 focus:outline-none focus:ring-1 ${accent.ring} transition-colors disabled:opacity-50`}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? `${fieldId}-help ${fieldId}-error` : `${fieldId}-help`}
+              className={`block min-h-11 w-full rounded-md border bg-[#131C2E] pl-10 pr-11 text-white placeholder-slate-500 transition-colors focus:border-[#62A0EA] focus:outline-none focus:ring-2 focus:ring-[#62A0EA]/15 disabled:opacity-50 admin-light:bg-[#F8FAFC] admin-light:text-slate-900 admin-light:placeholder-slate-400 admin-light:focus:border-[#1A5FB4] admin-light:focus:ring-[#1A5FB4]/10 ${error ? 'border-red-500 admin-light:border-red-500' : 'border-[#2A3A55] admin-light:border-[#CBD5E1]'}`}
             />
             <button
               type="button"
               onClick={() => setShowPassword((s) => !s)}
               tabIndex={-1}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 admin-light:hover:text-slate-700"
+              className="absolute right-1 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center text-slate-500 hover:text-slate-300 admin-light:hover:text-slate-700"
             >
               {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
           </div>
-          <p className="text-xs text-slate-600 admin-light:text-slate-400 mt-1">This prevents accidental changes from a stray click.</p>
+          {error && (
+            <p id={`${fieldId}-error`} role="alert" className="mt-2 flex items-start gap-1.5 text-xs leading-relaxed text-red-400 admin-light:text-red-600">
+              <AlertTriangle size={14} aria-hidden="true" className="mt-0.5 shrink-0" />
+              {error}
+            </p>
+          )}
+          <p id={`${fieldId}-help`} className="mt-2 text-xs text-slate-500 admin-light:text-slate-500">This prevents accidental changes from a stray click.</p>
         </div>
 
-        <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-[#1E2D45] admin-light:border-[#E2E8F0]">
+        <div className="flex flex-col-reverse gap-2 min-[380px]:flex-row">
           <button
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="w-full sm:w-auto px-6 py-2.5 border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-slate-300 admin-light:text-slate-700 hover:bg-[#131C2E] admin-light:hover:bg-white transition-colors active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="min-h-11 flex-1 rounded-md border border-[#2A3A55] bg-[#131C2E] px-4 text-sm font-semibold text-slate-200 transition-colors hover:bg-[#0E1628] disabled:cursor-not-allowed disabled:text-slate-500 admin-light:border-[#CBD5E1] admin-light:bg-white admin-light:text-slate-700 admin-light:hover:bg-slate-50"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={isSubmitting || !password}
-            className={`w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 text-white font-medium rounded-md transition-colors active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed ${accent.button}`}
+            className={`flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md border px-4 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${accent.button}`}
           >
             {isSubmitting ? (
               <>

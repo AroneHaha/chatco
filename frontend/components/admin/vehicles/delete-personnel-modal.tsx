@@ -3,7 +3,9 @@
 
 import { useState } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
-import { AlertTriangle, Trash2, Loader2 } from 'lucide-react';
+import { Trash2, Loader2 } from 'lucide-react';
+import { ADMIN_BUTTON, ADMIN_FIELD, ADMIN_LABEL, DetailRows, ModalKickerHeader } from '@/components/admin/ui/modal-parts';
+import { InlineError } from '@/components/admin/ui/inline-error';
 
 interface DeletePersonnelModalProps {
   isOpen: boolean;
@@ -78,55 +80,40 @@ export function DeletePersonnelModal({ isOpen, onClose, onConfirm, personnelData
     }
   };
 
+  const needsReason = terminationType === 'Terminated';
+  const canSubmit = !isSubmitting && confirmText === 'Confirm' && (!needsReason || (reason !== '' && (reason !== 'Other' || otherReason.trim() !== '')));
+
   return (
     <Modal adminThemed isOpen={isOpen} onClose={isSubmitting ? () => {} : onClose}>
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-2 bg-red-400/20 rounded-lg">
-          <AlertTriangle className="text-red-400 admin-light:text-red-600" size={24} />
-        </div>
+      <ModalKickerHeader
+        kicker="Permanent action"
+        destructive
+        title="Remove personnel"
+        description="This deactivates the personnel account. Provide the details below."
+      />
+
+      <form onSubmit={handleSubmit} className="mt-4 space-y-5">
+        {personnelData && <DetailRows rows={[{ label: 'Name', value: personnelData.name }, { label: 'Role', value: personnelData.role }]} />}
+
         <div>
-          <h2 className="text-xl font-bold text-white admin-light:text-slate-900">Remove Personnel</h2>
-          <p className="text-sm text-slate-400 admin-light:text-slate-500">This action will deactivate the personnel account.</p>
-        </div>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Warning Box */}
-        <div className="p-4 bg-red-400/5 border border-red-400/20 admin-light:border-red-200 rounded-md">
-          <p className="text-sm text-slate-300 admin-light:text-slate-700">
-            You are about to terminate <span className="font-bold text-white admin-light:text-slate-900">{personnelData?.name}</span>
-            ({personnelData?.role}). Please provide the necessary details below.
-          </p>
-        </div>
-
-        {/* Inline error banner — shown when the DELETE API call fails */}
-        {submitError && (
-          <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-md flex items-start gap-2">
-            <AlertTriangle size={16} className="text-red-400 admin-light:text-red-600 flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-red-400 admin-light:text-red-600">{submitError}</p>
-          </div>
-        )}
-
-        {/* Termination Type */}
-        <div>
-          <label className="block text-sm font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">Termination Type <span className="text-red-400 admin-light:text-red-600">*</span></label>
+          <label htmlFor="remove-personnel-type" className={ADMIN_LABEL}>Termination type</label>
           <select
+            id="remove-personnel-type"
             value={terminationType}
             onChange={(e) => setTerminationType(e.target.value)}
             disabled={isSubmitting}
-            className="block w-full px-4 py-2.5 bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-white admin-light:text-slate-900 focus:outline-none focus:ring-1 focus:ring-red-400 transition-colors [color-scheme:dark] disabled:opacity-50"
+            className={`mt-2 ${ADMIN_FIELD}`}
           >
-            <option value="Terminated" className="bg-gray-800 admin-light:bg-white">Terminated</option>
-            <option value="Resigned" className="bg-gray-800 admin-light:bg-white">Resigned</option>
+            <option value="Terminated">Terminated</option>
+            <option value="Resigned">Resigned</option>
           </select>
         </div>
 
-        {terminationType === 'Terminated' && (
+        {needsReason && (
           <div>
-            <label className="block text-sm font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">
-              Reason for Removal <span className="text-red-400 admin-light:text-red-600">*</span>
-            </label>
+            <label htmlFor="remove-personnel-reason" className={ADMIN_LABEL}>Reason for removal</label>
             <select
+              id="remove-personnel-reason"
               value={reason}
               onChange={(e) => {
                 setReason(e.target.value);
@@ -134,34 +121,36 @@ export function DeletePersonnelModal({ isOpen, onClose, onConfirm, personnelData
               }}
               required
               disabled={isSubmitting}
-              className="block w-full px-4 py-2.5 bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-white admin-light:text-slate-900 focus:outline-none focus:ring-1 focus:ring-red-400 transition-colors [color-scheme:dark] disabled:opacity-50"
+              className={`mt-2 ${ADMIN_FIELD}`}
             >
-              <option value="" className="bg-gray-800 admin-light:bg-white">Select a reason</option>
+              <option value="">Select a reason</option>
               {terminationReasons.map((item) => (
-                <option key={item} value={item} className="bg-gray-800 admin-light:bg-white">{item}</option>
+                <option key={item} value={item}>{item}</option>
               ))}
             </select>
             {reason === 'Other' && (
               <textarea
+                aria-label="Specific reason"
                 value={otherReason}
                 onChange={(e) => setOtherReason(e.target.value)}
                 required
                 disabled={isSubmitting}
                 rows={3}
                 placeholder="Type the specific reason..."
-                className="mt-3 block w-full px-4 py-2.5 bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-white admin-light:text-slate-900 placeholder-slate-500 admin-light:placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-red-400 transition-colors resize-none leading-relaxed disabled:opacity-50"
+                className={`mt-3 resize-y ${ADMIN_FIELD}`}
               />
             )}
-            <p className="text-xs text-slate-600 admin-light:text-slate-400 mt-1">This will be recorded in the Records & History tab.</p>
+            <p className="mt-2 text-xs text-slate-500">This will be recorded in the Records and History tab.</p>
           </div>
         )}
 
         {/* Confirmation guard */}
         <div>
-          <label className="block text-sm font-medium text-slate-300 admin-light:text-slate-700 mb-1.5">
-            Type <span className="font-semibold text-white admin-light:text-slate-900">Confirm</span> to continue <span className="text-red-400 admin-light:text-red-600">*</span>
+          <label htmlFor="remove-personnel-confirm" className={ADMIN_LABEL}>
+            Type <span className="text-white admin-light:text-slate-900">Confirm</span> to continue
           </label>
           <input
+            id="remove-personnel-confirm"
             type="text"
             value={confirmText}
             onChange={(e) => setConfirmText(e.target.value)}
@@ -169,41 +158,22 @@ export function DeletePersonnelModal({ isOpen, onClose, onConfirm, personnelData
             disabled={isSubmitting}
             autoComplete="off"
             placeholder="Confirm"
-            className="block w-full px-4 py-2.5 bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-white admin-light:text-slate-900 placeholder-slate-500 admin-light:placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-red-400 transition-colors disabled:opacity-50"
+            className={`mt-2 ${ADMIN_FIELD}`}
           />
-          <p className="text-xs text-slate-600 admin-light:text-slate-400 mt-1">This prevents accidental personnel removals.</p>
+          <p className="mt-2 text-xs text-slate-500">This prevents accidental personnel removals.</p>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-[#1E2D45] admin-light:border-[#E2E8F0]">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isSubmitting}
-            className="w-full sm:w-auto px-6 py-2.5 border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md text-slate-300 admin-light:text-slate-700 hover:bg-[#131C2E] admin-light:hover:bg-white transition-colors active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-          >
+        {/* Shown when the DELETE API call fails; the modal stays open to retry. */}
+        {submitError && <InlineError>{submitError}</InlineError>}
+
+        <div className="flex flex-col-reverse gap-2 min-[380px]:flex-row">
+          <button type="button" onClick={onClose} disabled={isSubmitting} className={`flex-1 ${ADMIN_BUTTON.secondary}`}>
             Cancel
           </button>
-          <button
-            type="submit"
-            disabled={
-              isSubmitting ||
-              confirmText !== 'Confirm' ||
-              (terminationType === 'Terminated' && (!reason || (reason === 'Other' && !otherReason.trim())))
-            }
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-red-600 text-white font-medium rounded-md hover:bg-red-700 transition-colors active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 size={16} className="animate-spin" />
-                Removing…
-              </>
-            ) : (
-              <>
-                <Trash2 size={16} />
-                Confirm Removal
-              </>
-            )}
+          <button type="submit" disabled={!canSubmit} className={`flex-1 ${ADMIN_BUTTON.danger}`}>
+            {isSubmitting
+              ? <><Loader2 size={16} aria-hidden="true" className="animate-spin" />Removing…</>
+              : <><Trash2 size={16} aria-hidden="true" />Confirm removal</>}
           </button>
         </div>
       </form>

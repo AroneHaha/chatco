@@ -31,6 +31,28 @@ class MobileWebTransactionIsolationTest extends TestCase
     private FarePoint $stop1;
     private FarePoint $stop2;
 
+    public function test_mobile_payment_history_summary_is_not_limited_to_current_page(): void
+    {
+        $commuter = User::create(['email' => 'history@test.com', 'password' => bcrypt('password'), 'role' => UserRole::COMMUTER]);
+        \App\Models\CommuterProfile::create([
+            'id' => $commuter->id, 'first_name' => 'History', 'surname' => 'Reader', 'birthdate' => '1995-01-01',
+            'gender' => 'Female', 'email' => $commuter->email, 'contact_number' => '09171234567',
+            'commuter_type' => 'REGULAR', 'username' => 'historyreader', 'account_status' => 'ACTIVE', 'language_preference' => 'en',
+        ]);
+        foreach ([[20, 'PAID'], [30, 'PAID'], [99, 'FAILED']] as [$amount, $status]) {
+            Transaction::create([
+                'transaction_id' => 'TXN-'.strtoupper(Str::random(12)), 'shift_id' => $this->shift->shift_id,
+                'passenger_id' => $commuter->id, 'payment_method' => 'CASH', 'final_amount' => $amount,
+                'status' => $status, 'total_passengers' => 1,
+                'pickup_stop_id' => $this->stop1->id, 'dropoff_stop_id' => $this->stop2->id,
+            ]);
+        }
+        Sanctum::actingAs($commuter);
+        $this->getJson('/api/v1/mobile/commuter/payments?per_page=1&page=2')->assertOk()
+            ->assertJsonCount(1, 'data.data')->assertJsonPath('data.summary.ride_count', 2)
+            ->assertJsonPath('data.summary.total_spent', 50)->assertJsonPath('data.summary.average_fare', 25);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

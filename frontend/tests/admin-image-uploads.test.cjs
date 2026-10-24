@@ -24,6 +24,57 @@ const responses = {
 };
 const request = () => ({ cookies: { get: () => ({ value: 'test-only-token' }) }, headers: new Headers({ 'content-type': 'multipart/form-data; boundary=sample' }) });
 
+function conductorPhotoRoute(fetch) {
+  const proxy = load('lib/conductor/server/proxy.ts', { 'next/server': {}, '@/lib/conductor/server/response': responses }, { fetch });
+  const profile = load('app/api/conductor/profile/route.ts', {
+    '@/lib/conductor/server/proxy': proxy, '@/lib/conductor/server/response': responses,
+  });
+  return load('app/api/conductor/profile/photo/route.ts', { '../route': profile });
+}
+
+test('conductor photo service URL resolves to a multipart authenticated upload handler', async () => {
+  let sent;
+  const route = conductorPhotoRoute(async (url, options) => {
+    sent = { url, ...options };
+    return Response.json({ data: { profile_picture_url: 'https://media.example.test/conductor.jpg' } });
+  });
+  const { CONDUCTOR_API } = load('lib/conductor/endpoints.ts', {});
+  assert.equal(CONDUCTOR_API.profilePhoto, '/api/conductor/profile/photo');
+  const body = new FormData(); body.set('photo', new File(['photo'], 'photo.jpg', { type: 'image/jpeg' }));
+  const result = await route.POST({ ...request(), formData: async () => body });
+  assert.equal(result.status, 200);
+  assert.equal((await result.json()).data.profile_picture_url, 'https://media.example.test/conductor.jpg');
+  assert.ok(sent.url.endsWith('/api/v1/conductor/profile/photo'));
+  assert.equal(sent.method, 'POST');
+  assert.equal(sent.body, body);
+  assert.equal(sent.headers.Authorization, 'Bearer test-only-token');
+  assert.equal(sent.headers['Content-Type'], undefined);
+});
+
+test('conductor photo route rejects missing sessions and malformed multipart', async () => {
+  let calls = 0;
+  const route = conductorPhotoRoute(async () => { calls++; return Response.json({}); });
+  const body = new FormData();
+  const denied = await route.POST({ cookies: { get: () => undefined }, formData: async () => body });
+  assert.equal(denied.status, 401);
+  const malformed = await route.POST({ ...request(), formData: async () => { throw new Error('Invalid multipart'); } });
+  assert.equal(malformed.status, 400);
+  assert.equal(calls, 0);
+});
+
+test('conductor photo route preserves backend validation and storage failures', async () => {
+  for (const status of [422, 502]) {
+    const route = conductorPhotoRoute(async () => Response.json({
+      message: 'Photo upload failed.', errors: { photo: ['Invalid image.'] },
+    }, { status }));
+    const response = await route.POST({ ...request(), formData: async () => new FormData() });
+    assert.equal(response.status, status);
+    const result = await response.json();
+    assert.equal(result.message, 'Photo upload failed.');
+    if (status === 422) assert.equal(result.errors.photo[0], 'Invalid image.');
+  }
+});
+
 test('admin photo proxy preserves multipart, authenticates and propagates validation', async () => {
   const calls = [];
   const proxy = load('lib/conductor/server/proxy.ts', { 'next/server': {}, '@/lib/conductor/server/response': responses }, {
@@ -83,8 +134,11 @@ function ui(file, name, modules, globals = {}, props) {
     useEffect(callback, deps) { const i = cursor++; if (!slots[i] || !deps || deps.some((v, n) => v !== slots[i].deps[n])) { slots[i]?.cleanup?.(); slots[i] = { deps }; effects.push(() => { slots[i].cleanup = callback(); }); } },
   };
   const jsx = (type, props) => ({ type, props });
-  const component = load(file, { react, 'react/jsx-runtime': { jsx, jsxs: jsx }, 'lucide-react': {}, ...modules }, globals)[name];
-  const flatten = n => Array.isArray(n) ? n.flatMap(flatten) : n && typeof n === 'object' && n.props ? [n, ...flatten(n.props.children)] : [];
+  const runtime = { react, 'react/jsx-runtime': { jsx, jsxs: jsx }, 'lucide-react': {} };
+  const inlineError = load('components/admin/ui/inline-error.tsx', runtime);
+  const component = load(file, { ...runtime, '@/components/admin/ui/inline-error': inlineError, ...modules }, globals)[name];
+  const flatten = n => Array.isArray(n) ? n.flatMap(flatten) : n && typeof n === 'object' && n.props
+    ? typeof n.type === 'function' ? flatten(n.type(n.props)) : [n, ...flatten(n.props.children)] : [];
   return () => { cursor = 0; const tree = flatten(component(props)); while (effects.length) effects.shift()(); return tree; };
 }
 const pick = file => ({ target: { files: [file], value: 'chosen-file' } });
@@ -104,7 +158,12 @@ test('admin Settings uploads once, retains old photo on failure and allows retry
   const save = () => render().find(n => n.type === 'button' && ['Save picture', 'Saving picture…'].includes(n.props.children)).props.onClick();
   save(); save(); assert.equal(count, 1);
   finish.reject(new Error('Storage unavailable')); await new Promise(resolve => setImmediate(resolve));
-  assert.ok(render().some(n => n.props.role === 'alert' && n.props.children === 'Storage unavailable'));
+  const alert = render().find(n => n.props.role === 'alert');
+  assert.ok(alert);
+  const text = node => Array.isArray(node) ? node.map(text).join('')
+    : node && typeof node === 'object' ? text(node.props?.children)
+      : typeof node === 'string' ? node : '';
+  assert.equal(text(alert), 'Storage unavailable');
   assert.equal(user.profilePictureUrl, 'https://media.example.test/old.jpg');
   save(); finish.resolve('https://media.example.test/new.jpg'); await new Promise(resolve => setImmediate(resolve));
   assert.equal(user.profilePictureUrl, 'https://media.example.test/new.jpg');

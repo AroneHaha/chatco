@@ -7,6 +7,7 @@ import { UserAvatar } from "@/components/admin/ui/user-avatar";
 import type { ActiveUser } from "@/app/(admin)/users/data/users-data";
 import type { SuspendUserInput } from "@/lib/admin/services/user.service";
 
+import { InlineError } from '@/components/admin/ui/inline-error';
 interface SuspensionModalProps {
   user: ActiveUser | null;
   isOpen: boolean;
@@ -43,7 +44,7 @@ const LABEL = "mb-3 block text-[11px] font-semibold uppercase tracking-widest te
 // Duration segments: a real (visually hidden) radio drives the state, the
 // label carries the visible choice.
 const CHOICE = "flex min-h-11 cursor-pointer items-center rounded-md border px-3 text-sm font-medium transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[#62A0EA] admin-light:has-[:focus-visible]:outline-[#1A5FB4] has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60";
-const CHOICE_ON = "border-[#62A0EA] bg-[#62A0EA]/12 text-white admin-light:border-[#1A5FB4] admin-light:bg-[#1A5FB4]/8 admin-light:text-slate-900";
+const CHOICE_ON = "border-[#62A0EA] bg-[#62A0EA] text-[#0B1120] admin-light:border-[#1A5FB4] admin-light:bg-[#1A5FB4] admin-light:text-white";
 const CHOICE_OFF = "border-[#2A3A55] bg-[#131C2E] text-slate-300 hover:border-[#3A4D6E] hover:text-white admin-light:border-[#E2E8F0] admin-light:bg-white admin-light:text-slate-700 admin-light:hover:border-[#CBD5E1] admin-light:hover:text-slate-900";
 
 export function SuspensionModal({
@@ -182,7 +183,7 @@ export function SuspensionModal({
                     </label>
                   );
                 })}
-                <label className={`${CHOICE} col-span-2 justify-center ${isPermanent ? "border-red-500/70 bg-red-500/10 text-red-300 admin-light:border-red-500 admin-light:bg-red-50 admin-light:text-red-700" : CHOICE_OFF}`}>
+                <label className={`${CHOICE} col-span-2 justify-center ${isPermanent ? "border-red-600 bg-red-600 text-white" : CHOICE_OFF}`}>
                   <input type="radio" name="suspension-duration" value="permanent" checked={isPermanent} onChange={() => setIsPermanent(true)} className="sr-only" />
                   Permanent
                 </label>
@@ -197,9 +198,7 @@ export function SuspensionModal({
         )}
 
         {error && (
-          <div role="alert" className="rounded-md border border-red-500/30 bg-red-500/10 p-3">
-            <p className="text-sm text-red-400 admin-light:text-red-600">{error}</p>
-          </div>
+          <InlineError>{error}</InlineError>
         )}
 
         <footer className="flex flex-col-reverse gap-2 border-t border-[#2A3A55] pt-5 sm:flex-row sm:justify-end admin-light:border-[#E2E8F0]">

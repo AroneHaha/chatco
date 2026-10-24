@@ -259,30 +259,30 @@ export default function SosConfirmModal({
 
       {/* Modal Card */}
       <div key={isAlertActive ? "active" : "inactive"} role="dialog" aria-modal="true" aria-label="Emergency SOS" className={`relative sm:rounded-3xl rounded-t-3xl shadow-2xl w-full sm:max-w-md animate-modal-panel-in pb-safe transition-colors duration-300 ${
-        isAlertActive || status === "stopped" ? "max-h-[90dvh] overflow-y-auto modal-scroll border border-white/10 bg-[#071A2E] shadow-black/40" : status === "locating" || status === "sending" ? "overflow-hidden border-2 bg-white border-red-500" : "overflow-hidden border-2 bg-[#1A2540] border-[#2A3A55]"
+        isAlertActive || status === "stopped" ? "max-h-[90dvh] overflow-y-auto modal-scroll border border-white/10 light:border-gray-200 bg-[#071A2E] light:bg-white shadow-black/40 light:shadow-black/10" : status === "locating" || status === "sending" ? "overflow-hidden border border-gray-200 bg-white" : "overflow-hidden border-2 bg-[#1A2540] light:bg-white border-[#2A3A55] light:border-gray-200"
       }`}>
 
         {status === "confirming" && (
           /* --- CONFIRMATION STATE --- */
           <div className="p-6 text-center">
-            <div className="w-20 h-20 rounded-full bg-red-500/15 border-2 border-red-500/25 flex items-center justify-center mx-auto mb-5">
-              <svg className="w-10 h-10 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full border-2 border-red-500 bg-transparent">
+              <svg className="h-10 w-10 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
               </svg>
             </div>
 
-            <h2 className="text-xl font-extrabold text-white mb-2">Send Emergency SOS?</h2>
-            <p className="text-sm text-white/40 leading-relaxed mb-8">
-              This will immediately share your <span className="font-bold text-white">real-time live location</span> with the CHATCO Admin dispatch team.
+            <h2 className="text-xl font-extrabold text-white light:text-gray-900 mb-2">Send Emergency SOS?</h2>
+            <p className="text-sm text-white/40 light:text-gray-600 leading-relaxed mb-8">
+              This will immediately share your <span className="font-bold text-white light:text-gray-900">real-time live location</span> with the CHATCO Admin dispatch team.
               <br /><br />
               <span className="text-red-400 font-semibold">Only use this in actual emergencies.</span>
             </p>
 
             <div className="flex gap-3">
-              <button onClick={handleClose} className="flex-1 px-4 py-3.5 rounded-xl text-sm font-semibold border border-white/10 text-white/70 hover:bg-white/10 transition-colors">
+              <button onClick={handleClose} className="flex-1 px-4 py-3.5 rounded-xl text-sm font-semibold border border-white/10 light:border-gray-300 text-white/70 light:text-gray-700 hover:bg-white/10 light:hover:bg-gray-100 transition-colors">
                 Cancel
               </button>
-              <button onClick={handleActivate} className="flex-1 px-4 py-3.5 rounded-xl text-sm font-bold bg-red-500 text-white hover:bg-red-600 transition-colors shadow-lg shadow-red-500/30 flex items-center justify-center gap-2">
+              <button onClick={handleActivate} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-700 px-4 py-3.5 text-sm font-bold text-white transition-colors hover:bg-red-800">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
                 Send SOS
               </button>
@@ -294,8 +294,7 @@ export default function SosConfirmModal({
           /* --- LOCATING (getting GPS) --- */
           <div className="p-6 text-center">
             <div className="relative w-28 h-28 mx-auto mb-6 flex items-center justify-center">
-              <div className="absolute inset-0 rounded-full bg-red-500/10 animate-ping" />
-              <div className="relative w-20 h-20 rounded-full bg-red-100 flex items-center justify-center">
+              <div className="relative flex h-20 w-20 items-center justify-center rounded-full border-4 border-red-200 bg-red-100">
                 <svg className="w-9 h-9 text-red-500 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
@@ -306,7 +305,7 @@ export default function SosConfirmModal({
             <p className="text-sm text-gray-500 leading-relaxed">
               Please allow location access. We need your GPS coordinates to direct respondents to you.
             </p>
-            <div className="mt-6 w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+            <div className="mt-6 h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
               <div className="h-full bg-red-500 animate-pulse" style={{ width: "65%" }} />
             </div>
           </div>
@@ -326,38 +325,37 @@ export default function SosConfirmModal({
         {isAlertActive && (
           /* --- ACTIVE/TRACKING STATE (LOCKED SCREEN) --- */
           <div>
-            <div aria-hidden="true" className="h-1 bg-red-500/80" />
             <div className="p-5 sm:p-6">
-              <div className="flex items-center justify-between gap-3">
-                <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-red-400/20 bg-red-500/10 text-red-300">
+              <div className="flex justify-center">
+                <span className="flex h-11 w-11 items-center justify-center rounded-full border border-red-500 bg-transparent text-red-400">
                   <ShieldAlert size={23} aria-hidden="true" />
                 </span>
               </div>
 
-              <h2 className="mt-5 text-2xl font-bold tracking-tight text-white">SOS is active</h2>
-              <p className="mt-2 text-sm leading-relaxed text-white/55">Your emergency alert has been sent to CHATCO dispatch.</p>
+              <h2 className="mt-5 text-center text-2xl font-bold tracking-tight text-white light:text-gray-900">SOS is active</h2>
+              <p className="mt-2 text-center text-sm leading-relaxed text-white/55 light:text-gray-600">Your emergency alert has been sent to CHATCO dispatch.</p>
 
-              <div className="mt-6 rounded-2xl border border-white/10 bg-[#050F1A]/60 px-5 py-5">
-                <p className="flex items-center gap-2 text-xs font-medium text-white/45"><Clock3 size={14} aria-hidden="true" />Time elapsed</p>
-                <p role="timer" aria-label="Time since SOS was sent" className="mt-3 text-4xl font-semibold leading-none tracking-tight text-white tabular-nums">{formatTimer(activeSeconds)}</p>
-                <div role="status" className="mt-5 border-t border-white/10 pt-4">
-                  <div className="flex items-center gap-2 text-xs text-white/60"><Check size={15} aria-hidden="true" className="shrink-0 text-emerald-400" />Alert sent</div>
-                  <div className="mt-3 flex items-center gap-2 text-sm font-medium text-[#B6D3F6]">{status === "acknowledged" ? <Check size={15} aria-hidden="true" className="shrink-0 text-emerald-400" /> : <LoaderCircle size={15} aria-hidden="true" className="shrink-0 animate-spin motion-reduce:animate-none" />}{status === "acknowledged" ? "Dispatch has received your alert" : "Waiting for dispatch to respond"}</div>
+              <div className="mt-6 rounded-2xl border border-white/10 bg-[#050F1A] px-5 py-5 light:border-gray-200 light:bg-gray-50">
+                <p className="flex items-center gap-2 text-xs font-medium text-white/45 light:text-gray-600"><Clock3 size={14} aria-hidden="true" />Time elapsed</p>
+                <p role="timer" aria-label="Time since SOS was sent" className="mt-3 text-4xl font-semibold leading-none tracking-tight text-white light:text-gray-900 tabular-nums">{formatTimer(activeSeconds)}</p>
+                <div role="status" className="mt-5 border-t border-white/10 light:border-gray-200 pt-4">
+                  <div className="flex items-center gap-2 text-xs text-white/60 light:text-gray-700"><span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-emerald-500 bg-transparent text-emerald-400"><Check size={11} aria-hidden="true" /></span>Alert sent</div>
+                  <div className="mt-3 flex items-center gap-2 text-sm font-medium text-[#B6D3F6] light:text-blue-700">{status === "acknowledged" ? <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-emerald-500 bg-transparent text-emerald-400"><Check size={11} aria-hidden="true" /></span> : <LoaderCircle size={15} aria-hidden="true" className="shrink-0 animate-spin motion-reduce:animate-none" />}{status === "acknowledged" ? "Dispatch has received your alert" : "Waiting for dispatch to respond"}</div>
                 </div>
               </div>
 
               {hotline && (
                 <a
                   href={`tel:${hotline.replace(/[^\d+]/g, "")}`}
-                  className="mt-5 flex min-h-14 items-center justify-center gap-3 rounded-xl bg-red-500 px-4 py-3 text-white transition-colors hover:bg-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#071A2E]"
+                  className="mt-5 flex min-h-14 items-center justify-center gap-3 rounded-xl bg-red-700 px-4 py-3 text-white transition-colors hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#071A2E]"
                 >
                   <Phone size={19} aria-hidden="true" className="shrink-0" />
                   <span className="min-w-0 text-center"><span className="block text-sm font-semibold">Call emergency hotline</span><span className="mt-0.5 block break-words text-xs text-white/75">{hotline}</span></span>
                 </a>
               )}
 
-              <div className="mt-5 flex items-start gap-2.5 text-xs leading-relaxed text-white/45">
-                <Info size={15} aria-hidden="true" className="mt-0.5 shrink-0 text-white/35" />
+              <div className="mt-5 flex items-start gap-2.5 text-xs leading-relaxed text-white/45 light:text-gray-600">
+                <Info size={15} aria-hidden="true" className="mt-0.5 shrink-0 text-white/35 light:text-gray-500" />
                 <p>You can close this screen. Your SOS stays active and dispatch can still respond.</p>
               </div>
               <SosActions onClose={handleClose} onStop={handleStop} />
@@ -367,9 +365,9 @@ export default function SosConfirmModal({
 
         {status === "stopped" && (
           <div className="p-6 text-center">
-            <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-300"><Check size={26} aria-hidden="true" /></div>
-            <h2 className="text-2xl font-bold tracking-tight text-white">SOS stopped</h2>
-            <p className="mt-2 text-sm leading-relaxed text-white/55">Your alert is closed. Dispatch has been notified.</p>
+            <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full border-2 border-emerald-500 bg-transparent text-emerald-400"><Check size={26} aria-hidden="true" /></div>
+            <h2 className="text-2xl font-bold tracking-tight text-white light:text-gray-900">SOS stopped</h2>
+            <p className="mt-2 text-sm leading-relaxed text-white/55 light:text-gray-600">Your alert is closed. Dispatch has been notified.</p>
             <button type="button" onClick={handleClose} className="mt-6 min-h-11 w-full rounded-xl bg-[#1A5FB4] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#164A8F]">Done</button>
           </div>
         )}
@@ -383,7 +381,7 @@ export default function SosConfirmModal({
               </svg>
             </div>
 
-            <h2 className="text-xl font-extrabold text-white mb-2">SOS closed</h2>
+            <h2 className="text-xl font-extrabold text-white light:text-gray-900 mb-2">SOS closed</h2>
             <p className="text-sm text-gray-500 leading-relaxed mb-8">
               Dispatch has closed your emergency alert.
             </p>
@@ -400,20 +398,20 @@ export default function SosConfirmModal({
         {status === "error" && (
           /* --- ERROR STATE --- */
           <div className="p-6 text-center">
-            <div className="w-20 h-20 rounded-full bg-red-500/15 border-2 border-red-500/25 flex items-center justify-center mx-auto mb-5">
-              <svg className="w-10 h-10 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full border-2 border-red-600 bg-red-700">
+              <svg className="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
               </svg>
             </div>
 
-            <h2 className="text-xl font-extrabold text-white mb-2">SOS Could Not Be Sent</h2>
-            <p className="text-sm text-white/40 leading-relaxed mb-8">{errorMessage}</p>
+            <h2 className="text-xl font-extrabold text-white light:text-gray-900 mb-2">SOS Could Not Be Sent</h2>
+            <p className="text-sm text-white/40 light:text-gray-600 leading-relaxed mb-8">{errorMessage}</p>
 
             <div className="flex gap-3">
-              <button onClick={handleClose} className="flex-1 px-4 py-3.5 rounded-xl text-sm font-semibold border border-white/10 text-white/70 hover:bg-white/10 transition-colors">
+              <button onClick={handleClose} className="flex-1 px-4 py-3.5 rounded-xl text-sm font-semibold border border-white/10 light:border-gray-300 text-white/70 light:text-gray-700 hover:bg-white/10 light:hover:bg-gray-100 transition-colors">
                 Close
               </button>
-              <button onClick={handleRetry} className="flex-1 px-4 py-3.5 rounded-xl text-sm font-bold bg-red-500 text-white hover:bg-red-600 transition-colors shadow-lg shadow-red-500/30">
+              <button onClick={handleRetry} className="flex-1 rounded-xl bg-red-700 px-4 py-3.5 text-sm font-bold text-white transition-colors hover:bg-red-800">
                 Try Again
               </button>
             </div>

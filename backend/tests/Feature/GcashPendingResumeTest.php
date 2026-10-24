@@ -18,21 +18,21 @@ use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 /**
- * GCash pending-payment lifecycle: resume, no-duplicates, 3-minute expiry.
+ * GCash pending-payment lifecycle: resume, no-duplicates, 3-minute timeout.
  *
  *   POST /conductor/payments/gcash/initiate — reuses a fresh PENDING txn
  *   GET  /conductor/payments/gcash/pending  — resumable txn or null
- *   GET  /payments/{id}/status              — lazily expires stale PENDING
- *   POST /commuter/payments/claim           — flips stale txn to EXPIRED (410)
+ *   GET  /payments/{id}/status              — lazily cancels stale PENDING
+ *   POST /commuter/payments/claim           — cancels a stale txn (410)
  *
  * Verifies:
  *   - initiate twice → SAME transaction (no duplicate pending QRs)
  *   - pending endpoint returns the resumable txn with the same qr_token
  *   - pending endpoint returns null when nothing is pending / after cancel
- *   - status poll flips a stale PENDING to EXPIRED (lazy, no cron)
- *   - initiate after expiry creates a NEW transaction; old one is EXPIRED
- *   - claiming an expired QR → 410 and the row is marked EXPIRED
- *   - a PAID transaction is never expired by the lazy check
+ *   - status poll flips a stale PENDING to CANCELLED (lazy, no cron)
+ *   - initiate after the timeout creates a NEW transaction; old one is CANCELLED
+ *   - claiming a timed-out QR → 410 and the row is marked CANCELLED
+ *   - a PAID transaction is never cancelled by the lazy check
  */
 class GcashPendingResumeTest extends TestCase
 {
@@ -172,9 +172,9 @@ class GcashPendingResumeTest extends TestCase
             ->assertJsonPath('data', null);
     }
 
-    // ── Automatic (lazy) expiration ─────────────────────────────
+    // ── Automatic (lazy) timeout cancellation ───────────────────
 
-    public function test_status_poll_expires_a_stale_pending_transaction(): void
+    public function test_status_poll_cancels_a_stale_pending_transaction(): void
     {
         $initiated = $this->initiate()->assertStatus(201);
         $id = $initiated->json('data.transaction_id');
@@ -184,15 +184,15 @@ class GcashPendingResumeTest extends TestCase
 
         $this->getJson("/api/v1/payments/{$id}/status")
             ->assertStatus(200)
-            ->assertJsonPath('data.status', 'EXPIRED');
+            ->assertJsonPath('data.status', 'CANCELLED');
 
         $this->assertDatabaseHas('transactions', [
             'transaction_id' => $id,
-            'status' => 'EXPIRED',
+            'status' => 'CANCELLED',
         ]);
     }
 
-    public function test_initiate_after_expiry_creates_a_new_transaction(): void
+    public function test_initiate_after_timeout_creates_a_new_transaction(): void
     {
         $first = $this->initiate()->assertStatus(201);
 
@@ -204,14 +204,14 @@ class GcashPendingResumeTest extends TestCase
             $first->json('data.transaction_id'),
             $second->json('data.transaction_id'),
         );
-        // The stale one was lazily expired by the reuse check.
+        // The stale one was lazily cancelled by the reuse check.
         $this->assertDatabaseHas('transactions', [
             'transaction_id' => $first->json('data.transaction_id'),
-            'status' => 'EXPIRED',
+            'status' => 'CANCELLED',
         ]);
     }
 
-    public function test_pending_endpoint_hides_and_expires_a_stale_transaction(): void
+    public function test_pending_endpoint_hides_and_cancels_a_stale_transaction(): void
     {
         $initiated = $this->initiate()->assertStatus(201);
 
@@ -223,11 +223,11 @@ class GcashPendingResumeTest extends TestCase
 
         $this->assertDatabaseHas('transactions', [
             'transaction_id' => $initiated->json('data.transaction_id'),
-            'status' => 'EXPIRED',
+            'status' => 'CANCELLED',
         ]);
     }
 
-    public function test_claiming_an_expired_qr_returns_410_and_marks_expired(): void
+    public function test_claiming_a_timed_out_qr_returns_410_and_cancels_it(): void
     {
         $initiated = $this->initiate()->assertStatus(201);
         $qrToken = $initiated->json('data.qr_token');
@@ -240,15 +240,15 @@ class GcashPendingResumeTest extends TestCase
 
         $this->assertDatabaseHas('transactions', [
             'transaction_id' => $initiated->json('data.transaction_id'),
-            'status' => 'EXPIRED',
+            'status' => 'CANCELLED',
         ]);
     }
 
-    public function test_late_provider_settlement_still_marks_an_expired_payment_paid(): void
+    public function test_provider_settlement_after_timeout_is_recorded_and_flagged_for_refund(): void
     {
-        // A commuter can claim the QR just before the TTL and finish the
-        // provider checkout right after it — money moves, so the webhook
-        // must still record the fare (EXPIRED → PAID is allowed).
+        // The timeout closes the payment at the provider, so this should not
+        // happen; if the provider still reports money moved, the fare must be
+        // recorded (provider truth wins) and flagged for a refund.
         config(['payments.allow_simulation' => true]);
 
         $initiated = $this->initiate()->assertStatus(201);
@@ -256,10 +256,10 @@ class GcashPendingResumeTest extends TestCase
 
         $this->travel(4)->minutes();
 
-        // Poll flips the stale row to EXPIRED first.
+        // Poll cancels the stale row first.
         $this->getJson("/api/v1/payments/{$id}/status")
             ->assertStatus(200)
-            ->assertJsonPath('data.status', 'EXPIRED');
+            ->assertJsonPath('data.status', 'CANCELLED');
 
         // The (simulated) provider webhook then reports the payment settled.
         $this->postJson("/api/v1/payments/{$id}/simulate", ['status' => 'PAID'])
@@ -268,10 +268,11 @@ class GcashPendingResumeTest extends TestCase
         $this->assertDatabaseHas('transactions', [
             'transaction_id' => $id,
             'status' => 'PAID',
+            'payment_reconciliation_status' => 'REFUND_REQUIRED',
         ]);
     }
 
-    public function test_paid_transaction_is_never_lazily_expired(): void
+    public function test_paid_transaction_is_never_lazily_cancelled(): void
     {
         $initiated = $this->initiate()->assertStatus(201);
         $id = $initiated->json('data.transaction_id');

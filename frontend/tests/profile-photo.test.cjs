@@ -65,6 +65,7 @@ test('photo route forwards original multipart to the web-specific backend route'
 test('profile service sends only the file and maps authoritative snake_case photo URL', async () => {
   let sent;
   const service = load('lib/commuter/services/profile.service.ts', {
+    '@/types': { toCommuterType: value => value === 'SENIOR' ? 'SENIOR_CITIZEN' : value },
     '@/lib/api/client': { api: { postForm: async (url, body) => {
       sent = { url, body };
       return { data: { user: { id: 'owner', email: 'owner@example.test' }, profile: { profile_image_url: 'https://media.example.test/photo.jpg' } } };

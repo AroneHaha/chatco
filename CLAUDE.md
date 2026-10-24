@@ -30,6 +30,16 @@ If a suspected root cause or solution is provided, treat it as a hypothesis unle
 11. **Check related flows before finalizing.**
 After making a change, inspect related functionality that uses the same API, state, component, service, database data, or shared logic. Make sure the fix does not unintentionally affect other user roles, pages, devices, or workflows.
 
+# UI Rules
+
+These apply to every UI change and override `docs/DESIGN.md` where the two conflict (e.g. its tinted status badges and glow shadows).
+
+1. **No transparent fills.** Buttons, toggles, filter options, cards, panels and badges use solid backgrounds. Don't use low-opacity fills such as `bg-white/5`, `bg-amber-500/20` or `bg-transparent` with a border to make a control look tinted or see-through. A secondary action gets a solid neutral surface with a border; the selected/primary one gets solid CHATCO Blue. Modal scrims (`bg-black/50`) are the only exception.
+2. **No neon colours.** No glow shadows (`shadow-[#1A5FB4]/30`, coloured `shadow-*`), saturated neon accents or gradient text. Nothing should look neon: no bright saturated text or icons on navy (`text-emerald-400`, `text-sky-400`), no coloured rings around icons, and no glowing or `animate-ping` effects. Use the existing navy, CHATCO Blue and neutral greys.
+3. **No colour coding.** Don't give items, categories, payment methods, status options or menu entries their own colour. Tell them apart with labels, plain neutral text, and an icon where it adds meaning. CHATCO Blue marks the selected or primary item only. Red is kept for errors and destructive actions. Use any other colour only when the user explicitly asks for it on that element.
+4. **No neon or see-through pill tags.** Don't use pill or capsule tags (`rounded-full` labels, chips, status or category badges) in neon colours or with transparent/tinted fills such as `bg-emerald-500/15 text-emerald-300 border border-emerald-500/30`. Show a status or category as plain text, with an icon where it adds meaning. If a tag is genuinely needed, give it a solid neutral surface and `rounded-md` corners, not a capsule.
+5. **No boxed icons.** Don't put an icon inside a tile, circle or square container (`w-12 h-12 rounded-full bg-red-500/10`, `rounded-xl` icon boxes) to decorate a modal header, empty state, success screen or list row. Place the icon directly on the surface and size it up instead (around 28-40px in a modal header), in neutral or the one meaningful colour (CHATCO Blue for primary, red for errors/destructive). Avatars, photos and real buttons are not icon boxes.
+
 # Git
 
 **NEVER add Claude as author or co-author when committing, pushing, opening a PR, or merging.**

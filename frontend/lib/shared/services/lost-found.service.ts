@@ -273,6 +273,8 @@ export type LostFoundErrorCode =
   | "forbidden"
   /** 401 — session expired. */
   | "unauthenticated"
+  /** 429 — too many requests in the current minute; safe to retry shortly. */
+  | "rate_limited"
   /** 5xx / network failure. */
   | "network";
 
@@ -426,6 +428,8 @@ function classifyError(err: ApiError, fallback: string): LostFoundOperationError
       return new LostFoundOperationError("forbidden", message);
     case 401:
       return new LostFoundOperationError("unauthenticated", message);
+    case 429:
+      return new LostFoundOperationError("rate_limited", message);
     default:
       return new LostFoundOperationError("network", message);
   }

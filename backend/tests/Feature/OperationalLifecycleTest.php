@@ -695,7 +695,7 @@ class OperationalLifecycleTest extends TestCase
         $this->assertDatabaseHas('overspeed_events', ['id' => $overspeed->id]);
     }
 
-    public function test_pending_gcash_expiration_is_idempotent_and_terminal_payments_are_untouched(): void
+    public function test_pending_gcash_timeout_cancellation_is_idempotent_and_terminal_payments_are_untouched(): void
     {
         [, , , , $shift] = $this->activeShift();
         $pending = $this->fare($shift, PaymentMethod::GCASH, PaymentStatus::PENDING, 40);
@@ -710,7 +710,7 @@ class OperationalLifecycleTest extends TestCase
         $this->artisan('payments:expire-stale')->assertSuccessful();
         $this->artisan('payments:expire-stale')->assertSuccessful();
 
-        $this->assertSame(PaymentStatus::EXPIRED, $pending->fresh()->status);
+        $this->assertSame(PaymentStatus::CANCELLED, $pending->fresh()->status);
         $this->assertSame(PaymentStatus::PAID, $paid->fresh()->status);
         $this->assertSame(PaymentStatus::CANCELLED, $cancelled->fresh()->status);
         $this->assertSame(PaymentStatus::REFUNDED, $refunded->fresh()->status);

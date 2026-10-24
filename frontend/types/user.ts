@@ -83,6 +83,16 @@ export const DISCOUNTED_TYPES = new Set<CommuterType>([
 
 export const DISCOUNT_RATE = 0.2;
 
+/**
+ * Backend commuter_type/applied_type store seniors as "SENIOR" (sign-up and
+ * admin save that value), while the frontend type uses "SENIOR_CITIZEN".
+ * Convert raw API values here so labels and discount checks find the type.
+ */
+export function toCommuterType(value: string | null | undefined): CommuterType | undefined {
+  if (!value) return undefined;
+  return (value === "SENIOR" ? "SENIOR_CITIZEN" : value) as CommuterType;
+}
+
 export function getCommuterTypeLabel(type: CommuterType): string {
   return COMMUTER_TYPE_LABELS[type];
 }

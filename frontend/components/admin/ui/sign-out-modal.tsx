@@ -17,47 +17,44 @@ export function SignOutModal({ isOpen, onClose, onConfirm, isPending = false }: 
     // Closing mid-request would leave the session half-torn-down, so the
     // backdrop/escape close is suppressed while signing out.
     <Modal isOpen={isOpen} onClose={isPending ? () => {} : onClose} adminThemed>
-      <div className="text-center space-y-4">
-        {/* Warning Icon */}
-        <div className="mx-auto w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center">
-          <LogOut className="text-red-400 admin-light:text-red-600" size={32} />
-        </div>
-
-        <div>
-          <h2 className="text-xl font-bold text-white admin-light:text-slate-900">Sign Out</h2>
-          <p className="text-sm text-gray-400 admin-light:text-slate-500 mt-2">
-            Are you sure you want to sign out of your admin account? 
-            You will need to log in again to access the dashboard.
+      <div className="flex items-start gap-3 pr-8">
+        <LogOut size={30} aria-hidden="true" className="shrink-0 text-[#62A0EA] admin-light:text-[#1A5FB4]" />
+        <div className="min-w-0">
+          <h2 className="text-xl font-semibold tracking-tight text-white admin-light:text-slate-900">Sign out</h2>
+          <p className="mt-1 text-sm leading-relaxed text-slate-400 admin-light:text-slate-500">
+            You&apos;ll need to sign in again to use the admin dashboard.
           </p>
         </div>
+      </div>
 
-        {/* Action Buttons */}
-        <div className="flex gap-3 pt-4">
-          <button
-            onClick={onClose}
-            disabled={isPending}
-            className="flex-1 px-4 py-2.5 bg-white/10 admin-light:bg-slate-100 border border-white/20 admin-light:border-[#CBD5E1] text-white admin-light:text-slate-900 font-medium rounded-lg hover:bg-white/20 admin-light:hover:bg-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            disabled={isPending}
-            className="flex-1 px-4 py-2.5 bg-red-500 text-white font-medium rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isPending ? (
-              <>
-                <Loader2 size={18} className="animate-spin" />
-                Signing Out…
-              </>
-            ) : (
-              <>
-                <LogOut size={18} />
-                Yes, Sign Out
-              </>
-            )}
-          </button>
-        </div>
+      {/* Signing out isn't destructive, so it's the normal primary action. */}
+      <div className="mt-6 flex flex-col-reverse gap-2 min-[380px]:flex-row min-[380px]:justify-end">
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={isPending}
+          className="min-h-11 rounded-md border border-[#2A3A55] bg-[#131C2E] px-4 text-sm font-semibold text-slate-200 transition-colors hover:bg-[#0E1628] disabled:cursor-not-allowed disabled:opacity-50 admin-light:border-[#CBD5E1] admin-light:bg-white admin-light:text-slate-700 admin-light:hover:bg-slate-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={onConfirm}
+          disabled={isPending}
+          className="flex min-h-11 items-center justify-center gap-2 rounded-md border border-[#62A0EA] bg-[#62A0EA] px-4 text-sm font-semibold text-[#0B1120] transition-colors hover:bg-[#85B6F0] disabled:cursor-not-allowed disabled:opacity-60 admin-light:border-[#1A5FB4] admin-light:bg-[#1A5FB4] admin-light:text-white admin-light:hover:bg-[#164A8F]"
+        >
+          {isPending ? (
+            <>
+              <Loader2 size={16} aria-hidden="true" className="animate-spin" />
+              Signing out…
+            </>
+          ) : (
+            <>
+              <LogOut size={16} aria-hidden="true" />
+              Sign out
+            </>
+          )}
+        </button>
       </div>
     </Modal>
   );

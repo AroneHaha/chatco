@@ -15,6 +15,8 @@ interface UnitDetailsPanelProps {
   commuterLocation: [number, number] | null;
   gpsStatus: GpsStatus;
   onClose: () => void;
+  /** Re-syncs the map's vehicle list after the server reports this unit gone. */
+  onUnavailable: () => void;
 }
 
 function CrewPhoto({ crew }: { crew: UnitCrewDetails }) {
@@ -59,14 +61,20 @@ function CrewCard({ role, crew }: { role: string; crew: UnitCrewDetails | null }
   );
 }
 
-export default function UnitDetailsPanel({ vehicleId, vehicle, commuterLocation, gpsStatus, onClose }: UnitDetailsPanelProps) {
+export default function UnitDetailsPanel({ vehicleId, vehicle, commuterLocation, gpsStatus, onClose, onUnavailable }: UnitDetailsPanelProps) {
   const [details, setDetails] = useState<CommuterUnitDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [retry, setRetry] = useState(0);
   const [now, setNow] = useState(Date.now);
+  // The server stops returning this unit (404) once it goes on break or its
+  // shift ends, which can be before the map's next vehicle-list refresh.
+  const [unavailable, setUnavailable] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
 
+  // The panel follows its marker: it closes when the unit leaves the live map
+  // (break, end of shift, 10 min without GPS). Otherwise only the close
+  // control (or Escape) closes it.
   useEffect(() => {
     if (!vehicle) onClose();
   }, [vehicle, onClose]);
@@ -93,12 +101,12 @@ export default function UnitDetailsPanel({ vehicleId, vehicle, commuterLocation,
       try {
         const nextDetails = await fetchUnitDetails(vehicleId, controller.signal);
         if (controller.signal.aborted) return;
-        if (!nextDetails) {
-          onClose();
-          return;
-        }
+        setUnavailable(!nextDetails);
         setDetails(nextDetails);
         setError(null);
+        // Refresh the map so the marker, and with it this panel, go away
+        // together instead of the panel outliving its unit.
+        if (!nextDetails) onUnavailable();
       } catch (cause) {
         if (controller.signal.aborted) return;
         // Don't leave a previous shift's crew visible after the unit goes offline.
@@ -115,22 +123,23 @@ export default function UnitDetailsPanel({ vehicleId, vehicle, commuterLocation,
     void load();
     const interval = window.setInterval(() => { setNow(Date.now()); void load(); }, 20_000);
     return () => { controller.abort(); window.clearInterval(interval); };
-  }, [vehicleId, retry, onClose]);
+  }, [vehicleId, retry, onUnavailable]);
 
   if (!vehicle) return null;
 
-  const distance = vehicle && commuterLocation && gpsStatus === "available"
+  const distance = !unavailable && commuterLocation && gpsStatus === "available"
     ? haversineMeters(commuterLocation[0], commuterLocation[1], vehicle.lat, vehicle.lng) : null;
   const hasFreshLocation = details?.location_updated_at != null
     && now - Date.parse(details.location_updated_at) < 10 * 60_000;
   const canEstimate = details && hasFreshLocation && vehicle.capacity !== "FULL" && distance !== null && distance <= 1000;
   const eta = canEstimate ? estimateArrival(distance) : null;
   const capacity = getCapacityConfig(vehicle.capacity);
-  const status = !hasFreshLocation && details ? "Location outdated" : capacity.label;
-  const statusStyles = !hasFreshLocation && details
+  const status = unavailable ? "Not on the live map" : !hasFreshLocation && details ? "Location outdated" : capacity.label;
+  const statusStyles = unavailable || (!hasFreshLocation && details)
     ? "border-slate-500/30 bg-slate-500/10 text-slate-300"
     : `${capacity.twBorder} ${capacity.twBg} ${capacity.twText}`;
-  const pickupMessage = details && !hasFreshLocation ? "Waiting for a fresh GPS location from this unit."
+  const pickupMessage = unavailable ? "This unit has left the live map. It may be on break or has ended its shift."
+    : details && !hasFreshLocation ? "Waiting for a fresh GPS location from this unit."
     : vehicle.capacity === "FULL" ? "This unit is full and is not accepting passengers."
     : distance === null ? "Enable your location to see distance and pickup ETA."
     : distance > 1000 ? "Outside the 1 km pickup radius. ETA becomes available when the unit is closer."
@@ -143,7 +152,7 @@ export default function UnitDetailsPanel({ vehicleId, vehicle, commuterLocation,
         <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-[#62A0EA]/20 bg-[#62A0EA]/10 text-[#62A0EA]"><CarFront size={20} aria-hidden="true" /></span>
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">Unit details</p>
-          <h2 id="commuter-unit-title" className="mt-1 break-words text-lg font-semibold leading-tight text-white">{details ? `Unit ${details.unit_number}` : vehicle?.plateNumber ?? "Selected unit"}</h2>
+          <h2 id="commuter-unit-title" className="mt-1 break-words text-lg font-semibold leading-tight text-white">{details ? `Unit ${details.unit_number}` : vehicle.plateNumber}</h2>
           {details && <p className="mt-1 text-xs text-slate-400">{details.plate_number}</p>}
         </div>
         <button ref={closeRef} onClick={onClose} aria-label="Close unit details" className="flex size-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#62A0EA]"><X size={18} /></button>
@@ -167,7 +176,7 @@ export default function UnitDetailsPanel({ vehicleId, vehicle, commuterLocation,
 
         <section aria-labelledby="commuter-unit-route" className="rounded-2xl border border-white/10 p-4">
           <h3 id="commuter-unit-route" className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400"><MapPin size={14} className="text-[#62A0EA]" />Route &amp; vehicle</h3>
-          <p className="mt-3 break-words text-sm font-medium leading-relaxed text-white">{vehicle?.routeName ?? details?.route_name ?? "Route unavailable"}</p>
+          <p className="mt-3 break-words text-sm font-medium leading-relaxed text-white">{vehicle.routeName ?? details?.route_name ?? "Route unavailable"}</p>
           {details && <dl className="mt-3 space-y-2 border-t border-white/[0.06] pt-3 text-xs">
             <div className="flex justify-between gap-3"><dt className="text-slate-400">Plate number</dt><dd className="text-right font-medium text-slate-200">{details.plate_number}</dd></div>
             <div className="flex justify-between gap-3"><dt className="text-slate-400">Vehicle type</dt><dd className="text-right capitalize text-slate-200">{details.vehicle_type.toLowerCase().replaceAll("_", " ")}</dd></div>
@@ -176,7 +185,8 @@ export default function UnitDetailsPanel({ vehicleId, vehicle, commuterLocation,
 
         <section aria-labelledby="commuter-unit-crew" className="space-y-3">
           <h3 id="commuter-unit-crew" className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400"><Users size={14} className="text-[#62A0EA]" />Your crew</h3>
-          {loading && !details && <div role="status" className="rounded-2xl border border-white/10 p-4 text-sm text-slate-400">Loading crew details…</div>}
+          {unavailable && !error && <p className="rounded-2xl border border-white/10 p-4 text-sm text-slate-400">Crew details are unavailable while this unit is off the live map.</p>}
+          {loading && !details && !unavailable && <div role="status" className="rounded-2xl border border-white/10 p-4 text-sm text-slate-400">Loading crew details…</div>}
           {error && <div role="alert" className="rounded-2xl border border-white/10 p-4">
             <p className="text-sm leading-relaxed text-slate-300">{error}</p>
             <button onClick={() => { setLoading(true); setError(null); setRetry(value => value + 1); }} className="mt-3 inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-[#62A0EA] hover:bg-[#62A0EA]/10"><RefreshCw size={13} />Try again</button>

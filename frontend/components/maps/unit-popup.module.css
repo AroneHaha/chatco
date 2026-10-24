@@ -1,60 +1,78 @@
+/* Colours are tokens so the light appearance only swaps values. Dark is the
+   default; light follows the commuter/conductor `data-theme` on <html> and
+   the admin `data-admin-theme` on <main>. The map tiles stay dark in both. */
+.popup {
+  --popup-bg: #0d192a;
+  --popup-border: #2a3a55;
+  --popup-divider: #23344f;
+  --popup-shadow: rgb(0 0 0 / .3);
+  --popup-text: #e2e8f0;
+  --popup-title: #f8fafc;
+  --popup-muted: #94a3b8;
+  --popup-icon-text: #62a0ea;
+  --tone-success-text: #86efac; --tone-success-bg: rgb(34 197 94 / .08);
+  --tone-warning-text: #fde68a; --tone-warning-bg: rgb(234 179 8 / .08);
+  --tone-danger-text: #fca5a5; --tone-danger-bg: rgb(239 68 68 / .08);
+  --tone-info-text: #8cb9f0; --tone-info-bg: rgb(98 160 234 / .08);
+}
+
+:global([data-theme="light"]) .popup,
+:global([data-admin-theme="light"]) .popup {
+  --popup-bg: #fff;
+  --popup-border: #e5e7eb;
+  --popup-divider: #e5e7eb;
+  --popup-shadow: rgb(7 26 46 / .18);
+  --popup-text: #374151;
+  --popup-title: #111827;
+  --popup-muted: #6b7280;
+  --popup-icon-text: #1a5fb4;
+  --tone-success-text: #047857; --tone-success-bg: #ecfdf5;
+  --tone-warning-text: #b45309; --tone-warning-bg: #fffbeb;
+  --tone-danger-text: #b91c1c; --tone-danger-bg: #fef2f2;
+  --tone-info-text: #1a5fb4; --tone-info-bg: #f0f7ff;
+}
+
 .popup :global(.leaflet-popup-content-wrapper) {
   padding: 0 !important;
   overflow: hidden;
-  border: 1px solid #2a3a55;
+  border: 1px solid var(--popup-border);
   border-radius: 14px !important;
-  background: #0d192a !important;
-  box-shadow: 0 12px 32px rgb(0 0 0 / .3) !important;
+  background: var(--popup-bg) !important;
+  box-shadow: 0 12px 32px var(--popup-shadow) !important;
 }
 
 .popup :global(.leaflet-popup-content) {
-  width: min(280px, calc(100vw - 48px)) !important;
+  max-width: calc(100vw - 48px);
   margin: 0 !important;
-  color: #e2e8f0 !important;
+  color: var(--popup-text) !important;
   font-family: var(--font-poppins), system-ui, sans-serif;
   font-size: 12px;
   line-height: 1.5 !important;
 }
 
-.popup :global(.leaflet-popup-tip) { background: #0d192a !important; }
-.popup :global(a.leaflet-popup-close-button) {
-  top: 6px;
-  right: 6px;
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  padding: 0 !important;
-  border-radius: 8px;
-  color: #94a3b8 !important;
-  font-size: 24px !important;
-}
-.popup :global(a.leaflet-popup-close-button:hover),
-.popup :global(a.leaflet-popup-close-button:focus-visible) { background: #1e2d45; color: white !important; }
-.popup :global(a.leaflet-popup-close-button:focus-visible) { outline: 2px solid #62a0ea; outline-offset: -2px; }
+.popup :global(.leaflet-popup-tip) { background: var(--popup-bg) !important; }
 
-.header { display: flex; align-items: center; gap: 10px; padding: 16px 44px 14px 16px; border-bottom: 1px solid #23344f; }
-.icon { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; border: 1px solid rgb(98 160 234 / .2); border-radius: 10px; background: rgb(98 160 234 / .1); color: #62a0ea; }
+.header { display: flex; align-items: center; gap: 10px; padding: 16px 16px 14px; border-bottom: 1px solid var(--popup-divider); }
+.icon { flex-shrink: 0; width: 34px; height: 34px; color: var(--popup-icon-text); }
+.headerCentered { flex-direction: column; gap: 6px; text-align: center; }
 .heading { min-width: 0; }
-.subtitle { color: #94a3b8; font-size: 10px; }
-.title { margin-top: 2px; color: #f8fafc; font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+.subtitle { color: var(--popup-muted); font-size: 10px; }
+.title { margin-top: 2px; color: var(--popup-title); font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
 .body { padding: 14px 16px 16px; }
-.badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid currentColor; border-radius: 6px; font-size: 10px; font-weight: 500; }
-.badge > span { width: 5px; height: 5px; flex-shrink: 0; border-radius: 50%; background: currentColor; }
-.badge[data-tone='success'] { color: #86efac; background: rgb(34 197 94 / .08); border-color: rgb(34 197 94 / .25); }
-.badge[data-tone='warning'] { color: #fde68a; background: rgb(234 179 8 / .08); border-color: rgb(234 179 8 / .25); }
-.badge[data-tone='danger'] { color: #fca5a5; background: rgb(239 68 68 / .08); border-color: rgb(239 68 68 / .25); }
-.badge[data-tone='info'] { color: #8cb9f0; background: rgb(98 160 234 / .08); border-color: rgb(98 160 234 / .25); }
+.status { display: block; font-size: 13px; font-weight: 600; text-align: center; }
+.status[data-tone='success'] { color: var(--tone-success-text); }
+.status[data-tone='warning'] { color: var(--tone-warning-text); }
+.status[data-tone='danger'] { color: var(--tone-danger-text); }
+.status[data-tone='info'] { color: var(--tone-info-text); }
 .details { display: grid; gap: 10px; margin: 14px 0 0; }
-.row { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 12px; align-items: start; }
-.row dt { color: #94a3b8; }
-.row dd { margin: 0; color: #e2e8f0; font-weight: 500; text-align: right; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
-.notes { display: grid; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid #23344f; }
+/* Content-sized columns: Leaflet sizes the popup from its min-content width,
+   which a minmax(0, 1fr) value column reported as zero, so long values like
+   the route name were squeezed into a few characters per line. */
+.row { display: grid; grid-template-columns: max-content auto; gap: 16px; align-items: start; }
+.row dt { color: var(--popup-muted); }
+.row dd { margin: 0; color: var(--popup-text); font-weight: 500; text-align: right; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.notes { display: grid; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--popup-divider); }
 .note { padding: 8px 10px; border-radius: 6px; font-size: 11px; overflow-wrap: anywhere; }
-.note[data-tone='danger'] { color: #fca5a5; background: rgb(239 68 68 / .08); }
-.note[data-tone='warning'] { color: #fde68a; background: rgb(234 179 8 / .08); }
-.note[data-tone='info'], .note[data-tone='success'] { color: #8cb9f0; background: rgb(98 160 234 / .08); }
-
-@media (hover: none), (pointer: coarse) {
-  .popup :global(a.leaflet-popup-close-button) { width: 44px; height: 44px; top: 2px; right: 2px; }
-}
+.note[data-tone='danger'] { color: var(--tone-danger-text); background: var(--tone-danger-bg); }
+.note[data-tone='warning'] { color: var(--tone-warning-text); background: var(--tone-warning-bg); }
+.note[data-tone='info'], .note[data-tone='success'] { color: var(--tone-info-text); background: var(--tone-info-bg); }

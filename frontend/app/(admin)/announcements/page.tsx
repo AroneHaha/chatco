@@ -20,6 +20,7 @@ import {
 import { AnnouncementFormModal, TYPE_SUGGESTIONS, type AnnouncementFormData } from '@/components/admin/announcements/announcement-form-modal';
 import { AnnouncementDetailModal } from '@/components/shared/announcement-detail-modal';
 import { Modal } from '@/components/admin/ui/modal';
+import { ADMIN_BUTTON } from '@/components/admin/ui/modal-parts';
 import { DataTable } from '@/components/admin/ui/data-table';
 import { RowActionsMenu } from '@/components/admin/ui/row-actions-menu';
 import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
@@ -740,46 +741,36 @@ export default function AnnouncementsPage() {
       />
 
       {/* Archive confirm modal */}
-      <Modal adminThemed isOpen={archivingItem !== null} onClose={() => !isArchiving && setArchivingItem(null)} maxWidth="max-w-sm">
+      <Modal adminThemed isOpen={archivingItem !== null} onClose={() => !isArchiving && setArchivingItem(null)} maxWidth="max-w-md">
         {archivingItem && (
-          <div className="space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center flex-shrink-0">
-                <Archive size={18} className="text-amber-400 admin-light:text-amber-700" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-white admin-light:text-slate-900">Archive this announcement?</h3>
-                <p className="text-xs text-slate-400 admin-light:text-slate-500 mt-1">
-                  It will immediately disappear from the commuter bell and the user-facing feed. You can still see it by filtering to Archived.
+          <>
+            <div className="flex items-start gap-3 pr-8">
+              <Archive size={28} aria-hidden="true" className="shrink-0 text-[#62A0EA] admin-light:text-[#1A5FB4]" />
+              <div className="min-w-0">
+                <h3 className="text-lg font-semibold tracking-tight text-white admin-light:text-slate-900">Archive this announcement?</h3>
+                <p className="mt-1 text-sm leading-relaxed text-slate-400 admin-light:text-slate-500">
+                  It disappears right away from the commuter bell and the updates feed. You can still find it by filtering to Archived.
                 </p>
               </div>
             </div>
-            <div className="bg-[#0E1628] admin-light:bg-[#F8FAFC] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md p-3">
-              <p className="text-sm font-semibold text-white admin-light:text-slate-900">{archivingItem.title}</p>
-              <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{archivingItem.message}</p>
+            <div className="mt-4 rounded-md border border-[#2A3A55] bg-[#131C2E] p-3 admin-light:border-[#E2E8F0] admin-light:bg-[#F8FAFC]">
+              <p className="text-sm font-semibold break-words text-white admin-light:text-slate-900">{archivingItem.title}</p>
+              <p className="mt-0.5 line-clamp-2 text-xs text-slate-400 admin-light:text-slate-500">{archivingItem.message}</p>
             </div>
-            <div className="flex items-center justify-end gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setArchivingItem(null)}
-                disabled={isArchiving}
-                className="px-4 py-2 rounded-md text-xs font-semibold text-slate-400 admin-light:text-slate-500 hover:text-white admin-light:hover:text-slate-900 bg-[#0E1628] admin-light:bg-[#F8FAFC] border border-[#1E2D45] admin-light:border-[#E2E8F0] hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] transition-colors disabled:opacity-50"
-              >
+            {/* Archiving can be filtered back into view, so it's the normal
+                primary action rather than a red destructive one. */}
+            <div className="mt-5 flex flex-col-reverse gap-2 min-[380px]:flex-row min-[380px]:justify-end">
+              <button type="button" onClick={() => setArchivingItem(null)} disabled={isArchiving} className={ADMIN_BUTTON.secondary}>
                 Cancel
               </button>
-              <button
-                type="button"
-                onClick={handleConfirmArchive}
-                disabled={isArchiving}
-                className="flex items-center justify-center gap-2 px-4 py-2 bg-amber-500 text-white text-xs font-semibold rounded-md hover:bg-amber-600 transition-colors disabled:opacity-50"
-              >
-                {isArchiving && (
-                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                )}
+              <button type="button" onClick={handleConfirmArchive} disabled={isArchiving} className={ADMIN_BUTTON.primary}>
+                {isArchiving
+                  ? <span aria-hidden="true" className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  : <Archive size={16} aria-hidden="true" />}
                 Archive
               </button>
             </div>
-          </div>
+          </>
         )}
       </Modal>
     </div>

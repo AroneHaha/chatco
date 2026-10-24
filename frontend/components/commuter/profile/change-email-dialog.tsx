@@ -13,7 +13,7 @@ import {
 
 type Action = "load" | "start" | "send-old" | "send-new" | "identity" | "confirm" | "cancel";
 
-function maskEmail(email: string) {
+export function maskEmail(email: string) {
   const separator = email.lastIndexOf("@");
   if (separator < 1) return email;
   const name = email.slice(0, separator);
@@ -227,10 +227,12 @@ export default function ChangeEmailDialog({ currentEmail, onClose, onChanged }: 
     <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center sm:p-4" onClick={close}>
       <div ref={panelRef} data-profile-subdialog="email" role="dialog" aria-modal="true" aria-labelledby={titleId} aria-busy={!!busy} className="flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-[#071A2E] shadow-2xl light:border-gray-200 light:bg-white sm:max-w-lg sm:rounded-2xl" onClick={event => event.stopPropagation()}>
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-white/10 p-5 light:border-gray-200 sm:p-6">
-          <div className="min-w-0">
-            <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-[#62A0EA]/20 bg-[#62A0EA]/10 text-[#99C1F1] light:border-[#1A5FB4]/20 light:bg-[#1A5FB4]/10 light:text-[#1A5FB4]">{step === "success" ? <CheckCircle2 size={22} aria-hidden="true" /> : <Mail size={22} aria-hidden="true" />}</div>
-            <h2 ref={titleRef} tabIndex={-1} id={titleId} className="text-xl font-bold text-white light:text-gray-900 outline-none">{title}</h2>
-            <p className="mt-1 text-sm text-white/50 light:text-gray-500">{step === "success" ? "Your new address is verified and saved." : "Keep your account secure at every step."}</p>
+          <div className="flex min-w-0 items-start gap-3">
+            {step === "success" ? <CheckCircle2 size={27} aria-hidden="true" className="mt-0.5 shrink-0 text-[#99C1F1] light:text-[#1A5FB4]" /> : <Mail size={27} aria-hidden="true" className="mt-0.5 shrink-0 text-[#99C1F1] light:text-[#1A5FB4]" />}
+            <div className="min-w-0">
+              <h2 ref={titleRef} tabIndex={-1} id={titleId} className="text-xl font-bold text-white light:text-gray-900 outline-none">{title}</h2>
+              <p className="mt-1 text-sm text-white/50 light:text-gray-500">{step === "success" ? "Your new address is verified and saved." : "Keep your account secure at every step."}</p>
+            </div>
           </div>
           <button type="button" onClick={close} disabled={!!busy} aria-label="Close change email" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white/50 hover:bg-white/5 hover:text-white light:text-gray-400 light:hover:bg-gray-100 light:hover:text-gray-900 disabled:opacity-50"><X size={20} aria-hidden="true" /></button>
         </div>

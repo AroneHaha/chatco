@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { AlertCircle, ArrowLeft, Camera, Check, CheckCircle2, Eye, EyeOff, ImagePlus, KeyRound, Mail, Trash2, Upload, X } from 'lucide-react';
+import { ArrowLeft, Camera, Check, CheckCircle2, Eye, EyeOff, ImagePlus, KeyRound, Mail, Trash2, Upload, X } from 'lucide-react';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/auth-context';
 import { getInitials } from '@/components/admin/layout/admin-identity';
@@ -15,6 +15,7 @@ import {
   uploadProfilePhoto,
 } from '@/lib/admin/services/account.service';
 
+import { InlineError } from '@/components/admin/ui/inline-error';
 /**
  * Settings > Profile & Security — the signed-in admin's own account.
  *
@@ -318,10 +319,7 @@ export default function ProfileSecurityPage() {
 
         <Section title="Password" description="Changing it signs you out of all admin sessions. A code sent to your email confirms it’s you, and you’ll sign in again with the new password.">
           {formError && (
-            <div role="alert" className="mb-5 flex items-start gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2.5">
-              <AlertCircle size={16} className="mt-0.5 shrink-0 text-red-400 admin-light:text-red-600" aria-hidden="true" />
-              <p className="text-sm text-red-300 admin-light:text-red-700">{formError}</p>
-            </div>
+            <InlineError className="mb-5">{formError}</InlineError>
           )}
 
           {/* Where the admin is in the two steps, as plain text. */}
@@ -445,7 +443,7 @@ export default function ProfileSecurityPage() {
               </div>
               <button type="button" onClick={backToPasswords} disabled={isSubmitting} aria-label="Cancel password change" className="rounded-md p-1.5 text-slate-400 hover:bg-white/5 hover:text-white admin-light:hover:bg-slate-100 admin-light:hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4] disabled:opacity-50"><X size={18} aria-hidden="true" /></button>
             </header>
-            {formError && <div role="alert" className="mt-4 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300 admin-light:text-red-700">{formError}</div>}
+            {formError && <InlineError className="mt-4">{formError}</InlineError>}
             <form onSubmit={handleCodeSubmit} noValidate className="mt-5">
               <CodeInput variant="admin" value={code} onChange={(next) => { setCode(next); setFieldErrors({}); setFormError(null); }} disabled={isSubmitting} hasError={Boolean(fieldErrors.code)} />
               <FieldError id="code-error" message={fieldErrors.code} />
@@ -464,7 +462,7 @@ export default function ProfileSecurityPage() {
       {passwordChanged && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm" role="presentation">
           <section role="alertdialog" aria-modal="true" aria-labelledby="password-success-title" aria-describedby="password-success-description" className="w-full max-w-sm rounded-lg border border-emerald-500/25 bg-[#131C2E] admin-light:bg-white p-6 text-center shadow-2xl">
-            <CheckCircle2 size={38} className="mx-auto text-emerald-400 admin-light:text-emerald-600" aria-hidden="true" />
+            <CheckCircle2 size={38} className="mx-auto text-[#62A0EA] admin-light:text-[#1A5FB4]" aria-hidden="true" />
             <h2 id="password-success-title" className="mt-4 text-lg font-semibold text-white admin-light:text-slate-900">Password changed</h2>
             <p id="password-success-description" className="mt-2 text-sm leading-5 text-slate-400 admin-light:text-slate-600">Your password was updated. You’re being signed out now. Log in again with your new password.</p>
             <p role="status" className="mt-4 text-xs font-medium text-slate-500">Redirecting to the landing page…</p>

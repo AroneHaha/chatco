@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
-import { CheckCircle, User, KeyRound, Copy, Check } from 'lucide-react';
+import { CheckCircle2, Copy, Check, Info } from 'lucide-react';
 
 interface ConductorAccountSuccessModalProps {
   isOpen: boolean;
@@ -18,95 +18,74 @@ interface ConductorAccountSuccessModalProps {
   } | null;
 }
 
+type CredentialField = 'username' | 'password';
+
 export function ConductorAccountSuccessModal({ isOpen, onClose, accountData }: ConductorAccountSuccessModalProps) {
-  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [copiedField, setCopiedField] = useState<CredentialField | null>(null);
 
   if (!accountData) return null;
 
-  const handleCopy = (text: string, field: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedField(field);
-    setTimeout(() => setCopiedField(null), 2000);
+  const handleCopy = (text: string, field: CredentialField) => {
+    // Only confirm once the clipboard actually has it; a refused write
+    // (permissions, insecure context) leaves the value on screen to copy by hand.
+    navigator.clipboard?.writeText(text).then(() => {
+      setCopiedField(field);
+      setTimeout(() => setCopiedField((current) => (current === field ? null : current)), 2000);
+    }).catch(() => {});
   };
+
+  const credentials: { field: CredentialField; label: string; value: string }[] = [
+    { field: 'username', label: 'Username', value: accountData.generated_username },
+    { field: 'password', label: 'Password', value: accountData.generated_password },
+  ];
 
   return (
     <Modal adminThemed isOpen={isOpen} onClose={onClose}>
-      <div className="text-center space-y-6">
-        {/* Success Icon */}
-        <div className="flex justify-center">
-          <div className="relative">
-            <div className="absolute inset-0 bg-sky-400/20 rounded-full animate-ping" />
-            <div className="relative bg-sky-400/20 p-4 rounded-full">
-              <CheckCircle className="text-sky-400 admin-light:text-sky-700" size={48} />
-            </div>
-          </div>
-        </div>
-
-        {/* Header Text */}
-        <div>
-          <h2 className="text-2xl font-bold text-white admin-light:text-slate-900">Account Created Successfully</h2>
-          <p className="text-sm text-slate-400 admin-light:text-slate-500 mt-1">
-            Conductor account for <span className="text-white admin-light:text-slate-900 font-medium">{accountData.first_name} {accountData.last_name}</span>
+      <header className="flex items-start gap-3 border-b border-[#2A3A55] pb-5 pr-8 admin-light:border-[#E2E8F0]">
+        <CheckCircle2 size={32} aria-hidden="true" className="shrink-0 text-[#62A0EA] admin-light:text-[#1A5FB4]" />
+        <div className="min-w-0">
+          <h2 className="text-xl font-semibold tracking-tight text-white admin-light:text-slate-900">Conductor account created</h2>
+          <p className="mt-1 text-sm leading-relaxed break-words text-slate-400 admin-light:text-slate-500">
+            {accountData.first_name} {accountData.last_name} can now sign in on the scanner.
           </p>
         </div>
+      </header>
 
-        {/* Credentials Card */}
-        <div className="bg-[#0E1628] admin-light:bg-[#F1F5F9] border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-md p-5 space-y-4 text-left">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Scanner Login Credentials</p>
-
-          {/* Username Field */}
-          <div className="flex items-center justify-between bg-[#0B1120] admin-light:bg-[#F1F5F9] rounded-md p-3">
-            <div className="flex items-center gap-3">
-              <User size={18} className="text-[#62A0EA] admin-light:text-[#1A5FB4] flex-shrink-0" />
-              <div>
-                <p className="text-xs text-slate-500 uppercase">Username</p>
-                <p className="text-lg font-mono font-bold text-white admin-light:text-slate-900 tracking-wide">{accountData.generated_username}</p>
-              </div>
+      <section aria-labelledby="scanner-login-heading" className="mt-5">
+        <h3 id="scanner-login-heading" className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 admin-light:text-slate-500">Scanner login</h3>
+        <dl className="mt-2 divide-y divide-[#2A3A55] border-y border-[#2A3A55] admin-light:divide-[#E2E8F0] admin-light:border-[#E2E8F0]">
+          {credentials.map(({ field, label, value }) => (
+            <div key={field} className="flex items-center justify-between gap-3 py-3">
+              <dt className="shrink-0 text-sm text-slate-400 admin-light:text-slate-500">{label}</dt>
+              <dd className="flex min-w-0 items-center gap-2">
+                <span className="min-w-0 font-mono text-base font-semibold tracking-wide break-all text-white admin-light:text-slate-900">{value}</span>
+                <button
+                  type="button"
+                  onClick={() => handleCopy(value, field)}
+                  aria-label={copiedField === field ? `${label} copied` : `Copy ${label.toLowerCase()}`}
+                  title={`Copy ${label.toLowerCase()}`}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[#2A3A55] bg-[#131C2E] text-slate-400 transition-colors hover:text-white admin-light:border-[#CBD5E1] admin-light:bg-white admin-light:text-slate-500 admin-light:hover:text-slate-900"
+                >
+                  {copiedField === field ? <Check size={16} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" /> : <Copy size={16} />}
+                </button>
+              </dd>
             </div>
-            <button
-              onClick={() => handleCopy(accountData.generated_username, 'username')}
-              className="p-2 text-slate-500 hover:text-white admin-light:hover:text-slate-900 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] rounded-md transition-colors"
-              title="Copy username"
-            >
-              {copiedField === 'username' ? <Check size={16} className="text-sky-400 admin-light:text-sky-700" /> : <Copy size={16} />}
-            </button>
-          </div>
+          ))}
+        </dl>
+      </section>
 
-          {/* Password Field */}
-          <div className="flex items-center justify-between bg-[#0B1120] admin-light:bg-[#F1F5F9] rounded-md p-3">
-            <div className="flex items-center gap-3">
-              <KeyRound size={18} className="text-amber-400 admin-light:text-amber-700 flex-shrink-0" />
-              <div>
-                <p className="text-xs text-slate-500 uppercase">Password</p>
-                <p className="text-lg font-mono font-bold text-white admin-light:text-slate-900 tracking-wide">{accountData.generated_password}</p>
-              </div>
-            </div>
-            <button
-              onClick={() => handleCopy(accountData.generated_password, 'password')}
-              className="p-2 text-slate-500 hover:text-white admin-light:hover:text-slate-900 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] rounded-md transition-colors"
-              title="Copy password"
-            >
-              {copiedField === 'password' ? <Check size={16} className="text-sky-400 admin-light:text-sky-700" /> : <Copy size={16} />}
-            </button>
-          </div>
-        </div>
+      <p className="mt-4 flex items-start gap-2 text-xs leading-relaxed text-slate-400 admin-light:text-slate-500">
+        <Info size={15} aria-hidden="true" className="mt-px shrink-0" />
+        Write these down or send them to the conductor securely. They need them to sign in on the scanning device.
+      </p>
 
-        {/* Warning Note */}
-        <div className="bg-amber-400/10 border border-amber-400/20 rounded-md p-3 text-left flex gap-3">
-          <KeyRound size={16} className="text-amber-400 admin-light:text-amber-700 mt-0.5 flex-shrink-0" />
-          <p className="text-xs text-amber-200/70 admin-light:text-amber-700">
-            Please ensure these credentials are written down or sent securely to the conductor. They will need this to log into the scanning device.
-          </p>
-        </div>
-
-        {/* Action Button */}
-        <button
-          onClick={onClose}
-          className="w-full px-4 py-3 bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white font-medium rounded-md hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] transition-colors"
-        >
-          Done
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={onClose}
+        className="mt-5 min-h-11 w-full rounded-md border border-[#62A0EA] bg-[#62A0EA] px-4 text-sm font-semibold text-[#0B1120] transition-colors hover:bg-[#85B6F0] admin-light:border-[#1A5FB4] admin-light:bg-[#1A5FB4] admin-light:text-white admin-light:hover:bg-[#164A8F]"
+      >
+        Done
+      </button>
     </Modal>
   );
 }

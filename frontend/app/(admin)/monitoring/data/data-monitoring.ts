@@ -473,7 +473,7 @@ export function useMonitoringData(
         resolvingIds.current.delete(alertId);
         void fetchActive();
         void fetchHistory();
-        setError(err instanceof Error ? err.message : "Failed to resolve SOS.");
+        throw err;
       } finally {
         resolvingIds.current.delete(alertId);
       }
@@ -505,4 +505,78 @@ export function useMonitoringData(
     acknowledgeSos,
     resolveSos,
   };
+}
+
+/* ─── SOS LOCATION LOOKUP ─── */
+
+// Retry an alert whose address couldn't be resolved (geocoder down, timeout,
+// rate limit). The server doesn't cache misses, so a later try can succeed.
+const LOCATION_RETRY_MS = 60_000;
+
+export interface SosLocations {
+  /** Address per alert id: a string when found, null when unavailable, absent while loading. */
+  locations: Record<string, string | null>;
+  attribution: string | null;
+}
+
+/**
+ * Reverse-geocodes each active SOS once. An alert keeps the coordinates it
+ * was raised with, so the 5s poll handing back the same alerts doesn't
+ * request them again, and the alert card, map popup and resolution modal
+ * share one result.
+ */
+export function useSosLocations(alerts: SosAlert[]): SosLocations {
+  const [locations, setLocations] = useState<Record<string, string | null>>({});
+  const [attribution, setAttribution] = useState<string | null>(null);
+  const resolvedIds = useRef<Set<string>>(new Set());
+  const pendingIds = useRef<Set<string>>(new Set());
+  const retryAt = useRef<Map<string, number>>(new Map());
+  const controllers = useRef<Set<AbortController>>(new Set());
+
+  useEffect(() => {
+    const active = controllers.current;
+    return () => {
+      active.forEach((controller) => controller.abort());
+      active.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    for (const alert of alerts) {
+      const { id } = alert;
+      const [lat, lon] = alert.coordinates;
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+      if (resolvedIds.current.has(id) || pendingIds.current.has(id)) continue;
+      if (Date.now() < (retryAt.current.get(id) ?? 0)) continue;
+
+      pendingIds.current.add(id);
+      const controller = new AbortController();
+      controllers.current.add(controller);
+      const params = new URLSearchParams({ lat: String(lat), lon: String(lon) });
+
+      void fetch(`/api/admin/monitoring/sos-location?${params}`, {
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      })
+        .then(async (res) => {
+          if (!res.ok) return null;
+          const body = await res.json().catch(() => null);
+          if (typeof body?.data?.attribution === "string") setAttribution(body.data.attribution);
+          return typeof body?.data?.location === "string" ? body.data.location as string : null;
+        })
+        .catch(() => null)
+        .then((location) => {
+          if (controller.signal.aborted) return;
+          if (location) resolvedIds.current.add(id);
+          else retryAt.current.set(id, Date.now() + LOCATION_RETRY_MS);
+          setLocations((prev) => (prev[id] === location ? prev : { ...prev, [id]: location }));
+        })
+        .finally(() => {
+          pendingIds.current.delete(id);
+          controllers.current.delete(controller);
+        });
+    }
+  }, [alerts]);
+
+  return { locations, attribution };
 }

@@ -26,6 +26,12 @@ class MobileRouteContractTest extends TestCase
             ['POST', 'payments/ticket/cancel', 'mobile/payments/ticket/cancel', 'cancel'],
             ['POST', 'payments/ticket/simulate', 'mobile/payments/ticket/simulate', 'simulate'],
             ['GET', 'conductor/shift', 'mobile/conductor/shift', 'shiftStatus'],
+            ['GET', 'commuter/change-email', 'mobile/commuter/change-email', 'state'],
+            ['POST', 'commuter/change-email/start', 'mobile/commuter/change-email/start', 'start'],
+            ['POST', 'commuter/change-email/send-code', 'mobile/commuter/change-email/send-code', 'sendCode'],
+            ['POST', 'commuter/change-email/verify-identity', 'mobile/commuter/change-email/verify-identity', 'verifyIdentity'],
+            ['POST', 'commuter/change-email/confirm', 'mobile/commuter/change-email/confirm', 'confirm'],
+            ['POST', 'commuter/change-email/cancel', 'mobile/commuter/change-email/cancel', 'cancel'],
             ['POST', 'conductor/shifts/start', 'mobile/conductor/shifts/start', 'startShift'],
             ['GET', 'commuter/profile', 'mobile/commuter/profile', 'profile'],
             ['GET', 'commuter/rewards', 'mobile/commuter/rewards', 'rewards'],
@@ -54,6 +60,8 @@ class MobileRouteContractTest extends TestCase
             ['POST', 'mobile/conductor/transactions/sync', 'CONDUCTOR'],
             ['GET', 'mobile/commuter/hails/active', 'COMMUTER'],
             ['GET', 'mobile/commuter/hail/request', 'COMMUTER'],
+            ['POST', 'mobile/commuter/change-email/start', 'COMMUTER'],
+            ['GET', 'mobile/conductor/safety-settings', 'CONDUCTOR'],
             ['GET', 'mobile/payments/ticket/status', 'CONDUCTOR,COMMUTER'],
         ] as [$method, $path, $role]) {
             $route = app('router')->getRoutes()->match(Request::create('/api/v1/'.$path, $method));

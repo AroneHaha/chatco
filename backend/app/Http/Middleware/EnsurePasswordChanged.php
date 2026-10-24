@@ -22,6 +22,9 @@ class EnsurePasswordChanged
     private const ALLOWED_ROUTES = [
         'auth.set-new-password',
         'auth.logout',
+        'mobile.auth.session',
+        'mobile.auth.set-new-password',
+        'mobile.auth.logout',
     ];
 
     public function handle(Request $request, Closure $next): Response

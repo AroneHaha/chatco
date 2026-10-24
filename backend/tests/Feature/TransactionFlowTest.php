@@ -959,7 +959,10 @@ class TransactionFlowTest extends TestCase
         $this->assertSame(47.6, $redeemed['amount']);
 
         $anchor->refresh();
-        $this->assertSame(PaymentMethod::VOUCHER, $anchor->payment_method);
+        // Still a GCash row while the companions' charge is owed — it holds
+        // the group's provider reference, so polling, timeout cancellation and
+        // the conductor's cancel keep acting on it.
+        $this->assertSame(PaymentMethod::GCASH, $anchor->payment_method);
         $this->assertSame(0.0, (float) $anchor->final_amount);
         $this->assertSame($voucher->id, $anchor->voucher_id);
         $this->assertSame('USED', $voucher->fresh()->status);
@@ -976,7 +979,7 @@ class TransactionFlowTest extends TestCase
         $this->assertTrue($companions->every(fn ($t) => $t->status === PaymentStatus::PENDING && $t->payment_method === PaymentMethod::GCASH));
 
         // Companions' payment settles the rest of the group — the voucher row
-        // rides along to PAID with them, still labeled VOUCHER/₱0.
+        // rides along to PAID with them and is then recorded as VOUCHER/₱0.
         app(PaymentService::class)->transitionTo($anchor->fresh(), PaymentStatus::PAID);
         $anchor->refresh();
         $this->assertSame(PaymentStatus::PAID, $anchor->status);
@@ -1040,6 +1043,170 @@ class TransactionFlowTest extends TestCase
         $this->assertSame('AVAILABLE', $voucher->fresh()->status);
         $anchor->refresh();
         $this->assertSame(PaymentStatus::FAILED, $anchor->status);
+        $this->assertNull($anchor->voucher_id);
+    }
+
+    public function test_voucher_group_payment_times_out_through_the_payer_row_and_the_voucher_can_be_reused(): void
+    {
+        $intents = [];
+        $this->fakePayMongo($intents);
+        $voucher = $this->createRewardVoucher($this->commuter1);
+        $anchor = $this->groupGcashWithRedeemedVoucher();
+
+        // The claim's checkout (full group amount) was closed when the voucher
+        // replaced it with the companions-only checkout.
+        $this->assertSame('cancelled', $intents['pi_1']);
+        $this->assertSame('pi_2', $anchor->payment_reference);
+        $this->assertSame(PaymentMethod::GCASH, $anchor->payment_method);
+        $this->assertSame('USED', $voucher->fresh()->status);
+
+        // Past the claim TTL the conductor's poll checks PayMongo (still
+        // unpaid), closes the checkout and cancels the whole group.
+        $this->travel(11)->minutes();
+        Sanctum::actingAs($this->conductor);
+        $this->getJson("/api/v1/payments/{$anchor->transaction_id}/status")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'CANCELLED');
+
+        $this->assertSame('cancelled', $intents['pi_2']);
+        $this->assertTrue(Transaction::where('group_id', $anchor->group_id)->get()
+            ->every(fn (Transaction $t) => $t->status === PaymentStatus::CANCELLED));
+        $this->assertSame('AVAILABLE', $voucher->fresh()->status);
+        $this->assertNull($anchor->fresh()->voucher_id);
+        $this->assertNull(app(TransactionService::class)->findPendingGcashForConductor($this->conductor));
+
+        // The returned voucher works on the next ride.
+        $solo = app(TransactionService::class)->initiateGcashFare($this->conductor, [
+            'final_amount' => 15, 'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
+        ]);
+        app(TransactionService::class)->claimGcash($this->commuter1, $solo['transaction']->qr_token);
+        app(TransactionService::class)->redeemVoucherForGcash($this->commuter1, $solo['transaction']->transaction_id);
+
+        $this->assertSame('USED', $voucher->fresh()->status);
+        $this->assertSame($voucher->id, $solo['transaction']->fresh()->voucher_id);
+        $this->assertSame(PaymentStatus::PAID, $solo['transaction']->fresh()->status);
+    }
+
+    public function test_scheduled_job_settles_a_timed_out_voucher_group_paid_at_provider_instead_of_cancelling(): void
+    {
+        $intents = [];
+        $this->fakePayMongo($intents);
+        $voucher = $this->createRewardVoucher($this->commuter1);
+        $anchor = $this->groupGcashWithRedeemedVoucher();
+        $intents['pi_2'] = 'succeeded'; // paid, but the webhook never arrived
+
+        $this->travel(11)->minutes();
+        $this->artisan('payments:expire-stale')->assertSuccessful();
+
+        $this->assertTrue(Transaction::where('group_id', $anchor->group_id)->get()
+            ->every(fn (Transaction $t) => $t->status === PaymentStatus::PAID));
+        $this->assertSame('succeeded', $intents['pi_2']);
+        $this->assertSame(PaymentMethod::VOUCHER, $anchor->fresh()->payment_method);
+        $this->assertSame('USED', $voucher->fresh()->status);
+    }
+
+    public function test_conductor_can_cancel_a_group_payment_after_voucher_redemption(): void
+    {
+        config(['payments.gateways.paymongo.secret' => null]);
+        $this->forgetGateway();
+        $voucher = $this->createRewardVoucher($this->commuter1);
+        $anchor = $this->groupGcashWithRedeemedVoucher();
+
+        Sanctum::actingAs($this->conductor);
+        $this->postJson("/api/v1/payments/{$anchor->transaction_id}/cancel")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'CANCELLED');
+
+        $this->assertSame('AVAILABLE', $voucher->fresh()->status);
+        $this->assertNull($anchor->fresh()->voucher_id);
+    }
+
+    public function test_voucher_is_not_applied_when_the_claim_checkout_is_already_paid(): void
+    {
+        $intents = [];
+        $this->fakePayMongo($intents);
+        $voucher = $this->createRewardVoucher($this->commuter1);
+        $anchor = $this->groupGcashClaimedBy($this->commuter1);
+        $intents['pi_1'] = 'succeeded';
+
+        $this->assertAbort(409, fn () => app(TransactionService::class)
+            ->redeemVoucherForGcash($this->commuter1, $anchor->transaction_id));
+
+        $anchor->refresh();
+        $this->assertSame('AVAILABLE', $voucher->fresh()->status);
+        $this->assertNull($anchor->voucher_id);
+        $this->assertSame('pi_1', $anchor->payment_reference);
+        // The replacement checkout nobody saw is closed again.
+        $this->assertSame('cancelled', $intents['pi_2']);
+    }
+
+    private function groupGcashClaimedBy(User $commuter): Transaction
+    {
+        $result = app(TransactionService::class)->initiateGcashFare($this->conductor, [
+            'final_amount' => 30,
+            'pickup_name' => 'Calumpit',
+            'dropoff_name' => 'Bustos',
+            'group_passengers' => [
+                ['type' => 'REGULAR', 'quantity' => 2, 'final_amount' => 15, 'base_fare' => 15, 'discount_amount' => 0],
+            ],
+        ]);
+        app(TransactionService::class)->claimGcash($commuter, $result['transaction']->qr_token);
+
+        return $result['transaction']->fresh();
+    }
+
+    private function groupGcashWithRedeemedVoucher(): Transaction
+    {
+        $anchor = $this->groupGcashClaimedBy($this->commuter1);
+        app(TransactionService::class)->redeemVoucherForGcash($this->commuter1, $anchor->transaction_id);
+
+        return $anchor->fresh();
+    }
+
+    /**
+     * Fake PayMongo's payment-intent API. Intents are numbered pi_1, pi_2, …
+     * in creation order; $intents maps each id to its PayMongo status and can
+     * be changed by the test to simulate the commuter paying.
+     */
+    private function fakePayMongo(array &$intents): void
+    {
+        $this->configurePayMongo();
+
+        Http::fake(function (\Illuminate\Http\Client\Request $request) use (&$intents) {
+            $url = $request->url();
+            $intent = function (string $id) use (&$intents) {
+                return Http::response(['data' => ['id' => $id, 'attributes' => [
+                    'status' => $intents[$id],
+                    'next_action' => ['redirect' => ['url' => "https://checkout.test/{$id}"]],
+                ]]]);
+            };
+
+            if (str_ends_with($url, '/payment_methods')) {
+                return Http::response(['data' => ['id' => 'pm_test']]);
+            }
+            if (str_ends_with($url, '/payment_intents')) {
+                $id = 'pi_'.(count($intents) + 1);
+                $intents[$id] = 'awaiting_payment_method';
+
+                return Http::response(['data' => ['id' => $id]]);
+            }
+            if (! preg_match('#/payment_intents/(pi_\d+)(/attach|/cancel)?$#', $url, $match)) {
+                return Http::response([], 404);
+            }
+
+            $id = $match[1];
+            $action = $match[2] ?? '';
+            if ($action === '/attach') {
+                $intents[$id] = 'awaiting_next_action';
+            } elseif ($action === '/cancel') {
+                if (in_array($intents[$id], ['succeeded', 'processing'], true)) {
+                    return Http::response(['errors' => [['detail' => 'Payment intent cannot be cancelled.']]], 400);
+                }
+                $intents[$id] = 'cancelled';
+            }
+
+            return $intent($id);
+        });
     }
 
     public function test_multi_passenger_cash_is_one_transaction_with_server_calculated_breakdown(): void

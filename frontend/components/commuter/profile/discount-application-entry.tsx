@@ -3,14 +3,18 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { APPLICATION_LABELS, DISCOUNT_CATEGORIES, getApplicationState, type ApplicationState } from '@/lib/shared/services/student-renewal.service';
+import { toCommuterType } from '@/types';
 
 export function DiscountApplicationEntry({ commuterType, onClassificationChanged }: { commuterType: string; onClassificationChanged: () => void }) {
   const [state, setState] = useState<ApplicationState | null>(null);
   const [failed, setFailed] = useState(false);
   const reportedType = useRef(commuterType);
   useEffect(() => {
-    if (state && state.commuter_type !== commuterType && reportedType.current !== state.commuter_type) {
-      reportedType.current = state.commuter_type;
+    // The profile holds the converted type ("SENIOR_CITIZEN"); the raw
+    // state holds the backend value ("SENIOR"), so compare converted values.
+    const serverType = state ? toCommuterType(state.commuter_type) : undefined;
+    if (serverType && serverType !== commuterType && reportedType.current !== serverType) {
+      reportedType.current = serverType;
       onClassificationChanged();
     }
   }, [state, commuterType, onClassificationChanged]);

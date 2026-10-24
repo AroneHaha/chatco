@@ -1,11 +1,13 @@
 // app/components/conductor/unit-verification/UnitList.tsx
+import { ChevronRight } from "lucide-react";
+import { mdiJeepney } from "@mdi/js";
 import type { ConductorUnit } from "@/lib/conductor/types";
 
-const statusConfig: Record<ConductorUnit["status"], { label: string; color: string; bg: string }> = {
-  available: { label: "Available", color: "text-emerald-400", bg: "bg-emerald-500/15 border-emerald-500/25" },
-  "in-use": { label: "In Use", color: "text-white/30", bg: "bg-white/5 border-white/10" },
-  maintenance: { label: "Maintenance", color: "text-amber-400", bg: "bg-amber-500/15 border-amber-500/25" },
-  assigned: { label: "Assigned", color: "text-white/30", bg: "bg-white/5 border-white/10" },
+const statusLabel: Record<ConductorUnit["status"], string> = {
+  available: "Available",
+  "in-use": "In Use",
+  maintenance: "Maintenance",
+  assigned: "Assigned",
 };
 
 export default function UnitList({
@@ -19,32 +21,25 @@ export default function UnitList({
   onUnavailable?: (unit: ConductorUnit) => void;
 }) {
   return (
-    <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain rounded-2xl border border-white/[0.04] bg-white/[0.015] p-1 pr-2 sm:max-h-[68dvh] lg:max-h-[74dvh]">
+    <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1 sm:max-h-[68dvh] lg:max-h-[74dvh]">
       {units.map((unit) => {
-        const cfg = statusConfig[unit.status];
         const isAvailable = unit.status === "available";
         return (
-          <button key={unit.id} onClick={() => (isAvailable ? onSelect(unit) : onUnavailable?.(unit))} aria-disabled={!isAvailable}
-            className={`w-full text-left rounded-2xl border p-4 transition-all duration-200 ${isAvailable ? "bg-[#071A2E] border-white/[0.06] hover:border-[#1A5FB4]/40 hover:bg-[#071A2E]/80 active:scale-[0.98]" : "bg-[#071A2E]/40 border-white/[0.03] opacity-50 cursor-not-allowed"}`}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2.5 mb-1.5">
-                  <div className={`w-10 h-10 rounded-xl ${isAvailable ? "bg-[#1A5FB4]/15" : "bg-white/5"} flex items-center justify-center flex-shrink-0`}>
-                    <svg className={`w-5 h-5 ${isAvailable ? "text-[#62A0EA]" : "text-white/20"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0H6.375c-.621 0-1.125-.504-1.125-1.125V14.25m17.25 4.5V14.25A2.25 2.25 0 0 0 20.25 12H3.75A2.25 2.25 0 0 0 1.5 14.25v4.5" /></svg>
-                  </div>
-                  <div className="min-w-0">
-                    <p className={`font-bold text-sm ${isAvailable ? "text-white" : "text-white/40"}`}>{unit.unitNumber}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4 pl-[50px]">
-                  <span className="text-[11px] text-white/35 font-medium">{unit.plateNumber}</span>
-                </div>
-                {!isAvailable && unit.unavailableReason && (
-                  <p className="mt-1.5 pl-[50px] text-[11px] font-medium text-amber-300/80">{unit.unavailableReason}</p>
-                )}
-              </div>
-              <span className={`flex-shrink-0 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${cfg.bg} ${cfg.color}`}>{cfg.label}</span>
+          <button key={unit.id} type="button" onClick={() => (isAvailable ? onSelect(unit) : onUnavailable?.(unit))} aria-disabled={!isAvailable}
+            className={`flex w-full items-center gap-4 rounded-xl border px-4 py-3.5 text-left transition-colors ${isAvailable ? "cursor-pointer border-[#1C3350] light:border-gray-200 bg-[#0B1E33] light:bg-white hover:border-[#1A5FB4] hover:bg-[#10273F] light:hover:bg-gray-100 active:scale-[0.99]" : "cursor-not-allowed border-[#142640] light:border-gray-200 bg-[#081626] light:bg-gray-100"}`}>
+            {/* Same jeepney glyph as the admin Fleet Management table. */}
+            <svg className={`h-9 w-9 shrink-0 ${isAvailable ? "text-[#62A0EA] light:text-[#1A5FB4]" : "text-slate-600 light:text-gray-400"}`} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d={mdiJeepney} />
+            </svg>
+            <div className="min-w-0 flex-1">
+              <p className={`text-base font-semibold ${isAvailable ? "text-white light:text-gray-900" : "text-slate-500 light:text-gray-500"}`}>{unit.unitNumber}</p>
+              <p className={`mt-0.5 text-xs font-medium ${isAvailable ? "text-slate-400 light:text-gray-600" : "text-slate-600 light:text-gray-400"}`}>{unit.plateNumber}</p>
+              {!isAvailable && unit.unavailableReason && (
+                <p className="mt-1 text-xs text-slate-400 light:text-gray-600">{unit.unavailableReason}</p>
+              )}
             </div>
+            <span className={`shrink-0 text-[11px] font-semibold uppercase tracking-wider ${isAvailable ? "text-slate-300 light:text-gray-700" : "text-slate-500 light:text-gray-500"}`}>{statusLabel[unit.status]}</span>
+            {isAvailable && <ChevronRight size={18} className="-ml-2 shrink-0 text-slate-500 light:text-gray-500" aria-hidden="true" />}
           </button>
         );
       })}

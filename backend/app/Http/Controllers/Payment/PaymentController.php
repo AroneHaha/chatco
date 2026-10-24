@@ -130,6 +130,8 @@ class PaymentController extends Controller
             $query->where('created_at', '>=', $cutoff);
         }
 
+        $summary = (clone $query)->where('status', 'PAID')
+            ->selectRaw('COUNT(*) as ride_count, COALESCE(SUM(final_amount), 0) as total_spent')->first();
         $payments = $query->orderByDesc('created_at')->paginate($perPage);
 
         // Group payments (conductor recorded fare for several passengers,
@@ -193,7 +195,14 @@ class PaymentController extends Controller
             );
         });
 
-        return $this->successResponse($payments, 'Payment history retrieved');
+        $payload = $payments->toArray();
+        $payload['summary'] = [
+            'ride_count' => (int) $summary->ride_count,
+            'total_spent' => (float) $summary->total_spent,
+            'average_fare' => $summary->ride_count ? round($summary->total_spent / $summary->ride_count, 2) : 0,
+        ];
+
+        return $this->successResponse($payload, 'Payment history retrieved');
     }
 
     /**
@@ -235,14 +244,15 @@ class PaymentController extends Controller
         //   - the row has no payment_reference (FakeGateway or pre-init),
         //   - the row is already hard-terminal (PAID/FAILED/CANCELLED/REFUNDED),
         //   - the cache throttle window hasn't elapsed since the last sync.
-        // Runs BEFORE the lazy expiry so a stale PENDING row the commuter has
-        // already authorized becomes PROCESSING (never expired) instead of
-        // being expired locally while PayMongo can still settle it.
+        // Runs BEFORE the lazy cancellation so a stale PENDING row the commuter
+        // has already authorized becomes PROCESSING (never cancelled) instead
+        // of being cancelled locally while PayMongo can still settle it.
         $transaction = $this->paymentService->reconcileIfDue($transaction);
 
-        // Lazily expire a stale PENDING GCash row so pollers see EXPIRED
-        // instead of a PENDING that can never complete (no cron needed).
-        $transaction = $this->paymentService->expireIfStale($transaction);
+        // Lazily cancel a stale PENDING GCash row (closed at the provider
+        // first) so pollers see CANCELLED instead of a PENDING that can never
+        // complete (no cron needed).
+        $transaction = $this->paymentService->cancelIfStale($transaction);
 
         return $this->successResponse([
             'status' => $transaction->status->value,

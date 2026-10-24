@@ -75,11 +75,11 @@ const paymentKind = (method: string): PaymentKind => {
   return 'cash';
 };
 
-// Payment method as coloured text, not a pill.
+// Payment method as plain text (UI rule: no colour coding); the label tells them apart.
 const PAYMENT_STYLES: Record<PaymentKind, { label: string; text: string }> = {
-  cash: { label: 'Cash', text: 'text-emerald-400 admin-light:text-emerald-700' },
-  gcash: { label: 'GCash', text: 'text-blue-400 admin-light:text-blue-700' },
-  voucher: { label: 'Voucher', text: 'text-amber-400 admin-light:text-amber-700' },
+  cash: { label: 'Cash', text: 'text-slate-300 admin-light:text-slate-700' },
+  gcash: { label: 'GCash', text: 'text-slate-300 admin-light:text-slate-700' },
+  voucher: { label: 'Voucher', text: 'text-slate-300 admin-light:text-slate-700' },
 };
 
 // The remittances endpoint caps per_page at 100 server-side (see
@@ -280,7 +280,7 @@ export function ConductorDetailModal({ isOpen, onClose, record }: ConductorDetai
       {/* ── Header: who, and what they still owe ── */}
       <header className="flex flex-col gap-5 pr-8 md:flex-row md:items-center md:justify-between">
         <div className="flex min-w-0 items-center gap-4">
-          <span aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-[#2A3A55] admin-light:border-[#E2E8F0] bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 text-base font-semibold text-[#99C1F1] admin-light:text-[#1A5FB4]">
+          <span aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-[#2A3A55] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-[#F1F5F9] text-base font-semibold text-slate-200 admin-light:text-slate-700">
             {getInitials(record.conductorName)}
           </span>
           <div className="min-w-0">
@@ -300,7 +300,7 @@ export function ConductorDetailModal({ isOpen, onClose, record }: ConductorDetai
           </div>
           <div className="pl-6">
             <dt className="text-[10px] uppercase tracking-wider text-slate-500">Pending remittance</dt>
-            <dd className={`mt-1 text-xl font-semibold tabular-nums ${totalPending > 0 ? 'text-amber-400 admin-light:text-amber-700' : 'text-white admin-light:text-slate-900'}`}>
+            <dd className={`mt-1 text-xl font-semibold tabular-nums text-white admin-light:text-slate-900`}>
               {fmt(totalPending)}
             </dd>
           </div>
@@ -353,7 +353,7 @@ export function ConductorDetailModal({ isOpen, onClose, record }: ConductorDetai
                   onClick={() => applyRemitFilter(f)}
                   className={`rounded px-3 py-1.5 text-xs font-medium transition-colors ${
                     remitFilter === f
-                      ? 'bg-[#62A0EA]/15 text-[#99C1F1] admin-light:bg-[#1A5FB4]/10 admin-light:text-[#1A5FB4]'
+                      ? 'bg-[#62A0EA] text-[#0B1120] admin-light:bg-[#1A5FB4] admin-light:text-white'
                       : 'text-slate-400 hover:text-white admin-light:text-slate-500 admin-light:hover:text-slate-900'
                   }`}
                 >
@@ -400,11 +400,11 @@ export function ConductorDetailModal({ isOpen, onClose, record }: ConductorDetai
                       <div className="col-span-2 grid grid-cols-3 gap-4 md:contents">
                         <div className="md:text-right">
                           <p className="text-[10px] uppercase text-slate-500 md:hidden">GCash</p>
-                          <p className="text-sm tabular-nums text-blue-400 admin-light:text-blue-700">{fmt(rec.gcashTotal)}</p>
+                          <p className="text-sm tabular-nums text-slate-200 admin-light:text-slate-800">{fmt(rec.gcashTotal)}</p>
                         </div>
                         <div className="md:text-right">
                           <p className="text-[10px] uppercase text-slate-500 md:hidden">Cash</p>
-                          <p className="text-sm tabular-nums text-emerald-400 admin-light:text-emerald-700">{fmt(rec.cashTotal)}</p>
+                          <p className="text-sm tabular-nums text-slate-200 admin-light:text-slate-800">{fmt(rec.cashTotal)}</p>
                         </div>
                         <div className="md:text-right">
                           <p className="text-[10px] uppercase text-slate-500 md:hidden">Total</p>
@@ -470,7 +470,7 @@ export function ConductorDetailModal({ isOpen, onClose, record }: ConductorDetai
                         txns.length === 0 ? (
                           <p className="border-t border-[#2A3A55] admin-light:border-[#E2E8F0] py-4 text-center text-xs text-slate-500">No transactions.</p>
                         ) : (
-                          <ol className="max-h-64 divide-y divide-[#2A3A55]/60 admin-light:divide-[#E2E8F0] overflow-y-auto border-t border-[#2A3A55] admin-light:border-[#E2E8F0] bg-[#0E1628]/50 admin-light:bg-[#F8FAFC] scrollbar-themed">
+                          <ol className="max-h-64 divide-y divide-[#2A3A55] admin-light:divide-[#E2E8F0] overflow-y-auto border-t border-[#2A3A55] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] scrollbar-themed">
                             {txns.map((txn) => {
                               const style = PAYMENT_STYLES[paymentKind(txn.payment_method)];
                               const pax = txn.total_passengers ?? 1;

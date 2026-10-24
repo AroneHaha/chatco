@@ -211,6 +211,31 @@ class AdminRegistrationTest extends TestCase
             ->assertJsonPath('data.data.0.email', 'target@example.com');
     }
 
+    public function test_pending_and_rejected_lists_search_by_full_name(): void
+    {
+        $pending = $this->seedPendingCommuter(['email' => 'vice@example.com', 'username' => 'vice']);
+        $pending->commuterProfile->update(['first_name' => 'Vice', 'surname' => 'Ganda']);
+        $this->seedPendingCommuter(['email' => 'other@example.com', 'username' => 'other']);
+
+        $this->actingAs($this->admin)->getJson('/api/v1/admin/registrations?search='.urlencode('vice ganda'))
+            ->assertOk()
+            ->assertJsonCount(1, 'data.data')
+            ->assertJsonPath('data.data.0.email', 'vice@example.com');
+
+        $this->actingAs($this->admin)
+            ->postJson("/api/v1/admin/registrations/{$pending->id}/reject", ['rejection_reason' => 'ID image is unreadable.'])
+            ->assertOk();
+
+        $this->actingAs($this->admin)->getJson('/api/v1/admin/registrations/rejected?search='.urlencode('Ganda Vice'))
+            ->assertOk()
+            ->assertJsonPath('data.total', 1)
+            ->assertJsonPath('data.data.0.surname', 'Ganda');
+
+        $this->actingAs($this->admin)->getJson('/api/v1/admin/registrations/rejected?search='.urlencode('vice applicant'))
+            ->assertOk()
+            ->assertJsonPath('data.total', 0);
+    }
+
     public function test_pending_list_forbidden_for_non_admin(): void
     {
         $conductor = $this->seedConductor();
@@ -265,6 +290,21 @@ class AdminRegistrationTest extends TestCase
         $this->assertSame('Juan Carlos', $user->commuterProfile->first_name);
         $this->assertSame('Dela Cruz', $user->commuterProfile->middle_name);
         $this->assertSame('Dela Cruz', $user->commuterProfile->surname);
+    }
+
+    public function test_onsite_registration_requires_gender(): void
+    {
+        Storage::fake('public');
+
+        $payload = $this->onsitePayload();
+        unset($payload['gender']);
+
+        $this->actingAs($this->admin)
+            ->post('/api/v1/admin/registrations', $payload, ['Accept' => 'application/json'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('gender');
+
+        $this->assertDatabaseMissing('users', ['email' => 'onsite.student@example.com']);
     }
 
     // ── Onsite Student: the school details renewal asks for ──────
@@ -357,6 +397,7 @@ class AdminRegistrationTest extends TestCase
             'first_name' => 'Onsite',
             'surname' => 'Student',
             'birthdate' => '2008-04-02',
+            'gender' => 'Female',
             'email' => 'onsite.student@example.com',
             'contact_number' => '09171112299',
             'username' => 'onsite.student',

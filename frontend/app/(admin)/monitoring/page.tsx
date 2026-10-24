@@ -1,21 +1,23 @@
 // app/(admin)/monitoring/page.tsx
 'use client';
 
-import { useEffect, useState, useMemo, useRef, type ReactNode } from 'react';
+import { useEffect, useState, useMemo, useRef, useId, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import {
-  Gauge, Clock, MapPin, AlertTriangle, Archive,
+  Gauge, Clock, MapPin, AlertTriangle, Archive, Phone, Building2, ShieldAlert,
   AlertCircle, RefreshCw, Coffee, CheckCircle2, Search, X, LocateFixed,
   ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { useFleetPoll } from '@/lib/admin/services/monitoring.service';
 import {
   useMonitoringData,
+  useSosLocations,
   SOS_HISTORY_PER_PAGE,
   type DemandZone,
   type SafetyHistorySort,
   type SosHistoryOutcome,
+  type SosAlert,
 } from './data/data-monitoring';
 import { SkeletonMetric, SkeletonTable, SkeletonMap } from '@/components/admin/ui/skeleton';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
@@ -27,7 +29,7 @@ import { useAdminNotifications } from '@/contexts/admin-notifications-context';
 const AdminCommuterMap = dynamic<{
   liveVehicles?: import('@/components/admin/admin-commuter-map').LiveVehicleMarker[];
   demandZones?: DemandZone[];
-  sosLocations?: [number, number][];
+  sosLocations?: import('@/components/admin/admin-commuter-map').SosMapMarker[];
   focusPosition?: [number, number] | null;
   focusNonce?: number;
 }>(() => import('@/components/admin/admin-commuter-map'), {
@@ -61,6 +63,160 @@ function HistoryPagination({ page, pages, start, end, count, onChange }: {
   );
 }
 
+function SosResolutionDialog({ alert, location, onCancel, onConfirm }: {
+  alert: SosAlert;
+  /** From useSosLocations: null when unavailable, undefined while looking up. */
+  location: string | null | undefined;
+  onCancel: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const resolvingRef = useRef(false);
+  const titleId = useId();
+  const [hotline, setHotline] = useState<string | null>(null);
+  const [attribution, setAttribution] = useState<string | null>(null);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(true);
+  const [detailsError, setDetailsError] = useState(false);
+  const [isResolving, setIsResolving] = useState(false);
+  const [resolveError, setResolveError] = useState<string | null>(null);
+  const [lat, lon] = alert.coordinates;
+  // Shown when reverse geocoding is unconfigured or fails, so staff can
+  // still relay an exact position.
+  const coordinateText = Number.isFinite(lat) && Number.isFinite(lon) ? `${lat.toFixed(5)}, ${lon.toFixed(5)}` : null;
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    const previousFocus = document.activeElement;
+    dialog?.showModal();
+    let active = true;
+
+    // Only the hotline is fetched here (fresh on every open); the address
+    // comes from the page's shared lookup.
+    void fetch('/api/admin/monitoring/sos-location', {
+      headers: { Accept: 'application/json' },
+    })
+      .then(async response => {
+        const body = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(body?.message ?? 'Unable to load SOS response details.');
+        return body?.data;
+      })
+      .then(details => {
+        if (!active) return;
+        setHotline(typeof details?.emergency_hotline === 'string' ? details.emergency_hotline : null);
+        setAttribution(typeof details?.attribution === 'string' ? details.attribution : null);
+      })
+      .catch(() => {
+        if (active) setDetailsError(true);
+      })
+      .finally(() => {
+        if (active) setIsLoadingDetails(false);
+      });
+
+    return () => {
+      active = false;
+      dialog?.close();
+      if (previousFocus instanceof HTMLElement) previousFocus.focus();
+    };
+  }, []);
+
+  const resolve = async () => {
+    if (resolvingRef.current) return;
+    resolvingRef.current = true;
+    setIsResolving(true);
+    setResolveError(null);
+    try {
+      await onConfirm();
+      onCancel();
+    } catch (error) {
+      setResolveError(error instanceof Error ? error.message : 'Unable to resolve this SOS. Please try again.');
+    } finally {
+      resolvingRef.current = false;
+      setIsResolving(false);
+    }
+  };
+
+  const steps = [
+    {
+      title: 'Call the landing page emergency contact',
+      description: 'Notify the listed emergency contact that an SOS was triggered.',
+      icon: Phone,
+      content: isLoadingDetails
+        ? 'Loading contact number…'
+        : detailsError
+          ? 'Unable to load contact number.'
+          : hotline || 'No contact number is configured.',
+    },
+    {
+      title: 'Alert office staff',
+      description: `Announce the SOS to office staff so they can take action. Share ${alert.sender}’s alert and location.`,
+      icon: Building2,
+      content: location === undefined
+        ? 'Looking up the alert location…'
+        : location || coordinateText || 'Location unavailable.',
+    },
+    {
+      title: 'Contact the emergency response team',
+      description: 'Use the emergency team number when one is assigned.',
+      icon: ShieldAlert,
+      content: 'Placeholder — number not configured yet',
+    },
+  ];
+
+  return (
+    <dialog
+      ref={dialogRef}
+      aria-labelledby={titleId}
+      aria-busy={isResolving}
+      onCancel={event => { event.preventDefault(); if (!isResolving) onCancel(); }}
+      onClick={event => { if (event.target === event.currentTarget && !isResolving) onCancel(); }}
+      className="fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-2xl border border-[#2A3A52] admin-light:border-[#CBD5E1] bg-[#131C2E] p-5 text-white shadow-2xl backdrop:bg-black/70 sm:p-6 admin-light:bg-white admin-light:text-slate-900"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 items-start gap-3">
+          <ShieldAlert size={30} aria-hidden="true" className="shrink-0 text-red-400 admin-light:text-red-600" />
+          <div className="min-w-0">
+            <h2 id={titleId} className="text-lg font-bold">Confirm SOS resolution</h2>
+            <p className="mt-1 text-sm leading-relaxed text-slate-400 admin-light:text-slate-500">Follow these response steps before closing the alert.</p>
+          </div>
+        </div>
+        <button type="button" autoFocus disabled={isResolving} onClick={onCancel} aria-label="Close confirmation" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-[#1E2D45] hover:text-white admin-light:hover:bg-slate-100 admin-light:hover:text-slate-900 disabled:opacity-50">
+          <X size={19} aria-hidden="true" />
+        </button>
+      </div>
+
+      <div className="mt-5 rounded-xl border border-[#2A3A52] bg-[#0E1628] p-3 admin-light:border-[#E2E8F0] admin-light:bg-[#F8FAFC]">
+        <p className="text-xs font-semibold text-slate-200 admin-light:text-slate-800">{alert.note}</p>
+        <p className="mt-1 text-xs text-slate-400 admin-light:text-slate-500">{alert.sender} · {alert.senderRole === 'CONDUCTOR' ? 'Conductor' : 'Commuter'}</p>
+      </div>
+
+      <ol className="mt-4 list-none space-y-3 p-0">
+        {steps.map((step) => {
+          const StepIcon = step.icon;
+          return (
+            <li key={step.title} className="rounded-xl border border-[#2A3A52] bg-[#0E1628] p-3 admin-light:border-[#E2E8F0] admin-light:bg-[#F8FAFC]">
+              <div className="min-w-0">
+                <p className="flex items-center gap-2 text-sm font-semibold text-slate-100 admin-light:text-slate-900"><StepIcon size={15} aria-hidden="true" className="shrink-0 text-[#99C1F1] admin-light:text-[#1A5FB4]" />{step.title}</p>
+                <p className="mt-1 text-xs leading-relaxed text-slate-400 admin-light:text-slate-600">{step.description}</p>
+                <p className="mt-2 text-xs font-semibold text-slate-200 admin-light:text-slate-800">{step.content}</p>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+      {location && attribution && <p className="mt-3 text-[10px] text-slate-500 admin-light:text-slate-500">Location data: {attribution}</p>}
+
+      {resolveError && <p role="alert" className="mt-4 rounded-lg border border-red-500 bg-[#35131B] p-3 text-sm text-red-200 admin-light:border-red-300 admin-light:bg-red-50 admin-light:text-red-700">{resolveError}</p>}
+
+      <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <button type="button" disabled={isResolving} onClick={onCancel} className="min-h-11 rounded-lg border border-[#2A3A52] bg-[#0E1628] px-4 text-sm font-semibold text-slate-200 transition-colors hover:bg-[#1A263B] admin-light:border-[#CBD5E1] admin-light:bg-white admin-light:text-slate-700 admin-light:hover:bg-slate-50 disabled:cursor-wait disabled:opacity-50">Keep alert open</button>
+        <button type="button" disabled={isResolving} onClick={() => { void resolve(); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-red-600 bg-red-700 px-4 text-sm font-semibold text-white transition-colors hover:bg-red-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400 disabled:cursor-wait disabled:opacity-50">
+          {isResolving ? 'Resolving…' : 'Confirm & resolve'}
+        </button>
+      </div>
+    </dialog>
+  );
+}
+
 export default function MonitoringPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -90,7 +246,7 @@ export default function MonitoringPage() {
   // Real SOS alerts (polls /api/admin/sos every 5s) + real overspeed feed.
   // The hook exposes its own error/loading state — we surface it as a banner
   // so SOS feed failures don't silently render as an empty active-alerts list.
-  const { data, error: sosError, refetch: refetchSos, acknowledgeSos, resolveSos } = useMonitoringData(
+  const { data, error: sosError, refetch: refetchSos, resolveSos } = useMonitoringData(
     overspeedPage,
     filterOverspeedDate,
     historySort,
@@ -99,6 +255,12 @@ export default function MonitoringPage() {
 
   const sosAlerts = data.sosAlerts;
   const sosHistory = data.sosHistory;
+  const { locations: sosLocations, attribution: sosAttribution } = useSosLocations(sosAlerts);
+  const sosMapMarkers = useMemo(
+    () => sosAlerts.map(alert => ({ id: alert.id, coords: alert.coordinates, location: sosLocations[alert.id] })),
+    [sosAlerts, sosLocations],
+  );
+  const [sosToResolve, setSosToResolve] = useState<SosAlert | null>(null);
   const [fleetSearch, setFleetSearch] = useState('');
 
   // The two history logs share one panel and switch by tab — each keeps its
@@ -108,7 +270,7 @@ export default function MonitoringPage() {
   // ─── Deep-link from the notification bell ──────────────────────
   // SOS_TRIGGERED links here as ?sosId={id}; OVERSPEED_FLAGGED as
   // ?overspeedId={id}. Neither has a per-item modal — both render inline
-  // (SOS as cards with Acknowledge/Resolve buttons, overspeed as history
+  // (SOS as cards with status/Resolve actions, overspeed as history
   // table rows) — so each deep-link scrolls to and highlights the matching
   // element instead, same idea as handleFocusVehicle's scroll-into-view for
   // a fleet row.
@@ -217,9 +379,8 @@ export default function MonitoringPage() {
     [fleet]
   );
 
-  // SOS handlers — wired to real backend (acknowledge + resolve).
-  const handleConfirmSos = (alertId: string) => { void resolveSos(alertId); };
-  const handleAcknowledgeSos = (alertId: string) => { void acknowledgeSos(alertId); };
+  // The active SOS card opens a response checklist before backend resolution.
+  const handleConfirmSos = (alert: SosAlert) => setSosToResolve(alert);
 
   const filteredOverspeedHistory = data.overspeedHistory;
 
@@ -359,7 +520,7 @@ export default function MonitoringPage() {
             <AdminCommuterMap
               liveVehicles={liveMapVehicles}
               demandZones={data.demandZones}
-              sosLocations={sosAlerts.map(a => a.coordinates)}
+              sosLocations={sosMapMarkers}
               focusPosition={focusPosition}
               focusNonce={focusNonce}
             />
@@ -395,14 +556,15 @@ export default function MonitoringPage() {
               {sosAlerts.map((alert) => {
                 const isAcknowledged = alert.status === "ACKNOWLEDGED";
                 const roleLabel = alert.senderRole === "CONDUCTOR" ? "Conductor" : "Commuter";
+                const location = sosLocations[alert.id];
                 return (
                   <div
                     key={alert.id}
                     id={`sos-alert-${alert.id}`}
-                    className={`bg-red-400/5 border rounded-lg p-3 transition-shadow ${
+                    className={`rounded-lg border bg-[#35131B] p-3 transition-shadow admin-light:bg-[#FFF1F2] ${
                       highlightedSosId === alert.id
                         ? 'border-[#62A0EA] admin-light:border-[#1A5FB4] ring-2 ring-[#62A0EA]/50 admin-light:ring-[#1A5FB4]/50'
-                        : 'border-red-400/25 admin-light:border-red-200'
+                        : 'border-red-500 admin-light:border-red-300'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
@@ -416,6 +578,12 @@ export default function MonitoringPage() {
                       <span className="font-medium text-white admin-light:text-slate-900">{alert.sender}</span>
                       <span className="text-slate-500">· {roleLabel}</span>
                     </p>
+                    {location !== null && (
+                      <p className={`mt-1.5 flex items-start gap-1.5 text-xs break-words ${location ? 'text-slate-200 admin-light:text-slate-800' : 'text-slate-500'}`}>
+                        <MapPin size={12} aria-hidden="true" className="mt-0.5 shrink-0" />
+                        {location ?? 'Looking up location…'}
+                      </p>
+                    )}
                     <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 mt-1.5">
                       <p className="text-[11px] text-slate-500 font-mono">{alert.coordinates[0].toFixed(5)}, {alert.coordinates[1].toFixed(5)}</p>
                       {isAcknowledged ? (
@@ -424,21 +592,20 @@ export default function MonitoringPage() {
                         </span>
                       ) : (
                         <span className="flex items-center gap-1 text-[11px] text-red-400 admin-light:text-red-600 font-medium flex-shrink-0">
-                          <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span></span>
+                          <span aria-hidden="true" className="inline-flex h-2 w-2 rounded-full bg-red-500"></span>
                           Awaiting response
                         </span>
                       )}
                     </div>
                     <div className="flex gap-2 mt-3">
-                      {!isAcknowledged && (
-                        <button onClick={() => handleAcknowledgeSos(alert.id)} className="flex-1 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-xs font-semibold transition-colors">Acknowledge</button>
-                      )}
-                      <button onClick={() => handleConfirmSos(alert.id)} className="flex-1 px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md text-xs font-semibold transition-colors">Confirm &amp; Resolve</button>
+                      <button onClick={() => handleConfirmSos(alert)} className="flex-1 px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md text-xs font-semibold transition-colors">Confirm &amp; Resolve</button>
                     </div>
                   </div>
                 );
               })}
-
+              {sosAttribution && sosAlerts.some(alert => sosLocations[alert.id]) && (
+                <p className="px-1 text-[10px] text-slate-500">Location data: {sosAttribution}</p>
+              )}
             </div>
           )}
         </aside>
@@ -610,6 +777,14 @@ export default function MonitoringPage() {
           )}
         </div>
       </section>
+      {sosToResolve && (
+        <SosResolutionDialog
+          alert={sosToResolve}
+          location={sosLocations[sosToResolve.id]}
+          onCancel={() => setSosToResolve(null)}
+          onConfirm={() => resolveSos(sosToResolve.id)}
+        />
+      )}
     </>
   );
 }

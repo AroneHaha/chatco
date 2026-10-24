@@ -5,6 +5,7 @@
 
 export const CONDUCTOR_API = {
   profile: "/api/conductor/profile",
+  profilePhoto: "/api/conductor/profile/photo",
   units: "/api/conductor/units",
   drivers: "/api/conductor/drivers",
   receiptSettings: "/api/conductor/receipt-settings",

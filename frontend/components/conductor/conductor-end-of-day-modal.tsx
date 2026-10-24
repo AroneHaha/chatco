@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import EndOfDayContent from "@/components/conductor/remittance/end-of-day-content";
 import { usePopoverModal, useBackdropDismiss } from "@/components/conductor/modals/use-popover-modal";
 import { PopoverTail } from "@/components/conductor/modals/popover-tail";
+import { useCommuterTheme } from "@/contexts/commuter-theme-context";
 
 /**
  * Global End-of-Day modal listener for the Conductor layout — same pattern
@@ -21,6 +22,7 @@ import { PopoverTail } from "@/components/conductor/modals/popover-tail";
  */
 export default function ConductorEndOfDayModal() {
   const [isOpen, setIsOpen] = useState(false);
+  const isLight = useCommuterTheme() === "light";
 
   useEffect(() => {
     const handler = () => setIsOpen(true);
@@ -55,28 +57,28 @@ export default function ConductorEndOfDayModal() {
 
   return (
     <div className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 xl:items-end xl:justify-center xl:bg-transparent xl:backdrop-blur-none xl:bottom-24 ${backdropAnim}`} {...backdropDismiss}>
-      <PopoverTail panelColor="#071A2E" anchorOffsetPx={anchorOffset} />
+      <PopoverTail panelColor={isLight ? "#FFFFFF" : "#071A2E"} anchorOffsetPx={anchorOffset} className="light:border-gray-200" />
       <div
-        className={`w-full sm:max-w-lg max-h-[85vh] sm:max-h-[80vh] xl:max-h-[70vh] overflow-y-auto bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-white/10 shadow-2xl modal-scroll popover-surface ${panelAnim}`}
+        className={`w-full sm:max-w-lg max-h-[85vh] sm:max-h-[80vh] xl:max-h-[70vh] overflow-y-auto bg-[#071A2E] light:bg-white sm:rounded-2xl rounded-t-2xl border border-white/10 light:border-gray-200 shadow-2xl modal-scroll popover-surface popover-surface-light ${panelAnim}`}
         style={panelAnchorStyle}
       >
         {/* Header mirrors the Payment popover's (FareCalcModal "method" step):
             p-5, divider, title + subtitle, bare close icon. Sticky with a
             solid bg because this panel scrolls, unlike Payment's. */}
-        <div className="popover-header sticky top-0 z-10 bg-[#071A2E] p-5 border-b border-white/10">
+        <div className="popover-header sticky top-0 z-10 bg-[#071A2E] light:bg-white p-5 border-b border-white/10 light:border-gray-200">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-white">End of Day Report</h2>
+            <h2 className="text-lg font-bold text-white light:text-gray-900">End of Day Report</h2>
             <button
               onClick={close}
               aria-label="Close"
-              className="xl:hidden text-white/40 hover:text-white transition-colors cursor-pointer"
+              className="xl:hidden text-white/40 light:text-gray-500 hover:text-white light:hover:text-gray-900 transition-colors cursor-pointer"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
-          <p className="text-sm text-white/40 mt-1">Review your shift collections and remittance</p>
+          <p className="text-sm text-white/40 light:text-gray-500 mt-1">Review your shift collections and remittance</p>
         </div>
 
         <EndOfDayContent />

@@ -4,12 +4,13 @@
 import { useRef, useState } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
 import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
-import { Upload, Loader2, AlertCircle, UserPlus, Check } from 'lucide-react';
+import { Upload, Loader2, UserPlus, Check } from 'lucide-react';
 import { formatContactNumberInput } from '@/lib/utils/format';
 import { StepContentWrapper } from '@/components/Stepper';
 import { useDiscountProof } from '@/components/commuter/discount-proof-fields';
 import { EDUCATION_LABELS, ENROLLMENT_TERMS, HIGH_SCHOOL_GRADES, type EducationLevel } from '@/lib/shared/services/student-renewal.service';
 
+import { InlineError } from '@/components/admin/ui/inline-error';
 /** School details for a Student, matching what student renewal asks for. */
 export interface OnsiteStudentDetails {
   schoolName: string;
@@ -38,6 +39,7 @@ interface AddRegistrationModalProps {
     middleName: string;
     lastName: string;
     birthday: string;
+    gender: string;
     username: string;
     email: string;
     phoneNumber: string;
@@ -49,12 +51,16 @@ interface AddRegistrationModalProps {
   }) => Promise<void> | void;
 }
 
+// Same choices as the commuter's own signup form.
+const GENDER_OPTIONS = ['Male', 'Female', 'Prefer not to say'] as const;
+
 export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistrationModalProps) {
   const [formData, setFormData] = useState({
     firstName: '',
     middleName: '',
     lastName: '',
     birthday: '',
+    gender: '',
     username: '',
     email: '',
     phoneNumber: '',
@@ -187,6 +193,7 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
         middleName: '',
         lastName: '',
         birthday: '',
+        gender: '',
         username: '',
         email: '',
         phoneNumber: '',
@@ -236,10 +243,7 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
         <form onSubmit={handleSubmit}>
           {/* Inline error banner — shown when the POST /api/admin/registrations fails */}
           {submitError && (
-            <div role="alert" className="mb-6 p-3 bg-red-500/10 border border-red-500/30 rounded-md flex items-start gap-2">
-              <AlertCircle size={16} className="text-red-400 admin-light:text-red-600 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-red-400 admin-light:text-red-600">{submitError}</p>
-            </div>
+            <InlineError className="mb-6">{submitError}</InlineError>
           )}
 
           {/* ID beside the form: staff copy the name and birthdate off the ID
@@ -292,7 +296,7 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
                     state === 'next'
                       ? 'border-[#2A3A55] admin-light:border-[#E2E8F0] text-slate-500'
                       : state === 'done'
-                        ? 'border-[#62A0EA]/40 admin-light:border-[#1A5FB4]/40 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4]'
+                        ? 'border-[#62A0EA] bg-[#62A0EA] text-[#0B1120] admin-light:border-[#1A5FB4] admin-light:bg-[#1A5FB4] admin-light:text-white'
                         : 'border-[#62A0EA] admin-light:border-[#1A5FB4] text-[#62A0EA] admin-light:text-[#1A5FB4]'
                   }`}>
                     {state === 'done' ? <Check size={13} strokeWidth={2.4} aria-hidden="true" /> : i + 1}
@@ -331,8 +335,8 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
               </div>
             </div>
 
-            {/* Birthday & Commuter Type Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            {/* Birthday, gender & commuter type row */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
               <div>
                 <label htmlFor="onsite-birthday" className={labelClasses}>Date of birth</label>
                 <AdminDatePicker
@@ -350,6 +354,15 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
                   className="w-full"
                   triggerClassName="mt-1.5 h-11 w-full text-sm"
                 />
+              </div>
+              <div>
+                <label htmlFor="onsite-gender" className={labelClasses}>Gender</label>
+                <select id="onsite-gender" name="gender" value={formData.gender} onChange={handleChange} required disabled={isSubmitting} className={`${inputClasses} scheme-dark admin-light:scheme-light`}>
+                  <option value="" disabled className="bg-gray-800 admin-light:bg-white">Select gender</option>
+                  {GENDER_OPTIONS.map((option) => (
+                    <option key={option} value={option} className="bg-gray-800 admin-light:bg-white">{option}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label htmlFor="onsite-commuter-type" className={labelClasses}>Commuter type</label>
@@ -379,7 +392,7 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
                   <legend className={labelClasses}>Education level</legend>
                   <div className="mt-1.5 grid grid-cols-2 gap-2">
                     {(Object.keys(EDUCATION_LABELS) as EducationLevel[]).map(level => (
-                      <label key={level} className={`flex h-11 items-center justify-center rounded-md border px-3 text-sm font-medium transition-colors has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-[#62A0EA] ${isSubmitting ? '' : 'cursor-pointer'} ${proof.educationLevel === level ? 'border-[#62A0EA]/60 bg-[#62A0EA]/10 text-white admin-light:border-[#1A5FB4]/60 admin-light:bg-[#1A5FB4]/10 admin-light:text-[#1A5FB4]' : 'border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] text-slate-300 admin-light:text-slate-600 hover:text-white admin-light:hover:text-slate-900'}`}>
+                      <label key={level} className={`flex h-11 items-center justify-center rounded-md border px-3 text-sm font-medium transition-colors has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-[#62A0EA] ${isSubmitting ? '' : 'cursor-pointer'} ${proof.educationLevel === level ? 'border-[#62A0EA] bg-[#62A0EA] text-[#0B1120] admin-light:border-[#1A5FB4] admin-light:bg-[#1A5FB4] admin-light:text-white' : 'border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] text-slate-300 admin-light:text-slate-600 hover:text-white admin-light:hover:text-slate-900'}`}>
                         <input type="radio" name="onsite_education_level" value={level} required checked={proof.educationLevel === level} onChange={() => { proof.setEducationLevel(level); if (level === 'COLLEGE') proof.setGradeLevel(''); }} className="sr-only" />
                         {EDUCATION_LABELS[level]}
                       </label>
@@ -456,7 +469,7 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
             <dl className="mt-3 divide-y divide-[#2A3A55] admin-light:divide-[#E2E8F0] text-sm">
               <ReviewRow label="Commuter" onEdit={() => goToStep('details')} disabled={isSubmitting}>
                 <span className="block text-white admin-light:text-slate-900">{fullName}</span>
-                <span className="block text-slate-400 admin-light:text-slate-500">{formData.commuterType}, born {birthdayLabel}</span>
+                <span className="block text-slate-400 admin-light:text-slate-500">{formData.commuterType}, {formData.gender}, born {birthdayLabel}</span>
               </ReviewRow>
               <ReviewRow label="Valid ID" disabled={isSubmitting}>
                 {formData.idImageFile ? (

@@ -218,10 +218,6 @@ export function FeedbackModal({ isOpen, onClose, staff }: FeedbackModalProps) {
               <span className="text-slate-300 admin-light:text-slate-700">{staff.name}</span>
               <span aria-hidden="true" className="text-slate-600">·</span>
               <span className="inline-flex items-center gap-2 text-slate-400 admin-light:text-slate-600">
-                <span
-                  aria-hidden="true"
-                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${staff.role === 'DRIVER' ? 'bg-[#62A0EA] admin-light:bg-[#1A5FB4]' : 'bg-amber-400'}`}
-                />
                 {staff.role === 'DRIVER' ? 'Driver' : 'Conductor'}
               </span>
             </div>
@@ -369,7 +365,7 @@ function SummaryColumn({
               aria-label={`${star}-star reviews, ${count}`}
               className={`flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors disabled:cursor-default disabled:opacity-40 ${
                 isActive
-                  ? 'bg-[#62A0EA]/10 text-[#62A0EA] admin-light:bg-[#1A5FB4]/10 admin-light:text-[#1A5FB4]'
+                  ? 'bg-[#62A0EA] text-[#0B1120] admin-light:bg-[#1A5FB4] admin-light:text-white'
                   : 'text-slate-400 hover:bg-[#131C2E] disabled:hover:bg-transparent admin-light:text-slate-600 admin-light:hover:bg-[#F1F5F9]'
               }`}
             >
@@ -377,7 +373,7 @@ function SummaryColumn({
               <Star size={11} aria-hidden="true" className="shrink-0 fill-current" />
               <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#1A2540] admin-light:bg-[#E2E8F0]">
                 <span
-                  className={`block h-full rounded-full ${isActive ? 'bg-[#62A0EA] admin-light:bg-[#1A5FB4]' : 'bg-amber-400/80'}`}
+                  className={`block h-full rounded-full ${isActive ? 'bg-[#0B1120] admin-light:bg-white' : 'bg-amber-400/80'}`}
                   style={{ width: `${(count / maxCount) * 100}%` }}
                 />
               </span>

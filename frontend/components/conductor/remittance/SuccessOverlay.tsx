@@ -1,5 +1,7 @@
 // app/components/conductor/remittance/SuccessOverlay.tsx
+import { CheckCircle2 } from "lucide-react";
 import { fmt } from "@/app/(conductor)/conductor-dashboard/end-of-day/helpers";
+import { APP_DIALOG as D } from "@/components/shared/app-dialog-styles";
 
 interface SuccessOverlayProps {
   show: boolean;
@@ -17,27 +19,45 @@ export default function SuccessOverlay({ show, onClose, gcashTotal, cashTotal, g
   const safeGrand = grandTotal ?? 0;
 
   if (!show) return null;
+
+  // Payment methods are told apart by their labels only (UI rule: no colour coding).
+  const rows = [
+    { label: "GCash (digital)", value: safeGcash },
+    { label: "Cash to hand over", value: safeCash },
+  ];
+
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in">
-          <div className="bg-[#0B1E33] border border-emerald-500/20 rounded-3xl p-8 max-w-xs w-full text-center shadow-2xl space-y-4">
-            <div className="flex justify-center"><div className="w-20 h-20 rounded-full bg-emerald-500/15 border-2 border-emerald-500/30 flex items-center justify-center animate-scale-in"><svg className="w-10 h-10 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg></div></div>
-            <div><h2 className="text-white font-bold text-xl">Submitted to Admin</h2><p className="text-xs text-white/40 mt-1.5 leading-relaxed">Report for <span className="text-white/60 font-semibold">{unitNumber}</span> submitted successfully.</p></div>
-            <div className="space-y-2">
-              <div className="bg-blue-500/8 border border-blue-500/15 rounded-xl p-3 space-y-1">
-                <p className="text-xs text-blue-400/60 font-medium">GCash (Digital)</p>
-                <p className="text-lg font-extrabold text-blue-400 tabular-nums">{fmt(safeGcash)}</p>
-              </div>
-              <div className="bg-emerald-500/8 border border-emerald-500/15 rounded-xl p-3 space-y-1">
-                <p className="text-xs text-emerald-400/60 font-medium">Cash (Hand over to admin)</p>
-                <p className="text-lg font-extrabold text-emerald-400 tabular-nums">{fmt(safeCash)}</p>
-              </div>
-              <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3 flex items-center justify-between">
-                <p className="text-xs text-white/40 font-bold uppercase tracking-wider">Total</p>
-                <p className="text-xl font-extrabold text-white tabular-nums">{fmt(safeGrand)}</p>
-              </div>
-            </div>
-            <div className="space-y-2"><p className="text-[10px] text-white/25 tabular-nums">Redirecting to login…</p><button onClick={onClose} className="w-full py-3 rounded-xl bg-white/5 border border-white/10 text-white/60 text-sm font-semibold hover:bg-white/10 transition-all">Done</button></div>
+    // z-[110]: sits above the end-of-day confirm sheet it replaces.
+    <div className={`${D.overlay.replace("z-[100]", "z-[110]")} animate-fade-in`}>
+      <div role="alertdialog" aria-modal="true" aria-labelledby="eod-success-title" aria-describedby="eod-success-body" className={`${D.panel} max-w-sm p-5 sm:p-6`}>
+        <div className="flex items-start gap-3">
+          <CheckCircle2 size={32} aria-hidden="true" className={`shrink-0 animate-scale-in ${D.blueIcon}`} />
+          <div className="min-w-0">
+            <h2 id="eod-success-title" className={D.title}>Submitted to Admin</h2>
+            <p className={`mt-1 text-sm leading-relaxed ${D.muted}`}>
+              Report for <span className="font-semibold text-white light:text-gray-900">{unitNumber}</span> submitted successfully.
+            </p>
           </div>
         </div>
+
+        <dl className={`mt-5 divide-y border-y text-sm ${D.divide} ${D.hairline}`}>
+          {rows.map((row) => (
+            <div key={row.label} className="flex items-baseline justify-between gap-4 py-3">
+              <dt className={D.muted}>{row.label}</dt>
+              <dd className="font-semibold tabular-nums text-white light:text-gray-900">{fmt(row.value)}</dd>
+            </div>
+          ))}
+          <div className="flex items-baseline justify-between gap-4 py-3">
+            <dt className="font-semibold text-white light:text-gray-900">Total</dt>
+            <dd className="text-lg font-bold tabular-nums text-white light:text-gray-900">{fmt(safeGrand)}</dd>
+          </div>
+        </dl>
+
+        <p id="eod-success-body" className={`mt-4 text-xs leading-relaxed ${D.muted}`}>
+          Hand the cash to the admin. They count it and record the cash declaration. Redirecting to login…
+        </p>
+        <button type="button" onClick={onClose} autoFocus className={`${D.button} ${D.primary} mt-5 w-full`}>Done</button>
+      </div>
+    </div>
   );
 }

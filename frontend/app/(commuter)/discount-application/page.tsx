@@ -8,6 +8,7 @@ import { DiscountProofFields, useDiscountProof } from '@/components/commuter/dis
 import { Modal } from '@/components/shared/modal';
 import { APPLICATION_LABELS, DISCOUNT_CATEGORIES, educationSummary, getApplicationState, renewalRequest,
   schoolYearSummary, type ApplicationState, type DiscountCategory } from '@/lib/shared/services/student-renewal.service';
+import { toCommuterType } from '@/types';
 
 const date = (value: string) => new Date(value).toLocaleString('en-PH', {
   dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Manila',
@@ -72,7 +73,8 @@ export default function DiscountApplicationPage() {
     return () => { controller.abort(); window.removeEventListener('focus', focus); };
   }, [load]);
   useEffect(() => {
-    if (state && commuterProfile && state.commuter_type !== commuterProfile.commuterType) void refresh();
+    // Compare converted types: the profile holds "SENIOR_CITIZEN" where the raw state holds "SENIOR".
+    if (state && commuterProfile && toCommuterType(state.commuter_type) !== commuterProfile.commuterType) void refresh();
   }, [state, commuterProfile, refresh]);
 
   const application = state?.application;

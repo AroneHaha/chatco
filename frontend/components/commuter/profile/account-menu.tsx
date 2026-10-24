@@ -21,12 +21,12 @@ export type SignOutControl = {
  * no longer sits alone at the bottom of the scroll. Below lg: the round
  * ProfileThemeToggle and the bottom Log out button stay as they were.
  *
- * Appearance shares ProfileThemeToggle's state: the real commuter preference
- * inside the commuter app, preview-only in the conductor app.
+ * Appearance shares ProfileThemeToggle's state: the real preference of
+ * whichever app (commuter or conductor) it's in.
  *
  * `trigger`: "appearance" (default) shows the current mode's moon/sun with a
  * chevron; "gear" is a bare settings gear that turns while the menu opens,
- * used by the commuter Profile.
+ * used by the commuter Profile and conductor Settings.
  */
 export default function AccountMenu({
   signOut,
@@ -77,7 +77,7 @@ export default function AccountMenu({
           aria-expanded={isOpen}
           aria-controls={menuId}
           aria-label={`Settings, ${modeLabel}`}
-          title="Appearance and log out"
+          title="Appearance and sign out"
           className={`flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] ${isOpen ? "text-white light:text-gray-900" : "text-white/60 hover:text-white light:text-gray-500 light:hover:text-gray-900"}`}
         >
           <Settings
@@ -95,7 +95,7 @@ export default function AccountMenu({
         aria-expanded={isOpen}
         aria-controls={menuId}
         aria-label={`Account options, ${modeLabel}`}
-        title="Appearance and log out"
+        title="Appearance and sign out"
         className={`flex h-10 cursor-pointer items-center gap-1.5 rounded-lg border pl-2.5 pr-2 transition-all duration-300 ease-out hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] motion-reduce:hover:scale-100 motion-reduce:active:scale-100 motion-reduce:transition-none ${isLight ? "border-amber-300/40 bg-amber-300/15 text-amber-200 hover:border-amber-200/70 hover:bg-amber-300/25 hover:shadow-[0_0_16px_rgba(252,211,77,0.2)] light:border-amber-300 light:bg-amber-50 light:text-amber-600 light:hover:border-amber-400 light:hover:bg-amber-100" : "border-[#62A0EA]/25 bg-[#62A0EA]/10 text-[#99C1F1] hover:border-[#99C1F1]/60 hover:bg-[#62A0EA]/20 hover:shadow-[0_0_16px_rgba(98,160,234,0.25)]"}`}
       >
         {/* Same moon/sun crossfade as ProfileThemeToggle, shown below lg:. */}
@@ -124,7 +124,7 @@ export default function AccountMenu({
                 type="button"
                 aria-pressed={active}
                 onClick={() => setIsLight(light)}
-                className={`flex min-h-9 items-center justify-center gap-2 rounded-md text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] ${active ? "bg-[#1A5FB4] text-white" : "text-white/50 hover:bg-white/5 hover:text-white/80 light:text-gray-500 light:hover:bg-white light:hover:text-gray-900"}`}
+                className={`flex min-h-9 cursor-pointer items-center justify-center gap-2 rounded-md text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62A0EA] ${active ? "bg-[#1A5FB4] text-white" : "text-white/50 hover:bg-white/5 hover:text-white/80 light:text-gray-500 light:hover:bg-white light:hover:text-gray-900"}`}
               >
                 <Icon size={15} aria-hidden="true" />{label}
               </button>
@@ -141,9 +141,9 @@ export default function AccountMenu({
             setIsOpen(false);
             signOut?.request();
           }}
-          className="flex min-h-10 w-full items-center gap-3 rounded-lg px-2 text-left text-sm font-medium text-red-400 transition-colors hover:bg-red-500/10 light:text-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+          className="flex min-h-10 w-full cursor-pointer items-center justify-center gap-3 rounded-lg px-2 text-sm font-medium text-red-400 transition-colors hover:bg-red-500/10 light:text-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
         >
-          <LogOut size={17} aria-hidden="true" className="shrink-0" />Log out
+          <LogOut size={17} aria-hidden="true" className="shrink-0" />Sign out
         </button>
         {signOut?.locked && lockedHint && <p className="px-2 pb-1 pt-1 text-[11px] leading-relaxed text-amber-400/80 light:text-amber-700">{lockedHint}</p>}
       </div>

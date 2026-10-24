@@ -13,6 +13,7 @@ import { formatPeso } from '@/lib/utils/display';
 import { Modal } from '@/components/admin/ui/modal';
 import { SkeletonFareMatrix, SkeletonFareRouteEditor } from '@/components/admin/ui/skeleton/skeleton-fare-matrix';
 
+import { InlineError } from '@/components/admin/ui/inline-error';
 const RouteEditor = dynamic(() => import('@/components/admin/routes/route-editor'), {
   ssr: false,
   loading: () => <SkeletonFareRouteEditor />,
@@ -866,9 +867,7 @@ export default function FareMatrixPage() {
             </p>
           </div>
           {deleteRouteError && (
-            <div role="alert" className="rounded-md border border-red-500/30 bg-red-500/10 p-3">
-              <p className="text-sm text-red-400 admin-light:text-red-600">{deleteRouteError}</p>
-            </div>
+            <InlineError>{deleteRouteError}</InlineError>
           )}
           <div className="flex justify-end gap-2">
             <button

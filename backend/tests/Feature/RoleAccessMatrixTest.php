@@ -493,6 +493,22 @@ class RoleAccessMatrixTest extends TestCase
         $response->assertJsonMissingPath('data.conductorProfile.generated_password');
     }
 
+    public function test_conductor_profile_returns_profile_picture_url(): void
+    {
+        $this->actingAs($this->conductor)
+            ->getJson('/api/v1/conductor/profile')
+            ->assertOk()
+            ->assertJsonPath('data.profile_picture_url', null);
+
+        $photoUrl = 'https://cdn.example.test/profiles/conductor-matrix.webp';
+        ConductorProfile::whereKey($this->conductor->id)->update(['profile_picture_url' => $photoUrl]);
+
+        $this->actingAs($this->conductor)
+            ->getJson('/api/v1/conductor/profile')
+            ->assertOk()
+            ->assertJsonPath('data.profile_picture_url', $photoUrl);
+    }
+
     public function test_user_endpoint_does_not_leak_password(): void
     {
         $response = $this->actingAs($this->conductor)
