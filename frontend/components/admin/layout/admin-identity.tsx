@@ -1,6 +1,8 @@
 'use client';
 
 import { useAuth } from '@/contexts/auth-context';
+import { useState } from 'react';
+import Image from 'next/image';
 
 export function getInitials(name: string): string {
   const words = name.split(/[\s@._-]+/).filter(Boolean);
@@ -25,6 +27,7 @@ const ON_BRAND = {
 /** Signed-in administrator's name and email for the admin shell. */
 export function AdminIdentity({ onBrand = false }: { onBrand?: boolean }) {
   const { user } = useAuth();
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
   if (!user) return null;
 
   // The backend falls back to the email when an admin has no profile, so
@@ -39,7 +42,9 @@ export function AdminIdentity({ onBrand = false }: { onBrand?: boolean }) {
         aria-hidden="true"
         className={`w-9 h-9 flex-shrink-0 rounded-md border ${tone.tile} text-xs font-semibold flex items-center justify-center`}
       >
-        {getInitials(name)}
+        {user.profilePictureUrl && failedUrl !== user.profilePictureUrl
+          ? <Image src={user.profilePictureUrl} alt="" width={36} height={36} unoptimized className="h-full w-full rounded-md object-cover" onError={() => setFailedUrl(user.profilePictureUrl ?? null)} />
+          : getInitials(name)}
       </span>
       <div className="min-w-0">
         <p className={`text-sm font-semibold text-white ${tone.name} truncate`} title={name}>{name}</p>

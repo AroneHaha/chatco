@@ -52,6 +52,12 @@ function updates(service) {
       if (name === 'react') return { ...React, ...react };
       if (name === '@/contexts/auth-context') return { useAuth: () => ({ isAuthenticated: true, isLoading: false }) };
       if (name === '@/lib/echo') return { getEcho: () => ({ channel: () => ({ listen() {}, stopListening() {} }) }) };
+      if (name === '@/lib/shared/announcement-category') {
+        const categoryExports = {};
+        const categoryCode = ts.transpileModule(fs.readFileSync(path.join(__dirname, '../lib/shared/announcement-category.ts'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
+        vm.runInNewContext(categoryCode, { exports: categoryExports });
+        return categoryExports;
+      }
       if (name === '@/lib/commuter/rewards-events') return { notifyRewardsChanged: () => { rewardRefreshes++; } };
       if (name === '@/lib/shared/services/announcement.service') return {
         list: async params => { requests.push(params); return service(); },

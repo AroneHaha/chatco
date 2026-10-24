@@ -28,6 +28,34 @@ class ConductorRemittanceTest extends TestCase
 
     private int $seq = 0;
 
+    public function test_mobile_history_pages_and_filters_beyond_first_hundred_records(): void
+    {
+        $conductor = $this->makeConductor('paging@test.com');
+        $base = $this->makeRemittance($conductor, ['date' => now()->toDateString()]);
+        for ($index = 0; $index < 105; $index++) {
+            $shift = $base->shift->replicate();
+            $shift->shift_id = 'SHF-HISTORY-'.$index;
+            $shift->save();
+            $row = $base->replicate(['shift_id']);
+            $row->shift_id = $shift->shift_id;
+            $row->date = now()->subDays(40)->toDateString();
+            $row->save();
+        }
+        $this->actingAs($conductor, 'sanctum')->getJson('/api/v1/mobile/conductor/remittances?per_page=15&page=8')
+            ->assertOk()->assertJsonPath('data.total', 106)->assertJsonPath('data.current_page', 8)
+            ->assertJsonCount(1, 'data.data');
+        $this->getJson('/api/v1/mobile/conductor/remittances?filter=WEEK')->assertOk()->assertJsonPath('data.total', 1);
+    }
+
+    public function test_mobile_safety_settings_use_the_same_limit_as_gps(): void
+    {
+        $conductor = $this->makeConductor('safety@test.com');
+        \Illuminate\Support\Facades\Cache::forget('overspeed.limit_kmh');
+        \App\Models\Setting::updateOrCreate(['key' => 'speed_limit_kmh'], ['value' => '35', 'category' => 'operations']);
+        $this->actingAs($conductor, 'sanctum')->getJson('/api/v1/mobile/conductor/safety-settings')
+            ->assertOk()->assertJsonPath('data.speed_limit_kmh', 35);
+    }
+
     private function makeConductor(string $email): User
     {
         $this->seq++;

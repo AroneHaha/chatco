@@ -3,6 +3,7 @@
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\Auth\PasswordChangeController;
 use App\Http\Controllers\Commuter\CommuterController;
+use App\Http\Controllers\Commuter\EmailChangeController;
 use App\Http\Controllers\Commuter\FeedbackController;
 use App\Http\Controllers\Commuter\HailController;
 use App\Http\Controllers\Commuter\ShareRideController;
@@ -33,7 +34,9 @@ Route::prefix('mobile')->group(function () {
         Route::post('/forgot-password', [MobileAuthController::class, 'forgotPassword'])->middleware('throttle:auth');
         Route::post('/verify-reset-code', [MobileAuthController::class, 'verifyResetCode'])->middleware('throttle:auth');
         Route::post('/reset-password', [MobileAuthController::class, 'resetPassword'])->middleware('throttle:auth');
-        Route::post('/logout', [MobileAuthController::class, 'logout'])->middleware(['auth:sanctum', 'role:CONDUCTOR,COMMUTER']);
+        Route::get('/session', [MobileAuthController::class, 'session'])->middleware(['auth:sanctum', 'role:CONDUCTOR,COMMUTER'])->name('mobile.auth.session');
+        Route::post('/set-new-password', [MobileAuthController::class, 'setNewPassword'])->middleware(['auth:sanctum', 'role:CONDUCTOR,COMMUTER', 'throttle:auth'])->name('mobile.auth.set-new-password');
+        Route::post('/logout', [MobileAuthController::class, 'logout'])->middleware(['auth:sanctum', 'role:CONDUCTOR,COMMUTER'])->name('mobile.auth.logout');
     });
 
     Route::get('/user', [MobileAuthController::class, 'user'])->middleware(['auth:sanctum', 'role:CONDUCTOR,COMMUTER']);
@@ -62,9 +65,11 @@ Route::prefix('mobile/conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR',
     Route::get('/shift', [ConductorController::class, 'shiftStatus'])->middleware('throttle:conductor-read');
     Route::get('/shift-logs', [ConductorController::class, 'shiftLogs'])->middleware('throttle:conductor-read');
     Route::get('/profile', [ConductorController::class, 'profile'])->middleware('throttle:conductor-read');
+    Route::post('/profile/photo', [ConductorController::class, 'uploadProfilePhoto'])->middleware('throttle:conductor-write');
     Route::get('/units', [ConductorController::class, 'units'])->middleware('throttle:conductor-read');
     Route::get('/drivers', [ConductorController::class, 'drivers'])->middleware('throttle:conductor-read');
     Route::get('/receipt-settings', [ConductorController::class, 'receiptSettings'])->middleware('throttle:conductor-read');
+    Route::get('/safety-settings', [ConductorController::class, 'safetySettings'])->middleware('throttle:conductor-read');
     Route::get('/ratings', [ConductorController::class, 'ratings'])->middleware('throttle:conductor-read');
 
     Route::post('/shifts/start', [ConductorController::class, 'startShift'])->middleware('throttle:conductor-mutation');
@@ -105,6 +110,14 @@ Route::prefix('mobile/conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR',
 |--------------------------------------------------------------------------
 */
 Route::prefix('mobile/commuter')->middleware(['auth:sanctum', 'role:COMMUTER', 'maintenance'])->group(function () {
+    Route::get('/change-email', [EmailChangeController::class, 'state'])->middleware('throttle:commuter-read');
+    Route::prefix('change-email')->middleware('throttle:commuter-security')->group(function () {
+        Route::post('/start', [EmailChangeController::class, 'start']);
+        Route::post('/send-code', [EmailChangeController::class, 'sendCode']);
+        Route::post('/verify-identity', [EmailChangeController::class, 'verifyIdentity']);
+        Route::post('/confirm', [EmailChangeController::class, 'confirm']);
+        Route::post('/cancel', [EmailChangeController::class, 'cancel']);
+    });
     Route::get('/discount-applications', [StudentRenewalController::class, 'applicationState'])->middleware('throttle:commuter-read');
     Route::post('/discount-applications', [StudentRenewalController::class, 'applicationSubmit'])->middleware('throttle:conductor-write');
     Route::post('/discount-applications/cancel', [StudentRenewalController::class, 'applicationCancel'])->middleware('throttle:conductor-write');

@@ -32,6 +32,38 @@ class AdminAccountController extends Controller
         private ActivityLogService $activityLogService,
     ) {}
 
+    /** Replace only the authenticated administrator's picture. */
+    public function updatePhoto(Request $request): JsonResponse
+    {
+        $request->validate(['photo' => ['required', 'file', 'image', 'mimes:jpeg,jpg,png,webp', 'max:3072', 'dimensions:max_width=4096,max_height=4096']]);
+        $user = $request->user();
+        abort_unless($user->adminProfile()->exists(), 404, 'Administrator profile not found.');
+
+        try {
+            $url = $this->mediaStorage->storeProfileImage($request->file('photo'), 'admin', $user->id);
+        } catch (\Throwable $error) {
+            Log::error('Admin profile photo storage failed.', ['user_id' => $user->id, 'exception' => get_class($error)]);
+
+            return $this->errorResponse('The photo could not be stored. Please try again.', 503);
+        }
+
+        try {
+            DB::transaction(function () use ($user, $url) {
+                $profile = $user->adminProfile()->lockForUpdate()->firstOrFail();
+                $previous = $profile->profile_picture_url;
+                $profile->profile_picture_url = $url;
+                $profile->save();
+                DB::afterCommit(fn () => $this->mediaStorage->deletePublicUrl($previous));
+            });
+        } catch (\Throwable $error) {
+            $this->mediaStorage->deletePublicUrl($url);
+            throw $error;
+        }
+        $this->activityLogService->record(ActivityLogCategory::ACCOUNT, 'Updated own administrator profile picture.', $user);
+
+        return $this->successResponse(['profile_picture_url' => $url], 'Profile picture updated.');
+    }
+
     /**
      * POST /api/v1/admin/admins
      * Create an admin and require a password change at first sign-in.
