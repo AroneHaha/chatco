@@ -24,7 +24,6 @@ import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
 import { SuspensionModal } from '@/components/admin/users/suspension-modal';
 import type { SuspendUserInput } from '@/lib/admin/services/user.service';
 import { OperationResultModal } from '@/components/admin/ui/operation-result-modal';
-import { ConfirmPasswordModal } from '@/components/admin/ui/confirm-password-modal';
 import { PageTabs } from '@/components/admin/ui/page-tabs';
 import { DiscountApplicationsPanel } from '@/components/admin/users/discount-applications-panel';
 import { useAdminNotifications } from '@/contexts/admin-notifications-context';
@@ -66,7 +65,6 @@ export default function UsersPage() {
     rejectRegistrationApi,
     suspendUserApi,
     unsuspendUserApi,
-    disableConductorApi,
   } = useUsersData(activeTab);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -84,7 +82,6 @@ export default function UsersPage() {
   const [isReviewProcessing, setIsReviewProcessing] = useState(false);
   const [suspensionUser, setSuspensionUser] = useState<ActiveUser | null>(null);
   const [isSuspensionProcessing, setIsSuspensionProcessing] = useState(false);
-  const [disablingConductor, setDisablingConductor] = useState<ActiveUser | null>(null);
   const [reviewResult, setReviewResult] = useState<{
     type: 'success' | 'error';
     title: string;
@@ -261,16 +258,6 @@ export default function UsersPage() {
     } finally {
       setIsSuspensionProcessing(false);
     }
-  };
-
-  // Conductors are never suspended — Disable Account is their only block
-  // (same endpoint as Fleet Management). The password modal keeps itself
-  // open and shows the error inline when this throws (wrong password,
-  // active-shift conflict).
-  const handleDisableConductor = async (password: string): Promise<void> => {
-    if (!disablingConductor) return;
-    await disableConductorApi(disablingConductor.id, password);
-    setSuccessMessage('Conductor account disabled. All sessions revoked.');
   };
 
   // ─── Registration handlers (real API) ───
@@ -640,7 +627,7 @@ export default function UsersPage() {
                 users={activeUsers}
                 searchQuery=""
                 onDeactivate={handleDeactivateUser}
-                onDisableConductor={setDisablingConductor}
+                onPersonnelChanged={refetch}
                 onEdit={handleOpenEditModal}
                 onDelete={handleOpenDeleteModal}
                 onRowDoubleClick={handleRowDoubleClick}
@@ -720,16 +707,6 @@ export default function UsersPage() {
         onClose={() => { setSuspensionUser(null); setActionError(null); }}
         onSuspend={handleSuspendUser}
         onUnsuspend={handleUnsuspendUser}
-      />
-      <ConfirmPasswordModal
-        key={disablingConductor?.id ?? 'closed-disable'}
-        isOpen={!!disablingConductor}
-        onClose={() => setDisablingConductor(null)}
-        onConfirm={handleDisableConductor}
-        title="Disable Conductor Account"
-        description={`This revokes all active sessions for ${disablingConductor?.name ?? 'this conductor'} immediately.`}
-        confirmLabel="Disable Account"
-        variant="danger"
       />
       <OperationResultModal
         isOpen={reviewResult !== null}

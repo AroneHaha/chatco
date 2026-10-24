@@ -10,6 +10,9 @@ import type { ActiveUser, RejectedUser } from '@/app/(admin)/users/data/users-da
 import styles from './commuter-details.module.css';
 import { StatusReasonHint } from './status-reason-hint';
 import { CommuterTypeLabel } from './commuter-type-label';
+import { ConductorDetailModal } from '@/components/admin/vehicles/conductor-detail-modal';
+import { DriverDetailModal } from '@/components/admin/vehicles/driver-detail-modal';
+import type { Personnel } from '@/app/(admin)/vehicles/data/vehicles-data';
 
 type User = ActiveUser | RejectedUser;
 
@@ -77,8 +80,8 @@ interface UsersTableProps {
   users: User[];
   searchQuery: string;
   onDeactivate: (user: ActiveUser) => void;
-  /** Conductor rows: Disable Account (conductors are never suspended). */
-  onDisableConductor: (user: ActiveUser) => void;
+  /** Fired after Reset Credentials / Disable Account in a conductor's details, so the list can refresh. */
+  onPersonnelChanged?: () => void;
   onEdit: (user: ActiveUser) => void;
   onDelete: (user: ActiveUser) => void;
   isRejectedTab: boolean;
@@ -102,7 +105,15 @@ interface UsersTableProps {
   isRefreshing?: boolean;
 }
 
-export function UsersTable({ users, searchQuery, onDeactivate, onDisableConductor, onEdit, onDelete, isRejectedTab, selectedUser, onSelectUser, onRowDoubleClick, headerContent, pagination, onPageChange, isRefreshing }: UsersTableProps) {
+/** The Fleet Management details modals only read the id and name; the rest fills the Personnel shape. */
+function toPersonnel(user: ActiveUser, role: Personnel['role']): Personnel {
+  return { id: user.id, name: user.name, role, contact: user.phoneNumber, birthday: null, profilePic: user.profileImageUrl ?? '', status: 'ACTIVE' };
+}
+
+export function UsersTable({ users, searchQuery, onDeactivate, onPersonnelChanged, onEdit, onDelete, isRejectedTab, selectedUser, onSelectUser, onRowDoubleClick, headerContent, pagination, onPageChange, isRefreshing }: UsersTableProps) {
+  const selectedRole = selectedUser && 'role' in selectedUser ? selectedUser.role : null;
+  const personnelRole = selectedRole === 'CONDUCTOR' || selectedRole === 'DRIVER' ? selectedRole : null;
+
   const columns = [
     ...(!isRejectedTab ? [{
       // Unlabelled photo column; next/image serves a ~36px copy from R2.
@@ -245,8 +256,19 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
         )}
       </div>
 
-      {/* User Details Modal */}
-      <Modal adminThemed isOpen={!!selectedUser} onClose={() => onSelectUser(null)} maxWidth={selectedUser && 'role' in selectedUser && selectedUser.role === 'COMMUTER' ? 'max-w-md sm:max-w-3xl' : 'max-w-md sm:max-w-2xl'}>
+      {/* Conductors and drivers open the same details modal as Fleet Management. */}
+      <ConductorDetailModal
+        conductor={personnelRole === 'CONDUCTOR' ? toPersonnel(selectedUser as ActiveUser, 'Conductor') : null}
+        onClose={() => onSelectUser(null)}
+        onChanged={onPersonnelChanged}
+      />
+      <DriverDetailModal
+        driver={personnelRole === 'DRIVER' ? toPersonnel(selectedUser as ActiveUser, 'Driver') : null}
+        onClose={() => onSelectUser(null)}
+      />
+
+      {/* User Details Modal (commuters and admins) */}
+      <Modal adminThemed isOpen={!!selectedUser && personnelRole === null} onClose={() => onSelectUser(null)} maxWidth={selectedUser && 'role' in selectedUser && selectedUser.role === 'COMMUTER' ? 'max-w-md sm:max-w-3xl' : 'max-w-md sm:max-w-2xl'}>
         {selectedUser && (() => {
           const role = 'role' in selectedUser ? selectedUser.role : null;
           const roleLabel = role ? (ROLE_LABELS[role] ?? role) : 'User';
@@ -341,8 +363,8 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
             );
           }
 
-          // Admin / conductor / driver: the same identity-rail sheet as the
-          // commuter view above, with fewer fields.
+          // Admin: the same identity-rail sheet as the commuter view above,
+          // with fewer fields.
           const suspension = 'suspension' in selectedUser ? selectedUser.suspension : null;
           const contactRows = [
             ...(username ? [{ label: 'Username', value: username }] : []),
@@ -393,24 +415,13 @@ export function UsersTable({ users, searchQuery, onDeactivate, onDisableConducto
                   </section>
                 )}
 
-                {role === 'CONDUCTOR' && selectedUser.status === 'Disabled' && (
-                  <p className="text-sm text-slate-400 admin-light:text-slate-500">This conductor is disabled. Reset their credentials in Fleet Management to re-enable the account.</p>
-                )}
-                {role === 'DRIVER' && (
-                  <p className="text-sm text-slate-400 admin-light:text-slate-500">Driver account status is managed in Fleet Management.</p>
-                )}
               </div>
 
               <footer className={styles.sheetActions}>
                 <button type="button" onClick={() => { onEdit(selectedUser as ActiveUser); onSelectUser(null); }} className={styles.actionEdit}>Edit {roleLabel}</button>
-                {role === 'CONDUCTOR' && selectedUser.status === 'Active' && (
-                  <button type="button" onClick={() => { onDisableConductor(selectedUser as ActiveUser); onSelectUser(null); }} className={styles.actionSuspend}>Disable account</button>
-                )}
-                {role !== 'DRIVER' && role !== 'CONDUCTOR' && (
-                  <button type="button" onClick={() => { onDeactivate(selectedUser as ActiveUser); onSelectUser(null); }} className={selectedUser.status === 'Active' ? styles.actionSuspend : styles.actionReactivate}>
-                    {selectedUser.status === 'Active' ? 'Suspend account' : 'Reactivate account'}
-                  </button>
-                )}
+                <button type="button" onClick={() => { onDeactivate(selectedUser as ActiveUser); onSelectUser(null); }} className={selectedUser.status === 'Active' ? styles.actionSuspend : styles.actionReactivate}>
+                  {selectedUser.status === 'Active' ? 'Suspend account' : 'Reactivate account'}
+                </button>
               </footer>
             </div>
           );
