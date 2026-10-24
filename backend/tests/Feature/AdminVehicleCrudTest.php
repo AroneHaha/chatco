@@ -384,4 +384,17 @@ class AdminVehicleCrudTest extends TestCase
         ])->assertStatus(403);
         $this->actingAs($commuter)->deleteJson("/api/v1/admin/vehicles/{$vehicle->id}")->assertStatus(403);
     }
+
+    public function test_driver_detail_shows_vehicle_assigned_through_vehicle_record(): void
+    {
+        $admin = $this->makeAdmin();
+        $driver = Driver::factory()->create();
+        $vehicle = $this->makeVehicle(['driver_id' => $driver->id]);
+
+        $this->assertNull($driver->fresh()->getRawOriginal('vehicle_id'));
+        $this->actingAs($admin)->getJson("/api/v1/admin/drivers/{$driver->id}")
+            ->assertOk()
+            ->assertJsonPath('data.vehicle.id', $vehicle->id)
+            ->assertJsonPath('data.vehicle.unit_number', $vehicle->unit_number);
+    }
 }
