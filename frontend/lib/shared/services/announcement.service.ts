@@ -262,12 +262,18 @@ function buildQuery(params: Record<string, string | number | boolean | undefined
  */
 export async function list(params: {
   unreadOnly?: boolean;
+  /** Only notices addressed to this user (drops published announcements). */
+  notificationsOnly?: boolean;
+  /** Only these backend `type` values. */
+  types?: string[];
   page?: number;
   perPage?: number;
   signal?: AbortSignal;
 } = {}): Promise<AnnouncementPage> {
   const qs = buildQuery({
     unread_only: params.unreadOnly,
+    notifications_only: params.notificationsOnly,
+    types: params.types?.length ? params.types.join(",") : undefined,
     page: params.page,
     per_page: params.perPage,
   });

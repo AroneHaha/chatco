@@ -46,7 +46,9 @@ class AnnouncementService
      * Includes broadcasts (user_id IS NULL) plus rows targeted at this user.
      * Supports ?unread_only=1 to filter to unread only, and
      * ?notifications_only=1 to drop broadcasts and keep only the rows
-     * targeted at this user (the Updates Center "Notifications" set).
+     * targeted at this user (the Updates Center "Notifications" set), and
+     * ?types=a,b to keep only those `type` values (the conductor's remittance
+     * reminder popup).
      */
     public function listForUser(User $user, array $filters, int $perPage = 15): LengthAwarePaginator
     {
@@ -71,6 +73,10 @@ class AnnouncementService
 
         if (! empty($filters['unread_only'])) {
             $query->whereNull('announcement_reads.user_id');
+        }
+
+        if (! empty($filters['types'])) {
+            $query->whereIn('announcements.type', $filters['types']);
         }
 
         $paginator = $query->paginate($perPage);
@@ -405,6 +411,33 @@ class AnnouncementService
         );
 
         return $ids->count();
+    }
+
+    /**
+     * Mark a user's notices of one type about one record as read — for
+     * notices the user no longer needs to act on, e.g. a conductor's
+     * remittance reminders once that shift's cash has been declared.
+     */
+    public function markReadForReference(string $userId, string $type, string $referenceId): void
+    {
+        $ids = Announcement::query()
+            ->where('user_id', $userId)
+            ->where('type', $type)
+            ->where('reference_id', $referenceId)
+            ->pluck('id');
+
+        if ($ids->isEmpty()) {
+            return;
+        }
+
+        $now = now();
+        DB::table('announcement_reads')->insertOrIgnore(
+            $ids->map(fn (string $id) => [
+                'announcement_id' => $id,
+                'user_id' => $userId,
+                'read_at' => $now,
+            ])->all()
+        );
     }
 
     /** Shared "ACTIVE, visible to $user, not yet read, optionally type-filtered" query. */

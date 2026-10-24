@@ -8,6 +8,7 @@ use App\Enums\PaymentStatus;
 use App\Enums\ShiftStatus;
 use App\Models\ActivityLog;
 use App\Models\Announcement;
+use App\Services\AnnouncementService;
 use App\Models\Driver;
 use App\Models\Hail;
 use App\Models\OverspeedEvent;
@@ -661,6 +662,29 @@ class OperationalLifecycleTest extends TestCase
         Remittance::where('shift_id', $shift->shift_id)->update(['last_reminder_at' => now()->subHours(2)]);
         $this->artisan('remittances:send-reminders')->assertSuccessful();
         $this->assertSame(1, Announcement::where('type', 'REMITTANCE_REMINDER')->count());
+    }
+
+    public function test_conductor_reminder_feed_returns_only_unanswered_reminders(): void
+    {
+        [$conductor, , , , $shift] = $this->activeShift();
+        $this->fare($shift, PaymentMethod::CASH, PaymentStatus::PAID, 50);
+        app(ShiftCloseoutService::class)->close($shift->shift_id, null, ShiftCloseoutService::REASON_STALE);
+        Remittance::where('shift_id', $shift->shift_id)->update(['remittance_due_at' => now()->subMinute()]);
+        $this->artisan('remittances:send-reminders')->assertSuccessful();
+        // A different personal notice must not be returned by the type filter.
+        app(AnnouncementService::class)->notifyUser($conductor->id, 'LOST_ITEM_UPDATE', 'Other', 'Other notice');
+
+        $feed = fn () => $this->actingAs($conductor, 'sanctum')
+            ->getJson('/api/v1/announcements?unread_only=1&notifications_only=1&types=REMITTANCE_REMINDER')
+            ->assertOk();
+
+        $feed()->assertJsonCount(1, 'data.data')
+            ->assertJsonPath('data.data.0.type', 'REMITTANCE_REMINDER')
+            ->assertJsonPath('data.data.0.reference_id', $shift->shift_id);
+
+        // Declaring the cash answers the reminder, so the popup has nothing to show.
+        app(ShiftCloseoutService::class)->recordCashDeclaration($shift->shift_id, 50);
+        $feed()->assertJsonCount(0, 'data.data');
     }
 
     public function test_midnight_reset_closes_old_shift_preserves_pending_cash_and_does_not_clear_today_assignment(): void
