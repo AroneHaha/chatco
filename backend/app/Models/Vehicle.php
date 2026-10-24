@@ -25,11 +25,7 @@ class Vehicle extends Model
         'driver_id',
         'conductor_id',
         'status',
-        'speed',
         'capacity_status',
-        'latitude',
-        'longitude',
-        'last_location_update',
         'active_shift_id',
         'assignment_date',
         'assignment_approved_at',
@@ -40,10 +36,6 @@ class Vehicle extends Model
         return [
             'assignment_date' => 'date',
             'assignment_approved_at' => 'datetime',
-            'speed' => 'integer',
-            'latitude' => 'decimal:7',
-            'longitude' => 'decimal:7',
-            'last_location_update' => 'datetime',
             'active_shift_id' => 'string',
         ];
     }

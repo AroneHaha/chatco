@@ -2,7 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\Remittance;
+use App\Models\ShiftLog;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -324,6 +328,33 @@ class SchemaTest extends TestCase
                 Schema::hasColumn('sos_alerts', $column),
                 "Missing column: sos_alerts.{$column}"
             );
+        }
+    }
+
+    public function test_shift_with_money_records_cannot_be_deleted(): void
+    {
+        $shift = ShiftLog::factory()->create();
+        Remittance::factory()->create([
+            'shift_id' => $shift->shift_id,
+            'conductor_id' => $shift->conductor_id,
+            'driver_id' => $shift->driver_id,
+            'vehicle_id' => $shift->vehicle_id,
+            'conductor_name' => $shift->conductor_name,
+            'driver_name' => $shift->driver_name,
+            'unit_number' => $shift->unit_number,
+            'date' => now()->toDateString(),
+            'time_in' => $shift->time_in,
+            'time_out' => now(),
+            'cash_total' => 500,
+            'gcash_total' => 0,
+            'total_passengers' => 10,
+        ]);
+
+        try {
+            DB::table('shift_logs')->where('shift_id', $shift->shift_id)->delete();
+            $this->fail('Deleting a shift that has a remittance should be refused.');
+        } catch (QueryException) {
+            $this->assertDatabaseHas('remittances', ['shift_id' => $shift->shift_id]);
         }
     }
 }

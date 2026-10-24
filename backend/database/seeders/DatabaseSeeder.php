@@ -270,11 +270,7 @@ class DatabaseSeeder extends Seeder
                 'driver_id' => null,
                 'conductor_id' => null,
                 'status' => 'ACTIVE',
-                'speed' => null,
                 'capacity_status' => 'AVAILABLE',
-                'latitude' => null,
-                'longitude' => null,
-                'last_location_update' => null,
             ]);
         }
 
