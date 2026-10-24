@@ -22,12 +22,18 @@ interface Props {
   data: AnalyticsDailyPoint[];
   /** Window of the trailing average overlay, in days. */
   averageWindow?: number;
+  /** Plot height in px; the viewBox follows it, so text never stretches. */
+  height?: number;
 }
 
 const PAD = { top: 12, right: 8, bottom: 22, left: 46 };
-const HEIGHT = 260;
 
-export function DailyRevenueChart({ data, averageWindow = 7 }: Props) {
+// Cash and GCash are told apart by lightness, not hue (UI rules: no colour
+// coding): neutral slate for cash, CHATCO Blue for GCash.
+const CASH_FILL = "fill-[#475569] admin-light:fill-[#94A3B8]";
+const GCASH_FILL = "fill-[#62A0EA] admin-light:fill-[#1A5FB4]";
+
+export function DailyRevenueChart({ data, averageWindow = 7, height: HEIGHT = 260 }: Props) {
   const [hover, setHover] = useState<number | null>(null);
   const clipId = useId();
 
@@ -47,10 +53,12 @@ export function DailyRevenueChart({ data, averageWindow = 7 }: Props) {
     [data]
   );
 
-  if (data.length === 0) {
+  // The series is zero-filled, so "no data" means no day earned anything.
+  // Plotting that drew an empty chart on a ₱0–₱1 axis with repeated labels.
+  if (!data.some(d => d.total > 0)) {
     return (
-      <div className="py-16 text-center text-slate-600 admin-light:text-slate-500 text-sm">
-        No transaction data in this date range.
+      <div className="flex-1 flex items-center justify-center py-16 text-center text-slate-500 text-sm">
+        No fares in this date range.
       </div>
     );
   }
@@ -83,7 +91,8 @@ export function DailyRevenueChart({ data, averageWindow = 7 }: Props) {
     <div className="relative">
       <svg
         viewBox={`0 0 1000 ${HEIGHT}`}
-        className="w-full h-[260px] overflow-visible"
+        className="w-full overflow-visible"
+        style={{ height: HEIGHT }}
         role="img"
         aria-label={`Daily revenue from ${data[0].date} to ${data[data.length - 1].date}. Peak ${formatPeso(maxTotal)}.`}
         onMouseLeave={() => setHover(null)}
@@ -133,8 +142,7 @@ export function DailyRevenueChart({ data, averageWindow = 7 }: Props) {
                   y={PAD.top}
                   width={bandW}
                   height={plotH}
-                  fill={isHover ? "#62A0EA" : "transparent"}
-                  fillOpacity={isHover ? 0.07 : 0}
+                  className={isHover ? "fill-[#1A2540] admin-light:fill-[#EEF2F7]" : "fill-transparent"}
                   onMouseEnter={() => setHover(i)}
                 />
                 <rect
@@ -142,8 +150,7 @@ export function DailyRevenueChart({ data, averageWindow = 7 }: Props) {
                   y={PAD.top + plotH - cashH}
                   width={barW}
                   height={cashH}
-                  fill="#10b981"
-                  fillOpacity={isHover ? 1 : 0.75}
+                  className={CASH_FILL}
                   pointerEvents="none"
                 />
                 <rect
@@ -151,8 +158,7 @@ export function DailyRevenueChart({ data, averageWindow = 7 }: Props) {
                   y={PAD.top + plotH - cashH - gcashH}
                   width={barW}
                   height={gcashH}
-                  fill="#3b82f6"
-                  fillOpacity={isHover ? 1 : 0.75}
+                  className={GCASH_FILL}
                   pointerEvents="none"
                 />
               </g>
@@ -164,7 +170,7 @@ export function DailyRevenueChart({ data, averageWindow = 7 }: Props) {
             <polyline
               points={avgPath}
               fill="none"
-              stroke="#f59e0b"
+              className="stroke-[#E2E8F0] admin-light:stroke-[#334155]"
               strokeWidth={1.75}
               strokeLinejoin="round"
               strokeLinecap="round"
@@ -204,9 +210,9 @@ export function DailyRevenueChart({ data, averageWindow = 7 }: Props) {
         {active ? (
           <>
             <span className="text-slate-300 admin-light:text-slate-700 font-medium">{formatShortDate(active.date)}</span>
-            <div className="flex items-center gap-4 font-mono">
-              <span className="text-emerald-400 admin-light:text-emerald-700">{formatPeso(active.cash)}</span>
-              <span className="text-blue-400 admin-light:text-blue-700">{formatPeso(active.gcash)}</span>
+            <div className="flex items-center gap-4 font-mono text-slate-300 admin-light:text-slate-700">
+              <span><span className="font-sans text-slate-500">Cash </span>{formatPeso(active.cash)}</span>
+              <span><span className="font-sans text-slate-500">GCash </span>{formatPeso(active.gcash)}</span>
               <span className="text-white admin-light:text-slate-900 font-bold">{formatPeso(active.total)}</span>
               <span className="text-slate-500">{active.count} fares</span>
             </div>
@@ -221,7 +227,7 @@ export function DailyRevenueChart({ data, averageWindow = 7 }: Props) {
         <summary className="text-[11px] text-slate-500 cursor-pointer hover:text-slate-300 admin-light:text-slate-700 admin-light:hover:text-slate-700">
           View as table
         </summary>
-        <div className="mt-2 max-h-48 overflow-y-auto">
+        <div className="mt-2 max-h-48 overflow-y-auto scrollbar-themed">
           <table className="w-full text-[11px]">
             <thead className="sticky top-0 bg-[#131C2E] admin-light:bg-white">
               <tr className="text-slate-500 text-left">

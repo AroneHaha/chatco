@@ -20,10 +20,15 @@ export interface AnalyticsTotals {
   gcash_total: number;
   /** Rides settled for money — excludes free voucher rides. */
   paid_count: number;
-  /** Every PAID row including voucher rides = bodies carried. */
+  /** Passengers carried, voucher rides included. A group seat counts once. */
   total_passengers: number;
+  /** Cash and GCash passengers — the base for avg_fare. */
+  paying_passengers: number;
   pending_count: number;
   voucher_count: number;
+  /** Fare given away: discounts, discount vouchers and free reward rides. */
+  discount_total: number;
+  /** Revenue per paying passenger. */
   avg_fare: number;
 }
 
@@ -72,6 +77,7 @@ export type TransactionStatusKey =
 export type AnalyticsStatusBreakdown = Record<TransactionStatusKey, number> &
   Partial<Record<string, number>>;
 
+/** GCash outcomes counted per payment (a group payment counts once). */
 export interface AnalyticsGcashHealth {
   attempts: number;
   settled: number;
@@ -85,9 +91,13 @@ export interface AnalyticsGcashHealth {
 export interface AnalyticsRemittances {
   total_remitted: number;
   total_collected: number;
+  /** Shortage on remitted shifts only — unremitted cash is `awaiting_*`. */
   total_shortage: number;
   count: number;
   shortage_rate: number;
+  /** Ended shifts whose cash hasn't been handed in yet, and that cash. */
+  awaiting_count: number;
+  awaiting_amount: number;
 }
 
 export interface AnalyticsFleet {
@@ -95,6 +105,44 @@ export interface AnalyticsFleet {
   total_vehicles: number;
   active_conductors: number;
   total_conductors: number;
+}
+
+/** Shifts started in the window, and commuter ratings submitted in it. */
+export interface AnalyticsService {
+  shifts_run: number;
+  /** Mean length of the window's ended shifts; null when none has ended. */
+  avg_shift_minutes: number | null;
+  review_count: number;
+  /** Ride/driver rating (every review has one); null with no reviews. */
+  driver_rating: number | null;
+  /** Optional per review, so averaged over the reviews that gave one. */
+  conductor_rating: number | null;
+}
+
+export interface AnalyticsSafety {
+  sos_alerts: number;
+  /** Alerts from the window not yet resolved. */
+  sos_open: number;
+  overspeed_episodes: number;
+  overspeed_top_speed: number | null;
+}
+
+/** One unit's or conductor's shifts, passengers and fare revenue in the window. */
+export interface AnalyticsUnitPerformance {
+  vehicle_id: string;
+  unit_number: string;
+  plate_number: string;
+  shifts: number;
+  passengers: number;
+  revenue: number;
+}
+
+export interface AnalyticsConductorPerformance {
+  conductor_id: string;
+  name: string;
+  shifts: number;
+  passengers: number;
+  revenue: number;
 }
 
 export interface AnalyticsPickupPoint {
@@ -125,6 +173,13 @@ export interface AnalyticsData {
   fleet: AnalyticsFleet;
   pickup_points: AnalyticsPickupPoint[];
   heatmap_zones: AnalyticsHeatmapZone[];
+  service: AnalyticsService;
+  safety: AnalyticsSafety;
+  /** Ranked by revenue, highest first. */
+  performance: {
+    units: AnalyticsUnitPerformance[];
+    conductors: AnalyticsConductorPerformance[];
+  };
 }
 
 export interface AnalyticsRange {

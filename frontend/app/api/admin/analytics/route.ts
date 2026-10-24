@@ -12,10 +12,10 @@ import { proxyToLaravel } from "@/lib/conductor/server/proxy";
  *
  * Returns aggregated business metrics:
  *   - date_range: { from, to, days }
- *   - totals: { total_fares, cash_total, gcash_total, paid_count, pending_count, total_passengers }
+ *   - totals: { total_fares, cash_total, gcash_total, paid_count, pending_count, total_passengers, paying_passengers, discount_total, avg_fare }
  *   - payment_split: { cash: {count, total}, gcash: {count, total} }
  *   - daily_series: [{ date, cash, gcash, total, count }, ...]
- *   - remittances: { total_remitted, total_collected, total_shortage, count }
+ *   - remittances: { total_remitted, total_collected, total_shortage, count, shortage_rate, awaiting_count, awaiting_amount }
  *   - fleet: { active_vehicles, total_vehicles, active_conductors, total_conductors }
  */
 export async function GET(request: NextRequest) {
