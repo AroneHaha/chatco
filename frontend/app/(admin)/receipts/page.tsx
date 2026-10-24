@@ -108,7 +108,12 @@ export default function ReceiptsPage() {
   const filteredData = useMemo(() => {
     const query = debouncedSearchQuery.trim().toLowerCase();
     return records.filter((item: Receipt) => {
-      const matchesPayment = paymentFilter === 'All' || item.paymentMethod === paymentFilter;
+      // "Voucher" also matches Cash/GCash rides that had a discount voucher
+      // applied, so every voucher redemption is findable in one place.
+      const matchesPayment =
+        paymentFilter === 'All' ||
+        item.paymentMethod === paymentFilter ||
+        (paymentFilter === 'Voucher' && item.voucher !== null);
       const matchesSearch =
         !query ||
         item.commuterName.toLowerCase().includes(query) ||
@@ -140,7 +145,7 @@ export default function ReceiptsPage() {
       title: 'CHATCO Fare Receipts',
       fileName: `chatco-receipts-${new Date().toISOString().split('T')[0]}`,
       format,
-      headers: ['Transaction ID', 'Multiple Payment Ref', 'Commuter', 'Role', 'Paid By', 'Plate Number', 'Route', 'Gross Fare', 'Discount', 'Final Fare', 'Payment Method', 'Status', 'Reconciliation', 'Date', 'Time'],
+      headers: ['Transaction ID', 'Multiple Payment Ref', 'Commuter', 'Role', 'Paid By', 'Plate Number', 'Route', 'Gross Fare', 'Discount', 'Final Fare', 'Payment Method', 'Voucher', 'Status', 'Reconciliation', 'Date', 'Time'],
       rows: filteredData.map((receipt) => [
         receipt.id,
         receipt.multiplePaymentReference ?? '',
@@ -153,6 +158,7 @@ export default function ReceiptsPage() {
         receipt.discountAmount.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
         receipt.fare.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
         receipt.paymentMethod,
+        receipt.voucher ? `${receipt.voucher.code} (${receipt.voucher.description})` : '',
         receipt.status,
         receipt.reconciliationStatus === 'REFUND_REQUIRED' ? 'Refund required' : receipt.reconciliationStatus ?? '',
         receipt.date,

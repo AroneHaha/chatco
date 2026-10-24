@@ -1313,7 +1313,14 @@ class AdminController extends Controller
     {
         $perPage = (int) $request->integer('per_page', 100);
 
-        $query = Transaction::with(['shiftLog', 'passenger', 'payer', 'passengerBreakdown', 'paymentGroup:id,reference_number'])
+        // The voucher a ride used, so Receipts can show it alongside the real
+        // payment method: a discount voucher leaves the row CASH/GCASH, and
+        // only voucher_id records that one was applied. withTrashed() keeps the
+        // code visible after an admin soft-deletes a voucher that was used.
+        $query = Transaction::with([
+            'shiftLog', 'passenger', 'payer', 'passengerBreakdown', 'paymentGroup:id,reference_number',
+            'voucher' => fn ($voucher) => $voucher->withTrashed()->select('id', 'code', 'type', 'amount'),
+        ])
             ->orderBy('created_at', 'desc');
 
         if ($request->has('shift_id')) {

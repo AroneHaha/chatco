@@ -2291,6 +2291,34 @@ SQL);
         $this->assertSame('AVAILABLE', $voucher->fresh()->status);
     }
 
+    public function test_admin_transactions_include_the_voucher_used_alongside_the_payment_method(): void
+    {
+        config(['payments.gateways.paymongo.secret' => null]);
+        $this->forgetGateway();
+        $voucher = $this->createRewardVoucher($this->commuter1, ['type' => 'DISCOUNT', 'amount' => 5]);
+        $txn = app(TransactionService::class)->initiateGcashFare($this->conductor, [
+            'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
+        ])['transaction'];
+        app(TransactionService::class)->claimGcash($this->commuter1, $txn->qr_token);
+        app(TransactionService::class)->redeemVoucherForGcash($this->commuter1, $txn->transaction_id);
+        $plain = app(TransactionService::class)->recordCashFare($this->conductor, [
+            'final_amount' => 15, 'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
+        ]);
+
+        // A used voucher an admin later deleted must still show on the receipt.
+        $voucher->fresh()->delete();
+
+        Sanctum::actingAs($this->admin);
+        $rows = collect($this->getJson('/api/v1/admin/transactions')->assertOk()->json('data.data'))
+            ->keyBy('transaction_id');
+
+        $this->assertSame('GCASH', $rows[$txn->transaction_id]['payment_method']);
+        $this->assertSame($voucher->code, $rows[$txn->transaction_id]['voucher']['code']);
+        $this->assertSame('DISCOUNT', $rows[$txn->transaction_id]['voucher']['type']);
+        $this->assertSame('5.00', $rows[$txn->transaction_id]['voucher']['amount']);
+        $this->assertNull($rows[$plain->transaction_id]['voucher']);
+    }
+
     public function test_group_discount_changes_only_payer_fare_and_preserves_accounting(): void
     {
         config(['payments.gateways.paymongo.secret' => null]);

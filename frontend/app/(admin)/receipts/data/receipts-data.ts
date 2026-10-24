@@ -5,6 +5,7 @@
 // No mock data — admin sees only real DB data.
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { formatPeso } from "@/lib/utils/display";
 
 export interface Receipt {
   id: string;
@@ -23,6 +24,9 @@ export interface Receipt {
   // "Unknown" is the explicit fail-safe for a value the backend sent that we
   // don't recognise. It is never guessed at — see mapLaravelTransaction.
   paymentMethod: "Cash" | "Gcash" | "Voucher" | "Unknown";
+  // The voucher applied to this ride, if any. Independent of paymentMethod:
+  // a discount voucher leaves the row Cash/Gcash for the remaining fare.
+  voucher: { code: string; description: string } | null;
   status: "Completed" | "Pending" | "Failed" | "Cancelled" | "Expired" | "Refunded" | "Unknown";
   reconciliationStatus: "REFUND_REQUIRED" | "REFUNDED" | null;
   reconciliationReason: string | null;
@@ -148,6 +152,19 @@ function mapLaravelTransaction(r: Record<string, unknown>): Receipt {
       ? "PWD"
       : rawRole.charAt(0) + rawRole.slice(1).toLowerCase();
   const paymentGroup = r.payment_group as Record<string, unknown> | null;
+  const rawVoucher = r.voucher as Record<string, unknown> | null;
+  const voucherType = String(rawVoucher?.type ?? "");
+  const voucher = rawVoucher?.code
+    ? {
+        code: String(rawVoucher.code),
+        description:
+          voucherType === "DISCOUNT"
+            ? `${formatPeso(Number(rawVoucher.amount) || 0)} off`
+            : voucherType === "REWARD"
+              ? "Reward free ride"
+              : "Free ride",
+      }
+    : null;
 
   return {
     id: String(r.transaction_id ?? ""),
@@ -166,6 +183,7 @@ function mapLaravelTransaction(r: Record<string, unknown>): Receipt {
       : null,
     passengerBreakdown: breakdown,
     paymentMethod,
+    voucher,
     status,
     reconciliationStatus:
       r.payment_reconciliation_status === "REFUND_REQUIRED" || r.payment_reconciliation_status === "REFUNDED"

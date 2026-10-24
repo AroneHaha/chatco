@@ -76,22 +76,46 @@ function Status({ receipt }: { receipt: Receipt }) {
   );
 }
 
-function Payment({ method }: { method: Receipt['paymentMethod'] }) {
+function voucherTitle(voucher: NonNullable<Receipt['voucher']>): string {
+  return `Voucher ${voucher.code} · ${voucher.description}`;
+}
+
+/**
+ * The method that settled the fare, plus a "+ Voucher" line when a voucher
+ * was applied too (a discount voucher leaves the method Cash/GCash). A
+ * Voucher-method row is already labelled, so it only gains the code on hover.
+ */
+function Payment({ receipt }: { receipt: Receipt }) {
+  const { paymentMethod: method, voucher } = receipt;
   const Icon = METHOD_ICON[method];
   return (
-    <span className="inline-flex items-center gap-1.5 text-slate-300 admin-light:text-slate-700">
-      {Icon && <Icon size={14} aria-hidden="true" className="shrink-0 text-slate-500" />}
-      {METHOD_LABEL[method] ?? method}
+    <span className="inline-flex min-w-0 flex-col gap-0.5">
+      <span
+        className="inline-flex items-center gap-1.5 text-slate-300 admin-light:text-slate-700"
+        title={method === 'Voucher' && voucher ? voucherTitle(voucher) : undefined}
+      >
+        {Icon && <Icon size={14} aria-hidden="true" className="shrink-0 text-slate-500" />}
+        {METHOD_LABEL[method] ?? method}
+      </span>
+      {voucher && method !== 'Voucher' && (
+        <span className="inline-flex items-center gap-1 text-xs text-slate-400 admin-light:text-slate-500" title={voucherTitle(voucher)}>
+          <Ticket size={12} aria-hidden="true" className="shrink-0 text-slate-500" />
+          + Voucher
+        </span>
+      )}
     </span>
   );
 }
 
 function Amount({ receipt }: { receipt: Receipt }) {
+  const discountTitle = `${formatPeso(receipt.grossFare)} less ${formatPeso(receipt.discountAmount)} discount${
+    receipt.voucher ? ` (includes voucher ${receipt.voucher.code}, ${receipt.voucher.description})` : ''
+  }`;
   return (
     <span className="whitespace-nowrap tabular-nums">
       <span className="font-semibold text-white admin-light:text-slate-900">{formatPeso(receipt.fare)}</span>
       {receipt.discountAmount > 0 && (
-        <span className="ml-1.5 text-xs text-slate-400 admin-light:text-slate-500" title={`${formatPeso(receipt.grossFare)} less ${formatPeso(receipt.discountAmount)} discount`}>
+        <span className="ml-1.5 text-xs text-slate-400 admin-light:text-slate-500" title={discountTitle}>
           −{formatPeso(receipt.discountAmount)}
         </span>
       )}
@@ -156,7 +180,7 @@ export function ReceiptsLedger({ rows, dayStats, emptyMessage }: { rows: Receipt
                     {rider(receipt)}
                     {receipt.paidBy && <span className="text-slate-500"> · paid by {receipt.paidBy}</span>}
                   </td>
-                  <td className={`${td} border-b border-[#162033] admin-light:border-[#EEF2F7]`}><Payment method={receipt.paymentMethod} /></td>
+                  <td className={`${td} border-b border-[#162033] admin-light:border-[#EEF2F7]`}><Payment receipt={receipt} /></td>
                   <td className={`${td} border-b border-[#162033] truncate admin-light:border-[#EEF2F7]`} title={`${receipt.plateNumber} · ${receipt.route}`}>
                     <span className="font-medium text-slate-200 admin-light:text-slate-800">{receipt.plateNumber}</span>
                     <span className="text-slate-400 admin-light:text-slate-500"> · {receipt.route}</span>
@@ -189,7 +213,7 @@ export function ReceiptsLedger({ rows, dayStats, emptyMessage }: { rows: Receipt
                   </div>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                     <span className="text-slate-300 admin-light:text-slate-700">{rider(receipt)}</span>
-                    <Payment method={receipt.paymentMethod} />
+                    <Payment receipt={receipt} />
                     <Status receipt={receipt} />
                   </div>
                   <p className="truncate text-xs text-slate-400 admin-light:text-slate-500" title={receipt.route}>
