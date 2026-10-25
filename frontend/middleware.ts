@@ -42,8 +42,6 @@ export async function middleware(request: NextRequest) {
       "/discount-application",
       "/student-renewal",
       "/gcash/return",
-      "/discount-application",
-      "/student-renewal",
     ],
     conductor: [
       "/unit-verification",

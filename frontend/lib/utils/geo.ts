@@ -2,8 +2,6 @@
  * Shared geo utilities — single source of truth for Haversine distance.
  *
  * Used by:
- *   - lib/fare-calculator.ts (getNearestPoint)
- *   - lib/fare-matrix-data.ts (findNearestPoint)
  *   - lib/nearby-detector.ts (calculateDistance)
  *   - components/conductor/conductor-map.tsx (getDistanceMeters)
  *
