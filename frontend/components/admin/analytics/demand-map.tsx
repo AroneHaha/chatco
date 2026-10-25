@@ -19,16 +19,10 @@ interface Props {
   zones: AnalyticsHeatmapZone[];
 }
 
-/** Zone colour by intensity — mirrors the backend's thresholds. */
-const INTENSITY_FILL: Record<string, string> = {
-  Critical: "#ef4444",
-  High: "#f97316",
-  Moderate: "#eab308",
-  Low: "#22c55e",
-};
-
 export default function DemandMap({ zones }: Props) {
   const [theme] = useAdminTheme();
+  // One colour for every zone (UI rules: no colour coding); size carries volume.
+  const markerColor = theme === "light" ? "#1A5FB4" : "#62A0EA";
   if (zones.length === 0) {
     return (
       <div className="h-full flex items-center justify-center text-slate-600 admin-light:text-slate-500 text-xs">
@@ -63,8 +57,8 @@ export default function DemandMap({ zones }: Props) {
           // 4x, which would visually overstate it.
           radius={6 + Math.sqrt(z.commuters / maxCommuters) * 18}
           pathOptions={{
-            color: INTENSITY_FILL[z.intensity] ?? "#64748b",
-            fillColor: INTENSITY_FILL[z.intensity] ?? "#64748b",
+            color: markerColor,
+            fillColor: markerColor,
             fillOpacity: 0.45,
             weight: 1.5,
           }}
@@ -73,7 +67,7 @@ export default function DemandMap({ zones }: Props) {
             <div className="text-xs">
               <span className="font-semibold">{z.zone}</span>
               <br />
-              {z.commuters} boardings · {z.intensity}
+              {z.commuters} boardings
             </div>
           </Tooltip>
         </CircleMarker>

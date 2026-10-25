@@ -29,23 +29,33 @@ import {
   type AnalyticsRange,
 } from '@/lib/admin/services/analytics.service';
 import { RemittanceTable } from '@/components/admin/analytics/remittance-table';
-import { PaymentUsageTable } from '@/components/admin/analytics/payment-usage-table';
-import { PickupPointsList } from '@/components/admin/analytics/pickup-points-list';
 import { DemandHeatmapData } from '@/components/admin/analytics/demand-heatmap-data';
 import { DailyRevenueChart } from '@/components/admin/analytics/daily-revenue-chart';
 import { PeakHoursChart } from '@/components/admin/analytics/peak-hours-chart';
 import { PerformanceTable } from '@/components/admin/analytics/performance-table';
 import { MetricPairTile } from '@/components/admin/analytics/metric-pair-tile';
-import type { PickupPoint } from '@/app/(admin)/analytics/data/analytics-data';
+import {
+  REPORTS,
+  ReportTable,
+  buildConductorsReport,
+  buildDailyReport,
+  buildGcashReport,
+  buildPickupsReport,
+  buildRemittanceReport,
+  buildUnitsReport,
+  exportRows,
+  formatCell,
+  isReportId,
+  type RemittanceRow,
+  type ReportId,
+  type ReportSpec,
+} from '@/components/admin/analytics/report-tables';
 import { SkeletonCard } from '@/components/admin/ui/skeleton';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
 import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
 import { InlineError } from '@/components/admin/ui/inline-error';
 import { exportReport, type ReportFormat } from '@/lib/utils/export-report';
-import type {
-  AnalyticsRemittance,
-  PaymentMethodUsage,
-} from './data/analytics-data';
+import type { AnalyticsRemittance } from './data/analytics-data';
 
 // ═══════════════════════════════════════════════════════════════════════
 // TAB TYPE
@@ -171,33 +181,6 @@ function SectionEyebrow({ children }: { children: React.ReactNode }) {
 // REPORTS TAB
 // ═══════════════════════════════════════════════════════════════════════
 
-interface RemittanceRow {
-  shift_id: string;
-  conductor_name: string;
-  driver_name: string;
-  unit_number: string;
-  date: string;
-  time_in: string | null;
-  time_out: string | null;
-  cash_total: number;
-  gcash_total: number;
-  total_passengers: number;
-  remittance_status: string;
-}
-
-// The API sends the backend Remittance enum's raw uppercase codes —
-// 'PENDING' | 'COMPLETE' | 'SHORTAGE' | 'OVERAGE' (see Remittance.php) —
-// never the literal string 'Remitted'. Comparing against 'Remitted' directly
-// was always false, so every row silently rendered as Pending regardless of
-// its actual state. This mirrors the decoding the Remittance module already
-// does correctly in remittance-data.tsx: any status other than PENDING means
-// a remittance record exists, i.e. the shift has been remitted (SHORTAGE/
-// OVERAGE still count — they're a remitted amount that didn't reconcile,
-// not an un-remitted one). 'Remitted' itself is kept as a legacy fallback.
-function isRemittedStatus(status: string): boolean {
-  return status === 'COMPLETE' || status === 'SHORTAGE' || status === 'OVERAGE' || status === 'Remitted';
-}
-
 function useRemittanceRows(range: AnalyticsRange, enabled: boolean) {
   const [rows, setRows] = useState<RemittanceRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -229,6 +212,9 @@ function useRemittanceRows(range: AnalyticsRange, enabled: boolean) {
         ...r,
         cash_total: Number(r.cash_total) || 0,
         gcash_total: Number(r.gcash_total) || 0,
+        remitted_amount: Number(r.remitted_amount) || 0,
+        shortage: Number(r.shortage) || 0,
+        overage: Number(r.overage) || 0,
         total_passengers: Number(r.total_passengers) || 0,
       }));
       setRows(normalized as RemittanceRow[]);
@@ -254,118 +240,128 @@ function useRemittanceRows(range: AnalyticsRange, enabled: boolean) {
   return { rows, isLoading, error, refetch: fetchRows };
 }
 
+function ReportsLoading() {
+  return <SkeletonCard count={1} height="560px" adminThemed />;
+}
+
+function ReportsError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 text-center">
+      <AlertCircle className="h-12 w-12 text-red-400 admin-light:text-red-600 mb-4" />
+      <p className="text-sm text-slate-400 admin-light:text-slate-500 mb-4">{message}</p>
+      <button
+        onClick={onRetry}
+        className="px-4 py-2 bg-[#62A0EA] admin-light:bg-[#1A5FB4] hover:bg-[#99C1F1] admin-light:hover:bg-[#164A8F] text-white rounded-md text-sm font-medium transition-colors"
+      >
+        Try Again
+      </button>
+    </div>
+  );
+}
+
+/**
+ * One report at a time, picked from the switcher. The remittance report has
+ * its own fetch (/admin/remittances); every other report reads the analytics
+ * payload the Overview already loaded. The parent builds `spec` so the Export
+ * button downloads exactly the report on screen.
+ */
 function ReportsTab({
-  analyticsData,
+  report,
+  onReportChange,
   rangeLabel,
+  spec,
+  analyticsData,
+  analyticsLoading,
+  analyticsError,
+  refetchAnalytics,
   range,
   scopedRows,
-  isLoading,
-  error,
-  refetch,
+  remittanceLoading,
+  remittanceError,
+  refetchRemittances,
 }: {
+  report: ReportId;
+  onReportChange: (report: ReportId) => void;
+  /** The selected window, shown at the right end of the switcher row. */
+  rangeLabel: string | null;
+  spec: ReportSpec | null;
   analyticsData: AnalyticsData | null;
-  rangeLabel: string;
+  analyticsLoading: boolean;
+  analyticsError: string | null;
+  refetchAnalytics: () => void;
   range: AnalyticsRange;
-  /** Remittance rows already fetched + date-scoped by the parent, which also
-   * owns the Export button (moved up into the shared filter row so it can
-   * sit beside the day-range presets instead of its own row down here). */
+  /** Remittance rows already fetched + date-scoped by the parent. */
   scopedRows: RemittanceRow[];
-  isLoading: boolean;
-  error: string | null;
-  refetch: () => void;
+  remittanceLoading: boolean;
+  remittanceError: string | null;
+  refetchRemittances: () => void;
 }) {
-  const dateFrom = range.date_from;
-  const dateTo = range.date_to;
-
   const remittanceTableData: AnalyticsRemittance[] = useMemo(() => {
     return scopedRows.map(r => ({
-      shiftId: r.shift_id.slice(0, 12),
+      shiftId: r.shift_id,
       conductor: r.conductor_name ?? '—',
-      vehiclePlate: r.unit_number ?? '—',
+      unit: r.unit_number ?? '—',
       date: r.date ?? '—',
-      remittedAmount: r.cash_total + r.gcash_total,
       cashAmount: r.cash_total,
       gcashAmount: r.gcash_total,
-      status: isRemittedStatus(r.remittance_status) ? 'Remitted' as const : 'Pending' as const,
+      remittedAmount: r.remittance_status === 'PENDING' ? null : r.remitted_amount,
+      shortage: r.shortage,
+      overage: r.overage,
+      status: r.remittance_status,
     }));
   }, [scopedRows]);
 
-  // Payment usage now includes Voucher, matching the donut and the Receipts
-  // page. Shares are computed over ride counts, so they sum to 100%.
-  const paymentUsageData: PaymentMethodUsage[] = useMemo(() => {
-    if (!analyticsData) return [];
-    const s = analyticsData.payment_split;
-    const total = s.cash.count + s.gcash.count + s.voucher.count;
-    const share = (n: number) => (total > 0 ? (n / total) * 100 : 0);
-    return [
-      { method: 'Cash', transactions: s.cash.count, percentage: share(s.cash.count), amount: formatPeso(s.cash.total), color: 'bg-emerald-500', icon: '💵' },
-      { method: 'GCash', transactions: s.gcash.count, percentage: share(s.gcash.count), amount: formatPeso(s.gcash.total), color: 'bg-blue-500', icon: '📱' },
-      { method: 'Voucher', transactions: s.voucher.count, percentage: share(s.voucher.count), amount: formatPeso(s.voucher.total), color: 'bg-pink-500', icon: '🎟️' },
-    ];
-  }, [analyticsData]);
+  const isRemittance = report === 'remittance';
+  const isLoading = isRemittance ? remittanceLoading : analyticsLoading;
+  const error = isRemittance ? remittanceError : analyticsError;
 
-  const pickupPoints: PickupPoint[] = useMemo(() => {
-    if (!analyticsData?.pickup_points) return [];
-    return analyticsData.pickup_points.map(p => ({ name: p.name, count: p.count }));
-  }, [analyticsData]);
-
+  let body: React.ReactNode;
   if (isLoading) {
-    return (
-      <div className="grid lg:grid-cols-2 gap-6">
-        <SkeletonCard count={2} height="300px" adminThemed />
-        <SkeletonCard count={2} height="300px" adminThemed />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <AlertCircle className="h-12 w-12 text-red-400 admin-light:text-red-600 mb-4" />
-        <p className="text-sm text-slate-400 admin-light:text-slate-500 mb-4">{error}</p>
-        <button
-          onClick={() => refetch()}
-          className="px-4 py-2 bg-[#62A0EA] admin-light:bg-[#1A5FB4] hover:bg-[#99C1F1] admin-light:hover:bg-[#164A8F] text-white rounded-md text-sm font-medium transition-colors"
-        >
-          Try Again
-        </button>
-      </div>
-    );
+    body = <ReportsLoading />;
+  } else if (error) {
+    body = <ReportsError message={error} onRetry={isRemittance ? refetchRemittances : refetchAnalytics} />;
+  } else if (isRemittance) {
+    body = <RemittanceTable data={remittanceTableData} dateFrom={range.date_from} dateTo={range.date_to} />;
+  } else if (report === 'pickups') {
+    body = <DemandHeatmapData zones={analyticsData?.heatmap_zones ?? []} />;
+  } else {
+    body = spec && <ReportTable spec={spec} />;
   }
 
   return (
-    <div className="space-y-4">
-      {/* Two independent stacked columns, not a 2x2 grid: a CSS grid forces
-          paired cells in the same row to share one track height, which left
-          a ~100px dead gap under the shorter card whenever a row's two cards
-          didn't match exactly. Each card keeps a fixed height with an
-          internal scroll region (see PickupPointsList/DemandHeatmapData) so
-          a card with lots of rows scrolls instead of growing the page.
-          PickupPointsList's height was bumped to 500px so this column
-          (500+370) totals the same as the left column (600+270) — the
-          eyebrow above each column adds identical height to both, so it
-          doesn't change that balance. Each column also gets a named eyebrow
-          now: the two stacks used to have no label explaining why THESE two
-          cards live together, distinct from the other stack. */}
-      <div className="grid lg:grid-cols-2 gap-6">
-        <div className="space-y-3">
-          <SectionEyebrow>Remittances &amp; Payments</SectionEyebrow>
-          <div className="space-y-6">
-            <RemittanceTable data={remittanceTableData} dateFrom={dateFrom} dateTo={dateTo} />
-            <PaymentUsageTable data={paymentUsageData} />
+    <div className="space-y-4 lg:flex lg:flex-col lg:flex-1 lg:min-h-0">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
+        {/* Below md the switcher scrolls sideways, bleeding to the screen edge
+            like the Overview revenue cards. */}
+        <div className="-mx-4 px-4 md:mx-0 md:px-0 overflow-x-auto scrollbar-hide min-w-0">
+          <div role="tablist" aria-label="Report" className="inline-flex items-center gap-1 bg-[#0E1628] admin-light:bg-white p-1 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0]">
+            {REPORTS.map(item => (
+              <button
+                key={item.id}
+                role="tab"
+                aria-selected={report === item.id}
+                onClick={() => onReportChange(item.id)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${
+                  report === item.id
+                    ? 'bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white'
+                    : 'text-slate-400 hover:text-white admin-light:text-slate-600 admin-light:hover:text-slate-900'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
           </div>
-        </div>
-        <div className="space-y-3">
-          <SectionEyebrow>Demand &amp; Pickup Points</SectionEyebrow>
-          <div className="space-y-6">
-            <PickupPointsList data={pickupPoints} />
-            <DemandHeatmapData
-              zones={analyticsData?.heatmap_zones ?? []}
-              rangeLabel={rangeLabel}
-            />
-          </div>
-        </div>
       </div>
+
+      {rangeLabel && (
+        <p className="flex shrink-0 items-center gap-1.5 text-sm text-slate-400 admin-light:text-slate-500">
+          <CalendarDays size={14} className="text-slate-500 shrink-0" />
+          {rangeLabel}
+        </p>
+      )}
+      </div>
+
+      {body}
     </div>
   );
 }
@@ -597,47 +593,59 @@ export default function AnalyticsPage() {
   );
   const [customFrom, setCustomFrom] = useState(searchParams.get('from') ?? '');
   const [customTo, setCustomTo] = useState(searchParams.get('to') ?? '');
+  const urlReport = searchParams.get('report');
+  const [report, setReport] = useState<ReportId>(isReportId(urlReport) ? urlReport : 'remittance');
 
   // Guard the custom range: an inverted from/to would silently return an
   // empty window with no explanation.
   const rangeInvalid = preset === 'custom' && !!customFrom && !!customTo && customFrom > customTo;
-  const customIncomplete = preset === 'custom' && (!customFrom || !customTo);
+  const customIncomplete = preset === 'custom' && !customFrom && !customTo;
 
-  const range: AnalyticsRange = useMemo(() => {
+  // The range the user is asking for, or null while Custom has no usable
+  // dates yet (none picked, or reversed).
+  const requestedRange: AnalyticsRange | null = useMemo(() => {
     if (preset === 'custom') {
-      if (rangeInvalid || customIncomplete) return {};
-      return { date_from: customFrom, date_to: customTo };
+      if (rangeInvalid || customIncomplete) return null;
+      // One date picked (either picker) means that single day.
+      return { date_from: customFrom || customTo, date_to: customTo || customFrom };
     }
     return presetToRange(preset);
   }, [preset, customFrom, customTo, rangeInvalid, customIncomplete]);
+
+  // The range actually loaded. Picking Custom without dates keeps the
+  // previous range instead of reloading the backend's 30-day default, so
+  // nothing loads until a date is chosen. (State adjusted during render, the
+  // React-documented way to follow a changing value without an effect.)
+  const [range, setRange] = useState<AnalyticsRange>(requestedRange ?? {});
+  if (requestedRange && (requestedRange.date_from !== range.date_from || requestedRange.date_to !== range.date_to)) {
+    setRange(requestedRange);
+  }
 
   // Mirror state into the URL without pushing history entries for every click.
   useEffect(() => {
     const p = new URLSearchParams();
     p.set('tab', activeTab);
+    if (activeTab === 'reports') p.set('report', report);
     p.set('preset', preset);
     if (preset === 'custom') {
       if (customFrom) p.set('from', customFrom);
       if (customTo) p.set('to', customTo);
     }
     router.replace(`?${p.toString()}`, { scroll: false });
-  }, [activeTab, preset, customFrom, customTo, router]);
+  }, [activeTab, report, preset, customFrom, customTo, router]);
 
   const { data, isLoading, error, refetch } = useAnalytics(range);
 
-  const rangeLabel = data
-    ? `${data.date_range.from} → ${data.date_range.to} (${data.date_range.days}d)`
-    : 'Loading…';
-
   // Remittance data + the Export button live up here (not inside ReportsTab)
   // so the button can sit in the shared filter row, beside the day-range
-  // presets, instead of its own row inside the Reports tab body.
+  // presets, instead of its own row inside the Reports tab body. Only the
+  // Shift Remittance report reads these rows, so only it fetches them.
   const {
     rows: remittanceRows,
     isLoading: isLoadingRemittances,
     error: remittanceError,
     refetch: refetchRemittances,
-  } = useRemittanceRows(range, activeTab === 'reports');
+  } = useRemittanceRows(range, activeTab === 'reports' && report === 'remittance');
   const dateFrom = range.date_from;
   const dateTo = range.date_to;
 
@@ -668,22 +676,29 @@ export default function AnalyticsPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // The report on screen, as columns + raw rows: the table renders it and
+  // every export format writes it, so an export always matches the screen.
+  const reportSpec: ReportSpec | null = useMemo(() => {
+    if (report === 'remittance') return buildRemittanceReport(scopedRows);
+    if (!data) return null;
+    const builders = {
+      daily: buildDailyReport,
+      units: buildUnitsReport,
+      conductors: buildConductorsReport,
+      pickups: buildPickupsReport,
+      gcash: buildGcashReport,
+    };
+    return builders[report](data);
+  }, [report, scopedRows, data]);
+
+  const reportBusy = report === 'remittance' ? isLoadingRemittances : isLoading;
+  const exportRowCount = reportBusy || !reportSpec ? 0 : reportSpec.rows.length;
+  const exportFileName = `chatco-${report}-${dateFrom ?? 'all'}-to-${dateTo ?? 'all'}`;
+
   const handleExportCSV = useCallback(() => {
-    const headers = ['Shift ID', 'Conductor', 'Driver', 'Unit', 'Date', 'Time In', 'Time Out', 'Cash', 'GCash', 'Total', 'Passengers', 'Status'];
-    const body = scopedRows.map(r => [
-      r.shift_id,
-      r.conductor_name ?? '',
-      r.driver_name ?? '',
-      r.unit_number ?? '',
-      r.date ?? '',
-      r.time_in ?? '',
-      r.time_out ?? '',
-      r.cash_total.toFixed(2),
-      r.gcash_total.toFixed(2),
-      (r.cash_total + r.gcash_total).toFixed(2),
-      String(r.total_passengers ?? 0),
-      r.remittance_status ?? '',
-    ]);
+    if (!reportSpec) return;
+    const headers = reportSpec.columns.map(column => column.label);
+    const body = exportRows(reportSpec).map(row => row.map((value, i) => formatCell(reportSpec.columns[i].kind, value, 'csv')));
 
     const esc = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
     const csv = [headers.map(esc).join(','), ...body.map(row => row.map(esc).join(','))].join('\n');
@@ -693,68 +708,62 @@ export default function AnalyticsPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `chatco-remittances-${dateFrom ?? 'all'}-to-${dateTo ?? 'all'}.csv`;
+    link.download = `${exportFileName}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-  }, [scopedRows, dateFrom, dateTo]);
+  }, [reportSpec, exportFileName]);
 
   const handleReportExport = useCallback((format: ReportFormat) => {
+    if (!reportSpec) return;
     exportReport({
-      title: 'CHATCO Remittance Analytics',
-      fileName: `chatco-remittances-${dateFrom ?? 'all'}-to-${dateTo ?? 'all'}`,
+      title: `CHATCO ${reportSpec.title}`,
+      fileName: exportFileName,
       format,
-      headers: ['Shift ID', 'Conductor', 'Driver', 'Unit', 'Date', 'Time In', 'Time Out', 'Cash', 'GCash', 'Total', 'Passengers', 'Status'],
-      rows: scopedRows.map((row) => [
-        row.shift_id,
-        row.conductor_name ?? '',
-        row.driver_name ?? '',
-        row.unit_number ?? '',
-        row.date ?? '',
-        row.time_in ?? '',
-        row.time_out ?? '',
-        row.cash_total.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
-        row.gcash_total.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
-        (row.cash_total + row.gcash_total).toLocaleString('en-PH', { minimumFractionDigits: 2 }),
-        row.total_passengers ?? 0,
-        row.remittance_status ?? '',
-      ]),
+      headers: reportSpec.columns.map(column => column.label),
+      rows: exportRows(reportSpec).map(row => row.map((value, i) => formatCell(reportSpec.columns[i].kind, value, 'doc'))),
     });
-  }, [scopedRows, dateFrom, dateTo]);
+  }, [reportSpec, exportFileName]);
 
   return (
-    <div className="space-y-6">
+    // Reports on lg: the page is exactly <main>'s height, so the report
+    // panel below can stretch to the bottom instead of leaving empty space.
+    <div className={`space-y-6 ${activeTab === 'reports' ? 'lg:flex lg:flex-col lg:h-full' : ''}`}>
       <StickyPageHeader>
         <h1 className="text-2xl font-bold text-white admin-light:text-slate-900">Financial &amp; Operations Analytics</h1>
       </StickyPageHeader>
 
-      <div className="-mt-4 md:mt-0 space-y-1 min-w-0">
-        <div className="flex items-center gap-1.5 min-w-0 text-sm text-slate-400 admin-light:text-slate-500">
-          {data ? (
-            <>
-              <CalendarDays size={14} className="text-slate-500 shrink-0" />
-              <span className="truncate">
-                {formatDateRangeLabel(data.date_range.from, data.date_range.to)}
-                <span className="text-slate-600 admin-light:text-slate-500"> · vs </span>
-                {formatDateRangeLabel(data.previous_range.from, data.previous_range.to)}
-              </span>
-            </>
-          ) : (
-            <span className="truncate">Conductor remittances, payment breakdowns, and commuter demand.</span>
+      {/* On the Reports tab the range moves to the right of the report
+          switcher, so this row only remains for a reversed custom range. */}
+      {(activeTab !== 'reports' || rangeInvalid) && (
+        <div className="-mt-4 md:mt-0 space-y-1 min-w-0">
+          {activeTab !== 'reports' && (
+            <div className="flex items-center gap-1.5 min-w-0 text-sm text-slate-400 admin-light:text-slate-500">
+              {data ? (
+                <>
+                  <CalendarDays size={14} className="text-slate-500 shrink-0" />
+                  <span className="truncate">
+                    {formatDateRangeLabel(data.date_range.from, data.date_range.to)}
+                    <span className="text-slate-600 admin-light:text-slate-500"> · vs </span>
+                    {formatDateRangeLabel(data.previous_range.from, data.previous_range.to)}
+                  </span>
+                </>
+              ) : (
+                <span className="truncate">Conductor remittances, payment breakdowns, and commuter demand.</span>
+              )}
+            </div>
+          )}
+
+          {/* Custom-range feedback, under the range it explains. Selecting
+              "Custom" used to fall back to the backend's 30-day default while
+              the UI still showed Custom selected. A reversed range is an
+              error (red); an unfinished pick keeps the previous range. */}
+          {rangeInvalid && (
+            <InlineError className="pl-5">The start date is after the end date. The previous range stays on screen until it is fixed.</InlineError>
           )}
         </div>
-
-        {/* Custom-range feedback, under the range it explains. Selecting
-            "Custom" used to fall back to the backend's 30-day default while
-            the UI still showed Custom selected. An unfinished pick is
-            guidance (muted text); a reversed range is an error (red). */}
-        {rangeInvalid ? (
-          <InlineError className="pl-5">The start date is after the end date. Showing the last 30 days until the range is fixed.</InlineError>
-        ) : customIncomplete && (
-          <p className="pl-5 text-sm text-slate-500">Choose a start and an end date to apply the custom range. Until then, this shows the last 30 days.</p>
-        )}
-      </div>
+      )}
 
       {/* Tabs + range control share one row: tabs on the left, filters
           flush right against the same border. The range control still
@@ -765,7 +774,7 @@ export default function AnalyticsPage() {
             onClick={() => setActiveTab('overview')}
             className={`flex items-center space-x-2 py-2.5 px-4 font-medium text-sm rounded-t-md transition-colors ${
               activeTab === 'overview'
-                ? 'text-white admin-light:text-slate-900 border-b-2 border-[#62A0EA] bg-[#62A0EA]/10'
+                ? 'text-white admin-light:text-slate-900 border-b-2 border-[#62A0EA] admin-light:border-[#1A5FB4]'
                 : 'text-slate-400 admin-light:text-slate-500 hover:text-white admin-light:hover:text-slate-900 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7]'
             }`}
           >
@@ -776,7 +785,7 @@ export default function AnalyticsPage() {
             onClick={() => setActiveTab('reports')}
             className={`flex items-center space-x-2 py-2.5 px-4 font-medium text-sm rounded-t-md transition-colors ${
               activeTab === 'reports'
-                ? 'text-white admin-light:text-slate-900 border-b-2 border-[#62A0EA] bg-[#62A0EA]/10'
+                ? 'text-white admin-light:text-slate-900 border-b-2 border-[#62A0EA] admin-light:border-[#1A5FB4]'
                 : 'text-slate-400 admin-light:text-slate-500 hover:text-white admin-light:hover:text-slate-900 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7]'
             }`}
           >
@@ -837,8 +846,8 @@ export default function AnalyticsPage() {
             <div className="relative" ref={exportMenuRef}>
               <button
                 onClick={() => setIsExportOpen((open) => !open)}
-                disabled={scopedRows.length === 0}
-                title={`Export ${scopedRows.length} remittances`}
+                disabled={exportRowCount === 0}
+                title={`Export ${reportSpec?.title ?? 'report'}`}
                 aria-haspopup="menu"
                 aria-expanded={isExportOpen}
                 className="flex items-center gap-1.5 px-2.5 py-2 bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white text-xs font-medium rounded-md hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -856,7 +865,7 @@ export default function AnalyticsPage() {
                   <button
                     role="menuitem"
                     onClick={() => { handleExportCSV(); setIsExportOpen(false); }}
-                    title={`Export ${scopedRows.length} remittances to CSV`}
+                    title={`Export ${reportSpec?.title ?? 'report'} to CSV`}
                     className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-slate-300 admin-light:text-slate-700 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] hover:text-white admin-light:hover:text-slate-900 transition-colors"
                   >
                     <Download size={13} className="text-slate-500" />
@@ -867,7 +876,7 @@ export default function AnalyticsPage() {
                       key={format}
                       role="menuitem"
                       onClick={() => { handleReportExport(format); setIsExportOpen(false); }}
-                      title={`Export ${scopedRows.length} remittances to ${format.toUpperCase()}`}
+                      title={`Export ${reportSpec?.title ?? 'report'} to ${format.toUpperCase()}`}
                       className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-slate-300 admin-light:text-slate-700 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] hover:text-white admin-light:hover:text-slate-900 transition-colors"
                     >
                       <Download size={13} className="text-slate-500" />
@@ -885,13 +894,19 @@ export default function AnalyticsPage() {
         <OverviewTab data={data} isLoading={isLoading} error={error} refetch={refetch} />
       ) : (
         <ReportsTab
+          report={report}
+          onReportChange={setReport}
+          rangeLabel={data ? formatDateRangeLabel(data.date_range.from, data.date_range.to) : null}
+          spec={reportSpec}
           analyticsData={data}
-          rangeLabel={rangeLabel}
+          analyticsLoading={isLoading}
+          analyticsError={error}
+          refetchAnalytics={refetch}
           range={range}
           scopedRows={scopedRows}
-          isLoading={isLoadingRemittances}
-          error={remittanceError}
-          refetch={refetchRemittances}
+          remittanceLoading={isLoadingRemittances}
+          remittanceError={remittanceError}
+          refetchRemittances={refetchRemittances}
         />
       )}
     </div>

@@ -373,6 +373,7 @@ export function formatShortDate(dateStr: string): string {
  * spans a year boundary.
  */
 export function formatDateRangeLabel(from: string, to: string): string {
+  if (from === to) return `${formatShortDate(from)}, ${from.slice(0, 4)}`;
   const fromYear = from.slice(0, 4);
   const toYear = to.slice(0, 4);
   const fromLabel = formatShortDate(from);
