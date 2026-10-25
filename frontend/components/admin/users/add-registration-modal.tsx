@@ -73,6 +73,7 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageReaderRef = useRef<FileReader | null>(null);
+  const submittingRef = useRef(false);
   // Field state for the school details, shared with student renewal.
   const proof = useDiscountProof();
   const isStudent = formData.commuterType === 'Student';
@@ -104,14 +105,15 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
       setUploadError('Choose a JPG, PNG, or WebP image.');
       e.target.value = '';
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setUploadError('The ID image must be 5 MB or smaller.');
+    if (file.size > 3 * 1024 * 1024) {
+      setUploadError('The ID image must be 3 MB or smaller.');
       e.target.value = '';
       return;
     }
@@ -126,7 +128,9 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
         setFormData(prev => ({ ...prev, idImagePreview: reader.result as string }));
       }
     };
-    reader.onerror = () => setUploadError('The image could not be read. Please choose it again.');
+    reader.onerror = () => {
+      if (imageReaderRef.current === reader) setUploadError('The image could not be read. Please choose it again.');
+    };
     reader.readAsDataURL(file);
   };
 
@@ -140,7 +144,7 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSubmitting) return;
+    if (isSubmitting || submittingRef.current) return;
     if (!formData.birthday) {
       setSubmitError('Select a date of birth to continue.');
       if (stepKey !== 'details') goToStep('details');
@@ -162,6 +166,7 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
       return;
     }
 
+    submittingRef.current = true;
     setIsSubmitting(true);
     setSubmitError(null);
     try {
@@ -203,6 +208,7 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
       // Keep the modal open so the admin can read the error + retry/abort.
       setSubmitError(err instanceof Error ? err.message : 'Failed to create registration.');
     } finally {
+      submittingRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -246,7 +252,7 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
           <section aria-labelledby="onsite-id-heading" className="space-y-3 md:sticky md:top-0 md:self-start">
             <div>
               <h3 id="onsite-id-heading" className="text-sm font-semibold text-white admin-light:text-slate-900">Valid ID</h3>
-              <p id="onsite-id-help" className="mt-1 text-xs leading-relaxed text-slate-400 admin-light:text-slate-500">A clear photo with the name and details readable. JPG, PNG, or WebP, up to 5 MB.</p>
+              <p id="onsite-id-help" className="mt-1 text-xs leading-relaxed text-slate-400 admin-light:text-slate-500">A clear photo with the name and details readable. JPG, PNG, or WebP, up to 3 MB.</p>
             </div>
             <input ref={fileInputRef} id="reg-id-upload" type="file" className="sr-only" accept="image/jpeg,image/png,image/webp" onChange={handleImageChange} disabled={isSubmitting} aria-label="Upload valid ID" aria-describedby={uploadError ? 'onsite-id-help onsite-id-error' : 'onsite-id-help'} aria-invalid={Boolean(uploadError)} />
             {formData.idImageFile ? (

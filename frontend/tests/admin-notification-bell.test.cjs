@@ -63,7 +63,7 @@ function bell() {
   });
   const render = () => {
     position = 0;
-    const result = exports.NotificationBell();
+    const result = exports.NotificationBell({});
     const pending = effects; effects = []; pending.forEach(effect => effect());
     return result;
   };

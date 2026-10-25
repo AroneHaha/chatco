@@ -29,6 +29,14 @@ function claimsModal(linkedAccount = null, save = async () => {}, status = 'Pend
       if (name === 'react') return { ...React, ...hooks };
       if (name === 'lucide-react') return new Proxy({}, { get: (_, icon) => icon });
       if (name === '@/components/admin/ui/modal') return { Modal: 'Modal' };
+      if (name === '@/components/admin/ui/inline-error') {
+        const inline = {};
+        const code = ts.transpileModule(fs.readFileSync(path.join(__dirname, '../components/admin/ui/inline-error.tsx'), 'utf8'), {
+          compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
+        }).outputText;
+        vm.runInNewContext(code, { exports: inline, require: id => id === 'lucide-react' ? { AlertCircle: 'AlertCircle' } : require(id) });
+        return inline;
+      }
       if (name === '@/components/admin/lost-found/approve-claim-modal') return { ApproveClaimModal: 'ApproveClaimModal' };
       if (name.includes('proof-photo-picker')) return { default: 'PhotoPicker' };
       return require(name);
@@ -48,6 +56,7 @@ function claimsModal(linkedAccount = null, save = async () => {}, status = 'Pend
 }
 function find(node, predicate) {
   if (!node || typeof node !== 'object' || node.props?.inert || (node.type === 'Modal' && !node.props.isOpen)) return null;
+  if (typeof node.type === 'function') return find(node.type(node.props), predicate);
   if (predicate(node)) return node;
   for (const child of React.Children.toArray(node.props?.children)) {
     const result = find(child, predicate);

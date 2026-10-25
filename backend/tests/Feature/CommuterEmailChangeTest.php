@@ -21,6 +21,26 @@ class CommuterEmailChangeTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_mobile_email_change_reuses_secure_verified_flow_and_keeps_current_token(): void
+    {
+        $mobile = function (string $action, array $data = []) {
+            $this->app['auth']->forgetGuards();
+
+            return $this->withHeader('Authorization', 'Bearer '.$this->token)
+                ->postJson('/api/v1/mobile/commuter/change-email/'.$action, $data);
+        };
+        $id = $mobile('start')->assertOk()->json('data.flow.id');
+        $mobile('verify-identity', ['request_id' => $id, 'method' => 'password', 'current_password' => 'CurrentPass1!'])
+            ->assertOk()->assertJsonPath('data.flow.step', 'email');
+        $mobile('send-code', ['request_id' => $id, 'stage' => 'new', 'email' => 'mobile@gmail.com'])->assertOk();
+        $code = $this->sentCode('new');
+        $mobile('confirm', ['request_id' => $id, 'code' => $code])->assertOk()->assertJsonPath('data.email', 'mobile@gmail.com');
+        $this->assertSame('mobile@gmail.com', $this->user->fresh()->email);
+        $this->assertSame('mobile@gmail.com', $this->user->commuterProfile->fresh()->email);
+        $this->app['auth']->forgetGuards();
+        $this->withHeader('Authorization', 'Bearer '.$this->token)->getJson('/api/v1/mobile/user')->assertOk();
+    }
+
     private User $user;
 
     private string $token;
@@ -181,6 +201,7 @@ class CommuterEmailChangeTest extends TestCase
 
     public function test_daily_limit_counts_cancelled_flows_and_third_flow_can_finish(): void
     {
+        $this->travelTo(now()->startOfSecond());
         for ($i = 0; $i < 2; $i++) {
             $id = $this->start();
             $this->postAction('cancel', ['request_id' => $id])->assertOk();

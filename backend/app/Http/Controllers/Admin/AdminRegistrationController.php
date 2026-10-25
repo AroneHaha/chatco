@@ -17,6 +17,7 @@ use App\Rules\UniqueContactNumber;
 use App\Services\ActivityLogService;
 use App\Services\AdminService;
 use App\Services\RegistrationGuard;
+use App\Services\MediaStorageService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -144,7 +145,7 @@ class AdminRegistrationController extends Controller
             'username' => ['required', 'string', 'max:50', 'unique:commuter_profiles,username'],
             'language_preference' => ['nullable', 'string', 'max:20'],
             'applied_type' => ['required', 'string', Rule::in(['REGULAR', 'STUDENT', 'SENIOR', 'PWD'])],
-            'id_image' => ['required', 'file', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
+            'id_image' => ['required', 'file', 'image', 'mimes:jpeg,jpg,png,webp', 'max:3072'],
             // A Student gives the same school details renewal asks for.
             ...DiscountApplication::studentDetailRules($student),
         ]);
@@ -181,13 +182,13 @@ class AdminRegistrationController extends Controller
         // so it matches the id already baked into the uploaded filename.
         $userId = (string) Str::uuid();
         $file = $request->file('id_image');
-        $extension = $file->getClientOriginalExtension() ?: 'jpg';
-        $filename = $userId . '-' . Str::random(16) . '.' . $extension;
-        $idImagePath = $file->storeAs(
-            "ids/commuters/{$userId}",
-            $filename,
-            config('filesystems.uploads.private_id_disk', 'r2_private')
-        );
+        try {
+            $idImagePath = app(MediaStorageService::class)->storeCommuterId($file, $userId);
+        } catch (\Throwable $error) {
+            Log::error('Onsite ID image storage failed.', ['exception' => get_class($error)]);
+
+            return $this->errorResponse('The ID image could not be stored. Please try again.', 503);
+        }
 
         // Any failure inside the transaction (e.g. a race on the unique
         // username/email index) leaves $idImagePath uploaded with no owning
