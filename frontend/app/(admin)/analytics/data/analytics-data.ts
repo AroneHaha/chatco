@@ -31,12 +31,16 @@ export interface PickupPoint {
 export interface AnalyticsRemittance {
   shiftId: string;
   conductor: string;
-  vehiclePlate: string;
+  unit: string;
   date: string;
-  remittedAmount: number;
   cashAmount: number;
   gcashAmount: number;
-  status: "Remitted" | "Pending";
+  /** Cash the admin counted; null while the remittance is still awaited. */
+  remittedAmount: number | null;
+  shortage: number;
+  overage: number;
+  /** Backend Remittance status: COMPLETE | SHORTAGE | OVERAGE | PENDING. */
+  status: string;
 }
 
 export interface GCashTransactionDaily {

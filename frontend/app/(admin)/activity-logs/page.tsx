@@ -8,6 +8,7 @@ import {
   listForAdmin,
   exportForAdmin,
   ACTIVITY_LOG_CATEGORIES,
+  ACTIVITY_LOG_CATEGORY_GROUPS,
   getActivityLogCategoryLabel,
   type ActivityLog,
   type ActivityChange,
@@ -438,10 +439,14 @@ export default function ActivityLogsPage() {
                 className="h-11 w-full rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 text-sm text-slate-200 admin-light:text-slate-700 outline-none transition-colors scheme-dark admin-light:scheme-light focus:border-[#62A0EA]/50 admin-light:focus:border-[#1A5FB4] focus:ring-1 focus:ring-[#62A0EA]/30 admin-light:focus:ring-[#1A5FB4]/30 sm:w-auto"
               >
                 <option value="ALL" className="bg-[#0E1628] admin-light:bg-white">All Categories</option>
-                {ACTIVITY_LOG_CATEGORIES.map((option) => (
-                  <option key={option.value} value={option.value} className="bg-[#0E1628] admin-light:bg-white">
-                    {option.label}
-                  </option>
+                {ACTIVITY_LOG_CATEGORY_GROUPS.map((group) => (
+                  <optgroup key={group} label={group} className="bg-[#0E1628] admin-light:bg-white">
+                    {ACTIVITY_LOG_CATEGORIES.filter((option) => option.group === group).map((option) => (
+                      <option key={option.value} value={option.value} className="bg-[#0E1628] admin-light:bg-white">
+                        {option.label}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
 

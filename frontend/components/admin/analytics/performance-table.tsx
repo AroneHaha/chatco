@@ -2,8 +2,7 @@
 
 // components/admin/analytics/performance-table.tsx
 // A unit's or conductor's shifts, passengers and fare revenue for the
-// selected range, ranked by revenue. Same panel and row styling as
-// PaymentUsageTable so the two read as one family.
+// selected range, ranked by revenue.
 
 import { formatNumber, formatPeso } from "@/lib/admin/services/analytics.service";
 

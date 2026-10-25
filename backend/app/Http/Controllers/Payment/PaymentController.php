@@ -293,7 +293,9 @@ class PaymentController extends Controller
      */
     public function simulate(Request $request, string $id): JsonResponse
     {
-        if (! config('payments.allow_simulation')) {
+        // The config flag defaults to APP_DEBUG and .env.example enables it,
+        // so production is refused here regardless of the flag.
+        if (! config('payments.allow_simulation') || app()->isProduction()) {
             return $this->errorResponse('Payment simulation is disabled.', 403);
         }
 
