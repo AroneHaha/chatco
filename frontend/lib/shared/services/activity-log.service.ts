@@ -16,25 +16,34 @@
 
 import { api, ApiError, RequestCancelledError } from "@/lib/api/client";
 
+/** Headings the category filter groups its options under, in display order. */
+export const ACTIVITY_LOG_CATEGORY_GROUPS = [
+  "Accounts & People",
+  "Fleet & Routes",
+  "Shifts & Money",
+  "Safety",
+  "Content & System",
+] as const;
+
 /** Human-readable labels for the stable backend activity category values. */
 export const ACTIVITY_LOG_CATEGORIES = [
-  { value: "MEMBER", label: "Commuter Accounts, Sign-ups & Discounts" },
-  { value: "PERSONNEL", label: "Driver & Conductor Records" },
-  { value: "VEHICLE", label: "Vehicle Records" },
-  { value: "ROUTE", label: "Routes & Detours" },
-  { value: "FARE_POINT", label: "Fare Stops & Ordering" },
-  { value: "SETTINGS", label: "System Configuration" },
-  { value: "VOUCHER", label: "Voucher Distribution" },
-  { value: "REMITTANCE_OPTION", label: "Remittance Options" },
-  { value: "FAQ", label: "FAQs" },
-  { value: "ANNOUNCEMENT", label: "Announcements" },
-  { value: "LOST_FOUND", label: "Lost & Found" },
-  { value: "SOS", label: "Emergency SOS Alerts" },
-  { value: "SHIFT", label: "Automatic Shift Closures" },
-  { value: "SHIFT_DEVICE", label: "Shift Device Recovery" },
-  { value: "REMITTANCE", label: "Cash Remittance Declarations" },
-  { value: "ACCOUNT", label: "Admin Accounts & Access" },
-] as const;
+  { value: "MEMBER", label: "Commuter Accounts, Sign-ups & Discounts", group: "Accounts & People" },
+  { value: "PERSONNEL", label: "Driver & Conductor Records", group: "Accounts & People" },
+  { value: "ACCOUNT", label: "Admin Accounts & Access", group: "Accounts & People" },
+  { value: "VEHICLE", label: "Vehicle Records", group: "Fleet & Routes" },
+  { value: "ROUTE", label: "Routes & Detours", group: "Fleet & Routes" },
+  { value: "FARE_POINT", label: "Fare Stops & Ordering", group: "Fleet & Routes" },
+  { value: "SHIFT", label: "Automatic Shift Closures", group: "Shifts & Money" },
+  { value: "SHIFT_DEVICE", label: "Shift Device Recovery", group: "Shifts & Money" },
+  { value: "REMITTANCE", label: "Cash Remittance Declarations", group: "Shifts & Money" },
+  { value: "REMITTANCE_OPTION", label: "Remittance Options", group: "Shifts & Money" },
+  { value: "VOUCHER", label: "Voucher Distribution", group: "Shifts & Money" },
+  { value: "SOS", label: "Emergency SOS Alerts", group: "Safety" },
+  { value: "LOST_FOUND", label: "Lost & Found", group: "Safety" },
+  { value: "ANNOUNCEMENT", label: "Announcements", group: "Content & System" },
+  { value: "FAQ", label: "FAQs", group: "Content & System" },
+  { value: "SETTINGS", label: "System Configuration", group: "Content & System" },
+] as const satisfies readonly { value: string; label: string; group: (typeof ACTIVITY_LOG_CATEGORY_GROUPS)[number] }[];
 
 const ACTIVITY_LOG_CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
   ACTIVITY_LOG_CATEGORIES.map(({ value, label }) => [value, label]),
