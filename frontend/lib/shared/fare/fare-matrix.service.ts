@@ -178,6 +178,10 @@ export async function loadFareMatrix({
       };
       cachedRouteKey = routeKey;
     } catch {
+      // A failed refresh keeps the last fares the backend gave for this
+      // route; the hardcoded data is only for when nothing has loaded yet.
+      if (cachedPoints && cachedConfig && cachedRouteKey === routeKey) return;
+
       // Fallback to the hardcoded data — the UI still works, just with
       // potentially stale fares until the backend is back.
       cachedPoints = initialFarePoints;
