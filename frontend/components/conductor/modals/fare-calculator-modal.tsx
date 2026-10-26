@@ -31,7 +31,6 @@ import {
   initiateGcash,
   fetchPendingGcash,
   fetchStatus,
-  simulate as simulatePayment,
   cancelPayment,
   type GcashInitiation,
   type PaymentStatus as GcashPaymentStatus,
@@ -553,21 +552,6 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
       setStep("failed");
     } finally {
       setIsInitiatingGcash(false);
-    }
-  };
-
-  // ─── DEV ONLY: Simulate the commuter paying (for testing without PayMongo) ───
-  // Calls POST /api/payments/{id}/simulate { status: "PAID" } which feeds
-  // through the same webhook/state-machine path as a real PayMongo webhook.
-  // Disabled server-side when payments.allow_simulation is false.
-  const handleSimulatePayment = async () => {
-    if (!gcashInitiation) return;
-    try {
-      await simulatePayment(gcashInitiation.transactionId, "PAID");
-      // The poll loop will pick up the PAID status on the next tick (≤3s).
-      // No need to manually flip the step here.
-    } catch (err) {
-      setGcashError(err instanceof Error ? err.message : "Simulation failed.");
     }
   };
 
@@ -1803,17 +1787,6 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
               <p role="alert" className="border-l-2 border-red-500 pl-3 text-xs leading-relaxed text-red-300 light:text-red-700">
                 {gcashError}
               </p>
-            )}
-
-            {/* DEV ONLY: Simulate payment button — only shows when the backend
-                has payments.allow_simulation=true (FakeGateway or sandbox). */}
-            {process.env.NODE_ENV === "development" && (
-              <button
-                onClick={handleSimulatePayment}
-                className="w-full py-2 rounded-xl border border-[#1C3350] light:border-gray-200 bg-[#0B1E33] light:bg-gray-50 text-white/70 light:text-gray-700 text-xs font-semibold hover:bg-[#10273F] light:hover:bg-gray-100 transition-colors"
-              >
-                [DEV] Simulate Payment Paid
-              </button>
             )}
 
             {/* Action buttons */}
