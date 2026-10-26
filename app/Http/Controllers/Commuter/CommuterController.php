@@ -249,4 +249,58 @@ class CommuterController extends Controller
             'vouchers' => $vouchers,
         ], 'Rewards retrieved');
     }
+
+    /**
+     * GET /commuter/vouchers?status=available|used|expired&cursor=
+     *
+     * One tab of the rewards page's voucher wallet, newest first, keyset
+     * paginated for infinite scroll. Unlike rewards(), which caps history at
+     * 50 rows, every used and expired voucher stays reachable here. Used
+     * vouchers carry the ride they paid for.
+     */
+    public function vouchers(Request $request): JsonResponse
+    {
+        $profile = $request->user()->commuterProfile;
+        if (! $profile) {
+            return $this->errorResponse('Commuter profile required.', 422);
+        }
+
+        $validated = $request->validate([
+            'status' => ['required', 'in:available,used,expired'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
+        ]);
+        $status = strtoupper($validated['status']);
+
+        // Same normalization as rewards(), so a voucher past its expiry is
+        // listed under Expired rather than Available.
+        Voucher::expireAvailableForCommuter($profile->id);
+
+        // (commuter_id, created_at) is indexed; id breaks created_at ties so
+        // the cursor never skips or repeats a row.
+        $page = Voucher::where('commuter_id', $profile->id)
+            ->where('status', $status)
+            ->when($status === 'USED', fn ($query) => $query->with([
+                'transaction:transaction_id,voucher_id,paid_at,created_at,pickup_name,dropoff_name',
+            ]))
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->cursorPaginate($validated['per_page'] ?? 15);
+
+        return $this->successResponse([
+            'vouchers' => collect($page->items())->map(fn (Voucher $v) => [
+                'id' => $v->id,
+                'code' => $v->code,
+                'type' => $v->type,
+                'amount' => $v->amount !== null ? (float) $v->amount : null,
+                'status' => $v->status,
+                'expiresAt' => $v->expires_at?->toIso8601String(),
+                'rideOrigin' => $v->ride_origin ?? 'Reward',
+                'usedAt' => ($v->transaction?->paid_at ?? $v->transaction?->created_at)?->toIso8601String(),
+                'usedRoute' => $v->transaction && $v->transaction->pickup_name && $v->transaction->dropoff_name
+                    ? "{$v->transaction->pickup_name} → {$v->transaction->dropoff_name}"
+                    : null,
+            ])->values(),
+            'nextCursor' => $page->nextCursor()?->encode(),
+        ], 'Vouchers retrieved');
+    }
 }

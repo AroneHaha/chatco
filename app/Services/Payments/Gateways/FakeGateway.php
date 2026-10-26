@@ -65,9 +65,10 @@ class FakeGateway implements PaymentGateway
 
     public function verifyWebhookSignature(string $rawBody, ?string $signatureHeader): bool
     {
-        // No signing in fake mode; the dev-sim endpoint is the only caller and
-        // is gated separately (config + auth).
-        return true;
+        // Fake mode has no signing secret, so nothing that reaches the public
+        // webhook URL can be trusted. The dev-sim endpoint applies its event
+        // directly (PaymentService::applyWebhookEvent), never through here.
+        return false;
     }
 
     public function parseWebhookEvent(string $rawBody): ?WebhookEvent

@@ -55,6 +55,9 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
  */
 class TransactionService
 {
+    /** Most vouchers listed for, or applied to, one group payment. */
+    private const GROUP_VOUCHER_LIMIT = 50;
+
     public function __construct(
         private PaymentService $paymentService,
         private FareCalculationService $fareCalculationService,
@@ -1668,6 +1671,36 @@ class TransactionService
         $availableVoucher = $canUseVoucher ? Voucher::where('commuter_id', $transaction->passenger_id)
             ->redeemable()->orderBy('expires_at')->orderBy('id')->first(['id', 'type', 'amount']) : null;
 
+        // A group payment can spend one voucher per seat (see
+        // redeemVouchersForGroupGcash), so the payer gets every redeemable
+        // voucher and each seat's fare to choose from. Only while no voucher
+        // has been applied to the group yet.
+        $groupVouchers = [];
+        $seats = [];
+        if ($availableVoucher && $transaction->group_id) {
+            $rows = Transaction::where('group_id', $transaction->group_id)
+                ->orderBy('group_position')
+                ->get(['transaction_id', 'group_position', 'passenger_role', 'final_amount', 'voucher_id']);
+            if ($rows->every(fn (Transaction $row): bool => $row->voucher_id === null)) {
+                $seats = $rows->map(fn (Transaction $row): array => [
+                    'position' => (int) $row->group_position,
+                    'passenger_type' => $row->passenger_role,
+                    'fare' => round((float) $row->final_amount, 2),
+                    'is_payer' => $row->transaction_id === $transaction->transaction_id,
+                ])->values()->all();
+                $groupVouchers = Voucher::where('commuter_id', $transaction->passenger_id)
+                    ->redeemable()->orderBy('expires_at')->orderBy('id')
+                    ->limit(self::GROUP_VOUCHER_LIMIT)
+                    ->get(['id', 'type', 'amount', 'expires_at'])
+                    ->map(fn (Voucher $voucher): array => [
+                        'id' => $voucher->id,
+                        'type' => $voucher->type,
+                        'amount' => $voucher->amount !== null ? (float) $voucher->amount : null,
+                        'expires_at' => $voucher->expires_at?->toIso8601String(),
+                    ])->values()->all();
+            }
+        }
+
         return [
             'transaction_id' => $transaction->transaction_id,
             'checkout_url' => $transaction->payment_checkout_url,
@@ -1679,9 +1712,11 @@ class TransactionService
             'dropoff_name' => $transaction->dropoff_name,
             'voucher_available' => $availableVoucher !== null,
             'available_voucher' => $availableVoucher?->only(['id', 'type', 'amount']),
-            // Lets the frontend clarify that a voucher only ever covers the
-            // caller's own seat, not the whole group's fare.
             'is_group' => $transaction->group_id !== null,
+            // Group payments only (empty otherwise): the payer's redeemable
+            // vouchers and the seats they can cover.
+            'available_vouchers' => $groupVouchers,
+            'seats' => $seats,
         ];
     }
 
@@ -1808,6 +1843,211 @@ class TransactionService
 
             return $this->formatClaimResponse($transaction);
         }, 3);
+    }
+
+    /**
+     * Spend several of the payer's vouchers on a claimed, still-PENDING group
+     * GCash payment — one voucher per seat, so the payer can cover companions
+     * too (four riders, two free-ride vouchers: only two seats are charged).
+     *
+     * Allocation (planGroupVouchers): free-ride vouchers cover whole seats,
+     * most expensive first; discount vouchers then come off what is left of
+     * the group total, each held by its own seat and spilling over to other
+     * seats when it exceeds that seat's fare. A voucher that would not reduce
+     * anything is refused rather than silently spent.
+     *
+     * Same lifecycle as redeemVoucherForGcash(): the vouchers are marked USED
+     * now; the remaining total is re-issued as a new GCash checkout on the
+     * payer's row (the old one is closed first); covered seats stay PENDING
+     * GCash rows until the charge settles, when PaymentService relabels the
+     * ₱0 ones VOUCHER — or hands every voucher back if it fails or expires.
+     * When the vouchers cover everything, the whole group is PAID at once.
+     *
+     * @param  list<string>  $voucherIds
+     *
+     * @throws HttpException 404 (not found), 403 (not this commuter's ride),
+     *                       422 (not a group GCash ride, unavailable voucher,
+     *                       more vouchers than the ride needs), 409 (no longer
+     *                       redeemable, or vouchers already applied)
+     */
+    public function redeemVouchersForGroupGcash(User $commuter, string $transactionId, array $voucherIds): array
+    {
+        $commuterProfile = $commuter->commuterProfile;
+        if (! $commuterProfile) {
+            abort(422, 'Commuter profile required to redeem a voucher.');
+        }
+
+        $voucherIds = array_values(array_unique($voucherIds));
+        Voucher::expireAvailableForCommuter($commuterProfile->id);
+
+        return DB::transaction(function () use ($commuterProfile, $transactionId, $voucherIds): array {
+            $transaction = Transaction::query()->lockForUpdate()->find($transactionId);
+            if (! $transaction) {
+                abort(404, 'Transaction not found.');
+            }
+            if ($transaction->payment_method !== PaymentMethod::GCASH) {
+                abort(422, 'Only a GCash ride can be covered by a voucher this way.');
+            }
+            if ($transaction->passenger_id !== $commuterProfile->id) {
+                abort(403, 'This ride does not belong to you.');
+            }
+            if ($transaction->status !== PaymentStatus::PENDING) {
+                abort(409, 'This ride can no longer be covered by a voucher.');
+            }
+            if (! $transaction->group_id) {
+                abort(422, 'Several vouchers can only be used on a multiple-passenger payment.');
+            }
+
+            $group = PaymentGroup::whereKey($transaction->group_id)->lockForUpdate()->firstOrFail();
+            $rows = Transaction::where('group_id', $group->id)
+                ->orderBy('group_position')
+                ->lockForUpdate()
+                ->get();
+
+            if ($rows->contains(fn (Transaction $row): bool => $row->status !== PaymentStatus::PENDING)) {
+                abort(409, 'This ride can no longer be covered by a voucher.');
+            }
+            if ($rows->contains(fn (Transaction $row): bool => $row->voucher_id !== null)) {
+                abort(409, 'Vouchers have already been applied to this ride.');
+            }
+            if (count($voucherIds) > $rows->count()) {
+                abort(422, 'You can use at most one voucher per passenger.');
+            }
+
+            $vouchers = Voucher::where('commuter_id', $commuterProfile->id)
+                ->redeemable()
+                ->whereIn('id', $voucherIds)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+            if ($vouchers->count() !== count($voucherIds)) {
+                abort(422, 'One or more of these vouchers is no longer available.');
+            }
+
+            $plan = $this->planGroupVouchers($rows, $vouchers);
+            if ($plan['unused'] !== []) {
+                abort(422, 'You selected more vouchers than this ride needs.');
+            }
+
+            $remaining = round(array_sum($plan['fares']), 2);
+            Voucher::whereIn('id', $vouchers->pluck('id'))->update(['status' => 'USED']);
+
+            $intent = null;
+            if ($remaining > 0) {
+                try {
+                    $intent = $this->paymentService->createIntentFor($transaction, (int) round($remaining * 100));
+                } catch (PaymentGatewayException $e) {
+                    report($e);
+                    abort(502, 'Unable to prepare the remaining GCash payment. Please try again.');
+                }
+            }
+            if ($transaction->payment_reference) {
+                $this->voidReplacedPayment($transaction->payment_reference, $intent?->reference);
+            }
+
+            $settled = $remaining <= 0;
+            foreach ($rows as $row) {
+                $fare = $plan['fares'][$row->transaction_id];
+                $reduced = $fare < round((float) $row->final_amount, 2);
+                $updates = [
+                    'final_amount' => $fare,
+                    'discount_amount' => round((float) ($row->base_fare ?? $row->final_amount) - $fare, 2),
+                    'voucher_id' => $plan['assigned'][$row->transaction_id] ?? null,
+                ];
+                if ($reduced) {
+                    // Voucher-paid seats never count toward the next reward.
+                    $updates['reward_eligible'] = false;
+                }
+                if ($row->transaction_id === $transaction->transaction_id) {
+                    $updates['payment_reference'] = $intent?->reference;
+                    $updates['payment_checkout_url'] = $intent?->checkoutUrl;
+                }
+                if ($settled) {
+                    $updates['status'] = PaymentStatus::PAID->value;
+                    $updates['paid_at'] = now();
+                    $updates['payment_method'] = PaymentMethod::VOUCHER->value;
+                }
+                $row->update($updates);
+            }
+
+            $group->update(['total_amount' => max($remaining, 0)]);
+
+            return $this->formatClaimResponse($transaction->refresh());
+        }, 3);
+    }
+
+    /**
+     * Decide what each group seat pays after the given vouchers.
+     *
+     * Seats are ordered by fare, highest first, so a free ride removes the
+     * most expensive seat. Each voucher is held by one seat (voucher_id is
+     * unique per transaction); a discount larger than its seat's fare comes
+     * off the other seats too, so it reduces the group total as a whole.
+     *
+     * @param  Collection<int, Transaction>  $rows
+     * @param  Collection<int, Voucher>  $vouchers
+     * @return array{fares: array<string, float>, assigned: array<string, string>, unused: list<string>}
+     */
+    private function planGroupVouchers(Collection $rows, Collection $vouchers): array
+    {
+        $fares = $rows->mapWithKeys(fn (Transaction $row): array => [
+            $row->transaction_id => round(max(0, (float) $row->final_amount), 2),
+        ])->all();
+        $position = $rows->mapWithKeys(fn (Transaction $row): array => [$row->transaction_id => (int) $row->group_position])->all();
+        $assigned = [];
+        $unused = [];
+
+        // Highest current fare first; the earlier seat wins a tie, so the
+        // payer's own seat is covered before an equal companion seat.
+        $byFare = function () use (&$fares, $position): array {
+            $ids = array_keys($fares);
+            usort($ids, fn (string $a, string $b): int => [$fares[$b], $position[$a]] <=> [$fares[$a], $position[$b]]);
+
+            return $ids;
+        };
+        $freeSeat = function () use (&$fares, &$assigned, $byFare): ?string {
+            foreach ($byFare() as $id) {
+                if ($fares[$id] > 0 && ! isset($assigned[$id])) {
+                    return $id;
+                }
+            }
+
+            return null;
+        };
+
+        foreach ($vouchers->reject(fn (Voucher $v): bool => $v->type === 'DISCOUNT') as $voucher) {
+            $seat = $freeSeat();
+            if ($seat === null) {
+                $unused[] = $voucher->id;
+
+                continue;
+            }
+            $assigned[$seat] = $voucher->id;
+            $fares[$seat] = 0.0;
+        }
+
+        $discounts = $vouchers->filter(fn (Voucher $v): bool => $v->type === 'DISCOUNT')
+            ->sortByDesc(fn (Voucher $v): float => (float) $v->amount);
+        foreach ($discounts as $voucher) {
+            $seat = $freeSeat();
+            $left = round(max(0, (float) $voucher->amount), 2);
+            if ($seat === null || $left <= 0) {
+                $unused[] = $voucher->id;
+
+                continue;
+            }
+            $assigned[$seat] = $voucher->id;
+            foreach (array_merge([$seat], array_diff($byFare(), [$seat])) as $id) {
+                if ($left <= 0) {
+                    break;
+                }
+                $take = min($fares[$id], $left);
+                $fares[$id] = round($fares[$id] - $take, 2);
+                $left = round($left - $take, 2);
+            }
+        }
+
+        return ['fares' => $fares, 'assigned' => $assigned, 'unused' => $unused];
     }
 
     /**

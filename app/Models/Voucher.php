@@ -61,6 +61,12 @@ class Voucher extends Model
         return $this->belongsTo(CommuterProfile::class);
     }
 
+    /** The ride this voucher paid for (transactions.voucher_id is unique). */
+    public function transaction()
+    {
+        return $this->hasOne(Transaction::class);
+    }
+
     /** The fixed voucher value is capped at the passenger's actual payable fare. */
     public function discountForFare(float $fare): float
     {

@@ -49,6 +49,7 @@ class AnnouncementController extends Controller
         $filters = [
             'unread_only' => $request->boolean('unread_only'),
             'notifications_only' => $request->boolean('notifications_only'),
+            'types' => $this->parseTypes($request),
         ];
         $perPage = max(1, min(100, (int) $request->integer('per_page', 15)));
 
