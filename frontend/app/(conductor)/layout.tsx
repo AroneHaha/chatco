@@ -15,6 +15,7 @@ import ConductorLocationBroadcaster from "@/components/conductor/conductor-locat
 import MaintenanceGate from "@/components/shared/maintenance-gate";
 import ConductorConnectivityBanner from "@/components/conductor/conductor-connectivity-banner";
 import ConductorDeviceGuard from "@/components/conductor/conductor-device-guard";
+import ConductorFaresUpdatedNotice from "@/components/conductor/conductor-fares-updated-notice";
 import { ConductorShiftProvider } from "@/app/(conductor)/hooks/use-conductor-shift";
 import { ConductorThemeProvider } from "@/contexts/conductor-theme-context";
 
@@ -94,6 +95,9 @@ export default function ConductorLayout({ children }: { children: React.ReactNod
 
       {/* Broadcast conductor GPS while on shift (so commuters see the vehicle) */}
       {!isUnitVerification && <ConductorLocationBroadcaster />}
+
+      {/* Admin changed fares: explain and sign out, on every tab. */}
+      <ConductorFaresUpdatedNotice />
 
     </div>
       </ConductorThemeProvider>

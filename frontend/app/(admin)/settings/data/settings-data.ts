@@ -32,9 +32,10 @@ export interface Voucher {
 export interface FinancialRulesConfig {
   ridesForFreeReward: string;
   regularDiscount: string;
-  studentDiscount: string;
-  seniorDiscount: string;
-  pwdDiscount: string;
+  /** One rate shared by Student, Senior Citizen and PWD; prices every discounted fare. */
+  discountRate: string;
+  /** Saving a new value shifts every fare in the fare matrix by the difference. */
+  minimumFare: string;
 }
 
 export interface OperationsRulesConfig {
@@ -134,9 +135,9 @@ export const initialExpenseCategories: string[] = [
 export const defaultFinancialRules: FinancialRulesConfig = {
   ridesForFreeReward: '10',
   regularDiscount: '0',
-  studentDiscount: '20',
-  seniorDiscount: '20',
-  pwdDiscount: '20',
+  // Keep in sync with AdminSettingController's DEFAULT_DISCOUNT_RATE / DEFAULT_MINIMUM_FARE.
+  discountRate: '20',
+  minimumFare: '17',
 };
 
 export const defaultOperationsRules: OperationsRulesConfig = {

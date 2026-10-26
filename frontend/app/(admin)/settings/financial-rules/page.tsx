@@ -2,29 +2,18 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Save, AlertCircle, Percent, Gift, Lock, UserRound, GraduationCap, HeartHandshake, Accessibility, type LucideIcon } from 'lucide-react';
+import { Save, AlertCircle, Percent, Gift, Lock, UserRound, Tag, Banknote } from 'lucide-react';
 import { defaultFinancialRules, type FinancialRulesConfig } from '@/app/(admin)/settings/data/settings-data';
 import { getSettings, updateSetting } from '@/lib/admin/services/setting.service';
 import { SkeletonFinancialRules } from '@/components/admin/ui/skeleton';
 import { SettingsSection, UnitInput } from '@/components/admin/ui/settings-section';
 
-// Editable discount types (Regular is fixed at full fare, rendered separately).
-const DISCOUNT_FIELDS: { name: keyof FinancialRulesConfig; label: string; icon: LucideIcon }[] = [
-  { name: 'studentDiscount', label: 'Student', icon: GraduationCap },
-  { name: 'seniorDiscount', label: 'Senior Citizen', icon: HeartHandshake },
-  { name: 'pwdDiscount', label: 'PWD', icon: Accessibility },
-];
-
-function TypeIcon({ icon: Icon, muted = false }: { icon: LucideIcon; muted?: boolean }) {
-  return (
-    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${muted ? 'bg-white/5 admin-light:bg-slate-100 text-slate-500' : 'bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 text-[#8CB9F0] admin-light:text-[#1A5FB4]'}`}>
-      <Icon size={16} aria-hidden="true" />
-    </span>
-  );
-}
+const peso = (amount: number) => `₱${amount.toFixed(2)}`;
 
 export default function FinancialRulesPage() {
   const [rules, setRules] = useState<FinancialRulesConfig>({ ...defaultFinancialRules });
+  // The minimum fare the fare matrix is currently priced at, for the shift read-back.
+  const [savedMinimumFare, setSavedMinimumFare] = useState(defaultFinancialRules.minimumFare);
   const [isSaved, setIsSaved] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -37,13 +26,14 @@ export default function FinancialRulesPage() {
     try {
       const data = await getSettings('financial');
       // Map DB keys → form field names. DB keys use snake_case.
+      const minimumFare = data.base_fare_regular ?? defaultFinancialRules.minimumFare;
       setRules({
         ridesForFreeReward: data.rides_for_free_reward ?? defaultFinancialRules.ridesForFreeReward,
         regularDiscount: data.regular_discount ?? defaultFinancialRules.regularDiscount,
-        studentDiscount: data.student_discount ?? defaultFinancialRules.studentDiscount,
-        seniorDiscount: data.senior_discount ?? defaultFinancialRules.seniorDiscount,
-        pwdDiscount: data.pwd_discount ?? defaultFinancialRules.pwdDiscount,
+        discountRate: data.discount_rate ?? defaultFinancialRules.discountRate,
+        minimumFare,
       });
+      setSavedMinimumFare(minimumFare);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load financial rules');
     } finally {
@@ -65,14 +55,16 @@ export default function FinancialRulesPage() {
     setIsSaving(true);
     setError(null);
     try {
-      // Save each field individually to the key-value store
+      // Save each field individually to the key-value store. The server
+      // re-prices the fare matrix for the minimum fare and discount rate, and
+      // serializes those two saves itself.
       await Promise.all([
         updateSetting('rides_for_free_reward', rules.ridesForFreeReward, 'financial'),
         updateSetting('regular_discount', rules.regularDiscount, 'financial'),
-        updateSetting('student_discount', rules.studentDiscount, 'financial'),
-        updateSetting('senior_discount', rules.seniorDiscount, 'financial'),
-        updateSetting('pwd_discount', rules.pwdDiscount, 'financial'),
+        updateSetting('discount_rate', rules.discountRate, 'financial'),
+        updateSetting('base_fare_regular', rules.minimumFare, 'financial'),
       ]);
+      setSavedMinimumFare(rules.minimumFare);
       setIsSaved(true);
       setTimeout(() => setIsSaved(false), 3000);
     } catch (err) {
@@ -88,6 +80,11 @@ export default function FinancialRulesPage() {
   }
 
   const rides = Number(rules.ridesForFreeReward);
+  const minimumFare = Number(rules.minimumFare);
+  const discountRate = Number(rules.discountRate);
+  const fareValid = rules.minimumFare !== '' && minimumFare >= 1 && minimumFare <= 1000;
+  const rateValid = rules.discountRate !== '' && discountRate >= 0 && discountRate <= 100;
+  const shift = fareValid ? Math.round((minimumFare - Number(savedMinimumFare)) * 100) / 100 : 0;
 
   return (
     <div className="min-h-screen pb-12 px-4 sm:px-6">
@@ -95,7 +92,7 @@ export default function FinancialRulesPage() {
 
         <div className="text-center">
           <h1 className="text-2xl sm:text-3xl font-bold text-white admin-light:text-slate-900">Financial Rules</h1>
-          <p className="mt-1 text-sm text-slate-400 admin-light:text-slate-500">Commuter discount rates and the loyalty reward.</p>
+          <p className="mt-1 text-sm text-slate-400 admin-light:text-slate-500">Fares, the commuter discount and the loyalty reward.</p>
         </div>
 
         {/* Error Banner */}
@@ -108,12 +105,29 @@ export default function FinancialRulesPage() {
 
         <form onSubmit={handleSave} className="space-y-6">
 
-          <SettingsSection icon={Percent} title="Commuter Discount Rates" description="Discount percentage for each commuter type.">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <SettingsSection icon={Banknote} title="Fares" description="The lowest fare a passenger pays. Changing it moves the whole fare matrix.">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+              <label className="block w-full sm:max-w-56">
+                <span className="mb-1.5 block text-xs font-medium text-slate-300 admin-light:text-slate-700">Minimum fare</span>
+                <UnitInput name="minimumFare" value={rules.minimumFare} onChange={handleChange} min={1} max={1000} step={0.01} required unit="PHP" />
+              </label>
+              {/* Live read-back of what saving does to the fare matrix. */}
+              <p className="flex-1 text-sm text-slate-300 admin-light:text-slate-700">
+                {!fareValid
+                  ? 'Enter an amount from ₱1.00 to ₱1,000.00.'
+                  : shift === 0
+                    ? <>Every fare in the fare matrix keeps its current amount.</>
+                    : <>Saving {shift > 0 ? 'raises' : 'lowers'} <span className="font-semibold text-white admin-light:text-slate-900">every fare in the fare matrix by {peso(Math.abs(shift))}</span>, keeping the gaps between stops.</>}
+              </p>
+            </div>
+          </SettingsSection>
+
+          <SettingsSection icon={Percent} title="Commuter Discount" description="One rate for Student, Senior Citizen and PWD commuters.">
+            <div className="divide-y divide-[#1E2D45] admin-light:divide-[#E2E8F0]">
               {/* Regular always pays full fare — shown as a fixed fact, not a
                   disabled input that looks editable. */}
-              <div className="flex items-center gap-3 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628]/60 admin-light:bg-[#F8FAFC] p-3">
-                <TypeIcon icon={UserRound} muted />
+              <div className="flex items-center gap-3 pb-3">
+                <UserRound size={18} aria-hidden="true" className="shrink-0 text-slate-500" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-slate-300 admin-light:text-slate-700">Regular</p>
                   <p className="text-xs text-slate-500">Pays the full fare</p>
@@ -123,29 +137,18 @@ export default function FinancialRulesPage() {
                   {rules.regularDiscount}%
                 </span>
               </div>
-              {DISCOUNT_FIELDS.map((field) => (
-                <label key={field.name} className="flex items-center gap-3 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] p-3 transition-colors focus-within:border-[#62A0EA]/60 admin-light:focus-within:border-[#1A5FB4]/60">
-                  <TypeIcon icon={field.icon} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-medium text-white admin-light:text-slate-900">{field.label}</span>
-                    <span className="block text-xs text-slate-500">Discount rate</span>
+              <label className="flex items-center gap-3 pt-3">
+                <Tag size={18} aria-hidden="true" className="shrink-0 text-slate-500" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium text-white admin-light:text-slate-900">Student, Senior Citizen, PWD</span>
+                  <span className="block text-xs text-slate-500">
+                    {fareValid && rateValid
+                      ? `Minimum fare becomes ${peso(Math.round(minimumFare * (100 - discountRate)) / 100)}. Every discounted fare is recalculated on save.`
+                      : 'Enter a rate from 0 to 100.'}
                   </span>
-                  <span className="relative w-24 shrink-0">
-                    <input
-                      type="number"
-                      name={field.name}
-                      value={rules[field.name]}
-                      onChange={handleChange}
-                      min={0}
-                      max={100}
-                      step="any"
-                      required
-                      className="block w-full rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white py-2 pl-3 pr-7 text-right text-sm font-semibold tabular-nums text-white admin-light:text-slate-900 focus:outline-none focus:ring-1 focus:ring-[#62A0EA] admin-light:focus:ring-[#1A5FB4] transition-colors"
-                    />
-                    <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-slate-500">%</span>
-                  </span>
-                </label>
-              ))}
+                </span>
+                <UnitInput name="discountRate" value={rules.discountRate} onChange={handleChange} min={0} max={100} step={0.01} required unit="%" unitWidth="pr-7" className="w-24 shrink-0" />
+              </label>
             </div>
           </SettingsSection>
 
