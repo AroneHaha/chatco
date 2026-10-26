@@ -21,10 +21,9 @@ export function SettingsSection({
 }) {
   return (
     <section className={`rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white p-4 sm:p-6 ${className}`}>
-      <div className="mb-4 flex items-start gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4]">
-          <Icon size={18} aria-hidden="true" />
-        </span>
+      <div className="mb-4 flex items-center gap-3">
+        {/* Icon sits directly on the card, no tile behind it (UI rule: no boxed icons). */}
+        <Icon size={28} strokeWidth={1.75} aria-hidden="true" className="shrink-0 text-[#62A0EA] admin-light:text-[#1A5FB4]" />
         <div>
           <h2 className="text-lg font-semibold text-white admin-light:text-slate-900">{title}</h2>
           <p className="text-xs text-slate-400 admin-light:text-slate-500">{description}</p>
