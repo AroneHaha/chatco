@@ -1363,6 +1363,59 @@ class TransactionFlowTest extends TestCase
         $this->assertSame('pi_test_123', $result['transaction']->payment_reference);
     }
 
+    public function test_production_sandbox_checkout_settles_without_manual_simulation(): void
+    {
+        // Production app environment and PayMongo test mode are independent.
+        // All provider traffic here is mocked; no real payment is created.
+        $this->app->instance('env', 'production');
+        config(['payments.allow_simulation' => false]);
+        Http::preventStrayRequests();
+        Http::fake([
+            'api.paymongo.com/v1/payment_intents' => Http::response(['data' => ['id' => 'pi_sandbox_production', 'attributes' => ['status' => 'awaiting_payment_method']]], 200),
+            'api.paymongo.com/v1/payment_methods' => Http::response(['data' => ['id' => 'pm_sandbox_production', 'attributes' => ['type' => 'gcash']]], 200),
+            'api.paymongo.com/v1/payment_intents/pi_sandbox_production/attach' => Http::response(['data' => ['id' => 'pi_sandbox_production', 'attributes' => [
+                'status' => 'awaiting_next_action',
+                'next_action' => ['redirect' => ['url' => 'https://test.checkout.example/authorize']]],
+            ]], 200),
+        ]);
+        $this->configurePayMongo();
+
+        $result = app(TransactionService::class)->initiateGcashFare($this->conductor, [
+            'final_amount' => 25.00, 'pickup_name' => 'Pulilan', 'dropoff_name' => 'Plaridel',
+        ]);
+        $transaction = $result['transaction'];
+        $claim = app(TransactionService::class)->claimGcash($this->commuter1, $result['qr_token']);
+        $this->assertSame('paymongo', $transaction->payment_provider);
+        $this->assertSame('https://test.checkout.example/authorize', $claim['checkout_url']);
+        $this->assertSame(PaymentStatus::PENDING, $transaction->fresh()->status);
+
+        $this->actingAs($this->commuter1, 'sanctum')
+            ->postJson("/api/v1/payments/{$transaction->transaction_id}/simulate", ['status' => 'PAID'])
+            ->assertForbidden();
+
+        [$payload, $headers] = $this->signedPaymongoWebhook('payment.paid', $transaction->payment_reference, 'evt_production_sandbox');
+        // Require the test signature; no live-mode signature is supplied.
+        $headers['Paymongo-Signature'] = preg_replace('/,li=.*/', ',li=', $headers['Paymongo-Signature']);
+        $this->withHeaders($headers)->postJson('/api/v1/payments/webhook', $payload)->assertOk();
+        $this->assertSame(PaymentStatus::PAID, $transaction->fresh()->status);
+        $this->assertDatabaseCount('payment_events', 1);
+        Http::assertSentCount(3);
+    }
+
+    public function test_production_forbids_manual_simulation_even_when_flag_enabled(): void
+    {
+        $this->app->instance('env', 'production');
+        config(['payments.allow_simulation' => true]);
+        $transaction = $this->createPendingGcashTransaction();
+
+        $this->actingAs($this->conductor, 'sanctum')
+            ->postJson("/api/v1/payments/{$transaction->transaction_id}/simulate", ['status' => 'PAID'])
+            ->assertForbidden();
+
+        $this->assertSame(PaymentStatus::PENDING, $transaction->fresh()->status);
+        $this->assertDatabaseCount('payment_events', 0);
+    }
+
     public function test_gcash_initiate_falls_back_to_fake_gateway_when_unconfigured(): void
     {
         // No PayMongo keys → PaymentServiceProvider binds the FakeGateway.
