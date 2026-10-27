@@ -161,9 +161,16 @@ class PaymentController extends Controller
         // The transactions lookup is covered by the existing
         // (group_id, group_position) index from
         // 2026_08_01_000001_add_group_payment_support — no new index needed.
+        //
+        // The voucher spent on a ride (free ride vs. fixed discount) rides
+        // along the same way: at most two more WHERE id IN (...) queries on
+        // vouchers per page (own rows, group seats). Only type/amount are sent —
+        // never the voucher code.
         $payments->getCollection()->loadMissing([
+            'voucher:id,type,amount',
             'paymentGroup:id,reference_number,total_amount,passenger_count',
-            'paymentGroup.transactions:transaction_id,group_id,group_position,passenger_role,final_amount,status,passenger_name',
+            'paymentGroup.transactions:transaction_id,group_id,group_position,passenger_role,final_amount,status,passenger_name,voucher_id',
+            'paymentGroup.transactions.voucher:id,type,amount',
         ]);
 
         // Resolve feedback only for shifts on this page. This remains correct

@@ -930,6 +930,33 @@ class TransactionFlowTest extends TestCase
         $this->assertSame(0, $this->paidRideCountFor($this->commuter1->commuterProfile->id));
     }
 
+    public function test_payment_history_shows_the_voucher_type_and_value_without_its_code(): void
+    {
+        config(['payments.gateways.paymongo.secret' => null]);
+        $this->forgetGateway();
+        $svc = app(TransactionService::class);
+
+        $free = $this->createRewardVoucher($this->commuter1);
+        $freeRide = $svc->initiateGcashFare($this->conductor, ['final_amount' => 15, 'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos'])['transaction'];
+        $svc->claimGcash($this->commuter1, $freeRide->qr_token);
+        $svc->redeemVoucherForGcash($this->commuter1, $freeRide->transaction_id, $free->id);
+
+        $discount = $this->createRewardVoucher($this->commuter1, ['type' => 'DISCOUNT', 'amount' => 5]);
+        $discounted = $svc->initiateGcashFare($this->conductor, ['final_amount' => 15, 'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos'])['transaction'];
+        $svc->claimGcash($this->commuter1, $discounted->qr_token);
+        $svc->redeemVoucherForGcash($this->commuter1, $discounted->transaction_id, $discount->id);
+
+        $rows = collect($this->actingAs($this->commuter1, 'sanctum')->getJson('/api/v1/commuter/payments')
+            ->assertOk()->json('data.data'))->keyBy('transaction_id');
+
+        $this->assertSame('VOUCHER', $rows[$freeRide->transaction_id]['payment_method']);
+        $this->assertSame('REWARD', $rows[$freeRide->transaction_id]['voucher']['type']);
+        $this->assertSame('GCASH', $rows[$discounted->transaction_id]['payment_method']);
+        $this->assertSame('DISCOUNT', $rows[$discounted->transaction_id]['voucher']['type']);
+        $this->assertEquals(5, $rows[$discounted->transaction_id]['voucher']['amount']);
+        $this->assertArrayNotHasKey('code', $rows[$discounted->transaction_id]['voucher']);
+    }
+
     public function test_group_gcash_voucher_redemption_covers_only_the_payer(): void
     {
         config(['payments.gateways.paymongo.secret' => null]);
