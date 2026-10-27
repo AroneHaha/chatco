@@ -3,8 +3,13 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Enums\ActivityLogCategory;
+use App\Enums\UserRole;
+use App\Events\FaresUpdated;
 use App\Http\Controllers\Controller;
+use App\Models\FarePoint;
+use App\Models\PersonalAccessToken;
 use App\Models\Setting;
+use App\Models\User;
 use App\Services\ActivityLogService;
 use App\Services\MaintenanceStatus;
 use App\Traits\ApiResponse;
@@ -13,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
 
 /**
@@ -72,6 +78,8 @@ class AdminSettingController extends Controller
             'max_shift_hours' => ['required', 'integer', 'min:1', 'max:48'],
             'remittance_grace_minutes' => ['required', 'integer', 'min:1', 'max:1440'],
             'remittance_reminder_interval_minutes' => ['required', 'integer', 'min:5', 'max:10080'],
+            self::MINIMUM_FARE_KEY => ['required', 'numeric', 'min:1', 'max:1000', 'decimal:0,2'],
+            self::DISCOUNT_RATE_KEY => ['required', 'numeric', 'min:0', 'max:100', 'decimal:0,2'],
             default => ['nullable', 'string'],
         };
 
@@ -99,9 +107,12 @@ class AdminSettingController extends Controller
             'remittance_grace_minutes',
             'remittance_reminder_interval_minutes',
         ];
-        $value = in_array($key, $integerKeys, true)
-            ? (string) $validated['value']
-            : ($validated['value'] ?? null);
+        $value = match (true) {
+            in_array($key, $integerKeys, true) => (string) $validated['value'],
+            // Fixed format so re-saving "17" over "17.00" is not logged as a change.
+            in_array($key, [self::MINIMUM_FARE_KEY, self::DISCOUNT_RATE_KEY], true) => number_format((float) $validated['value'], 2, '.', ''),
+            default => $validated['value'] ?? null,
+        };
         // For the activity log: the settings pages save every key on each
         // Save, so only a key whose value actually changes gets an entry.
         $previous = Setting::where('key', $key)->value('value');
@@ -134,6 +145,8 @@ class AdminSettingController extends Controller
 
                 return $setting;
             }, 3);
+        } elseif (in_array($key, [self::MINIMUM_FARE_KEY, self::DISCOUNT_RATE_KEY], true)) {
+            $setting = $this->saveFareRule($key, $value, $category, $request);
         } else {
             $setting = Setting::updateOrCreate(
                 ['key' => $key],
@@ -176,9 +189,112 @@ class AdminSettingController extends Controller
         );
     }
 
+    private const MINIMUM_FARE_KEY = 'base_fare_regular';
+
+    private const DISCOUNT_RATE_KEY = 'discount_rate';
+
+    /** Used until an admin saves these; match the fares the migrations seeded. */
+    private const DEFAULT_MINIMUM_FARE = 17.0;
+
+    private const DEFAULT_DISCOUNT_RATE = 20.0;
+
+    private const DEFAULT_SUCCEEDING_FARE = 2.25;
+
+    /**
+     * Saves the minimum fare or the shared discount rate and re-prices the
+     * fare matrix in the same transaction:
+     * - a minimum fare change shifts every stop's regular fare by the same
+     *   amount, keeping the gaps between stops;
+     * - every discounted fare (stops, minimum, succeeding) is then recomputed
+     *   as the regular fare less the discount rate.
+     * Transactions already started keep the amount they were priced at.
+     * A real change also signs every conductor out (signOutConductors).
+     */
+    private function saveFareRule(string $key, string $value, string $category, Request $request): Setting
+    {
+        return DB::transaction(function () use ($key, $value, $category, $request): Setting {
+            // Locking both rules serializes concurrent fare-rule saves, so one
+            // never re-prices from a value the other is about to change.
+            $rules = Setting::whereIn('key', [self::MINIMUM_FARE_KEY, self::DISCOUNT_RATE_KEY])
+                ->lockForUpdate()->pluck('value', 'key');
+            $minimum = (float) ($rules[self::MINIMUM_FARE_KEY] ?? self::DEFAULT_MINIMUM_FARE);
+            $rate = (float) ($rules[self::DISCOUNT_RATE_KEY] ?? self::DEFAULT_DISCOUNT_RATE);
+
+            if ($key === self::MINIMUM_FARE_KEY) {
+                $shift = round((float) $value - $minimum, 2);
+                $changed = $shift != 0.0;
+                if ($changed) {
+                    $lowest = FarePoint::min('regular_fare');
+                    if ($lowest !== null && (float) $lowest + $shift < 0) {
+                        throw ValidationException::withMessages([
+                            'value' => 'This minimum fare would push some fare matrix stops below ₱0.',
+                        ]);
+                    }
+                    FarePoint::query()->increment('regular_fare', $shift);
+                }
+                $minimum = (float) $value;
+            } else {
+                $changed = round((float) $value - $rate, 2) != 0.0;
+                $rate = (float) $value;
+            }
+
+            if ($changed) {
+                $this->signOutConductors();
+            }
+
+            $payable = (100 - $rate) / 100;
+            FarePoint::query()->update([
+                'discounted_fare' => DB::raw(sprintf('ROUND(regular_fare * %.4F, 2)', $payable)),
+            ]);
+            $succeeding = (float) (Setting::where('key', 'succeeding_fare_regular')->value('value') ?? self::DEFAULT_SUCCEEDING_FARE);
+            foreach ([
+                'base_fare_discounted' => $minimum * $payable,
+                'succeeding_fare_discounted' => $succeeding * $payable,
+            ] as $derivedKey => $amount) {
+                Setting::updateOrCreate(['key' => $derivedKey], [
+                    'value' => number_format(round($amount, 2), 2, '.', ''),
+                    'category' => 'financial',
+                    'updated_by' => $request->user()->id,
+                ]);
+            }
+
+            return Setting::updateOrCreate(['key' => $key], [
+                'value' => $value,
+                'category' => $category,
+                'updated_by' => $request->user()->id,
+            ]);
+        }, 3);
+    }
+
+    /** How long an open conductor app has to show its notice before its token stops working. */
+    private const CONDUCTOR_SIGN_OUT_GRACE_SECONDS = 20;
+
+    /**
+     * Ends every conductor session (web and mobile) so each signs back in on
+     * the new fares. Tokens expire after a short grace instead of being
+     * deleted, so an open app first gets FaresUpdated and shows why it is
+     * signing out rather than failing on a bare 401 mid-poll. Active shifts
+     * are untouched; the conductor resumes on the next sign-in.
+     * Runs inside the fare-rule transaction; the event is sent after commit.
+     */
+    private function signOutConductors(): void
+    {
+        $expiresAt = now()->addSeconds(self::CONDUCTOR_SIGN_OUT_GRACE_SECONDS);
+        PersonalAccessToken::query()
+            ->where('tokenable_type', (new User)->getMorphClass())
+            ->whereIn('tokenable_id', User::where('role', UserRole::CONDUCTOR)->select('id'))
+            // Never extend a token that already expires sooner.
+            ->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', $expiresAt))
+            ->update(['expires_at' => $expiresAt]);
+
+        DB::afterCommit(fn () => broadcast(new FaresUpdated(self::CONDUCTOR_SIGN_OUT_GRACE_SECONDS)));
+    }
+
     /** Readable names for the activity log; other keys fall back to a headline of the key. */
     private const SETTING_LABELS = [
         Setting::RIDES_FOR_FREE_REWARD_KEY => 'Paid rides for 1 free ride',
+        self::MINIMUM_FARE_KEY => 'Minimum fare (₱)',
+        self::DISCOUNT_RATE_KEY => 'Discount rate (%)',
         'regular_discount' => 'Regular discount (%)',
         'student_discount' => 'Student discount (%)',
         'senior_discount' => 'Senior citizen discount (%)',

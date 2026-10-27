@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Accessibility, AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, CircleDashed, CircleHelp, Clock3, GraduationCap, IdCard, Loader2, ShieldCheck, XCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { DiscountProofFields, useDiscountProof } from '@/components/commuter/discount-proof-fields';
@@ -14,7 +15,7 @@ const date = (value: string) => new Date(value).toLocaleString('en-PH', {
   dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Manila',
 });
 const button = 'inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#1A5FB4] px-5 text-sm font-semibold text-white hover:bg-[#164A8F] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#99C1F1] disabled:cursor-not-allowed disabled:opacity-50';
-const secondaryButton = 'inline-flex min-h-11 cursor-pointer items-center justify-center rounded-lg border border-white/20 px-4 text-sm font-medium text-white/80 transition-colors hover:bg-white/5 hover:text-white light:border-gray-300 light:text-gray-700 light:hover:bg-gray-100 light:hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#99C1F1] disabled:cursor-not-allowed disabled:opacity-50';
+const secondaryButton = 'inline-flex min-h-11 cursor-pointer items-center justify-center rounded-lg border border-[#22344D] bg-[#0E1B2D] px-4 text-sm font-medium text-white/80 transition-colors hover:bg-[#13243A] hover:text-white light:border-gray-300 light:bg-white light:text-gray-700 light:hover:bg-gray-100 light:hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#99C1F1] disabled:cursor-not-allowed disabled:opacity-50';
 const categoryOptions: { value: DiscountCategory; label: string; detail: string; Icon: typeof GraduationCap }[] = [
   { value: 'STUDENT', label: 'Student', detail: 'Current enrollment proof', Icon: GraduationCap },
   { value: 'PWD', label: 'PWD', detail: 'Valid PWD identification', Icon: Accessibility },
@@ -32,10 +33,13 @@ const statusTone: Record<string, { className: string; Icon: typeof Clock3 }> = {
 
 export default function DiscountApplicationPage() {
   const { commuterProfile, refresh } = useAuth();
+  const router = useRouter();
   const [state, setState] = useState<ApplicationState | null>(null);
   const [category, setCategory] = useState<DiscountCategory | ''>('');
   const [error, setError] = useState('');
-  const [message, setMessage] = useState<{ title: string; body: string } | null>(null);
+  // `status` is the application status the notice describes; it hides once a
+  // reload brings a different one (e.g. the admin has reviewed the submission).
+  const [message, setMessage] = useState<{ title: string; body: string; status: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [confirmSubmit, setConfirmSubmit] = useState(false);
@@ -77,6 +81,15 @@ export default function DiscountApplicationPage() {
     if (state && commuterProfile && toCommuterType(state.commuter_type) !== commuterProfile.commuterType) void refresh();
   }, [state, commuterProfile, refresh]);
 
+  // Only Regular accounts can apply. The server's classification decides (the
+  // cached profile can lag behind an approval or expiry); the profile is the
+  // fallback only when the status can't be loaded.
+  const accountType = state ? toCommuterType(state.commuter_type) : error ? commuterProfile?.commuterType : undefined;
+  const notRegular = accountType !== undefined && accountType !== 'REGULAR';
+  useEffect(() => {
+    if (notRegular) router.replace('/dashboard');
+  }, [notRegular, router]);
+
   const application = state?.application;
   const correction = state?.status === 'NEEDS_CORRECTION' && application?.request_type === 'APPLICATION';
   const student = category === 'STUDENT';
@@ -96,9 +109,9 @@ export default function DiscountApplicationPage() {
       if (correction && application) {
         body.set('application_id', application.id); body.set('revision', String(application.revision));
       }
-      setState(await renewalRequest<ApplicationState>('/api/commuter/discount-applications', { method: 'POST', body }));
-      proof.setDocument(null);
-      setMessage({ title: 'Application submitted', body: 'Your account stays Regular until an admin approves it.' });
+      const next = await renewalRequest<ApplicationState>('/api/commuter/discount-applications', { method: 'POST', body });
+      setState(next); proof.setDocument(null);
+      setMessage({ title: 'Application submitted', body: 'Your account stays Regular until an admin approves it.', status: next.status });
     } catch (err) {
       submitting.current = false; await load();
       setError(err instanceof Error ? err.message : 'Unable to submit application.');
@@ -112,17 +125,19 @@ export default function DiscountApplicationPage() {
     submitting.current = true; ++sequence.current;
     setBusy(true); setCancelError(''); setError(''); setMessage(null);
     try {
-      setState(await renewalRequest<ApplicationState>('/api/commuter/discount-applications/cancel', {
+      const next = await renewalRequest<ApplicationState>('/api/commuter/discount-applications/cancel', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ application_id: application.id }),
-      }));
-      setConfirmCancel(false); setCategory(''); proof.setDocument(null);
-      setMessage({ title: 'Application cancelled', body: 'You can start a new application at any time.' });
+      });
+      setState(next); setConfirmCancel(false); setCategory(''); proof.setDocument(null);
+      setMessage({ title: 'Application cancelled', body: 'You can start a new application at any time.', status: next.status });
     } catch (err) {
       setCancelError(err instanceof Error ? err.message : 'Unable to cancel the application.');
       submitting.current = false; void load();
     } finally { submitting.current = false; setBusy(false); }
   };
   const cancelButton = cancellable && <button type="button" disabled={busy} onClick={() => { setCancelError(''); setConfirmCancel(true); }} className={`${secondaryButton} mt-5`}>Cancel application</button>;
+
+  if (notRegular) return null;
 
   return <div className="flex h-full w-full flex-col overflow-hidden bg-[#050F1A] text-white light:bg-[#F8FAFC] light:text-gray-900">
     {/* Padding sits outside max-w-6xl, matching <main>, so the title lines up
@@ -141,7 +156,7 @@ export default function DiscountApplicationPage() {
         {error && <div role="alert" className="mb-6 flex flex-col gap-3 rounded-xl border border-red-300/25 bg-red-300/10 p-4 text-sm text-red-200 light:border-red-200 light:bg-red-50 light:text-red-700 sm:flex-row sm:items-center sm:justify-between">{error}<button type="button" onClick={() => void load()} disabled={busy} className="min-h-10 self-start font-medium underline underline-offset-4 sm:self-auto">Refresh status</button></div>}
         {/* Solid confirmation panel (no translucent fill): a filled check,
             a short title, and the one thing the commuter should know next. */}
-        {message && <div role="status" className="mb-6 flex items-start gap-3 rounded-xl border border-[#1F4D3D] bg-[#0D2A22] p-4 light:border-emerald-200 light:bg-emerald-50">
+        {message && message.status === state?.status && <div role="status" className="mb-6 flex items-start gap-3 rounded-xl border border-[#1F4D3D] bg-[#0D2A22] p-4 light:border-emerald-200 light:bg-emerald-50">
           <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white light:bg-emerald-600"><Check size={16} strokeWidth={2.5} /></span>
           <div className="min-w-0 pt-0.5">
             <p className="text-sm font-semibold text-white light:text-emerald-900">{message.title}</p>
@@ -158,19 +173,25 @@ export default function DiscountApplicationPage() {
               <div><dt className="text-xs text-white/50 light:text-gray-500">Current account</dt><dd className="mt-1 text-sm font-medium">{DISCOUNT_CATEGORIES[state.commuter_type as DiscountCategory] ?? 'Regular'}</dd></div>
               <div><dt className="text-xs text-white/50 light:text-gray-500">Submitted</dt><dd className="mt-1 text-sm font-medium">{date(application.submitted_at)}</dd></div>
               {application.requested_type === 'STUDENT' && <><div><dt className="text-xs text-white/50 light:text-gray-500">School</dt><dd className="mt-1 wrap-break-word text-sm font-medium">{application.school_name}</dd></div><div><dt className="text-xs text-white/50 light:text-gray-500">Education</dt><dd className="mt-1 text-sm font-medium">{educationSummary(application)} · {schoolYearSummary(application)}</dd></div></>}
+              {application.reason && <div className="sm:col-span-2"><dt className="text-xs text-white/50 light:text-gray-500">Reviewer&apos;s note</dt><dd className="mt-1 wrap-break-word text-sm font-medium leading-relaxed text-amber-200 light:text-amber-800">{application.reason}</dd></div>}
             </dl>}
-            {application?.reason && <div className="my-5 rounded-xl border border-amber-300/25 bg-amber-300/10 p-4 light:border-amber-200 light:bg-amber-50 text-sm leading-relaxed"><p className="font-semibold text-amber-200 light:text-amber-800">Note from the reviewer</p><p className="mt-1 wrap-break-word text-white/80 light:text-gray-700">{application.reason}</p></div>}
             {/* Application corrections have no deadline; the request stays open until resubmitted. */}
-            {correction && <div className="my-5"><p className="text-sm leading-relaxed text-amber-200 light:text-amber-800">Send your corrected supporting document below whenever you are ready. The discount category cannot be changed for this request; to apply under a different category, cancel this application first.</p>{cancelButton}</div>}
+            {correction && <div className="my-5">
+              <p className="text-sm leading-relaxed text-white/70 light:text-gray-600">Upload a corrected supporting document below. The discount category is locked for this request.</p>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-y border-white/10 py-3.5 light:border-gray-200 [&>button]:mt-0">
+                <p className="max-w-md text-[13px] leading-normal text-white/55 light:text-gray-500">Want a different category? Cancel this application, then start a new one.</p>
+                {cancelButton}
+              </div>
+            </div>}
             {application?.request_type === 'RENEWAL' ? <p className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4 text-sm leading-relaxed text-white/70 light:border-gray-200 light:bg-white light:text-gray-600">You have an outstanding Student renewal. Complete that request before starting a new discount application. <Link href="/student-renewal" className="mt-2 inline-flex min-h-10 items-center gap-1 font-semibold text-[#99C1F1] hover:text-white light:text-[#1A5FB4] light:hover:text-[#164A8F]">View Student renewal <ArrowRight size={15} aria-hidden="true" /></Link></p>
             : state.can_submit ? <form id={`${proofId}-form`} onSubmit={submit} className="pt-6">
               <fieldset disabled={busy || correction}>
                 <legend className="text-sm font-semibold">{correction ? 'Application category' : 'Choose your discount category'}</legend>
                 <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                  {categoryOptions.map(({ value, label, detail, Icon }) => <label key={value} className={`relative flex min-h-28 cursor-pointer flex-col justify-between rounded-xl border p-4 transition-colors focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#99C1F1] ${category === value ? 'border-[#62A0EA] bg-[#1A5FB4]/20 shadow-lg shadow-[#1A5FB4]/10 light:border-[#1A5FB4] light:bg-[#1A5FB4]/10' : 'border-white/10 bg-white/[0.03] hover:border-white/25 hover:bg-white/[0.06] light:border-gray-200 light:bg-white light:hover:border-gray-300 light:hover:bg-gray-50'} ${busy || correction ? 'cursor-not-allowed opacity-70' : ''}`}>
+                  {categoryOptions.map(({ value, label, detail, Icon }) => <label key={value} className={`relative flex min-h-28 cursor-pointer flex-col justify-between rounded-xl border p-4 transition-colors focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#99C1F1] ${category === value ? 'border-[#1A5FB4] bg-[#1A5FB4] text-white' : 'border-[#1C2C42] bg-[#0B1828] hover:border-[#2A3E5A] hover:bg-[#0F1F33] light:border-gray-200 light:bg-white light:hover:border-gray-300 light:hover:bg-gray-50'} ${(busy || correction) && category !== value ? 'cursor-not-allowed opacity-70' : busy || correction ? 'cursor-not-allowed' : ''}`}>
                     <input type="radio" name="discount_category" required value={value} checked={category === value} onChange={() => { setCategory(value); proof.setDocument(null); }} className="sr-only" />
-                    <Icon size={20} aria-hidden="true" className={category === value ? 'text-[#99C1F1] light:text-[#1A5FB4]' : 'text-white/55 light:text-gray-400'} />
-                    <span><span className="block text-sm font-semibold">{label}</span><span className="mt-1 block text-xs leading-relaxed text-white/55 light:text-gray-500">{detail}</span></span>
+                    <Icon size={20} aria-hidden="true" className={category === value ? 'text-white' : 'text-white/55 light:text-gray-400'} />
+                    <span><span className="block text-sm font-semibold">{label}</span><span className={`mt-1 block text-xs leading-relaxed ${category === value ? 'text-white/85' : 'text-white/55 light:text-gray-500'}`}>{detail}</span></span>
                   </label>)}
                 </div>
               </fieldset>

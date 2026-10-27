@@ -196,9 +196,27 @@ class AppServiceProvider extends ServiceProvider
         // 30/min gives the 5s polling cadence (~12/min) ~2.5x headroom, same
         // ratio as conductor-gps below. No auth on this route, so there's no
         // user id to key on — IP+token is the best available identity.
+        // A second, per-IP-only cap stops one client sweeping many different
+        // tokens, which the per-link bucket alone never limits.
         RateLimiter::for('share-ride-track', function (Request $request) use ($rateLimitResponse) {
+            return [
+                Limit::perMinute(30)
+                    ->by($request->ip().'|'.$request->route('token'))
+                    ->response($rateLimitResponse),
+                Limit::perMinute(240)
+                    ->by('share-ip|'.$request->ip())
+                    ->response($rateLimitResponse),
+            ];
+        });
+
+        // Share-ride start/position push/stop — 30 req/min per commuter. The
+        // live-position pushes run at a 5s cadence (~12/min) for the whole
+        // share, so they get their own bucket: on commuter-hail's 10/min they
+        // were rejected mid-ride AND used up the quota hailing and payment
+        // claims need.
+        RateLimiter::for('share-ride-update', function (Request $request) use ($rateLimitResponse) {
             return Limit::perMinute(30)
-                ->by($request->ip().'|'.$request->route('token'))
+                ->by($request->user()?->id ?: $request->ip())
                 ->response($rateLimitResponse);
         });
 

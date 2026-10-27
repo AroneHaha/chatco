@@ -55,6 +55,59 @@ class ConductorBreakModeTest extends TestCase
         $this->assertNull($shift->fresh()->break_started_at);
     }
 
+    public function test_parked_unit_stays_on_commuter_map_however_old_its_last_fix(): void
+    {
+        $shift = ShiftLog::factory()->create(['time_in' => now()->subHours(2)]);
+        Vehicle::whereKey($shift->vehicle_id)->update(['active_shift_id' => $shift->shift_id]);
+        VehicleLocation::factory()->create([
+            'vehicle_id' => $shift->vehicle_id,
+            'conductor_id' => $shift->conductor_id,
+            'shift_id' => $shift->shift_id,
+            'fix_recorded_at' => now()->subMinutes(45),
+            'lat' => 14.8527,
+            'lng' => 120.8160,
+        ]);
+        DB::table('vehicle_locations')->where('vehicle_id', $shift->vehicle_id)
+            ->update(['updated_at' => now()->subMinutes(45)]);
+
+        $locations = app(LocationService::class);
+        $this->assertCount(1, $locations->getAllActiveLocations());
+
+        // Remittance clears the active shift — only then does it leave the map.
+        Vehicle::whereKey($shift->vehicle_id)->update(['active_shift_id' => null]);
+        $this->assertCount(0, $locations->getAllActiveLocations());
+    }
+
+    public function test_break_toggle_pushes_break_status_to_commuter_maps(): void
+    {
+        $shift = ShiftLog::factory()->create();
+        $conductor = User::findOrFail($shift->conductor_id);
+        Vehicle::whereKey($shift->vehicle_id)->update(['active_shift_id' => $shift->shift_id]);
+        VehicleLocation::factory()->create([
+            'vehicle_id' => $shift->vehicle_id,
+            'conductor_id' => $shift->conductor_id,
+            'shift_id' => $shift->shift_id,
+            'fix_recorded_at' => now(),
+            'lat' => 14.8527,
+            'lng' => 120.8160,
+        ]);
+
+        $broadcaster = \Mockery::mock(\Illuminate\Broadcasting\Broadcasters\LogBroadcaster::class);
+        \Illuminate\Support\Facades\Broadcast::extend('break-test', fn () => $broadcaster);
+        config(['broadcasting.default' => 'break-test', 'broadcasting.connections.break-test.driver' => 'break-test']);
+        $sent = [];
+        $broadcaster->shouldReceive('broadcast')->times(2)->withArgs(function ($channels, $name, $payload) use (&$sent, $shift) {
+            $sent[] = $payload['is_on_break'];
+
+            return $name === 'VehicleLocationUpdated' && $payload['vehicle_id'] === $shift->vehicle_id;
+        });
+
+        $this->actingAs($conductor)->postJson('/api/v1/conductor/break-status', ['is_on_break' => true])->assertOk();
+        $this->postJson('/api/v1/conductor/break-status', ['is_on_break' => false])->assertOk();
+
+        $this->assertSame([true, false], $sent);
+    }
+
     public function test_conductor_on_break_is_not_flagged_stale_despite_a_gps_gap(): void
     {
         $shift = ShiftLog::factory()->create(['is_on_break' => true, 'break_started_at' => now()]);

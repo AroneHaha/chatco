@@ -7,6 +7,10 @@ import { updateConductorLocation } from "@/lib/conductor/services/location.servi
 // often the browser fires watchPosition. Matches the backend conductor-gps
 // rate limiter's intent.
 const MIN_SEND_INTERVAL_MS = 5000;
+// watchPosition goes quiet while the jeepney is parked, so a fresh fix is
+// requested on this cadence. The unit keeps reporting during a long stop and
+// admin monitoring doesn't mark it stale.
+const PARKED_FIX_INTERVAL_MS = 15000;
 
 /**
  * While `active` (the conductor has an active shift), watch GPS and push each
@@ -54,7 +58,18 @@ export function useConductorLocationBroadcast(active: boolean): void {
       maximumAge: 5000,
       timeout: 10000,
     });
+    // maximumAge 0: the backend refuses a fix no newer than the last one sent.
+    const parkedTimer = setInterval(() => {
+      navigator.geolocation.getCurrentPosition(send, () => {}, {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 10000,
+      });
+    }, PARKED_FIX_INTERVAL_MS);
 
-    return () => navigator.geolocation.clearWatch(watchId);
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+      clearInterval(parkedTimer);
+    };
   }, [active]);
 }

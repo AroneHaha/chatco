@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Html5Qrcode } from "html5-qrcode";
+import { Camera, CameraOff, RotateCcw, X } from "lucide-react";
 import {
   claimGcash,
   redeemVoucherForGcash,
@@ -10,6 +11,7 @@ import {
   type ClaimResult,
 } from "@/lib/commuter/services/payment.service";
 import { GroupVoucherPicker } from "@/components/commuter/modals/group-voucher-picker";
+import { FeedbackModalFrame } from "@/components/commuter/feedback/feedback-modal";
 import { ApiError } from "@/lib/api/client";
 import { formatCurrency } from "@/lib/shared/fare/fare-calculator";
 
@@ -47,8 +49,10 @@ export default function ScanModal({ onClose }: ScanModalProps) {
   const [step, setStep] = useState<Step>("scanning");
   const [claimResult, setClaimResult] = useState<ClaimResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [manualToken, setManualToken] = useState("");
-  const [showManualEntry, setShowManualEntry] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
+  const [cameraError, setCameraError] = useState<{ title: string; message: string } | null>(null);
+  // Bumped by "Try again" on a camera error to re-run the start effect.
+  const [cameraAttempt, setCameraAttempt] = useState(0);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const scannerRunningRef = useRef(false);
   const scannerContainerId = "qr-reader-container";
@@ -84,6 +88,8 @@ export default function ScanModal({ onClose }: ScanModalProps) {
     if (step !== "scanning") return;
 
     let mounted = true;
+    setCameraReady(false);
+    setCameraError(null);
 
     const startScanner = async () => {
       try {
@@ -109,14 +115,23 @@ export default function ScanModal({ onClose }: ScanModalProps) {
         // cleanup function would try to stop a scanner that never started.
         if (mounted) {
           scannerRunningRef.current = true;
+          setCameraReady(true);
         } else {
           // Component unmounted during start() — stop immediately.
           void stopScanner();
         }
-      } catch {
-        // Camera not available / permission denied — fall back to manual entry.
-        if (mounted) setShowManualEntry(true);
+      } catch (err) {
         scannerRef.current = null;
+        if (!mounted) return;
+        // html5-qrcode rejects with either an Error or a plain string.
+        const message = String(err);
+        setCameraError(
+          /permission|denied|notallowed/i.test(message)
+            ? { title: "Camera access blocked", message: "Allow camera access in your browser settings, then try again." }
+            : /notfound|not found|no camera/i.test(message)
+              ? { title: "No camera detected", message: "Open CHATCO on a phone with a camera to scan the conductor's QR." }
+              : { title: "Camera couldn't start", message: "Close other apps using your camera, then try again." }
+        );
       }
     };
 
@@ -127,7 +142,7 @@ export default function ScanModal({ onClose }: ScanModalProps) {
       void stopScanner();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, stopScanner]);
+  }, [step, cameraAttempt, stopScanner]);
 
   // ─── Release the camera when the modal closes entirely ───
   // This is separate from the step-change cleanup so it fires when the
@@ -250,13 +265,6 @@ export default function ScanModal({ onClose }: ScanModalProps) {
     void proceedToPayment(claimResult);
   }, [claimResult, proceedToPayment]);
 
-  // ─── Handle manual token entry (fallback when camera unavailable) ───
-  const handleManualSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!manualToken.trim()) return;
-    await handleScanSuccess(manualToken.trim());
-  }, [manualToken, handleScanSuccess]);
-
   // ─── Redirect to PayMongo hosted authorize page ───
   // In real mode, checkout_url is the PayMongo hosted page. The commuter
   // authorizes there, PayMongo redirects to /gcash/return, and the webhook
@@ -283,94 +291,101 @@ export default function ScanModal({ onClose }: ScanModalProps) {
 
   // ─── STEP: Scanning ──────────────────────────────────────────
 
+  // Same frame, header and viewfinder as the Scan Feedback QR modal
+  // (FeedbackModalFrame + QrScanner's 'modal' variant).
   if (step === "scanning") {
     return (
-      <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
-        <div className="w-full sm:max-w-sm bg-[#071A2E] sm:rounded-2xl rounded-t-2xl border border-[#1C3350] shadow-2xl overflow-hidden">
-          {/* Header */}
-          <div className="p-4 sm:p-5 border-b border-[#1C3350] flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <svg aria-hidden="true" className="w-7 h-7 shrink-0 text-[#62A0EA]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" />
-                </svg>
-              <div>
-                <h2 className="text-lg font-bold text-white">Scan QR Code</h2>
-                <p className="text-[11px] text-white/40">Point your camera at the conductor&apos;s QR</p>
+      <FeedbackModalFrame label="Scan Payment QR">
+        <div className="flex max-h-[88vh] w-full flex-col overflow-hidden bg-[#050F1A]">
+          <div className="flex items-center justify-between gap-4 border-b border-white/10 p-5">
+            <div className="flex items-center gap-3 min-w-0">
+              <Camera size={24} className="text-[#62A0EA] flex-shrink-0" />
+              <div className="min-w-0">
+                <h2 className="text-white font-bold text-lg leading-tight">Scan Payment QR</h2>
+                <p className="text-white/40 text-xs mt-0.5 truncate">
+                  Point your camera at the conductor&apos;s QR
+                </p>
               </div>
             </div>
             <button
+              type="button"
               onClick={onClose}
-              className="text-white/40 hover:text-white transition-colors"
+              className="text-white/40 hover:text-white transition-colors flex-shrink-0"
+              aria-label="Close scanner"
             >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-              </svg>
+              <X size={20} />
             </button>
           </div>
 
-          {/* Camera viewfinder — html5-qrcode mounts here */}
-          <div className="relative w-full aspect-square bg-[#050F1A] overflow-hidden">
-            <div id={scannerContainerId} className="w-full h-full" />
-            {/* html5-qrcode sets the <video> element's width inline (in px)
-                but leaves height at the browser's default "auto", which
-                scales off the camera's native (non-square) stream aspect
-                ratio — leaving it short of the square container's height.
-                Force it to cover the container instead of trusting the
-                library's own sizing. */}
-            <style jsx global>{`
-              #qr-reader-container video {
-                width: 100% !important;
-                height: 100% !important;
-                object-fit: cover !important;
-              }
-            `}</style>
-            {/* Scan frame overlay */}
-            <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-              <div className="relative w-52 h-52">
-                <div className="absolute top-0 left-0 w-8 h-8 border-t-3 border-l-3 border-[#62A0EA] rounded-tl-lg" />
-                <div className="absolute top-0 right-0 w-8 h-8 border-t-3 border-r-3 border-[#62A0EA] rounded-tr-lg" />
-                <div className="absolute bottom-0 left-0 w-8 h-8 border-b-3 border-l-3 border-[#62A0EA] rounded-bl-lg" />
-                <div className="absolute bottom-0 right-0 w-8 h-8 border-b-3 border-r-3 border-[#62A0EA] rounded-br-lg" />
-              </div>
-            </div>
-          </div>
+          <div className="overflow-y-auto p-5">
+            <div className="space-y-3">
+              <div className={`relative w-full aspect-square ${cameraError ? "min-h-72" : ""} bg-[#071A2E] rounded-2xl overflow-hidden border border-white/10`}>
+                {/* Camera viewfinder — html5-qrcode mounts here */}
+                <div id={scannerContainerId} className="w-full h-full" />
+                {/* html5-qrcode sets the <video> element's width inline (in px)
+                    but leaves height at the browser's default "auto", which
+                    scales off the camera's native (non-square) stream aspect
+                    ratio — leaving it short of the square container's height.
+                    Force it to cover the container instead of trusting the
+                    library's own sizing. */}
+                <style jsx global>{`
+                  #qr-reader-container video {
+                    width: 100% !important;
+                    height: 100% !important;
+                    object-fit: cover !important;
+                  }
+                `}</style>
 
-          {/* Action area */}
-          <div className="p-4 sm:p-5 space-y-3">
-            {showManualEntry ? (
-              <form onSubmit={handleManualSubmit} className="space-y-3">
-                <p className="text-center text-xs text-white/60">
-                  Camera unavailable — enter the token manually
-                </p>
-                <input
-                  type="text"
-                  value={manualToken}
-                  onChange={(e) => setManualToken(e.target.value)}
-                  placeholder="Paste qr_token here"
-                  className="w-full px-3 py-2.5 bg-[#0B1E33] border border-[#1C3350] rounded-xl text-white text-sm font-mono placeholder-white/30 focus:outline-none focus:border-[#62A0EA]"
-                />
-                <button
-                  type="submit"
-                  disabled={!manualToken.trim()}
-                  className="w-full py-3.5 rounded-xl bg-[#1A5FB4] hover:bg-[#164A8F] active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 text-white text-sm font-bold transition-colors"
-                >
-                  Claim Payment
-                </button>
-              </form>
-            ) : (
-              <p className="text-center text-xs text-white/30">
+                {/* Scan frame overlay */}
+                {!cameraError && (
+                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                    <div className="relative w-48 h-48">
+                      <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-[#62A0EA] rounded-tl-lg" />
+                      <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-[#62A0EA] rounded-tr-lg" />
+                      <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-[#62A0EA] rounded-bl-lg" />
+                      <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-[#62A0EA] rounded-br-lg" />
+                    </div>
+                  </div>
+                )}
+
+                {/* Loading overlay while the camera is starting */}
+                {!cameraReady && !cameraError && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-[#050F1A]/80">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-8 h-8 border-2 border-[#62A0EA] border-t-transparent rounded-full animate-spin" />
+                      <p className="text-white/60 text-xs">Starting camera…</p>
+                    </div>
+                  </div>
+                )}
+
+                {cameraError && (
+                  <div className="absolute inset-0 overflow-y-auto bg-[#071A2E] px-5 py-6">
+                    <div className="mx-auto flex min-h-full max-w-64 flex-col items-center justify-center text-center">
+                      <CameraOff size={32} strokeWidth={1.5} aria-hidden="true" className="mb-4 shrink-0 text-[#99C1F1]" />
+                      <div role="alert">
+                        <h3 className="text-lg font-semibold leading-snug tracking-tight text-white">{cameraError.title}</h3>
+                        <p className="mt-2 text-sm leading-relaxed text-white/55">{cameraError.message}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setCameraAttempt((n) => n + 1)}
+                        className="mt-5 inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-[#1A5FB4] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#164A8F] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#62A0EA]"
+                      >
+                        <RotateCcw size={16} aria-hidden="true" />
+                        Try again
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <p className="text-center text-white/30 text-[11px]">
                 Align the QR code shown by the conductor within the frame
               </p>
-            )}
-            <button
-              onClick={() => setShowManualEntry(!showManualEntry)}
-              className="w-full text-center text-[11px] text-white/30 hover:text-white/50 transition-colors"
-            >
-              {showManualEntry ? "Use camera instead" : "Enter token manually"}
-            </button>
+            </div>
           </div>
         </div>
-      </div>
+      </FeedbackModalFrame>
     );
   }
 

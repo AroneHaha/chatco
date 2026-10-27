@@ -29,6 +29,8 @@ export interface VehicleLocation {
   capacity_status: string;
   route_name: string | null;
   updated_at: string;
+  /** Broadcast events only: a unit on break is hidden from commuters. */
+  is_on_break?: boolean;
 }
 
 interface UseVehicleLocationsResult {
@@ -54,7 +56,8 @@ function normalizeLocation(location: VehicleLocation): VehicleLocation | null {
 }
 
 function applyLocationUpdate(vehicles: VehicleLocation[], event: VehicleLocation): VehicleLocation[] {
-  const location = normalizeLocation(event);
+  // A GPS ping during a break must not put the unit back on the map.
+  const location = event.is_on_break ? null : normalizeLocation(event);
   const index = vehicles.findIndex((vehicle) => vehicle.vehicle_id === event.vehicle_id);
   if (!location) return index === -1 ? vehicles : vehicles.filter((vehicle) => vehicle.vehicle_id !== event.vehicle_id);
   if (index === -1) return [...vehicles, location];

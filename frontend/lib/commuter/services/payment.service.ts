@@ -26,11 +26,22 @@ import {
 export type PaymentStatus =
   | "pending" | "processing" | "paid" | "failed" | "cancelled" | "expired" | "refunded";
 
+/**
+ * The voucher spent on a ride. Free-ride (and earned reward) vouchers cover a
+ * whole fare; a discount voucher takes a fixed amount off, capped at the fare.
+ */
+export interface PaymentVoucher {
+  kind: "free_ride" | "discount";
+  /** Discount vouchers only: the fixed value taken off. */
+  amountOff: number | null;
+}
+
 /** One passenger's receipt within a group payment (see CommuterPayment.group). */
 export interface GroupPassenger {
   id: string;
   role: string | null;
   amount: number;
+  voucher: PaymentVoucher | null;
   status: PaymentStatus;
   /** Real name only for the payer's own line (backend sets a generic "Passenger" placeholder for the rest — sibling rows are never bound to a commuter account). */
   name: string | null;
@@ -54,7 +65,9 @@ export interface CommuterPayment {
   id: string;
   amount: number;
   status: PaymentStatus;
-  method: "Cash" | "GCash";
+  /** "Voucher" only when a voucher covered the whole fare. */
+  method: "Cash" | "GCash" | "Voucher";
+  voucher: PaymentVoucher | null;
   pickupName: string;
   dropoffName: string;
   conductorName?: string;
@@ -140,6 +153,13 @@ interface RawGroupTransaction {
   final_amount: number | string;
   status: string;
   passenger_name: string | null;
+  voucher?: RawVoucher | null;
+}
+
+/** The ride's `voucher` relation — type and value only, never the code. */
+interface RawVoucher {
+  type: string;
+  amount: number | string | null;
 }
 
 /** PaymentController::history()'s eager-loaded `paymentGroup` relation — null for non-group payments. */
@@ -156,6 +176,7 @@ interface RawTransaction {
   final_amount: number | string;
   status: string;
   payment_method: string;
+  voucher?: RawVoucher | null;
   pickup_name: string | null;
   dropoff_name: string | null;
   conductor_name: string | null;
@@ -194,6 +215,7 @@ function mapGroup(raw: RawPaymentGroup, ownTransactionId: string): GroupPaymentI
       id: line.transaction_id,
       role: line.passenger_role,
       amount: Number(line.final_amount) || 0,
+      voucher: mapVoucher(line.voucher),
       status: (line.status?.toLowerCase() as PaymentStatus) ?? "pending",
       name: line.passenger_name,
       isYou: line.transaction_id === ownTransactionId,
@@ -201,12 +223,20 @@ function mapGroup(raw: RawPaymentGroup, ownTransactionId: string): GroupPaymentI
   };
 }
 
+function mapVoucher(raw: RawVoucher | null | undefined): PaymentVoucher | null {
+  if (!raw) return null;
+  return raw.type === "DISCOUNT"
+    ? { kind: "discount", amountOff: Number(raw.amount) || null }
+    : { kind: "free_ride", amountOff: null };
+}
+
 function mapPayment(raw: RawTransaction): CommuterPayment {
   return {
     id: raw.transaction_id,
     amount: Number(raw.final_amount) || 0,
     status: (raw.status?.toLowerCase() as PaymentStatus) ?? "pending",
-    method: raw.payment_method === "GCASH" ? "GCash" : "Cash",
+    method: raw.payment_method === "GCASH" ? "GCash" : raw.payment_method === "VOUCHER" ? "Voucher" : "Cash",
+    voucher: mapVoucher(raw.voucher),
     pickupName: raw.pickup_name ?? "—",
     dropoffName: raw.dropoff_name ?? "—",
     conductorName: raw.conductor_name ?? undefined,

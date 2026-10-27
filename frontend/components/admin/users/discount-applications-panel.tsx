@@ -6,7 +6,8 @@ import { DataTable } from '@/components/admin/ui/data-table';
 import { TablePagination } from '@/components/admin/ui/table-pagination';
 import { SearchBar } from '@/components/admin/ui/search-bar';
 import { ReviewRequestModal } from '@/components/admin/users/review-request-modal';
-import { Badge } from '@/components/admin/ui/badge';
+import { OperationResultModal } from '@/components/admin/ui/operation-result-modal';
+import { CommuterTypeLabel } from './commuter-type-label';
 import type { PendingRequest } from '@/app/(admin)/users/data/users-data';
 import { DISCOUNT_CATEGORIES, APPLICATION_LABELS, discountStatusLabel, renewalRequest, type DiscountApplication } from '@/lib/shared/services/student-renewal.service';
 
@@ -42,7 +43,7 @@ export function DiscountApplicationsPanel({ initialId, onReviewed, registerActio
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
+  const [outcome, setOutcome] = useState<{ title: string; message: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<DiscountApplication | null>(null);
@@ -89,7 +90,14 @@ export function DiscountApplicationsPanel({ initialId, onReviewed, registerActio
     setBusy(true); setError('');
     try {
       await renewalRequest(`/api/admin/discount-applications/${encodeURIComponent(selected.id)}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decision, reason, revision: selected.revision }) });
-      setSelected(null); setMessage(decision === 'NEEDS_CORRECTION' ? (selected.request_type === 'RENEWAL' ? 'Corrections requested. The commuter has seven days to respond.' : 'Corrections requested. The application stays open until the commuter resubmits.') : selected.request_type === 'RENEWAL' ? (decision === 'APPROVED' ? 'Student renewal approved.' : 'Renewal rejected. The commuter is now Regular.') : (decision === 'APPROVED' ? `${DISCOUNT_CATEGORIES[selected.requested_type]} discount application approved.` : 'Application rejected. The account remains Regular.'));
+      const renewal = selected.request_type === 'RENEWAL';
+      const label = DISCOUNT_CATEGORIES[selected.requested_type];
+      setSelected(null);
+      setOutcome(decision === 'NEEDS_CORRECTION'
+        ? { title: 'Corrections requested', message: renewal ? 'The commuter has seven days to respond.' : 'The application stays open until the commuter resubmits.' }
+        : decision === 'APPROVED'
+          ? (renewal ? { title: 'Student renewal approved', message: 'The commuter stays Student.' } : { title: `${label} discount approved`, message: `The commuter's account is now ${label}.` })
+          : (renewal ? { title: 'Renewal rejected', message: 'The commuter is now Regular.' } : { title: 'Application rejected', message: 'The account remains Regular.' }));
       onReviewed?.();
       await load();
     } catch (err) { setError(err instanceof Error ? err.message : 'Unable to review application.'); void open(selected.id); }
@@ -97,8 +105,10 @@ export function DiscountApplicationsPanel({ initialId, onReviewed, registerActio
   };
   const columns = [
     { key: 'commuter', label: 'Commuter', render: (_: never, item: DiscountApplication) => <div><p className="font-medium text-white admin-light:text-slate-900">{item.commuter?.first_name} {item.commuter?.surname}</p><p className="text-xs text-slate-400 admin-light:text-slate-500">{item.commuter?.email}</p></div> },
-    { key: 'request_type', label: 'Request', render: (_: never, item: DiscountApplication) => <span className="inline-flex items-center gap-1.5">{item.request_type === 'RENEWAL' && <RotateCw size={14} aria-hidden="true" className="text-amber-300 admin-light:text-amber-700" />}<Badge variant={item.request_type === 'RENEWAL' ? 'warning' : 'info'}>{item.request_type === 'RENEWAL' ? 'Renewal' : 'Application'}</Badge></span> },
-    { key: 'requested_type', label: 'Discount category', render: (_: never, item: DiscountApplication) => DISCOUNT_CATEGORIES[item.requested_type] },
+    { key: 'request_type', label: 'Request', cellClassName: 'whitespace-nowrap', render: (_: never, item: DiscountApplication) => item.request_type === 'RENEWAL'
+      ? <span className="inline-flex items-center gap-1.5 text-sm font-medium text-amber-200 admin-light:text-amber-700"><RotateCw size={14} aria-hidden="true" className="shrink-0" />Renewal</span>
+      : <span className="text-sm font-medium text-[#99C1F1] admin-light:text-[#1A5FB4]">Application</span> },
+    { key: 'requested_type', label: 'Discount category', cellClassName: 'whitespace-nowrap', render: (_: never, item: DiscountApplication) => <CommuterTypeLabel type={DISCOUNT_CATEGORIES[item.requested_type]} /> },
     { key: 'school_name', label: 'Supporting details', render: (_: never, item: DiscountApplication) => item.requested_type === 'STUDENT' ? <div>{item.school_name}<p className="text-xs text-slate-400 admin-light:text-slate-500">{item.school_year}</p></div> : `${DISCOUNT_CATEGORIES[item.requested_type]} ID/card` },
     { key: 'submitted_at', label: 'Submitted', render: (_: never, item: DiscountApplication) => new Date(item.submitted_at).toLocaleDateString('en-PH') },
     { key: 'status', label: 'Status', render: (_: never, item: DiscountApplication) => discountStatusLabel(item) },
@@ -133,10 +143,10 @@ export function DiscountApplicationsPanel({ initialId, onReviewed, registerActio
       {registerAction && <div className={`${filtersOpen ? 'block' : 'hidden'} md:hidden`}>{registerAction}</div>}
     </div>
     {error && <p role="alert" className="text-sm text-red-300 admin-light:text-red-700">{error}</p>}
-    {message && <p role="status" className="text-sm text-emerald-300 admin-light:text-emerald-700">{message}</p>}
     {loading && <p role="status" className="text-sm text-slate-400 admin-light:text-slate-500">Loading applications...</p>}
     <DataTable data={result?.data ?? []} columns={columns} searchQuery="" emptyMessage="No discount applications match this status." onRowDoubleClick={item => void open(item.id, undefined, item)} height="100%" mobileCards />
     {result && <TablePagination currentPage={result.current_page} totalPages={result.last_page} total={result.total} from={result.from ?? 0} to={result.to ?? 0} onPageChange={setPage} label="applications" />}
     <ReviewRequestModal key={selected ? `${selected.id}:${selected.revision}` : 'closed'} renewal={selected} errorMessage={error} isOpen={selected !== null} request={selected ? reviewRequest(selected) : null} onClose={() => { if (busy) return; ++reviewSequence.current; setDocumentPending(false); setSelected(null); }} isProcessing={busy} documentLoading={documentPending && !selected?.document_url} onApprove={() => void review('APPROVED')} onReject={(reason, final) => void review(final ? 'REJECTED' : 'NEEDS_CORRECTION', reason)} />
+    <OperationResultModal isOpen={outcome !== null} type="success" title={outcome?.title ?? ''} message={outcome?.message ?? ''} onClose={() => setOutcome(null)} />
   </div>;
 }

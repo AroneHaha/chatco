@@ -5,6 +5,7 @@ import {
   fetchPaymentHistory,
   type CommuterPayment,
   type PaymentStatus,
+  type PaymentVoucher,
 } from "@/lib/commuter/services/payment.service";
 import FeedbackModal from "@/components/commuter/feedback-modal";
 import { formatPeso } from "@/lib/utils/display";
@@ -29,6 +30,13 @@ function getStatusBadge(status: PaymentStatus) {
     refunded: { bg: "bg-purple-500/10 light:bg-purple-50", text: "text-purple-400 light:text-purple-600", label: "Refunded" },
   };
   return badges[status] ?? { bg: "bg-white/5 light:bg-gray-50", text: "text-white/70 light:text-gray-600", label: status };
+}
+
+// Plain text, no colour coding: which voucher was used and what it did.
+function voucherLabel(voucher: PaymentVoucher, amountPaid: number): string {
+  if (voucher.kind === "free_ride") return "Free ride voucher";
+  if (amountPaid <= 0) return "Discount voucher · full fare";
+  return voucher.amountOff ? `Discount voucher · ${formatPeso(voucher.amountOff)} off` : "Discount voucher";
 }
 
 export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProps) {
@@ -273,11 +281,21 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
                           <span className="text-[11px] text-white/50 light:text-gray-400">{date}</span>
                           <span className="w-1 h-1 rounded-full bg-white/20 light:bg-gray-300" />
                           <span className="text-[11px] text-white/50 light:text-gray-400">{time}</span>
+                          {tx.voucher && (
+                            <>
+                              <span className="w-1 h-1 rounded-full bg-white/20 light:bg-gray-300" />
+                              <span className="truncate text-[11px] font-medium text-white/70 light:text-gray-600">
+                                {tx.voucher.kind === "free_ride" ? "Free ride" : "Discount voucher"}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
 
                       <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
-                        <p className="text-sm font-bold text-white light:text-[#071A2E]">- {formatPeso(tx.amount)}</p>
+                        <p className="text-sm font-bold text-white light:text-[#071A2E]">
+                          {tx.voucher && tx.amount <= 0 ? "Free" : `- ${formatPeso(tx.amount)}`}
+                        </p>
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${badge.bg} ${badge.text}`}>
                           {badge.label}
                         </span>
@@ -304,8 +322,16 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
                           </div>
                           <div className="flex justify-between">
                             <span className="text-white/50 light:text-gray-400">Payment</span>
-                            <span className="font-medium text-white light:text-[#071A2E]">{tx.method}</span>
+                            <span className="font-medium text-white light:text-[#071A2E]">
+                              {tx.voucher && tx.method !== "Voucher" ? `${tx.method} + voucher` : tx.method}
+                            </span>
                           </div>
+                          {tx.voucher && (
+                            <div className="flex justify-between">
+                              <span className="text-white/50 light:text-gray-400">Voucher</span>
+                              <span className="font-medium text-white light:text-[#071A2E]">{voucherLabel(tx.voucher, tx.amount)}</span>
+                            </div>
+                          )}
                           <div className="flex justify-between">
                             <span className="text-white/50 light:text-gray-400">Ref ID</span>
                             <span className="font-mono text-white light:text-[#071A2E]">{tx.id}</span>
@@ -324,7 +350,9 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
                           )}
                           <div className="flex justify-between">
                             <span className="text-white/50 light:text-gray-400">Fare</span>
-                            <span className="font-bold text-white light:text-[#071A2E]">{formatPeso(tx.amount)}</span>
+                            <span className="font-bold text-white light:text-[#071A2E]">
+                              {tx.voucher && tx.amount <= 0 ? "Covered by voucher" : formatPeso(tx.amount)}
+                            </span>
                           </div>
                         </div>
 
@@ -355,7 +383,11 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
                                     {passenger.isYou ? "You" : passenger.name ?? "Passenger"}
                                     {passenger.role ? ` · ${passenger.role}` : ""}
                                   </span>
-                                  <span className="font-medium text-white light:text-[#071A2E]">{formatPeso(passenger.amount)}</span>
+                                  <span className="font-medium text-white light:text-[#071A2E]">
+                                    {passenger.voucher
+                                      ? passenger.amount <= 0 ? "Covered by voucher" : `${formatPeso(passenger.amount)} · voucher`
+                                      : formatPeso(passenger.amount)}
+                                  </span>
                                 </div>
                               ))}
                             </div>

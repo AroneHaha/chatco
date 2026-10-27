@@ -8,6 +8,11 @@ Broadcast::channel('admin.notifications', function (User $user): bool {
     return $user->isAdmin();
 });
 
+// Every signed-in conductor; carries FaresUpdated (fare change → sign out).
+Broadcast::channel('conductors', function (User $user): bool {
+    return $user->isConductor();
+});
+
 // Public channel — any authenticated user can listen
 Broadcast::channel('vehicles', function () {
     return true;

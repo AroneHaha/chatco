@@ -32,6 +32,96 @@ class MobileCommuterIsolationTest extends TestCase
         $this->assertEquals(14.81, \App\Models\SharedRideLink::first()->lat);
     }
 
+    public function test_public_share_returns_profile_photo_only_while_link_is_live(): void
+    {
+        Sanctum::actingAs($this->commuter);
+        $token = $this->postJson('/api/v1/mobile/commuter/share-ride')->assertCreated()->json('data.token');
+
+        $this->getJson('/api/v1/share/'.$token)->assertOk()
+            ->assertJsonPath('data.commuter_profile_image_url', null);
+
+        CommuterProfile::query()->update(['profile_image_url' => 'https://r2.example.test/profiles/a.webp']);
+        $this->getJson('/api/v1/share/'.$token)->assertOk()
+            ->assertJsonPath('data.commuter_profile_image_url', 'https://r2.example.test/profiles/a.webp');
+
+        \App\Models\SharedRideLink::query()->update(['expires_at' => now()->subMinute()]);
+        $this->getJson('/api/v1/share/'.$token)->assertOk()
+            ->assertJsonMissingPath('data.commuter_profile_image_url');
+    }
+
+    public function test_public_share_hides_location_for_invalid_revoked_and_expired_links(): void
+    {
+        Sanctum::actingAs($this->commuter);
+        $token = $this->postJson('/api/v1/mobile/commuter/share-ride', ['lat' => 14.8, 'lng' => 120.9])
+            ->assertCreated()->json('data.token');
+
+        $live = $this->getJson('/api/v1/share/'.$token)->assertOk()
+            ->assertJsonPath('data.active', true)
+            ->assertJsonPath('data.lat', 14.8)
+            ->assertJsonPath('data.seconds_since_update', 0);
+        $this->assertStringContainsString('no-store', $live->headers->get('Cache-Control'));
+
+        $this->getJson('/api/v1/share/trk_doesnotexist')->assertNotFound()->assertJsonMissingPath('data.lat');
+
+        $this->deleteJson('/api/v1/mobile/commuter/share-ride')->assertOk();
+        $this->getJson('/api/v1/share/'.$token)->assertOk()
+            ->assertJsonPath('data.active', false)
+            ->assertJsonMissingPath('data.lat')
+            ->assertJsonMissingPath('data.lng');
+
+        \App\Models\SharedRideLink::query()->update(['is_active' => true, 'expires_at' => now()->subMinute()]);
+        $this->getJson('/api/v1/share/'.$token)->assertOk()
+            ->assertJsonPath('data.expired', true)
+            ->assertJsonMissingPath('data.lat');
+    }
+
+    public function test_public_share_reports_position_age_from_server_clock(): void
+    {
+        Sanctum::actingAs($this->commuter);
+        $token = $this->postJson('/api/v1/mobile/commuter/share-ride', ['lat' => 14.8, 'lng' => 120.9])
+            ->assertCreated()->json('data.token');
+        \App\Models\SharedRideLink::query()->update(['last_updated_at' => now()->subSeconds(95)]);
+
+        $age = $this->getJson('/api/v1/share/'.$token)->assertOk()->json('data.seconds_since_update');
+        $this->assertGreaterThanOrEqual(95, $age);
+        $this->assertLessThan(100, $age);
+    }
+
+    public function test_share_position_pushes_have_their_own_rate_limit(): void
+    {
+        Sanctum::actingAs($this->commuter);
+        $token = $this->postJson('/api/v1/mobile/commuter/share-ride')->assertCreated()->json('data.token');
+
+        // 15 pushes in a minute (a moving commuter on the 4s cadence) all land;
+        // they used to share commuter-hail's 10/min and get rejected.
+        for ($i = 0; $i < 15; $i++) {
+            $this->postJson('/api/v1/mobile/commuter/share-ride', ['token' => $token, 'lat' => 14.8, 'lng' => 120.9 + $i / 10000])
+                ->assertOk();
+        }
+
+        // ...and they count against the share bucket, leaving the hail bucket untouched.
+        $this->assertSame(16, \Illuminate\Support\Facades\RateLimiter::attempts(
+            md5('share-ride-update'.$this->commuter->id)
+        ));
+        $this->assertSame(0, \Illuminate\Support\Facades\RateLimiter::attempts(
+            md5('commuter-hail'.$this->commuter->id)
+        ));
+    }
+
+    public function test_logout_expires_the_commuters_share_link(): void
+    {
+        $session = $this->commuter->createToken('auth-token')->plainTextToken;
+        $token = $this->withToken($session)->postJson('/api/v1/commuter/share-ride', ['lat' => 14.8, 'lng' => 120.9])
+            ->assertCreated()->json('data.token');
+
+        $this->withToken($session)->postJson('/api/v1/auth/logout')->assertOk();
+        $this->app['auth']->forgetGuards();
+
+        $this->getJson('/api/v1/share/'.$token)->assertOk()
+            ->assertJsonPath('data.expired', true)
+            ->assertJsonMissingPath('data.lat');
+    }
+
     public function test_inflight_mobile_share_update_cannot_resurrect_stopped_or_expired_link(): void
     {
         Sanctum::actingAs($this->commuter);

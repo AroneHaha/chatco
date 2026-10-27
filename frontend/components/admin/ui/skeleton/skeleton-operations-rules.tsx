@@ -14,7 +14,7 @@ function Section({ withTimeline = false }: { withTimeline?: boolean }) {
   return (
     <div className="rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white p-4 sm:p-6">
       <div className="mb-4 flex items-start gap-3">
-        <Bar className="h-9 w-9 shrink-0 rounded-lg" />
+        <Bar className="h-7 w-7 shrink-0 rounded-md" />
         <div className="space-y-2 pt-0.5">
           <Bar className="h-4 w-44" />
           <Bar className="h-3 w-72 max-w-full" />

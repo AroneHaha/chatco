@@ -18,6 +18,7 @@ class ShiftService
         private ShiftCloseoutService $closeoutService,
         private ShiftDeviceService $shiftDeviceService,
         private AnnouncementService $announcementService,
+        private LocationService $locationService,
     ) {}
 
     /** Start a shift only from the Admin-approved current-day assignment. */
@@ -183,6 +184,10 @@ class ShiftService
                 'is_on_break' => $isOnBreak,
                 'break_started_at' => $isOnBreak ? ($shift->break_started_at ?? now()) : null,
             ]);
+
+            // Hide (or bring back) the unit on commuter maps now, not on their
+            // next 60s reconcile.
+            DB::afterCommit(fn () => $this->locationService->broadcastLocationUpdate($shift->vehicle_id));
 
             return $shift->fresh(['vehicle', 'driver', 'route']);
         }, 3);

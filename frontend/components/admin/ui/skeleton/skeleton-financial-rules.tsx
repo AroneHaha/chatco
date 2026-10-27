@@ -14,7 +14,7 @@ function Bar({ className }: { className: string }) {
 function SectionHeading() {
   return (
     <div className="mb-4 flex items-start gap-3">
-      <Bar className="h-9 w-9 shrink-0 rounded-lg" />
+      <Bar className="h-7 w-7 shrink-0 rounded-md" />
       <div className="space-y-2 pt-0.5">
         <Bar className="h-4 w-48" />
         <Bar className="h-3 w-72 max-w-full" />
