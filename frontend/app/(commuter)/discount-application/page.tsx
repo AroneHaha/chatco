@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Accessibility, AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, CircleDashed, CircleHelp, Clock3, GraduationCap, IdCard, Loader2, ShieldCheck, XCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { DiscountProofFields, useDiscountProof } from '@/components/commuter/discount-proof-fields';
@@ -32,6 +33,7 @@ const statusTone: Record<string, { className: string; Icon: typeof Clock3 }> = {
 
 export default function DiscountApplicationPage() {
   const { commuterProfile, refresh } = useAuth();
+  const router = useRouter();
   const [state, setState] = useState<ApplicationState | null>(null);
   const [category, setCategory] = useState<DiscountCategory | ''>('');
   const [error, setError] = useState('');
@@ -79,6 +81,15 @@ export default function DiscountApplicationPage() {
     if (state && commuterProfile && toCommuterType(state.commuter_type) !== commuterProfile.commuterType) void refresh();
   }, [state, commuterProfile, refresh]);
 
+  // Only Regular accounts can apply. The server's classification decides (the
+  // cached profile can lag behind an approval or expiry); the profile is the
+  // fallback only when the status can't be loaded.
+  const accountType = state ? toCommuterType(state.commuter_type) : error ? commuterProfile?.commuterType : undefined;
+  const notRegular = accountType !== undefined && accountType !== 'REGULAR';
+  useEffect(() => {
+    if (notRegular) router.replace('/dashboard');
+  }, [notRegular, router]);
+
   const application = state?.application;
   const correction = state?.status === 'NEEDS_CORRECTION' && application?.request_type === 'APPLICATION';
   const student = category === 'STUDENT';
@@ -125,6 +136,8 @@ export default function DiscountApplicationPage() {
     } finally { submitting.current = false; setBusy(false); }
   };
   const cancelButton = cancellable && <button type="button" disabled={busy} onClick={() => { setCancelError(''); setConfirmCancel(true); }} className={`${secondaryButton} mt-5`}>Cancel application</button>;
+
+  if (notRegular) return null;
 
   return <div className="flex h-full w-full flex-col overflow-hidden bg-[#050F1A] text-white light:bg-[#F8FAFC] light:text-gray-900">
     {/* Padding sits outside max-w-6xl, matching <main>, so the title lines up
