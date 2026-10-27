@@ -134,8 +134,8 @@ Route::prefix('mobile/commuter')->middleware(['auth:sanctum', 'role:COMMUTER', '
     Route::get('/rewards', [CommuterController::class, 'rewards'])->middleware('throttle:conductor-read');
     Route::post('/location', [CommuterController::class, 'updateLocation'])->middleware('throttle:commuter-hail');
 
-    Route::post('/share-ride', [ShareRideController::class, 'store'])->middleware('throttle:commuter-hail');
-    Route::delete('/share-ride', [ShareRideController::class, 'destroy'])->middleware('throttle:commuter-hail');
+    Route::post('/share-ride', [ShareRideController::class, 'store'])->middleware('throttle:share-ride-update');
+    Route::delete('/share-ride', [ShareRideController::class, 'destroy'])->middleware('throttle:share-ride-update');
 
     Route::post('/hail', [HailController::class, 'store'])->middleware('throttle:commuter-hail');
     Route::get('/hail/{id}', [MobileHailController::class, 'show'])->middleware('throttle:commuter-read');

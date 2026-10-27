@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Calculator } from "lucide-react";
 import { RequireRole, useAuth } from "@/contexts/auth-context";
 import { AnnouncementsProvider, useAnnouncements } from "@/contexts/announcements-context";
@@ -18,6 +18,7 @@ import CommuterProfileModal from "@/components/commuter/commuter-profile-modal";
 import CommuterFareModal from "@/components/commuter/commuter-fare-modal";
 import StudentRenewalReminder from "@/components/commuter/student-renewal-reminder";
 import MobileNavHighlight, { useMobileNavHighlight } from "@/components/shared/mobile-nav-highlight";
+import { resumeShareTracking } from "@/lib/commuter/share-ride-tracker";
 
 /**
  * Spell out what the Rewards badge is counting for screen readers — the number
@@ -32,7 +33,12 @@ function rewardsBadgeLabel(unread: number, vouchers: number): string {
 
 function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { commuterProfile, isLoading: authLoading } = useAuth();
+  const { user, commuterProfile, isLoading: authLoading } = useAuth();
+  // A reload mid-share picks the live link back up, so the viewer's map keeps
+  // moving (lib/commuter/share-ride-tracker.ts).
+  useEffect(() => {
+    if (user?.id) resumeShareTracking(user.id);
+  }, [user?.id]);
   // The Feedback tab opens the QR scanner as an overlay instead of routing to
   // /feedback directly — scanning doesn't need a full page, and
   // this way it can be launched from wherever the commuter already is. What

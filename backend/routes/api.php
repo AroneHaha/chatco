@@ -140,8 +140,8 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER', 'mainten
     Route::post('/location', [CommuterController::class, 'updateLocation'])->middleware('throttle:commuter-hail');
 
     // Share Live Location — commuter generates a tracking link
-    Route::post('/share-ride', [ShareRideController::class, 'store'])->middleware('throttle:commuter-hail');
-    Route::delete('/share-ride', [ShareRideController::class, 'destroy'])->middleware('throttle:commuter-hail');
+    Route::post('/share-ride', [ShareRideController::class, 'store'])->middleware('throttle:share-ride-update');
+    Route::delete('/share-ride', [ShareRideController::class, 'destroy'])->middleware('throttle:share-ride-update');
 
     // Hail lifecycle (commuter-side) — 10 req/min per user
     Route::post('/hail', [HailController::class, 'store'])->middleware('throttle:commuter-hail');

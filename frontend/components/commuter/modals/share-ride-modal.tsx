@@ -1,16 +1,17 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { AlertTriangle, Check, CheckCircle2, Loader2, MapPin, X } from "lucide-react";
 import { APP_DIALOG as D } from "@/components/shared/app-dialog-styles";
-import { haversineMeters } from "@/lib/utils/geo";
-
-// The public tracking page (app/share/[token]/page.tsx) polls every 5s, so
-// pushing position updates more often than that is wasted work. Only push
-// when meaningfully stale (time) or meaningfully moved (distance) — a real
-// position change is still sent immediately regardless of the timer.
-const MIN_UPDATE_INTERVAL_MS = 4000;
-const MIN_UPDATE_DISTANCE_METERS = 8;
+import { useAuth } from "@/contexts/auth-context";
+import {
+  attachShareLink,
+  beginShareTracking,
+  getActiveShareLink,
+  stopShareTracking,
+  subscribeShareGpsStatus,
+  type ShareGpsStatus,
+} from "@/lib/commuter/share-ride-tracker";
 
 interface ShareRideModalProps {
   commuterName: string;
@@ -21,6 +22,7 @@ interface ShareRideModalProps {
 }
 
 export default function ShareRideModal({ commuterName, lat: propLat, lng: propLng, onClose }: ShareRideModalProps) {
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [shareUrl, setShareUrl] = useState<string>("");
@@ -28,74 +30,31 @@ export default function ShareRideModal({ commuterName, lat: propLat, lng: propLn
   const [timeLeft, setTimeLeft] = useState(0);
   const [isCopied, setIsCopied] = useState(false);
   const [isExpired, setIsExpired] = useState(false);
-  const [gpsStatus, setGpsStatus] = useState<"idle" | "requesting" | "success" | "error">("idle");
+  const [gpsStatus, setGpsStatus] = useState<ShareGpsStatus>("idle");
   const [isStopping, setIsStopping] = useState(false);
   const [isStopped, setIsStopped] = useState(false);
 
-  // Track the share token + current position so we can push updates.
-  const tokenRef = useRef<string | null>(null);
-  const watchIdRef = useRef<number | null>(null);
-  // Last position actually pushed to the backend, for throttling.
-  const lastSentRef = useRef<{ lat: number; lng: number; at: number } | null>(null);
+  // GPS status comes from the tracker, which keeps pushing the position
+  // after this modal closes (lib/commuter/share-ride-tracker.ts).
+  useEffect(() => subscribeShareGpsStatus(setGpsStatus), []);
 
-  // ── Get current GPS position ──
-  const getCurrentPosition = (): Promise<{ lat: number; lng: number }> => {
-    return new Promise((resolve, reject) => {
-      if (typeof navigator === "undefined" || !navigator.geolocation) {
-        reject(new Error("Geolocation is not supported by your browser."));
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        (err) => reject(new Error(err.message || "Failed to get GPS position.")),
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      );
-    });
-  };
-
-  // ── Push position update to the backend ──
-  const updatePosition = useCallback(async (latVal: number, lngVal: number) => {
-    if (!tokenRef.current) return;
-
-    // Throttle: skip this push if it's both too soon since the last one AND
-    // the position hasn't moved meaningfully — avoids spamming the backend
-    // on every raw watchPosition tick while still pushing immediately on
-    // real movement or once the interval elapses.
-    const now = Date.now();
-    const last = lastSentRef.current;
-    if (last) {
-      const elapsedMs = now - last.at;
-      const movedMeters = haversineMeters(last.lat, last.lng, latVal, lngVal);
-      if (elapsedMs < MIN_UPDATE_INTERVAL_MS && movedMeters < MIN_UPDATE_DISTANCE_METERS) {
-        return;
-      }
-    }
-    lastSentRef.current = { lat: latVal, lng: lngVal, at: now };
-
-    try {
-      await fetch("/api/commuter/share-ride", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ lat: latVal, lng: lngVal }),
-      });
-    } catch {
-      // Best-effort — position update failure is non-critical.
-    }
-  }, []);
-
-  // ── Create the share link on mount ──
+  // ── Create (or reuse) the share link on mount ──
   useEffect(() => {
+    const ownerId = user?.id;
+    let cancelled = false;
+
     const createLink = async () => {
       setIsLoading(true);
       setError(null);
-      setGpsStatus("requesting");
+
+      // Start GPS in parallel with link creation; the tracker holds the first
+      // fix and sends it as soon as the link exists.
+      beginShareTracking();
 
       try {
-        // Fire link creation immediately using whatever position we already
-        // have (if any) — don't block it on acquiring a fresh GPS fix. Once
-        // GPS resolves it's pushed separately via updatePosition, the same
-        // path already used for live tracking below.
-        const linkPromise = fetch("/api/commuter/share-ride", {
+        // rotate:false reuses the commuter's active link, so reopening the
+        // modal mid-share keeps the URL already sent to family.
+        const res = await fetch("/api/commuter/share-ride", {
           method: "POST",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
           body: JSON.stringify({
@@ -104,34 +63,6 @@ export default function ShareRideModal({ commuterName, lat: propLat, lng: propLn
             rotate: false,
           }),
         });
-
-        if (propLat == null || propLng == null) {
-          getCurrentPosition()
-            .then((pos) => {
-              setGpsStatus("success");
-              void updatePosition(pos.lat, pos.lng);
-            })
-            .catch(() => setGpsStatus("error"));
-        } else {
-          setGpsStatus("success");
-        }
-
-        // Start watching position for live updates in parallel with link
-        // creation instead of waiting for it to finish first.
-        if (typeof navigator !== "undefined" && navigator.geolocation) {
-          watchIdRef.current = navigator.geolocation.watchPosition(
-            (pos) => {
-              setGpsStatus("success");
-              void updatePosition(pos.coords.latitude, pos.coords.longitude);
-            },
-            () => {
-              setGpsStatus((prev) => (prev === "success" ? prev : "error"));
-            },
-            { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
-          );
-        }
-
-        const res = await linkPromise;
         if (!res.ok) {
           const body = await res.json().catch(() => null);
           throw new Error(body?.message ?? "Failed to create share link.");
@@ -139,25 +70,31 @@ export default function ShareRideModal({ commuterName, lat: propLat, lng: propLn
 
         const json = await res.json();
         const data = json.data;
-        tokenRef.current = data.token;
+        if (cancelled) {
+          // Closed before the URL was ever shown, so nobody has this link to
+          // watch — unless it was already live from an earlier open.
+          if (!getActiveShareLink()) stopShareTracking();
+          return;
+        }
+        attachShareLink(data.token, data.expires_at, ownerId ?? "");
         // Always construct the share URL using the frontend's origin (port 3000).
         setShareUrl(`${window.location.origin}/share/${data.token}`);
         setExpiresAt(data.expires_at);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to create share link.");
+        // No link to push to — don't leave GPS running for nothing.
+        if (!getActiveShareLink()) stopShareTracking();
+        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to create share link.");
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
 
     void createLink();
 
-    // Cleanup: stop watching + deactivate the link when modal closes.
+    // Closing the modal only stops this view. Position pushes carry on until
+    // Stop sharing or expiry, so the viewer's map keeps moving.
     return () => {
-      if (watchIdRef.current != null && navigator.geolocation) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = null;
-      }
+      cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -207,13 +144,12 @@ export default function ShareRideModal({ commuterName, lat: propLat, lng: propLn
   const handleStopSharing = useCallback(async () => {
     if (isStopping) return;
     setIsStopping(true);
-    if (watchIdRef.current != null && navigator.geolocation) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
-      watchIdRef.current = null;
-    }
     try {
       const response = await fetch("/api/commuter/share-ride", { method: "DELETE" });
       if (!response.ok) throw new Error("Unable to stop sharing.");
+      // Stop pushing only once the link is really off; a push already in
+      // flight is refused by the backend (409) rather than reviving it.
+      stopShareTracking();
       setIsStopped(true);
       setTimeout(onClose, 1200);
     } catch {
