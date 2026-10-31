@@ -1,7 +1,13 @@
 "use client";
 
+import { useRef } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Hand, QrCode, MapPin, Bus } from "lucide-react";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { useGSAP } from "@gsap/react";
+import { Hand, MapPin, Wallet, type LucideIcon } from "lucide-react";
+
+gsap.registerPlugin(ScrollTrigger, useGSAP);
 
 export const QR = [1,1,1,0,1,1,1, 1,0,1,1,0,0,1, 1,1,1,0,1,1,1, 0,0,0,1,0,1,0, 1,1,0,0,1,0,1, 1,0,1,1,0,1,1, 1,1,1,0,1,0,1];
 
@@ -9,115 +15,82 @@ type Step = {
   step: string;
   title: string;
   desc: string;
-  accent: string;
-  icon: typeof Hand;
+  icon: LucideIcon;
 };
 
 const STEPS: Step[] = [
   {
     step: "01",
-    title: "Open & Hail",
-    desc: "Open CHATCO and tap Hail Me to alert nearby conductors. Your location is sent automatically — no need to flag down a jeep manually.",
-    accent: "#3584E4",
-    icon: Hand,
+    title: "Track nearby units",
+    desc: "See CHATCO jeeps on the live map before you head out. No more blind waiting by the road: you know how far the next unit is and when to start walking.",
+    icon: MapPin,
   },
   {
     step: "02",
-    title: "Show & Pay",
-    desc: "Board the jeepney and show your QR to the conductor. They scan it, pick your stops, and fare is paid directly via GCash — no WiFi needed on your end.",
-    accent: "#3584E4",
-    icon: QrCode,
+    title: "Hail your ride",
+    desc: "Tap Hail Me and conductors of units within 1 km see your location on their map, so the jeep knows to stop for you.",
+    icon: Hand,
   },
   {
     step: "03",
-    title: "Track & Arrive",
-    desc: "Follow your jeepney in real-time on the map. Share your ride with family for safety, and get a digital receipt instantly after every cashless trip.",
-    accent: "#22C55E",
-    icon: MapPin,
+    title: "Pay cash or GCash",
+    desc: "Pay the conductor in cash, or show your QR to pay with GCash. GCash rides count toward free-ride rewards automatically.",
+    icon: Wallet,
   },
 ];
 
-/* Illustrations shared by the three steps. */
-
-function HailVisual() {
-  return (
-    <div className="relative w-full aspect-4/3 min-h-60 rounded-2xl bg-[#F0F7FF] border border-white/10 overflow-hidden">
-      <div className="absolute inset-0 opacity-30" style={{ backgroundImage: "linear-gradient(#1A5FB4 1px, transparent 1px), linear-gradient(90deg, #1A5FB4 1px, transparent 1px)", backgroundSize: "30px 30px" }} />
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2">
-        <span className="block w-5 h-5 rounded-full bg-[#1A5FB4] border-4 border-white shadow-lg shadow-[#1A5FB4]/40" />
-        <span className="absolute inset-0 -m-3 rounded-full bg-[#1A5FB4]/20 motion-safe:animate-ping" />
-      </div>
-      <div className="absolute bottom-9 left-1/2 -translate-x-1/2 w-[72%]">
-        <div className="relative flex items-center justify-center gap-2 px-6 py-4 rounded-2xl bg-[#1A5FB4] text-white font-bold shadow-xl shadow-[#1A5FB4]/40">
-          <Hand size={18} /> Hail Me
-          <span className="absolute inset-0 rounded-2xl ring-4 ring-[#1A5FB4]/30 motion-safe:animate-pulse" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PayVisual() {
-  return (
-    <div className="relative w-full aspect-4/3 min-h-60 rounded-2xl bg-white/[0.04] border border-white/15 overflow-hidden flex items-center justify-center p-6">
-      <div className="text-center">
-        <div className="mx-auto grid grid-cols-7 gap-0.5 w-24 h-24 p-2 bg-white rounded-xl shadow-xl">
-          {QR.map((v, i) => (
-            <div key={i} className={`rounded-[1px] ${v ? "bg-[#071A2E]" : "bg-gray-100"}`} />
-          ))}
-        </div>
-        <div className="mt-4 flex items-center justify-center gap-2">
-          <span className="text-white/50 text-xs uppercase tracking-widest">Fare to pay</span>
-          <span className="rounded-full bg-white/10 px-2 py-1 text-[10px] font-semibold text-white/70">GCash</span>
-        </div>
-        <div className="text-white font-extrabold text-3xl mt-1">₱13.00</div>
-        <div className="mt-1 text-[#62A0EA] text-xs font-medium">Calumpit → Meycauayan</div>
-      </div>
-    </div>
-  );
-}
-
-function TrackVisual() {
-  return (
-    <div className="relative w-full aspect-4/3 min-h-60 rounded-2xl bg-[#EAF7EE] border border-white/10 overflow-hidden">
-      <div className="absolute inset-0 opacity-20" style={{ backgroundImage: "linear-gradient(#22C55E 1px, transparent 1px), linear-gradient(90deg, #22C55E 1px, transparent 1px)", backgroundSize: "30px 30px" }} />
-      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-        <path d="M12,80 C35,70 40,35 60,32 S85,20 90,14" fill="none" stroke="#22C55E" strokeWidth="1.5" strokeDasharray="3 3" strokeLinecap="round" opacity="0.7" />
-      </svg>
-      <span className="absolute left-[12%] top-[80%] w-3 h-3 rounded-full bg-white border-2 border-[#22C55E]" />
-      <div className="absolute left-[58%] top-[30%] -translate-x-1/2 -translate-y-1/2">
-        <span className="flex w-6 h-6 rounded-lg bg-[#22C55E] shadow-lg shadow-green-500/40 items-center justify-center text-white">
-          <Bus size={13} strokeWidth={2.5} />
-        </span>
-        <span className="absolute inset-0 -m-2 rounded-full bg-green-500/20 motion-safe:animate-ping" />
-      </div>
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[82%] bg-white rounded-2xl shadow-xl p-3 flex items-center justify-between border border-green-100">
-        <div className="flex items-center gap-2">
-          <span className="w-8 h-8 rounded-lg bg-green-50 text-green-600 flex items-center justify-center">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
-          </span>
-          <div>
-            <p className="text-[10px] font-bold text-gray-800">Payment Success</p>
-            <p className="text-[10px] text-gray-400">Digital receipt sent</p>
-          </div>
-        </div>
-        <span className="text-sm font-extrabold text-gray-900">₱13.00</span>
-      </div>
-    </div>
-  );
-}
-
-function StepVisual({ index }: { index: number }) {
-  if (index === 0) return <HailVisual />;
-  if (index === 1) return <PayVisual />;
-  return <TrackVisual />;
+/* Empty step frame, kept at the cards' size until the step images are ready. */
+function StepFrame() {
+  return <div className="w-full aspect-4/3 min-h-60 overflow-hidden rounded-2xl border border-[#1E3F6E] bg-[#08203F]" />;
 }
 
 export default function HowItWorks() {
   const reduce = useReducedMotion();
+  const sectionRef = useRef<HTMLElement>(null);
+
+  // Desktop scroll scene: the section pins and the steps arrive one at a time.
+  // Step 1 starts alone at the center and slides into its column as step 2
+  // rises in the middle; a little later step 3 joins on the right. Each rail
+  // segment draws as the step it leads to appears. GSAP drives inner wrappers
+  // so it never fights Framer's in-view reveal on the <li> itself.
+  useGSAP(
+    () => {
+      const mm = gsap.matchMedia();
+      mm.add("(min-width: 1024px) and (prefers-reduced-motion: no-preference)", () => {
+        const section = sectionRef.current;
+        const q = gsap.utils.selector(section);
+        const [one, two, three] = q<HTMLElement>("[data-step]");
+        const [railOne, railTwo] = q<HTMLElement>("[data-rail]");
+        if (!section || !one || !two || !three || !railOne || !railTwo) return;
+
+        // Centering step 1 = shifting it by the distance between its column and the middle one.
+        const toMiddle = () => {
+          const a = one.getBoundingClientRect();
+          const b = two.getBoundingClientRect();
+          return b.left - (a.left - Number(gsap.getProperty(one, "x")));
+        };
+
+        gsap.set([railOne, railTwo], { scaleX: 0, transformOrigin: "left center" });
+        gsap
+          .timeline({
+            defaults: { ease: "none" },
+            // Starts just past the top padding so the heading sits under the navbar with the steps in view.
+            scrollTrigger: { trigger: section, start: "top+=40 top", end: "+=220%", pin: true, scrub: true, invalidateOnRefresh: true },
+          })
+          .fromTo(one, { x: toMiddle }, { x: 0, duration: 1 }, 0)
+          .fromTo(two, { autoAlpha: 0, y: 40 }, { autoAlpha: 1, y: 0, duration: 0.6 }, 0.4)
+          .to(railOne, { scaleX: 1, duration: 0.4 }, 0.7)
+          .fromTo(three, { autoAlpha: 0, y: 40 }, { autoAlpha: 1, y: 0, duration: 0.6 }, 1.4)
+          .to(railTwo, { scaleX: 1, duration: 0.4 }, 1.7)
+          .to({}, { duration: 0.3 });
+      });
+    },
+    { scope: sectionRef }
+  );
 
   return (
     <section
+      ref={sectionRef}
       id="how-it-works"
       aria-labelledby="how-it-works-heading"
       className="overflow-x-clip bg-[#0C2A52] py-20 text-white md:py-28"
@@ -128,7 +101,7 @@ export default function HowItWorks() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.5 }}
           transition={{ duration: reduce ? 0 : 0.5 }}
-          className="mx-auto max-w-2xl text-center motion-reduce:opacity-100! motion-reduce:transform-none!"
+          className="mx-auto max-w-2xl text-center lg:mt-16 motion-reduce:opacity-100! motion-reduce:transform-none!"
         >
           <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#62A0EA]">
             How It Works
@@ -139,9 +112,6 @@ export default function HowItWorks() {
           >
             Three steps to smarter commuting
           </h2>
-          <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-white/60 md:text-lg">
-            From your first hail to your final stop, a simpler ride with CHATCO.
-          </p>
         </motion.div>
 
         <ol className="mt-12 grid gap-12 md:mt-16 md:grid-cols-3 md:gap-6 lg:gap-8">
@@ -156,38 +126,39 @@ export default function HowItWorks() {
                 transition={{ duration: reduce ? 0 : 0.5, delay: reduce ? 0 : i * 0.12 }}
                 className="min-w-0 motion-reduce:opacity-100! motion-reduce:transform-none!"
               >
-                <div aria-hidden="true">
-                  <StepVisual index={i} />
-                </div>
-                <div className="relative mt-7 flex h-11 items-center justify-center">
-                  {i < STEPS.length - 1 && (
-                    <div aria-hidden="true" className="absolute inset-y-0 left-1/2 hidden w-[calc(100%+1.5rem)] items-center md:flex lg:w-[calc(100%+2rem)]">
-                      <div className="relative h-px w-full bg-white/15">
-                        <motion.div
-                          initial={{ scaleX: 0 }}
-                          whileInView={{ scaleX: 1 }}
-                          viewport={{ once: true, amount: 0.5 }}
-                          transition={{ duration: reduce ? 0 : 0.8, delay: reduce ? 0 : 0.3 + i * 0.2, ease: "easeOut" }}
-                          className="absolute inset-0 origin-left bg-[#62A0EA]/70 motion-reduce:transform-none!"
-                        />
+                <div data-step>
+                  <div aria-hidden="true">
+                    <StepFrame />
+                  </div>
+                  <div className="relative mt-7 flex h-11 items-center justify-center">
+                    {i < STEPS.length - 1 && (
+                      <div aria-hidden="true" className="absolute inset-y-0 left-1/2 hidden w-[calc(100%+1.5rem)] items-center md:flex lg:w-[calc(100%+2rem)]">
+                        <div data-rail className="relative h-px w-full bg-white/15">
+                          <motion.div
+                            initial={{ scaleX: 0 }}
+                            whileInView={{ scaleX: 1 }}
+                            viewport={{ once: true, amount: 0.5 }}
+                            transition={{ duration: reduce ? 0 : 0.8, delay: reduce ? 0 : 0.3 + i * 0.2, ease: "easeOut" }}
+                            className="absolute inset-0 origin-left bg-[#62A0EA] motion-reduce:transform-none!"
+                          />
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  <span
-                    aria-hidden="true"
-                    className="relative z-10 grid h-11 w-11 place-items-center rounded-full border bg-[#0C2A52] text-sm font-bold tabular-nums"
-                    style={{ borderColor: s.accent, color: s.accent }}
-                  >
-                    {s.step}
-                  </span>
+                    )}
+                    <span
+                      aria-hidden="true"
+                      className="relative z-10 grid h-11 w-11 place-items-center rounded-full border border-[#2A5185] bg-[#0C2A52] text-sm font-bold tabular-nums text-white"
+                    >
+                      {s.step}
+                    </span>
+                  </div>
+                  <h3 className="mt-5 flex items-center justify-center gap-2.5 text-center font-sans text-2xl font-bold tracking-tight">
+                    <Icon aria-hidden="true" size={20} className="shrink-0 text-white/50" />
+                    {s.title}
+                  </h3>
+                  <p className="mx-auto mt-3 max-w-sm text-center text-sm leading-relaxed text-white/60 lg:text-base">
+                    {s.desc}
+                  </p>
                 </div>
-                <h3 className="mt-5 flex items-center justify-center gap-3 text-center font-sans text-2xl font-bold tracking-tight">
-                  <Icon aria-hidden="true" size={20} className="shrink-0" style={{ color: s.accent }} />
-                  {s.title}
-                </h3>
-                <p className="mt-3 text-center text-sm leading-relaxed text-white/65 lg:text-base">
-                  {s.desc}
-                </p>
               </motion.li>
             );
           })}
