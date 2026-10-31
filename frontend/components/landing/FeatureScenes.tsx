@@ -11,7 +11,6 @@ import {
   Share2,
   Search,
   TriangleAlert,
-  type LucideIcon,
 } from "lucide-react";
 import { QR } from "./HowItWorks";
 
@@ -147,8 +146,9 @@ export function GcashScene({ tone = "light" }: { tone?: Tone }) {
   const paid = t >= 0.6;
 
   return (
-    <Frame tone={tone} className="gap-8 md:gap-12">
-      <div ref={ref} className="relative shrink-0 w-32 h-32 md:w-36 md:h-36 rounded-2xl bg-white p-3 shadow-lg shadow-black/10 border border-(--line)">
+    // lg: the desktop panel is far larger than this pair, so scale it up and center it instead of leaving it top-left.
+    <Frame tone={tone} className="gap-8 md:gap-12 lg:justify-center lg:gap-16">
+      <div ref={ref} className="relative shrink-0 w-32 h-32 md:w-36 md:h-36 lg:w-56 lg:h-56 lg:p-4 rounded-2xl bg-white p-3 shadow-lg shadow-black/10 border border-(--line)">
         <div className="grid grid-cols-7 gap-0.75 w-full h-full">
           {QR.map((v, i) => (
             <span key={i} className={`rounded-[1px] ${v ? "bg-[#071A2E]" : "bg-gray-100"}`} />
@@ -164,9 +164,9 @@ export function GcashScene({ tone = "light" }: { tone?: Tone }) {
       </div>
 
       <div className="min-w-0">
-        <p className="text-sm text-(--mute)">Fare to pay</p>
-        <p className="mt-1 font-sans text-5xl md:text-6xl font-bold tracking-tight text-(--ink) tabular-nums">₱15.00</p>
-        <div className="mt-4 h-6">
+        <p className="text-sm lg:text-base text-(--mute)">Fare to pay</p>
+        <p className="mt-1 font-sans text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight text-(--ink) tabular-nums">₱15.00</p>
+        <div className="mt-4 lg:mt-5 h-6">
           <AnimatePresence mode="wait" initial={false}>
             {paid ? (
               <motion.p
@@ -421,43 +421,6 @@ export function HailScene({ tone = "light" }: { tone?: Tone }) {
             <p className="mt-2 text-sm text-(--mute)">Tap the button to try it.</p>
           </>
         )}
-      </div>
-    </Frame>
-  );
-}
-
-/* ── 5. Ride notifications ─────────────────────────────────────────── */
-
-const ALERTS: { icon: LucideIcon; title: string; sub: string }[] = [
-  { icon: Bus, title: "A CHATCO jeep is nearby", sub: "Within 1 km of you" },
-  { icon: Check, title: "Your ride is confirmed", sub: "Fare paid with GCash" },
-  { icon: Bell, title: "You have arrived", sub: "Your drop-off stop" },
-];
-
-export function NotifyScene({ tone = "light" }: { tone?: Tone }) {
-  const { ref, t } = useLoop(4200, 1);
-  return (
-    <Frame tone={tone} className="justify-center">
-      <div ref={ref} className="w-full max-w-md space-y-3">
-        {ALERTS.map((a, i) => {
-          const shown = t >= 0.08 + i * 0.3;
-          const Icon = a.icon;
-          return (
-            <div
-              key={a.title}
-              className="flex items-center gap-3 rounded-2xl border border-(--line) bg-(--fill) px-4 py-3 transition-all duration-500"
-              style={{ opacity: shown ? 1 : 0, transform: shown ? "none" : "translateY(10px)" }}
-            >
-              <span className="grid place-items-center w-9 h-9 rounded-xl bg-(--brand) text-white shrink-0">
-                <Icon size={16} strokeWidth={2.4} />
-              </span>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-(--ink)">{a.title}</p>
-                <p className="text-xs text-(--mute)">{a.sub}</p>
-              </div>
-            </div>
-          );
-        })}
       </div>
     </Frame>
   );
