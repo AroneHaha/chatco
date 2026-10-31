@@ -1,10 +1,8 @@
 import Navbar from "@/components/landing/Navbar";
 import Hero from "@/components/landing/Hero";
-import TrustBar from "@/components/landing/TrustBar";
 import HowItWorks from "@/components/landing/HowItWorks";
 import Manifesto from "@/components/landing/Manifesto";
 import CommuterFeatures from "@/components/landing/CommuterFeatures";
-import HeatmapShowcase from "@/components/landing/HeatmapShowcase";
 import DownloadApp from "@/components/landing/DownloadApp";
 import Contact from "@/components/landing/Contact";
 import FinalCTA from "@/components/landing/FinalCTA";
@@ -22,11 +20,9 @@ export default function LandingLayout({ children }: { children: React.ReactNode 
         <SmoothScroll />
         <Navbar />
         <Hero />
-        <TrustBar />
         <HowItWorks />
         <CommuterFeatures />
         <Manifesto />
-        <HeatmapShowcase />
         <DownloadApp />
         <Contact />
         <Reveal>

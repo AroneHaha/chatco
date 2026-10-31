@@ -9,7 +9,6 @@ import {
   Megaphone,
   ShieldCheck,
   Gift,
-  Bell,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -17,7 +16,6 @@ import {
   TrackingScene,
   FareScene,
   HailScene,
-  NotifyScene,
   ShareScene,
   RewardsScene,
 } from "./FeatureScenes";
@@ -53,12 +51,6 @@ const FEATURES: Feature[] = [
     title: "Pick Me Up Signal",
     desc: "Waiting in the dark or rain? Tap to send an alert straight to the conductor.",
     scene: () => <HailScene />,
-  },
-  {
-    icon: Bell,
-    title: "Ride Notifications",
-    desc: "Get real-time alerts when a CHATCO jeep is nearby, when your ride is confirmed, and when you arrive at your drop-off.",
-    scene: () => <NotifyScene />,
   },
   {
     icon: ShieldCheck,
@@ -112,13 +104,14 @@ export default function CommuterFeatures() {
 
         {/* Desktop: index + live demo, rotates until you pick one */}
         <div
-          className="hidden lg:grid grid-cols-[300px_1fr] gap-8"
+          className="hidden lg:grid grid-cols-[340px_1fr] gap-8"
           onMouseEnter={() => setPaused(true)}
           onMouseLeave={() => setPaused(false)}
           onFocus={() => setPaused(true)}
           onBlur={() => setPaused(false)}
         >
-          <div className="space-y-1">
+          {/* The grid row stretches this column to the demo panel's height; flex-1 rows share it equally so the two sides line up. */}
+          <div className="flex flex-col gap-2">
             {FEATURES.map((f, i) => {
               const on = active === i;
               const Icon = f.icon;
@@ -129,23 +122,23 @@ export default function CommuterFeatures() {
                   onMouseEnter={() => select(i)}
                   onFocus={() => select(i)}
                   aria-current={on}
-                  className={`relative w-full flex items-center gap-3 text-left px-4 py-3.5 rounded-xl transition-colors duration-200 ${
+                  className={`relative w-full flex-1 flex items-center gap-4 text-left px-5 rounded-2xl transition-colors duration-200 ${
                     on ? "bg-[#F0F7FF]" : "hover:bg-gray-50"
                   }`}
                 >
                   <span
                     aria-hidden
-                    className="absolute left-0 top-3 bottom-3 w-0.75 rounded-full bg-[#1A5FB4] transition-opacity duration-300"
+                    className="absolute left-0 top-4 bottom-4 w-0.75 rounded-full bg-[#1A5FB4] transition-opacity duration-300"
                     style={{ opacity: on ? 1 : 0 }}
                   />
                   <span
-                    className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-300 ${
+                    className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-colors duration-300 ${
                       on ? "bg-[#1A5FB4] text-white" : "bg-gray-100 text-gray-500"
                     }`}
                   >
-                    <Icon size={17} strokeWidth={1.8} />
+                    <Icon size={20} strokeWidth={1.8} />
                   </span>
-                  <span className={`text-sm font-semibold transition-colors duration-200 ${on ? "text-gray-900" : "text-gray-500"}`}>
+                  <span className={`text-base font-semibold transition-colors duration-200 ${on ? "text-gray-900" : "text-gray-500"}`}>
                     {f.title}
                   </span>
                 </button>
