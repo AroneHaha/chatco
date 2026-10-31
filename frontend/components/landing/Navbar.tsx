@@ -153,8 +153,8 @@ export default function Navbar({ onHomePage = true }: { onHomePage?: boolean }) 
       aria-label="Main"
       className={`fixed top-0 inset-x-0 z-50 pt-safe lg:pt-0 border-b transition-[background-color,border-color,box-shadow] duration-300 ease-out ${
         scrolled || menuOpen
-          ? "bg-[#071A2E]/92 backdrop-blur-xl border-white/10 shadow-lg shadow-black/20"
-          : "bg-[#071A2E]/20 backdrop-blur-md border-transparent"
+          ? "bg-[#071A2E] border-white/10 shadow-lg shadow-black/20"
+          : "bg-[#071A2E]/75 backdrop-blur-md border-transparent"
       }`}
     >
       <div className="max-w-7xl mx-auto px-5 md:px-8 flex items-center justify-between lg:grid lg:grid-cols-[auto_1fr_auto] xl:grid-cols-[1fr_auto_1fr] h-16">
