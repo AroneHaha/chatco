@@ -7,7 +7,7 @@ import { useInView } from "@/hooks/useInView";
 // Leaflet touches `window`, so the map is client-only and mounts once in view.
 const ContactMap = dynamic(() => import("./ContactMap"), { ssr: false });
 
-const OFFICE = { name: "Jed's Island Resort", coords: [14.9241871, 120.7659402] as [number, number] };
+const OFFICE = { name: "Gatbuca Hi-way, near JEDS Resort", coords: [14.9241871, 120.7659402] as [number, number] };
 const DIRECTIONS_URL = `https://www.google.com/maps/dir/?api=1&destination=${OFFICE.coords.join(",")}`;
 
 const CONTACTS = [
@@ -16,9 +16,9 @@ const CONTACTS = [
   { label: "Email", value: "eric.chatco@gmail.com", href: "mailto:eric.chatco@gmail.com", external: false },
 ];
 
-const row = "py-5 border-b border-[#DAEEFF] sm:grid sm:grid-cols-[7rem_1fr] sm:items-baseline sm:gap-6";
-const label = "text-xs font-semibold uppercase tracking-[0.1em] text-[#1A5FB4]";
-const focus = "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#1A5FB4] rounded-sm";
+const row = "py-5 border-b border-white/10 sm:grid sm:grid-cols-[7rem_1fr] sm:items-baseline sm:gap-6";
+const label = "text-xs font-semibold uppercase tracking-[0.1em] text-[#62A0EA]";
+const focus = "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#62A0EA] rounded-sm";
 
 export default function Contact() {
   const { ref, visible } = useInView();
@@ -27,7 +27,7 @@ export default function Contact() {
     <section
       id="contact"
       ref={ref}
-      className={`py-20 md:py-28 bg-[#F0F7FF] text-gray-900 transition-all duration-700 ${
+      className={`py-20 md:py-28 bg-[#0C2A52] text-white transition-all duration-700 ${
         visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
       }`}
     >
@@ -37,37 +37,37 @@ export default function Contact() {
           <h2 className="mt-5 font-sans font-bold text-3xl sm:text-4xl md:text-5xl tracking-tight leading-[1.05]">
             Get in touch.
           </h2>
-          <p className="mt-6 max-w-md text-lg text-gray-600 leading-relaxed">
+          <p className="mt-6 max-w-md text-lg text-white/60 leading-relaxed">
             Questions about rides, fares, or working with CHATCO? Reach us any of these ways.
           </p>
 
-          <div className="mt-10 border-t border-[#DAEEFF]">
+          <div className="mt-10 border-t border-white/10">
             {CONTACTS.map((c) => (
               <div key={c.label} className={row}>
                 <p className={label}>{c.label}</p>
                 <a
                   href={c.href}
                   {...(c.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-                  className={`group mt-1 sm:mt-0 inline-flex items-center gap-2 text-base sm:text-lg font-medium text-gray-900 hover:text-[#1A5FB4] transition-colors break-all ${focus}`}
+                  className={`group mt-1 sm:mt-0 inline-flex items-center gap-2 text-base sm:text-lg font-medium text-white hover:text-[#62A0EA] transition-colors break-all ${focus}`}
                 >
                   {c.value}
                   {c.external && (
-                    <ArrowUpRight size={16} className="shrink-0 text-gray-400 group-hover:text-[#1A5FB4] transition-colors" aria-hidden />
+                    <ArrowUpRight size={16} className="shrink-0 text-white/40 group-hover:text-[#62A0EA] transition-colors" aria-hidden />
                   )}
                 </a>
               </div>
             ))}
             <div className={row}>
               <p className={label}>Location</p>
-              <p className="mt-1 sm:mt-0 text-base sm:text-lg font-medium text-gray-900">
+              <p className="mt-1 sm:mt-0 text-base sm:text-lg font-medium text-white">
                 {OFFICE.name}
-                <span className="block mt-1 text-sm font-normal text-gray-500">Bulacan, Philippines</span>
+                <span className="block mt-1 text-sm font-normal text-white/50">Calumpit, Philippines, 3003</span>
               </p>
             </div>
           </div>
         </div>
 
-        <div className="relative min-h-96 lg:min-h-0 rounded-2xl overflow-hidden bg-[#050F1A] border border-[#071A2E]/10 shadow-2xl shadow-black/10">
+        <div className="relative min-h-96 lg:min-h-0 rounded-2xl overflow-hidden bg-[#050F1A] border border-white/10">
           {visible && <ContactMap position={OFFICE.coords} label={OFFICE.name} />}
 
           <a
