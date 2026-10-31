@@ -141,7 +141,7 @@ export default function Hero() {
             <p className="mb-5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#62A0EA] lg:hidden">
               Built for your daily commute
             </p>
-            <h1 data-hero-title className="font-sans font-bold text-white leading-[1.1] lg:leading-[1.02] tracking-[-0.035em] text-[clamp(2rem,9vw,3rem)] sm:text-6xl lg:text-[52px] xl:text-[64px]">
+            <h1 data-hero-title className="font-sans font-bold text-white leading-[1.1] lg:leading-[1.02] tracking-[-0.035em] text-[clamp(2rem,9vw,3rem)] sm:text-6xl lg:text-5xl xl:text-[64px]">
               Know where <br />
               your jeep is. <br />
               <span className="text-[#62A0EA]">Pay cashless.</span>
