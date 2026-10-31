@@ -271,6 +271,10 @@ class LocationService
      * Get all active vehicle locations for the commuter map.
      *
      * - NO distance filter — ALL vehicles visible at ALL times
+     * - NO age filter — a parked or stuck unit stays on the map for its whole
+     *   shift. It leaves only on remittance (active shift cleared) or while on
+     *   break. A shift abandoned without remittance is closed by
+     *   shifts:auto-end-stale, which removes it too.
      * - Joins with vehicles + active shifts + routes
      * - Fallback/initial load endpoint (real-time comes via Pusher)
      * - Ordered by most recently updated first
@@ -294,7 +298,6 @@ class LocationService
             })
             ->where('shift_logs.is_on_break', false)
             ->whereColumn('vehicle_locations.updated_at', '>=', 'shift_logs.time_in')
-            ->where('vehicle_locations.updated_at', '>=', now()->subMinutes(10))
             ->leftJoin('routes', 'shift_logs.route_id', '=', 'routes.id')
             ->select([
                 'vehicle_locations.vehicle_id',
@@ -436,10 +439,12 @@ class LocationService
     /**
      * Build the broadcast payload and fire the event.
      *
-     * This is the shared helper used by both GPS updates and capacity
-     * status updates — every change triggers a real-time push.
+     * This is the shared helper used by GPS updates, capacity status updates
+     * and break toggles — every change triggers a real-time push. The payload
+     * carries is_on_break so the commuter map drops a unit on break straight
+     * away, instead of a break-time GPS ping putting it back on the map.
      */
-    private function broadcastLocationUpdate(string $vehicleId): void
+    public function broadcastLocationUpdate(string $vehicleId): void
     {
         $locationData = DB::table('vehicle_locations')
             ->join('vehicles', 'vehicle_locations.vehicle_id', '=', 'vehicles.id')
@@ -460,10 +465,12 @@ class LocationService
                 'vehicle_locations.capacity_status',
                 'routes.name as route_name',
                 'vehicle_locations.updated_at',
+                'shift_logs.is_on_break',
             ])
             ->first();
 
         if ($locationData) {
+            $locationData->is_on_break = (bool) $locationData->is_on_break;
             broadcast(new VehicleLocationUpdated((array) $locationData))->toOthers();
         }
     }

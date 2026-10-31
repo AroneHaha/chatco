@@ -10,6 +10,7 @@ use App\Exceptions\RegistrationPendingException;
 use App\Models\AdminProfile;
 use App\Models\CommuterProfile;
 use App\Models\ConductorProfile;
+use App\Models\SharedRideLink;
 use App\Models\ShiftLog;
 use App\Models\User;
 use Illuminate\Database\QueryException;
@@ -290,11 +291,20 @@ class AuthService
     }
 
     /**
-     * Logout — revoke only the current token.
+     * Logout — revoke only the current token, and end the commuter's live
+     * location share: a signed-out commuter's link must read as expired, not
+     * keep showing their last position until its 30 minutes run out.
      */
     public function logout(User $user): void
     {
         $user->currentAccessToken()->delete();
+
+        if ($user->isCommuter()) {
+            // Commuter profile id == user id. Uses the (commuter_id, is_active) index.
+            SharedRideLink::where('commuter_id', $user->id)
+                ->where('is_active', true)
+                ->update(['is_active' => false]);
+        }
 
         if ($user->isAdmin()) {
             $this->activityLog->record(ActivityLogCategory::ACCOUNT, 'Signed out', $user);

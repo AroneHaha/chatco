@@ -154,34 +154,61 @@ class ShareRideController extends Controller
      */
     public function show(string $token): JsonResponse
     {
-        // Eager-load the commuter relation up front — both branches below
-        // read $link->commuter for the display name, so lazy-loading it
-        // would cost an extra query on every single poll (this endpoint is
-        // unauthenticated and polled every 5s by every open viewer).
-        $link = SharedRideLink::with('commuter:id,first_name,surname')
-            ->where('token', $token)
-            ->first();
+        // One indexed query per poll (unique token + commuter PK join) instead
+        // of the link plus an eager-loaded commuter: this route is
+        // unauthenticated and polled every 5s by every open viewer, so it is
+        // the hottest read in the feature.
+        $link = SharedRideLink::query()
+            ->leftJoin('commuter_profiles', 'commuter_profiles.id', '=', 'shared_ride_links.commuter_id')
+            ->where('shared_ride_links.token', $token)
+            ->first([
+                'shared_ride_links.lat',
+                'shared_ride_links.lng',
+                'shared_ride_links.expires_at',
+                'shared_ride_links.last_updated_at',
+                'shared_ride_links.is_active',
+                'commuter_profiles.first_name',
+                'commuter_profiles.surname',
+                'commuter_profiles.profile_image_url',
+            ]);
 
         if (! $link) {
-            return $this->errorResponse('Tracking link not found.', 404);
+            return $this->noStore($this->errorResponse('Tracking link not found.', 404));
         }
 
+        $commuterName = trim($link->first_name . ' ' . $link->surname) ?: 'Commuter';
+
+        // A stopped or expired link exposes the name only — never a position
+        // or the photo.
         if (! $link->is_active || $link->isExpired()) {
-            return $this->successResponse([
+            return $this->noStore($this->successResponse([
                 'active' => false,
                 'expired' => true,
-                'commuter_name' => trim($link->commuter?->first_name . ' ' . $link->commuter?->surname) ?: 'Commuter',
-            ], 'Tracking link expired');
+                'commuter_name' => $commuterName,
+            ], 'Tracking link expired'));
         }
 
-        return $this->successResponse([
+        return $this->noStore($this->successResponse([
             'active' => true,
             'expired' => false,
-            'commuter_name' => trim($link->commuter?->first_name . ' ' . $link->commuter?->surname) ?: 'Commuter',
+            'commuter_name' => $commuterName,
+            // Only while the link is live — an expired link stops exposing the photo.
+            'commuter_profile_image_url' => $link->profile_image_url,
             'lat' => $link->lat ? (float) $link->lat : null,
             'lng' => $link->lng ? (float) $link->lng : null,
             'last_updated' => $link->last_updated_at?->toIso8601String(),
+            // Age measured on the server's clock, so a viewer whose device
+            // clock is off still sees how stale the position is.
+            'seconds_since_update' => $link->last_updated_at
+                ? (int) max(0, $link->last_updated_at->diffInSeconds(now()))
+                : null,
             'expires_at' => $link->expires_at->toIso8601String(),
-        ], 'Tracking data retrieved');
+        ], 'Tracking data retrieved'));
+    }
+
+    /** Live locations must never be stored by a browser or shared proxy cache. */
+    private function noStore(JsonResponse $response): JsonResponse
+    {
+        return $response->header('Cache-Control', 'no-store, private');
     }
 }

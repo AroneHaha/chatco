@@ -50,6 +50,7 @@ return array(
     'App\\Enums\\UserRole' => $baseDir . '/app/Enums/UserRole.php',
     'App\\Events\\AdminNotificationsUpdated' => $baseDir . '/app/Events/AdminNotificationsUpdated.php',
     'App\\Events\\AnnouncementCreated' => $baseDir . '/app/Events/AnnouncementCreated.php',
+    'App\\Events\\FaresUpdated' => $baseDir . '/app/Events/FaresUpdated.php',
     'App\\Events\\HailCreated' => $baseDir . '/app/Events/HailCreated.php',
     'App\\Events\\HailStatusChanged' => $baseDir . '/app/Events/HailStatusChanged.php',
     'App\\Events\\PaymentStatusUpdated' => $baseDir . '/app/Events/PaymentStatusUpdated.php',

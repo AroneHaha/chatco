@@ -554,6 +554,7 @@ class ComposerStaticInit1554d9a7755277c7b64a5a5f7daac88e
         'App\\Enums\\UserRole' => __DIR__ . '/../..' . '/app/Enums/UserRole.php',
         'App\\Events\\AdminNotificationsUpdated' => __DIR__ . '/../..' . '/app/Events/AdminNotificationsUpdated.php',
         'App\\Events\\AnnouncementCreated' => __DIR__ . '/../..' . '/app/Events/AnnouncementCreated.php',
+        'App\\Events\\FaresUpdated' => __DIR__ . '/../..' . '/app/Events/FaresUpdated.php',
         'App\\Events\\HailCreated' => __DIR__ . '/../..' . '/app/Events/HailCreated.php',
         'App\\Events\\HailStatusChanged' => __DIR__ . '/../..' . '/app/Events/HailStatusChanged.php',
         'App\\Events\\PaymentStatusUpdated' => __DIR__ . '/../..' . '/app/Events/PaymentStatusUpdated.php',
