@@ -49,7 +49,6 @@ export default function Footer({ compact = false }: { compact?: boolean }) {
               <li><Link href="/#how-it-works" className={linkClass}>How It Works</Link></li>
               <li><Link href="/#features" className={linkClass}>Commuter Features</Link></li>
               <li><Link href="/#platform" className={linkClass}>Why CHATCO</Link></li>
-              <li><Link href="/#smart-hailing" className={linkClass}>Smart Hailing</Link></li>
             </ul>
           </nav>
 
