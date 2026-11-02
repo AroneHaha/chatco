@@ -5,7 +5,7 @@
 // Commuter Emergency SOS modal — wired to the real Laravel backend (S6-T10).
 //
 // Flow:
-//   confirming  → user taps "Send SOS"
+//   confirming  → user slides "Slide to send SOS"
 //   locating    → navigator.geolocation.getCurrentPosition (high accuracy, 6s)
 //   sending     → POST /api/commuter/sos { lat, lng, note? }
 //   active      → polling GET /api/commuter/sos/{id} every 3s, waiting for admin
@@ -28,6 +28,7 @@ import { AlertTriangle, Check, CheckCircle2, Info, LoaderCircle, LocateOff, MapP
 import { APP_DIALOG as D } from "@/components/shared/app-dialog-styles";
 import { clearSosSession, readSosSession, saveSosSession } from "@/lib/shared/sos-session";
 import SosActions from "@/components/shared/sos-actions";
+import SosSlideToSend from "@/components/shared/sos-slide-to-send";
 
 interface SosModalProps {
   isOpen?: boolean;
@@ -292,12 +293,9 @@ export default function SosModal({
                 This will immediately share your <span className="font-semibold text-white light:text-gray-900">real-time live location</span> with the CHATCO Admin dispatch team.
               </p>
               <p className={`mt-3 text-sm font-semibold ${D.redText}`}>Only use this in actual emergencies.</p>
-              <div className="mt-6 flex flex-col-reverse gap-3 min-[360px]:flex-row">
-                <button type="button" onClick={handleClose} className={`${D.button} ${D.secondary} flex-1`}>Cancel</button>
-                <button type="button" onClick={handleActivate} className={`${D.button} ${D.danger} flex-1`}>
-                  <AlertTriangle size={16} aria-hidden="true" />
-                  Send SOS
-                </button>
+              <div className="mt-6 space-y-3">
+                <SosSlideToSend onSend={handleActivate} />
+                <button type="button" onClick={handleClose} className={`${D.button} ${D.secondary} w-full`}>Cancel</button>
               </div>
             </>
           )}
