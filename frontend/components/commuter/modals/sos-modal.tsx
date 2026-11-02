@@ -10,12 +10,13 @@
 //   sending     → POST /api/commuter/sos { lat, lng, note? }
 //   active      → polling GET /api/commuter/sos/{id} every 3s, waiting for admin
 //   responded   → admin acknowledged/resolved → success screen
-//   error       → network/API error only (GPS failure falls back to default)
+//   no_location → GPS unavailable/denied/timed out → retry or call the hotline
+//   out_of_range→ 422 outside_radius: no on-duty jeepney within 100 m
+//   error       → other network/API errors
 //
-// GPS FALLBACK: If geolocation is unavailable/denied/times out (common in
-// desktop/cloud-preview environments), the SOS is still sent using a default
-// route-centre coordinate so the alert always reaches the admin and a marker
-// always appears on the monitoring map.
+// NO GPS FALLBACK: the backend only accepts an SOS within 100 m of an on-duty
+// unit, so a real position is required. A made-up coordinate would make that
+// check pass or fail at random.
 //
 // State transitions are one-way except for a "Try again" button on the error
 // screen which returns to `confirming`. The screen is locked (no backdrop
@@ -23,7 +24,7 @@
 // action hides the modal while keeping the alert active.
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { AlertTriangle, Check, CheckCircle2, Info, LoaderCircle, ShieldAlert, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, Info, LoaderCircle, LocateOff, MapPinOff, Phone, ShieldAlert, ShieldCheck } from "lucide-react";
 import { APP_DIALOG as D } from "@/components/shared/app-dialog-styles";
 import { clearSosSession, readSosSession, saveSosSession } from "@/lib/shared/sos-session";
 import SosActions from "@/components/shared/sos-actions";
@@ -43,6 +44,8 @@ type SosStatus =
   | "acknowledged"
   | "stopped"
   | "responded"
+  | "no_location"
+  | "out_of_range"
   | "error";
 
 interface AlertPayload {
@@ -55,9 +58,8 @@ interface AlertPayload {
 
 const POLL_INTERVAL_MS = 3000;
 
-// Default fallback coordinate — Meycauayan area, central on the CHATCO route.
-// Used only when the device GPS is unavailable so the SOS still goes through.
-const DEFAULT_LOCATION: { lat: number; lng: number } = { lat: 14.8434, lng: 120.875 };
+// National emergency number, offered when no admin hotline is configured.
+const FALLBACK_HOTLINE = "911";
 
 export default function SosModal({
   isOpen = true,
@@ -68,6 +70,7 @@ export default function SosModal({
   const [status, setStatus] = useState<SosStatus>(savedSession ? "active" : "confirming");
   const [activeSeconds, setActiveSeconds] = useState(() => savedSession ? Math.max(0, Math.floor((Date.now() - savedSession.startedAt) / 1000)) : 0);
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const [hotline, setHotline] = useState<string | null>(null);
   const [alertId, setAlertId] = useState<string | null>(savedSession?.id ?? null);
   const stoppedAlertRef = useRef<string | null>(null);
   const isAlertActive = status === "active" || status === "acknowledged";
@@ -183,6 +186,11 @@ export default function SosModal({
         }
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
+          if (data.error === "outside_radius") {
+            setHotline(typeof data.emergency_hotline === "string" ? data.emergency_hotline : null);
+            setStatus("out_of_range");
+            return;
+          }
           setStatus("error");
           setErrorMessage(data.message ?? "Unable to send the SOS signal. Please try again.");
           return;
@@ -214,15 +222,13 @@ export default function SosModal({
   );
 
   // ── Trigger: capture GPS, POST, go active ──
-  // GPS failure is NOT fatal — we fall back to a default route-centre
-  // coordinate so the distress signal always reaches the admin.
+  // The proximity rule needs the real position, so GPS failure stops here.
   const handleActivate = useCallback(() => {
     setStatus("locating");
     setErrorMessage("");
 
-    // No geolocation API at all → send with the fallback immediately.
     if (typeof navigator === "undefined" || !navigator.geolocation) {
-      void sendSos(DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng);
+      setStatus("no_location");
       return;
     }
 
@@ -231,10 +237,7 @@ export default function SosModal({
         const { latitude, longitude } = position.coords;
         void sendSos(latitude, longitude);
       },
-      () => {
-        // GPS denied / unavailable / timed out → fall back to default.
-        void sendSos(DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng);
-      },
+      () => setStatus("no_location"),
       { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
     );
   }, [sendSos]);
@@ -254,7 +257,16 @@ export default function SosModal({
 
   // Backdrop click-to-close is only allowed in non-active states.
   const canCloseViaBackdrop =
-    status === "confirming" || status === "responded" || status === "error";
+    status === "confirming" || status === "responded" || status === "error" ||
+    status === "no_location" || status === "out_of_range";
+
+  const callNumber = hotline ?? FALLBACK_HOTLINE;
+  const callLink = (
+    <a href={`tel:${callNumber.replace(/[^\d+]/g, "")}`} className={`${D.button} ${D.danger} flex-1`}>
+      <Phone size={16} aria-hidden="true" />
+      Call {callNumber}
+    </a>
+  );
 
   if (!isOpen) return null;
 
@@ -350,6 +362,38 @@ export default function SosModal({
               <h2 className={heading}>SOS closed</h2>
               <p className={body}>Dispatch has closed your emergency alert.</p>
               <button type="button" onClick={handleClose} className={`${D.button} ${D.primary} mt-6 w-full`}>Understood</button>
+            </>
+          )}
+
+          {/* ── NO LOCATION ── */}
+          {status === "no_location" && (
+            <>
+              <LocateOff size={40} aria-hidden="true" className={D.muted} />
+              <h2 className={heading}>Location needed</h2>
+              <p role="alert" className={body}>
+                SOS needs your GPS position to check that you are near an on-duty CHATCO jeepney. Turn on location access and try again.
+              </p>
+              <p className={`mt-3 text-sm font-semibold ${D.redText}`}>If you&apos;re in danger, call for help now.</p>
+              <div className="mt-6 flex flex-col-reverse gap-3 min-[360px]:flex-row">
+                <button type="button" onClick={handleRetry} className={`${D.button} ${D.secondary} flex-1`}>Try again</button>
+                {callLink}
+              </div>
+            </>
+          )}
+
+          {/* ── OUT OF RANGE ── */}
+          {status === "out_of_range" && (
+            <>
+              <MapPinOff size={40} aria-hidden="true" className={D.muted} />
+              <h2 className={heading}>No on-duty jeepney nearby</h2>
+              <p role="alert" className={body}>
+                SOS works when you&apos;re within 100 m of a CHATCO jeepney that&apos;s on duty.
+              </p>
+              <p className={`mt-3 text-sm font-semibold ${D.redText}`}>If you&apos;re in danger, call for help now.</p>
+              <div className="mt-6 flex flex-col-reverse gap-3 min-[360px]:flex-row">
+                <button type="button" onClick={handleClose} className={`${D.button} ${D.secondary} flex-1`}>Close</button>
+                {callLink}
+              </div>
             </>
           )}
 

@@ -4,6 +4,9 @@ namespace App\Services;
 
 use App\Enums\ActivityLogCategory;
 use App\Enums\UserRole;
+use App\Exceptions\OutsideRadiusException;
+use App\Helpers\GeoHelper;
+use App\Models\CommuterProfile;
 use App\Models\SosAlert;
 use App\Models\User;
 use App\Models\Setting;
@@ -43,10 +46,16 @@ class SosService
     public function __construct(
         private AnnouncementService $announcementService,
         private ActivityLogService $activityLog,
+        private LocationService $locationService,
     ) {}
 
     /**
      * Commuter triggers an SOS. Stores the alert with status=ACTIVE.
+     *
+     * A commuter keeps at most one open alert: while one is ACTIVE or
+     * ACKNOWLEDGED it is returned as-is (wasRecentlyCreated=false) instead of
+     * paging every admin again. A new alert needs an on-duty unit within
+     * GeoHelper::SOS_RADIUS_M, else OutsideRadiusException.
      */
     public function trigger(User $commuter, array $data): SosAlert
     {
@@ -55,14 +64,34 @@ class SosService
             throw new \RuntimeException('Commuter profile not found');
         }
 
-        $alert = SosAlert::create([
-            'sender_role' => 'COMMUTER',
-            'commuter_id' => $profile->id,
-            'lat'         => $data['lat'],
-            'lng'         => $data['lng'],
-            'note'        => $data['note'] ?? null,
-            'status'      => self::STATUS_ACTIVE,
-        ])->load('commuter');
+        $alert = DB::transaction(function () use ($profile, $data) {
+            // Serialises concurrent taps so two requests cannot both pass the open-alert check.
+            CommuterProfile::whereKey($profile->id)->lockForUpdate()->first();
+
+            $open = SosAlert::where('sender_role', 'COMMUTER')
+                ->where('commuter_id', $profile->id)
+                ->whereIn('status', [self::STATUS_ACTIVE, self::STATUS_ACKNOWLEDGED])
+                ->latest()
+                ->first();
+            if ($open) {
+                return $open->load('commuter');
+            }
+
+            $this->assertNearOnDutyUnit((float) $data['lat'], (float) $data['lng']);
+
+            return SosAlert::create([
+                'sender_role' => 'COMMUTER',
+                'commuter_id' => $profile->id,
+                'lat'         => $data['lat'],
+                'lng'         => $data['lng'],
+                'note'        => $data['note'] ?? null,
+                'status'      => self::STATUS_ACTIVE,
+            ])->load('commuter');
+        }, 3);
+
+        if (! $alert->wasRecentlyCreated) {
+            return $alert;
+        }
 
         $this->sendSosEmailToAdmin($alert, $commuter);
         $this->notifySosToAdmins($alert);
@@ -295,6 +324,26 @@ class SosService
 
             return $alert->fresh(['commuter', 'conductor', 'resolver']);
         }, 3);
+    }
+
+    /**
+     * Uses the commuter map's own on-duty list (active shift, not on break)
+     * so map, hail and SOS agree on which units count. A fix older than
+     * 2 minutes is ignored: the unit's real position is unknown.
+     *
+     * @throws OutsideRadiusException  No fresh on-duty unit within SOS_RADIUS_M.
+     */
+    private function assertNearOnDutyUnit(float $lat, float $lng): void
+    {
+        $freshSince = now()->subMinutes(2);
+        $nearest = $this->locationService->getAllActiveLocations()
+            ->filter(fn ($unit) => Carbon::parse($unit->updated_at)->gte($freshSince))
+            ->map(fn ($unit) => GeoHelper::haversineMeters($lat, $lng, (float) $unit->lat, (float) $unit->lng))
+            ->min();
+
+        if ($nearest === null || $nearest > GeoHelper::SOS_RADIUS_M) {
+            throw new OutsideRadiusException((float) ($nearest ?? INF));
+        }
     }
 
     private function findOrFail(string $id, bool $lock = false): SosAlert

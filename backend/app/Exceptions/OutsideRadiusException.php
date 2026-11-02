@@ -4,7 +4,8 @@ namespace App\Exceptions;
 
 /**
  * Thrown by HailService::createHail when the commuter's distance from
- * the vehicle exceeds GeoHelper::HAIL_RADIUS_M.
+ * the vehicle exceeds GeoHelper::HAIL_RADIUS_M, and by SosService::trigger
+ * when no on-duty unit is within GeoHelper::SOS_RADIUS_M.
  *
  * Carries the computed distance in meters so the controller layer can
  * shape the 422 response body as:

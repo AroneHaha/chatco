@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Commuter;
 
+use App\Exceptions\OutsideRadiusException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Commuter\SosRequest;
+use App\Models\Setting;
 use App\Services\SosService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -15,8 +17,8 @@ use Illuminate\Http\Request;
  *   POST /api/v1/commuter/sos       (COMMUTER) — trigger a new alert
  *   GET  /api/v1/commuter/sos/{id}  (COMMUTER) — poll own alert status
  *
- * Rate-limited at 1 request per minute per commuter (throttle:sos) for
- * the trigger to prevent abuse. The poll endpoint uses conductor-read
+ * Rate-limited at 1 created alert per minute per commuter (throttle:sos) for
+ * the trigger to prevent abuse; refused attempts have a separate 10/min cap. The poll endpoint uses conductor-read
  * (60/min) so the commuter modal can poll every 3s without hitting the
  * limit. The commuter can stop their own SOS while retaining its history.
  */
@@ -35,11 +37,26 @@ class SosController extends Controller
                 $request->user(),
                 $request->validated(),
             );
+        } catch (OutsideRadiusException) {
+            // Discriminator shape shared with hail so the client can branch on `error`.
+            // distance_m is left out on purpose: the SOS screen does not use it.
+            // The admin-configured hotline gives the refused commuter another way to get help.
+            $hotline = Setting::where('key', 'emergency_hotline')->value('value');
+
+            return response()->json([
+                'error'             => 'outside_radius',
+                'message'           => 'SOS is only available near an on-duty CHATCO jeepney.',
+                'emergency_hotline' => is_string($hotline) && trim($hotline) !== '' ? trim($hotline) : null,
+            ], 422);
         } catch (\RuntimeException $e) {
             return $this->errorResponse($e->getMessage(), 422);
         }
 
-        return $this->successResponse($alert, 'SOS alert triggered', 201);
+        // 200 = the commuter's already-open alert was returned; only a new
+        // alert is 201, which is also what spends the throttle:sos slot.
+        return $alert->wasRecentlyCreated
+            ? $this->successResponse($alert, 'SOS alert triggered', 201)
+            : $this->successResponse($alert, 'SOS alert already active');
     }
 
     /**
