@@ -5,9 +5,11 @@ import {
   fetchPaymentHistory,
   type CommuterPayment,
   type PaymentStatus,
+  type PaymentHistoryPage,
   type PaymentVoucher,
 } from "@/lib/commuter/services/payment.service";
 import FeedbackModal from "@/components/commuter/feedback-modal";
+import { AdminDatePicker } from "@/components/admin/ui/admin-date-picker";
 import { formatPeso } from "@/lib/utils/display";
 
 interface PaymentHistoryModalProps {
@@ -47,6 +49,11 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
+  // Picked dates (YYYY-MM-DD). Either one set = custom range, which replaces
+  // the preset tabs: one date shows that day, both show from-to.
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [summary, setSummary] = useState<PaymentHistoryPage["summary"]>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // ─── S6-T7 feedback state ─────────────────────────────────────
@@ -70,7 +77,7 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
   // of already-loaded data, so two requests can race.
   const requestIdRef = useRef(0);
 
-  const loadPage = useCallback(async (target: number, filter: TimeFilter) => {
+  const loadPage = useCallback(async (target: number, filter: TimeFilter, from = "", to = "") => {
     const requestId = target === 1 ? ++requestIdRef.current : requestIdRef.current;
     if (target === 1) {
       setIsLoading(true);
@@ -82,9 +89,10 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
     }
     setError(null);
     try {
-      const result = await fetchPaymentHistory(target, PER_PAGE, filter);
+      const result = await fetchPaymentHistory(target, PER_PAGE, filter, { from, to });
       if (requestId !== requestIdRef.current) return; // superseded by a newer filter/page-1 fetch
       setHistory((prev) => (target === 1 ? result.items : [...prev, ...result.items]));
+      if (target === 1) setSummary(result.summary);
       setPage(result.page);
       setLastPage(result.lastPage);
     } catch (err) {
@@ -103,12 +111,27 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
   // (PaymentController::history's `filter` param), so `history` only ever
   // holds rows that already match `timeFilter` — no client-side re-filtering.
   useEffect(() => {
-    void loadPage(1, timeFilter);
+    void loadPage(1, timeFilter, dateFrom, dateTo);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeFilter]);
+  }, [timeFilter, dateFrom, dateTo]);
 
   const hasMore = page < lastPage;
-  const isDateFilter = timeFilter !== "all";
+  const isCustomRange = dateFrom !== "" || dateTo !== "";
+  // Custom ranges can span months, so they page with "Load more" instead of
+  // auto-paging, and take their totals from the backend summary.
+  const isDateFilter = timeFilter !== "all" && !isCustomRange;
+  const todayISO = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD, local day
+
+  const selectPreset = (key: TimeFilter) => {
+    setTimeFilter(key);
+    setDateFrom("");
+    setDateTo("");
+  };
+  const selectDates = (from: string, to: string) => {
+    setTimeFilter("all");
+    setDateFrom(from);
+    setDateTo(to);
+  };
 
   // While a date filter (Today/Week/Month) is active, keep auto-paging until
   // every matching row is loaded (mirrors the old client-filter UX where
@@ -121,10 +144,11 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
   // whenever the filter is complete; under "All" with more pages left they
   // describe only what's loaded, which the caption below makes explicit.
   const paid = history.filter((tx) => tx.status === "paid");
-  const totalSpent = paid.reduce((s, tx) => s + tx.amount, 0);
-  const rideCount = paid.length;
-  const avgFare = rideCount > 0 ? totalSpent / rideCount : 0;
-  const statsArePartial = hasMore;
+  const rangeSummary = isCustomRange ? summary : null;
+  const totalSpent = rangeSummary ? rangeSummary.totalSpent : paid.reduce((s, tx) => s + tx.amount, 0);
+  const rideCount = rangeSummary ? rangeSummary.rideCount : paid.length;
+  const avgFare = rangeSummary ? rangeSummary.averageFare : rideCount > 0 ? totalSpent / rideCount : 0;
+  const statsArePartial = hasMore && !rangeSummary;
 
   // Keep pulling pages while the active date filter still has unfetched rows.
   useEffect(() => {
@@ -204,9 +228,9 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
           ]).map((tab) => (
             <button
               key={tab.key}
-              onClick={() => setTimeFilter(tab.key)}
+              onClick={() => selectPreset(tab.key)}
               className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-colors ${
-                timeFilter === tab.key
+                timeFilter === tab.key && !isCustomRange
                   ? "bg-[#1A5FB4] text-white shadow-sm"
                   : "bg-white/10 light:bg-gray-100 text-white/60 light:text-gray-500 hover:bg-white/15 light:hover:bg-gray-200"
               }`}
@@ -214,6 +238,37 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
               {tab.label}
             </button>
           ))}
+        </div>
+
+        {/* Custom range. One date = that day; both = from-to. */}
+        <div className="flex-shrink-0 grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-5 pb-3">
+          <AdminDatePicker
+            value={dateFrom}
+            onChange={(next) => selectDates(next, dateTo)}
+            max={dateTo || todayISO}
+            ariaLabel="From date"
+            placeholder="From"
+            clearLabel="Clear from date"
+            popover
+            yearNavigation
+            className="min-w-0"
+            triggerClassName="w-full py-2"
+          />
+          <span className="text-[11px] text-white/40 light:text-gray-400">to</span>
+          <AdminDatePicker
+            value={dateTo}
+            onChange={(next) => selectDates(dateFrom, next)}
+            min={dateFrom || undefined}
+            max={todayISO}
+            align="right"
+            ariaLabel="To date"
+            placeholder="To"
+            clearLabel="Clear to date"
+            popover
+            yearNavigation
+            className="min-w-0"
+            triggerClassName="w-full py-2"
+          />
         </div>
 
         {/* Scrollable List */}
@@ -226,7 +281,7 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <p className="text-red-400 light:text-red-500 font-medium text-sm mb-3">{error}</p>
               <button
-                onClick={() => loadPage(1, timeFilter)}
+                onClick={() => loadPage(1, timeFilter, dateFrom, dateTo)}
                 className="px-4 py-2 rounded-full text-xs font-semibold bg-[#1A5FB4] text-white"
               >
                 Try again
@@ -244,7 +299,7 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
               </svg>
               <p className="text-white/50 light:text-gray-400 font-medium text-sm">
-                {timeFilter === "all"
+                {timeFilter === "all" && !isCustomRange
                   ? "No transactions found"
                   : "No rides in this period"}
               </p>
@@ -435,7 +490,7 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
                   dangling "more" to offer. */}
               {hasMore && !isDateFilter && (
                 <button
-                  onClick={() => loadPage(page + 1, timeFilter)}
+                  onClick={() => loadPage(page + 1, timeFilter, dateFrom, dateTo)}
                   disabled={isLoadingMore}
                   className="w-full mt-2 py-2.5 rounded-xl text-xs font-semibold bg-white/10 light:bg-gray-100 text-white/70 light:text-gray-600 hover:bg-white/15 light:hover:bg-gray-200 disabled:opacity-60"
                 >
