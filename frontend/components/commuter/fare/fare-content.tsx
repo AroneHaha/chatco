@@ -34,6 +34,9 @@ export default function FareContent({ variant="page" }: FareContentProps) {
   const [pickupLandmark,setPickupLandmark]=useState<string|null>(null);
   const [dropoffLandmark,setDropoffLandmark]=useState<string|null>(null);
   const [isLoading,setIsLoading]=useState(true);
+  // Below lg the pickup/drop-off panel starts collapsed so the barangay list
+  // gets the screen; the list's hint line and the fare bar still show progress.
+  const [routePanelOpen,setRoutePanelOpen]=useState(false);
 
   useEffect(() => {
     let active=true;
@@ -114,6 +117,14 @@ export default function FareContent({ variant="page" }: FareContentProps) {
   const pickupLabelClass=isSameBarangay? "text-violet-400":"text-emerald-400";
   const dropoffLabelClass=isSameBarangay? "text-violet-400":"text-emerald-400";
 
+  // The fare bar runs to the screen bottom, under the translucent mobile nav
+  // (app/(commuter)/layout.tsx: ~65px, ~75px from md, plus its pb-safe), and
+  // pads its content above it. A fixed gap on the page instead left a strip
+  // of page background on most phones and was covered on notched ones.
+  const bottomBarPad=variant==="page"
+    ? "pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))] md:pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] lg:pb-[calc(1rem+env(safe-area-inset-bottom,0px))]"
+    :"pb-[calc(1rem+env(safe-area-inset-bottom,0px))]";
+
   const clearPickup=() => {
     setPickupPoint(null);
     setPickupLandmark(null);
@@ -134,7 +145,7 @@ export default function FareContent({ variant="page" }: FareContentProps) {
   };
 
   return (
-    <div className={`flex h-full min-h-0 flex-col bg-[#050F1A] text-white light:bg-[#F8FAFC] light:text-gray-900 ${variant==="page"? "pb-20 lg:pb-0":""}`}>
+    <div className="flex h-full min-h-0 flex-col bg-[#050F1A] text-white light:bg-[#F8FAFC] light:text-gray-900">
       <div className="flex-shrink-0 bg-[#071A2E] border-b border-white/10 light:bg-white light:border-gray-200 pt-safe">
         <div className="flex items-center justify-between px-4 py-3">
           {variant==="modal"? (
@@ -143,6 +154,15 @@ export default function FareContent({ variant="page" }: FareContentProps) {
             <h1 className="text-base sm:text-lg font-bold text-white light:text-gray-900 truncate">Fare Calculator</h1>
           )}
         </div>
+        {/* Same 0fr -> 1fr row slide as the conductor dashboard card. Closed
+            below lg it is also `invisible` (switched after the slide ends),
+            which keeps its controls out of tab order like the card's `inert`;
+            always open on lg. */}
+        <div
+          id="fare-route-panel"
+          className={`grid transition-[grid-template-rows,visibility] duration-300 ease-in-out lg:visible lg:grid-rows-[1fr] ${routePanelOpen? "visible grid-rows-[1fr]":"invisible grid-rows-[0fr]"}`}
+        >
+        <div className="min-h-0 overflow-hidden">
         <div className="px-4 pb-3 space-y-2.5">
           {/* Pickup Card */}
           <div className="relative">
@@ -286,6 +306,22 @@ export default function FareContent({ variant="page" }: FareContentProps) {
             </div>
           </div>
         </div>
+        </div>
+        </div>
+        {/* Small-screen toggle bar, same as the conductor dashboard card's:
+            chevron points down to open the panel, up to close it. */}
+        <button
+          type="button"
+          onClick={() => setRoutePanelOpen((open) => !open)}
+          aria-expanded={routePanelOpen}
+          aria-controls="fare-route-panel"
+          aria-label={routePanelOpen? "Hide pickup and drop-off":"Show pickup and drop-off"}
+          className="flex-shrink-0 flex items-center justify-center py-1.5 w-full border-t border-white/5 hover:bg-white/5 transition-colors active:bg-white/10 light:border-gray-200 light:hover:bg-gray-50 light:active:bg-gray-100 lg:hidden"
+        >
+          <svg className={`w-4 h-4 text-white/30 light:text-gray-400 transition-transform duration-300 ${routePanelOpen? "rotate-180":""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+          </svg>
+        </button>
       </div>
       <div className="flex-shrink-0 px-4 pt-3 pb-2 bg-[#050F1A] light:bg-[#F8FAFC]">
         <div className="relative">
@@ -520,7 +556,7 @@ export default function FareContent({ variant="page" }: FareContentProps) {
 
       {/* ── Bottom Action Area ── */}
       {fareInfo&&(
-        <div className="flex-shrink-0 border-t border-white/10 bg-[#050F1A] light:border-gray-200 light:bg-white px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
+        <div className={`flex-shrink-0 border-t border-white/10 bg-[#050F1A] light:border-gray-200 light:bg-white px-4 pt-4 ${bottomBarPad}`}>
           {/* Route confirmation with dynamic color indicators */}
           <div className="mb-2 flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-1.5">
@@ -572,7 +608,7 @@ export default function FareContent({ variant="page" }: FareContentProps) {
       )}
 
       {!fareInfo&&(
-        <div className="flex-shrink-0 border-t border-white/10 bg-[#050F1A] light:border-gray-200 light:bg-white px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
+        <div className={`flex-shrink-0 border-t border-white/10 bg-[#050F1A] light:border-gray-200 light:bg-white px-4 pt-4 ${bottomBarPad}`}>
           <div className="text-center py-2">
             <p className="text-[11px] text-white/30 light:text-gray-500">Select both pickup and drop-off to calculate fare</p>
           </div>
