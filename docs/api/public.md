@@ -45,8 +45,8 @@ The **single source of truth for fares**: the commuter fare calculator, the cond
         "name": "Calumpit",
         "landmarks": ["Public Market", "Municipal Hall"],
         "subStops": ["Poblacion"],
-        "regularFare": 15.0,
-        "discountedFare": 12.0,
+        "regularFare": 17.0,
+        "discountedFare": 13.6,
         "latitude": 14.9156,
         "longitude": 120.7653,
         "route": "Calumpit – Meycauayan"
@@ -54,10 +54,11 @@ The **single source of truth for fares**: the commuter fare calculator, the cond
     ],
     "config": {
       "baseBarangayCount": 4,
-      "baseFareRegular": 15.0,
-      "baseFareDiscounted": 12.0,
+      "baseFareRegular": 17.0,
+      "baseFareDiscounted": 13.6,
       "succeedingFareRegular": 2.25,
-      "succeedingFareDiscounted": 1.75,
+      "succeedingFareDiscounted": 1.8,
+      "discountRate": 20,
       "totalPoints": 23
     }
   },
@@ -70,7 +71,8 @@ The **single source of truth for fares**: the commuter fare calculator, the cond
 | `points` | Ordered by `pointNumber` ascending |
 | `landmarks`, `subStops` | Always arrays. The database stores them as JSON or comma-separated text; the API normalizes both. |
 | `latitude`, `longitude` | `null` when the admin has not pinned the stop |
-| `config` | Comes from the `settings` table, with the defaults shown above when unset. `totalPoints` is the number of points on this route. |
+| `regularFare`, `discountedFare` | The stop's fare **from stop 1**, kept in sync with the Financial Rules. Do not price a trip by subtracting two of these; use `config` |
+| `config` | The Financial Rules every trip is priced with. A trip's fare is `baseFareRegular + max(0, (|stop gap| + 1) − baseBarangayCount) × succeedingFareRegular`, less `discountRate` percent when discounted. `totalPoints` is the number of points on this route. |
 
 **Errors**
 
@@ -82,10 +84,10 @@ The **single source of truth for fares**: the commuter fare calculator, the cond
 
 ## GET /routes/active
 
-The published route line to draw on maps.
+The route line to draw on maps.
 
 - **Controller:** `RouteGeometryController@active`
-- **Edited by:** admin `/admin/routes/{id}/draft` and `/admin/routes/{id}/publish`
+- **Edited by:** admin `PUT /admin/routes/{id}/geometry` (replaces the line in place; no history)
 
 **Query**
 
@@ -93,12 +95,7 @@ The published route line to draw on maps.
 |---|---|
 | `route_id` | Optional UUID. Restricts the search to that route (it must still be `ACTIVE`). |
 
-**Which version is chosen.** The server picks the first `ACTIVE` route, oldest first, that has a **currently effective** `PUBLISHED` version:
-
-- `effective_from` is null or in the past, and
-- `effective_until` is null or in the future.
-
-When several versions qualify, the most recently published wins. This is how a **temporary detour** works: it is published with an `effective_until` and overrides the permanent line until it lapses.
+**Which route is chosen.** The server picks the first `ACTIVE` route, oldest first, that has a saved line (`routes.geometry` with at least 2 points).
 
 **200 OK**
 
@@ -110,18 +107,7 @@ When several versions qualify, the most recently published wins. This is how a *
     "status": "ACTIVE",
     "coordinates": [[14.9156, 120.7653], [14.9150, 120.7660]],
     "bounds": { "south": 14.73, "west": 120.75, "north": 14.92, "east": 120.96 },
-    "version": {
-      "id": "v9…",
-      "number": 4,
-      "status": "PUBLISHED",
-      "geometry": [[14.9156, 120.7653], [14.9150, 120.7660]],
-      "waypoints": [[14.9156, 120.7653], [14.7342, 120.9571]],
-      "notes": "Detour via MacArthur Hwy",
-      "effective_from": "2026-10-01T06:00:00+08:00",
-      "effective_until": "2026-10-03T22:00:00+08:00",
-      "published_at": "2026-09-30T18:12:00+08:00",
-      "is_temporary": true
-    }
+    "updated_at": "2026-11-04T09:30:00+08:00"
   },
   "message": "Active route geometry retrieved"
 }
@@ -129,16 +115,15 @@ When several versions qualify, the most recently published wins. This is how a *
 
 | Field | Notes |
 |---|---|
-| `coordinates`, `geometry` | Arrays of `[lat, lng]`. Latitude comes **first**, which is the order Leaflet uses. GeoJSON uses `[lng, lat]`, so convert if you need that format. |
-| `waypoints` | The admin's control points. `geometry` is the full snapped line. |
+| `coordinates` | Array of `[lat, lng]`, the full road-following line. Latitude comes **first**, which is the order Leaflet uses. GeoJSON uses `[lng, lat]`, so convert if you need that format. |
 | `bounds` | `null` when the line has fewer than 2 points |
-| `is_temporary` | `true` when `effective_until` is set (a detour) |
+| `updated_at` | When the route row last changed (the line, name or status) |
 
 **Errors**
 
 | Status | When |
 |---|---|
-| 404 | `"No published route geometry is currently active."` |
+| 404 | `"No route line has been saved for an active route."` |
 
 > The server also uses this geometry. `POST /commuter/hail` refuses a pickup more than 1 km from the active line ("Pickup point is outside the active route coverage.").
 

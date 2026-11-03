@@ -4,7 +4,7 @@ namespace App\Http\Requests\Admin;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class SaveRouteDraftRequest extends FormRequest
+class SaveRouteGeometryRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -22,7 +22,6 @@ class SaveRouteDraftRequest extends FormRequest
             'waypoints.*' => ['required', 'array', 'size:2'],
             'waypoints.*.0' => ['required', 'numeric', 'between:-90,90'],
             'waypoints.*.1' => ['required', 'numeric', 'between:-180,180'],
-            'notes' => ['nullable', 'string', 'max:1000'],
         ];
     }
 }

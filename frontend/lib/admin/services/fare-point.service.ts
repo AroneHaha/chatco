@@ -39,8 +39,7 @@ export interface CreateFarePointInput {
   // where both fields are `string | null`.
   landmarks?: string | null;
   sub_stops?: string | null;
-  regular_fare: number;
-  discounted_fare: number;
+  // No fare fields: the backend derives a stop's fares from Financial Rules.
   latitude?: number | null;
   longitude?: number | null;
 }

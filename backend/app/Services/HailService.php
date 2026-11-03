@@ -20,7 +20,6 @@ class HailService
     private const HAIL_TTL_MINUTES = 3;
 
     public function __construct(
-        private RouteGeometryService $routeGeometryService,
         private ShiftDeviceService $shiftDeviceService,
     ) {}
 
@@ -72,11 +71,10 @@ class HailService
             }
 
             $route = $shift->route_id ? Route::find($shift->route_id) : null;
-            $version = $route ? $this->routeGeometryService->activeVersion($route) : null;
-            if ($version && GeoHelper::distanceToPolylineMeters(
+            if ($route?->hasGeometry() && GeoHelper::distanceToPolylineMeters(
                 $commuterLat,
                 $commuterLng,
-                $version->geometry ?? [],
+                $route->geometry,
             ) > GeoHelper::HAIL_RADIUS_M) {
                 abort(422, 'Pickup point is outside the active route coverage.');
             }

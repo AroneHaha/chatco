@@ -10,7 +10,6 @@ use App\Models\ConductorProfile;
 use App\Models\Driver;
 use App\Models\Hail;
 use App\Models\Route;
-use App\Models\RouteVersion;
 use App\Models\ShiftLog;
 use App\Models\User;
 use App\Models\Vehicle;
@@ -252,14 +251,7 @@ class HailHttpTest extends TestCase
 
     public function test_post_hail_outside_published_route_coverage_returns_422(): void
     {
-        RouteVersion::create([
-            'route_id' => $this->vehicle->route_id,
-            'version' => 1,
-            'status' => RouteVersion::STATUS_PUBLISHED,
-            'geometry' => [[15.50, 121.50], [15.60, 121.60]],
-            'effective_from' => now()->subMinute(),
-            'published_at' => now()->subMinute(),
-        ]);
+        Route::whereKey($this->vehicle->route_id)->update(['geometry' => json_encode([[15.50, 121.50], [15.60, 121.60]])]);
 
         $this->actingAs($this->commuter, 'sanctum')
             ->postJson('/api/v1/commuter/hail', [

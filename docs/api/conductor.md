@@ -504,9 +504,14 @@ The stored `pickup_name` / `dropoff_name` is the canonical spelling of whichever
 
 **2. Price it:**
 
-- **Regular fare** = `|pickup.regular_fare − dropoff.regular_fare|`, but at least the `base_fare_regular` setting (default ₱15).
-- **Discounted fare** = the same calculation on the `discounted_fare` column, at least `base_fare_discounted` (default ₱12).
+Priced from the Financial Rules by `App\Support\FareRules`, never from the stops' stored fares:
+
+- **Barangays traversed** = `|pickup.point_number − dropoff.point_number| + 1` (both ends count).
+- **Regular fare** = `base_fare_regular` + max(0, barangays traversed − `base_barangay_count`) × `succeeding_fare_regular` (defaults ₱17, 4, ₱2.25).
+- **Discounted fare** = the regular fare less `discount_rate` percent (default 20%), rounded to the centavo.
 - **`STUDENT`, `SENIOR` and `PWD`** pay the discounted fare. `REGULAR` pays the regular fare.
+
+Example with the defaults: stop 1 to stop 10 is 10 barangays, so 17 + 6 × 2.25 = ₱30.50 (₱24.40 discounted).
 
 **Errors.** All are `422`, shape B. `{Label}` is `Pickup` or `Drop-off`.
 

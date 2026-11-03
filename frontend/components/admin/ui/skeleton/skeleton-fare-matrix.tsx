@@ -66,22 +66,6 @@ export function SkeletonFareMatrix() {
           </div>
         </div>
 
-        {/* Managed Route picker */}
-        <div className={`${CARD} p-4`}>
-          <div className="grid grid-cols-1 items-end gap-3 @[20rem]/fare-matrix:grid-cols-2 @[48rem]/fare-matrix:grid-cols-[minmax(0,1fr)_auto_auto]">
-            <div className="min-w-0 space-y-2 @[20rem]/fare-matrix:col-span-2 @[48rem]/fare-matrix:col-span-1">
-              <Bar className="h-2.5 w-24" />
-              <Bar className="h-11 w-full rounded-xl" />
-            </div>
-            <Bar className="h-11 w-full rounded-xl @[48rem]/fare-matrix:w-32" />
-            <Bar className="h-11 w-full rounded-xl @[48rem]/fare-matrix:w-36" />
-          </div>
-        </div>
-
-        {/* Published Route Editor: title + help text, live-version box, then
-            the map with its 320px control sidebar (stacked in narrow panels). */}
-        <SkeletonFareRouteEditor />
-
         {/* Barangay-Based Fare System */}
         <div className={`${CARD} p-5`}>
           <div className="mb-4 flex items-center gap-3">

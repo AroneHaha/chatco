@@ -1385,7 +1385,8 @@ class TransactionFlowTest extends TestCase
         $this->assertSame(PaymentStatus::PENDING, $result['transaction']->status);
         $this->assertNotEmpty($result['qr_token']);
         $this->assertSame('https://test.checkout.url/abc', $result['checkout_url']);
-        $this->assertSame(25.00, $result['amount']);
+        // Server-priced from the Financial Rules: one stop is the ₱17 minimum.
+        $this->assertSame(17.00, $result['amount']);
         $this->assertSame('paymongo', $result['transaction']->payment_provider);
         $this->assertSame('pi_test_123', $result['transaction']->payment_reference);
     }
@@ -1481,37 +1482,21 @@ class TransactionFlowTest extends TestCase
 
     public function test_gcash_claim_automatically_applies_all_verified_role_discounts(): void
     {
-        FarePoint::create([
-            'route_id' => $this->shift->route_id,
-            'point_number' => 1,
-            'code' => 'PUL',
-            'name' => 'Pulilan',
-            'regular_fare' => 13,
-            'discounted_fare' => 12,
-        ]);
-        FarePoint::create([
-            'route_id' => $this->shift->route_id,
-            'point_number' => 2,
-            'code' => 'PLA',
-            'name' => 'Plaridel',
-            'regular_fare' => 38,
-            'discounted_fare' => 32,
-        ]);
-
+        // Pulilan (3) to Plaridel (4) is one stop: the ₱17 minimum, ₱13.60 discounted.
         foreach (['STUDENT', 'SENIOR', 'PWD'] as $commuterType) {
             $this->commuter1->commuterProfile->update(['commuter_type' => $commuterType]);
-            $transaction = $this->createPendingGcashTransaction(['final_amount' => 25]);
+            $transaction = $this->createPendingGcashTransaction(['final_amount' => 17]);
             $result = app(TransactionService::class)->claimGcash($this->commuter1, $transaction->qr_token);
 
-            $this->assertSame(20.0, $result['amount']);
-            $this->assertSame(25.0, $result['regular_amount']);
-            $this->assertSame(5.0, $result['discount_amount']);
+            $this->assertSame(13.6, $result['amount']);
+            $this->assertSame(17.0, $result['regular_amount']);
+            $this->assertSame(3.4, $result['discount_amount']);
             $this->assertSame($commuterType, $result['passenger_role']);
             $this->assertDatabaseHas('transactions', [
                 'transaction_id' => $transaction->transaction_id,
                 'passenger_role' => $commuterType,
-                'final_amount' => 20,
-                'discount_amount' => 5,
+                'final_amount' => 13.6,
+                'discount_amount' => 3.4,
             ]);
         }
     }
@@ -2178,9 +2163,10 @@ SQL);
 
         $earnings = $svc->getShiftEarnings($this->conductor, $this->shift->shift_id);
 
-        $this->assertSame(54.00, $earnings['cash_total']);
+        // Each cash ride is one stop, re-priced server-side at the ₱17 minimum.
+        $this->assertSame(51.00, $earnings['cash_total']);
         $this->assertSame(30.00, $earnings['gcash_total']);
-        $this->assertSame(84.00, $earnings['total']);
+        $this->assertSame(81.00, $earnings['total']);
     }
 
     public function test_gcash_totals_are_not_included_in_remitted_cash_figure(): void
@@ -2193,7 +2179,7 @@ SQL);
 
         $earnings = $svc->getShiftEarnings($this->conductor, $this->shift->shift_id);
 
-        $this->assertSame(37.00, $earnings['cash_total']);
+        $this->assertSame(34.00, $earnings['cash_total']);
         $this->assertSame(100.00, $earnings['gcash_total']);
         $this->assertNotSame($earnings['total'], $earnings['cash_total']);
     }

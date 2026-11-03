@@ -10,14 +10,10 @@ import * as routeService from '@/lib/admin/services/route.service';
 import type { AdminRoute } from '@/lib/admin/services/route.service';
 import type { RouteCoordinate } from '@/lib/admin/services/route.service';
 import { formatPeso } from '@/lib/utils/display';
-import { Modal } from '@/components/admin/ui/modal';
-import { SkeletonFareMatrix, SkeletonFareRouteEditor } from '@/components/admin/ui/skeleton/skeleton-fare-matrix';
-
-import { InlineError } from '@/components/admin/ui/inline-error';
-const RouteEditor = dynamic(() => import('@/components/admin/routes/route-editor'), {
-  ssr: false,
-  loading: () => <SkeletonFareRouteEditor />,
-});
+import { getSettings } from '@/lib/admin/services/setting.service';
+import { fareForBarangays } from '@/lib/shared/fare/fare-matrix.service';
+import { defaultFinancialRules } from '@/app/(admin)/settings/data/settings-data';
+import { SkeletonFareMatrix } from '@/components/admin/ui/skeleton/skeleton-fare-matrix';
 
 const FarePointMapPicker = dynamic(() => import('@/components/admin/routes/fare-point-map-picker'), {
   ssr: false,
@@ -161,6 +157,36 @@ function SubDropoffEditor({
   );
 }
 
+// Used until Financial Rules load; match the backend defaults (App\Support\FareRules).
+const DEFAULT_FARE_RULES = {
+  minimumFare: Number(defaultFinancialRules.minimumFare),
+  discountRate: Number(defaultFinancialRules.discountRate),
+  succeedingFare: Number(defaultFinancialRules.succeedingFare),
+  baseBarangayCount: Number(defaultFinancialRules.baseBarangayCount),
+};
+type PageFareRules = typeof DEFAULT_FARE_RULES;
+
+/** Fare for a trip under these rules (the shared formula the backend charges with). */
+function ruleFare(rules: PageFareRules, barangaysTraversed: number, discounted: boolean) {
+  return fareForBarangays({
+    baseFareRegular: rules.minimumFare,
+    baseBarangayCount: rules.baseBarangayCount,
+    succeedingFareRegular: rules.succeedingFare,
+    discountRate: rules.discountRate,
+  }, barangaysTraversed, discounted);
+}
+
+/** A stop's fares are generated from Financial Rules, so the forms show them instead of asking. */
+function StopFareNote({ rules, pointNumber }: { rules: PageFareRules; pointNumber: number }) {
+  return (
+    <p className="@[32rem]/fare-matrix:col-span-2 text-xs text-white/50 admin-light:text-slate-500">
+      Fare from stop 1: <span className="font-semibold text-white admin-light:text-slate-900">{formatPeso(ruleFare(rules, pointNumber, false))}</span>
+      {' '}regular, <span className="font-semibold text-white admin-light:text-slate-900">{formatPeso(ruleFare(rules, pointNumber, true))}</span> discounted.
+      {' '}Set by Financial Rules.
+    </p>
+  );
+}
+
 export default function FareMatrixPage() {
   const [routes, setRoutes] = useState<AdminRoute[]>([]);
   const [selectedRouteId, setSelectedRouteId] = useState<string>('');
@@ -170,11 +196,6 @@ export default function FareMatrixPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const [showCreateRoute, setShowCreateRoute] = useState(false);
-  const [newRouteName, setNewRouteName] = useState('');
-  const [isDeleteRouteOpen, setIsDeleteRouteOpen] = useState(false);
-  const [isDeletingRoute, setIsDeletingRoute] = useState(false);
-  const [deleteRouteError, setDeleteRouteError] = useState<string | null>(null);
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingPoint, setEditingPoint] = useState<number | null>(null);
@@ -184,18 +205,18 @@ export default function FareMatrixPage() {
   const [previewFrom, setPreviewFrom] = useState<number | null>(null);
   const [previewTo, setPreviewTo] = useState<number | null>(null);
 
+  // Live values from Financial Rules (same settings and defaults the backend
+  // prices with: FareCalculationService floors every trip at base_fare_regular).
+  const [fareRules, setFareRules] = useState(DEFAULT_FARE_RULES);
+
   // New point form state
   const [newName, setNewName] = useState('');
-  const [newRegular, setNewRegular] = useState('17');
-  const [newDiscounted, setNewDiscounted] = useState('13.6');
   const [newSubStops, setNewSubStops] = useState('');
   const [newSubStopDraft, setNewSubStopDraft] = useState('');
   const [newLocation, setNewLocation] = useState<RouteCoordinate | null>(null);
 
   // Edit form state
   const [editName, setEditName] = useState('');
-  const [editRegular, setEditRegular] = useState('');
-  const [editDiscounted, setEditDiscounted] = useState('');
   const [editSubStops, setEditSubStops] = useState('');
   const [editSubStopDraft, setEditSubStopDraft] = useState('');
   const [editLocation, setEditLocation] = useState<RouteCoordinate | null>(null);
@@ -218,6 +239,30 @@ export default function FareMatrixPage() {
   useEffect(() => {
     void fetchRoutes();
   }, [fetchRoutes]);
+
+  useEffect(() => {
+    let active = true;
+    getSettings('financial')
+      .then((data) => {
+        if (!active) return;
+        const number = (value: string | undefined, fallback: number) => {
+          const parsed = Number(value);
+          return value !== undefined && value !== '' && Number.isFinite(parsed) ? parsed : fallback;
+        };
+        const minimumFare = number(data.base_fare_regular, DEFAULT_FARE_RULES.minimumFare);
+        const discountRate = number(data.discount_rate, DEFAULT_FARE_RULES.discountRate);
+        setFareRules({
+          minimumFare,
+          discountRate,
+          succeedingFare: number(data.succeeding_fare_regular, DEFAULT_FARE_RULES.succeedingFare),
+          baseBarangayCount: number(data.base_barangay_count, DEFAULT_FARE_RULES.baseBarangayCount),
+        });
+      })
+      .catch(() => {
+        if (active) setError('Could not load Financial Rules; fare figures below may be out of date.');
+      });
+    return () => { active = false; };
+  }, []);
 
   // Fetch Fare Points only for the selected route.
   const fetchFarePoints = useCallback(async () => {
@@ -255,29 +300,27 @@ export default function FareMatrixPage() {
     );
   }, [farePoints, searchQuery]);
 
-  // Fare preview calculation (simple diff — original used calculateFare which
-  // depended on the hardcoded initialFarePoints; we compute inline now)
+  // Fare preview: the same formula the backend charges with (App\Support\FareRules).
   const farePreview = useMemo(() => {
     if (!previewFrom || !previewTo || previewFrom === previewTo) return null;
     const from = farePoints.find(p => p.pointNumber === previewFrom);
     const to = farePoints.find(p => p.pointNumber === previewTo);
     if (!from || !to) return null;
-    const regularDiff = Math.abs(from.regularFare - to.regularFare);
-    const discountedDiff = Math.abs(from.discountedFare - to.discountedFare);
-    const barangaysTraveled = Math.abs(from.pointNumber - to.pointNumber);
+    // Both ends count: stop 1 to stop 6 traverses 6 barangays.
+    const barangaysTraveled = Math.abs(from.pointNumber - to.pointNumber) + 1;
     return {
       fareResult: {
         fromPoint: from,
         toPoint: to,
         barangaysTraveled,
-        regularFare: regularDiff,
-        discountedFare: discountedDiff,
-        baseFare: Math.min(from.regularFare, to.regularFare),
-        succeedingFare: 2,
-        succeedingCount: Math.max(0, barangaysTraveled - 4),
+        regularFare: ruleFare(fareRules, barangaysTraveled, false),
+        discountedFare: ruleFare(fareRules, barangaysTraveled, true),
+        baseFare: fareRules.minimumFare,
+        succeedingFare: fareRules.succeedingFare,
+        succeedingCount: Math.max(0, barangaysTraveled - fareRules.baseBarangayCount),
       }
     };
-  }, [previewFrom, previewTo, farePoints]);
+  }, [previewFrom, previewTo, farePoints, fareRules]);
 
   const showSuccess = (msg: string) => {
     setSuccessMsg(msg);
@@ -303,7 +346,7 @@ export default function FareMatrixPage() {
 
   const handleAddPoint = async () => {
     if (!selectedRouteId) {
-      setError('Select a managed route before adding a Point Area.');
+      setError('No route is set up yet, so a Point Area cannot be added.');
       return;
     }
     if (!newName.trim()) {
@@ -328,15 +371,13 @@ export default function FareMatrixPage() {
         point_number: farePoints.length + 1,
         code: `P${String(farePoints.length + 1).padStart(2, '0')}`,
         name: newName.trim(),
-        regular_fare: parseFloat(newRegular) || 17,
-        discounted_fare: parseFloat(newDiscounted) || 13.6,
         landmarks: null,
         sub_stops: normalizedSubStops || null,
         latitude: newLocation[0],
         longitude: newLocation[1],
       });
       showSuccess(`Point "${newName}" added successfully.`);
-      setNewName(''); setNewRegular('17'); setNewDiscounted('13.6'); setNewSubStops(''); setNewSubStopDraft('');
+      setNewName(''); setNewSubStops(''); setNewSubStopDraft('');
       setNewLocation(null);
       setShowAddForm(false);
       await Promise.all([fetchFarePoints(), fetchRoutes()]);
@@ -353,8 +394,6 @@ export default function FareMatrixPage() {
     setShowAddForm(false);
     setError(null);
     setEditName(point.name);
-    setEditRegular(point.regularFare.toString());
-    setEditDiscounted(point.discountedFare.toString());
     setEditSubStops(point.subStops ? point.subStops.join(', ') : '');
     setEditSubStopDraft('');
     setEditLocation(point.latitude !== null && point.longitude !== null
@@ -377,8 +416,6 @@ export default function FareMatrixPage() {
       setEditSubStopDraft('');
       await farePointService.update(point.id, {
         name: editName.trim(),
-        regular_fare: parseFloat(editRegular) || 17,
-        discounted_fare: parseFloat(editDiscounted) || 13.6,
         // Saving an old row migrates its legacy landmark choices into the
         // canonical sub_stops field, so removals and additions stay in sync.
         landmarks: null,
@@ -415,43 +452,6 @@ export default function FareMatrixPage() {
     }
   };
 
-  const handleCreateRoute = async () => {
-    if (!newRouteName.trim()) return;
-    setIsSaving(true);
-    setError(null);
-    try {
-      const created = await routeService.createRoute(newRouteName.trim());
-      setNewRouteName('');
-      setShowCreateRoute(false);
-      await fetchRoutes();
-      setSelectedRouteId(created.id);
-      showSuccess(`Route "${created.name}" created. Add Fare Points and publish its geometry when ready.`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create route');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // The backend refuses (409) while vehicles or Fare Points still use the
-  // route; that reason is shown inside the confirm dialog, which stays open.
-  const handleDeleteRoute = async () => {
-    if (!selectedRoute || isDeletingRoute) return;
-    setIsDeletingRoute(true);
-    setDeleteRouteError(null);
-    try {
-      await routeService.deleteRoute(selectedRoute.id);
-      setIsDeleteRouteOpen(false);
-      setSelectedRouteId('');
-      await fetchRoutes();
-      showSuccess(`Route "${selectedRoute.name}" deleted.`);
-    } catch (err) {
-      setDeleteRouteError(err instanceof Error ? err.message : 'Failed to delete route');
-    } finally {
-      setIsDeletingRoute(false);
-    }
-  };
-
   const handleMovePoint = async (pointNumber: number, direction: -1 | 1) => {
     if (!selectedRouteId) return;
     const currentIndex = apiFarePoints.findIndex((point) => point.point_number === pointNumber);
@@ -465,7 +465,7 @@ export default function FareMatrixPage() {
     try {
       await farePointService.reorder(selectedRouteId, reordered.map((point) => point.id));
       await Promise.all([fetchFarePoints(), fetchRoutes()]);
-      showSuccess('Fare Point order updated. Review the route draft before publishing.');
+      showSuccess('Fare Point order updated. The route line on the maps is unchanged.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to reorder Fare Points');
     } finally {
@@ -506,45 +506,6 @@ export default function FareMatrixPage() {
           </div>
         </div>
 
-        {/* Route selection controls Fare Points, map geometry, and hailing coverage together. */}
-        <div className="rounded-2xl border border-white/[0.06] admin-light:border-[#E2E8F0] bg-[#071A2E] admin-light:bg-white p-4">
-          <div className="grid grid-cols-1 items-end gap-3 @[20rem]/fare-matrix:grid-cols-2 @[48rem]/fare-matrix:grid-cols-[minmax(0,1fr)_auto_auto]">
-            <div className="min-w-0 @[20rem]/fare-matrix:col-span-2 @[48rem]/fare-matrix:col-span-1">
-              <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-white/30 admin-light:text-slate-500">Managed Route</label>
-              <select
-                value={selectedRouteId}
-                onChange={(event) => {
-                  setSelectedRouteId(event.target.value);
-                  setPreviewFrom(null);
-                  setPreviewTo(null);
-                }}
-                className="min-w-0 w-full rounded-xl border border-white/10 admin-light:border-[#CBD5E1] bg-[#050F1A] admin-light:bg-[#F8FAFC] px-3 py-2.5 text-sm text-white admin-light:text-slate-900 outline-none focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4]"
-              >
-                {routes.length === 0 && <option value="">No routes created</option>}
-                {routes.map((route) => (
-                  <option key={route.id} value={route.id}>{route.name} ({route.status})</option>
-                ))}
-              </select>
-            </div>
-            <button type="button" onClick={() => setShowCreateRoute((visible) => !visible)} className="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-[#62A0EA]/30 admin-light:border-[#1A5FB4]/30 px-3 py-2.5 text-sm font-semibold text-[#93C5FD] admin-light:text-[#1A5FB4] hover:bg-[#1A5FB4]/10">
-              <Plus size={16} className="shrink-0" /> New Route
-            </button>
-            <button
-              type="button"
-              onClick={() => { setDeleteRouteError(null); setIsDeleteRouteOpen(true); }}
-              disabled={!selectedRoute}
-              className="flex items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-red-500/25 px-3 py-2.5 text-sm font-semibold text-red-300 admin-light:text-red-700 hover:bg-red-500/10 disabled:opacity-40"
-            >
-              <Trash2 size={16} className="shrink-0" /> Delete Route
-            </button>
-          </div>
-          {showCreateRoute && (
-            <div className="mt-3 flex flex-col gap-2 border-t border-white/5 admin-light:border-[#E2E8F0] pt-3 @[32rem]/fare-matrix:flex-row">
-              <input value={newRouteName} onChange={(event) => setNewRouteName(event.target.value)} placeholder="e.g. Calumpit–Marilao via McArthur Highway" className={inputClasses} />
-              <button type="button" onClick={handleCreateRoute} disabled={isSaving || !newRouteName.trim()} className="whitespace-nowrap rounded-xl bg-[#1A5FB4] px-5 py-2.5 text-sm font-bold text-white disabled:opacity-40">Create Route</button>
-            </div>
-          )}
-        </div>
 
         {/* Error Banner */}
         {error && (
@@ -562,40 +523,33 @@ export default function FareMatrixPage() {
           </div>
         )}
 
-        {selectedRoute && (
-          <RouteEditor
-            route={selectedRoute}
-            farePoints={apiFarePoints}
-            onRouteChanged={fetchRoutes}
-            onEditFarePoint={handleStartEdit}
-          />
-        )}
+        {/* The route-line editor (components/admin/routes/route-editor.tsx,
+            saved through PUT /admin/routes/{id}/geometry) is hidden from this
+            page on purpose; both are kept so it can be mounted again. */}
 
         {/* Fare Info Banner */}
         <div className="bg-[#071A2E] admin-light:bg-white border border-white/[0.06] admin-light:border-[#E2E8F0] rounded-2xl p-5">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-[#1A5FB4]/15 flex items-center justify-center flex-shrink-0">
-              <Route size={20} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />
-            </div>
+            <Route size={24} aria-hidden="true" className="flex-shrink-0 text-[#62A0EA] admin-light:text-[#1A5FB4]" />
             <div>
               <h2 className="text-white admin-light:text-slate-900 font-bold text-sm">Barangay-Based Fare System</h2>
-              <p className="text-white/40 admin-light:text-slate-500 text-xs mt-0.5">Base fare covers first 4 barangays traveled, ₱2 per succeeding barangay</p>
+              <p className="text-white/40 admin-light:text-slate-500 text-xs mt-0.5">Base fare covers first {fareRules.baseBarangayCount} barangays traveled, {formatPeso(fareRules.succeedingFare)} per succeeding barangay. Set in Financial Rules.</p>
             </div>
           </div>
           <div className="grid grid-cols-1 gap-3 @[28rem]/fare-matrix:grid-cols-3">
             <div className="bg-[#050F1A]/60 admin-light:bg-[#F8FAFC] rounded-xl px-4 py-3 text-center border border-white/5 admin-light:border-[#E2E8F0]">
               <p className="text-[10px] text-white/30 admin-light:text-slate-500 uppercase tracking-wider font-semibold">Base Fare</p>
-              <p className="text-xl font-extrabold text-[#62A0EA] admin-light:text-[#1A5FB4] mt-1">₱17.00</p>
-              <p className="text-[10px] text-white/25 admin-light:text-slate-400 mt-0.5">First 4 barangays</p>
+              <p className="text-xl font-extrabold text-[#62A0EA] admin-light:text-[#1A5FB4] mt-1">{formatPeso(fareRules.minimumFare)}</p>
+              <p className="text-[10px] text-white/25 admin-light:text-slate-400 mt-0.5">First {fareRules.baseBarangayCount} barangays</p>
             </div>
             <div className="bg-[#050F1A]/60 admin-light:bg-[#F8FAFC] rounded-xl px-4 py-3 text-center border border-white/5 admin-light:border-[#E2E8F0]">
               <p className="text-[10px] text-white/30 admin-light:text-slate-500 uppercase tracking-wider font-semibold">Succeeding</p>
-              <p className="text-xl font-extrabold text-emerald-400 admin-light:text-emerald-700 mt-1">₱2.00</p>
+              <p className="text-xl font-extrabold text-emerald-400 admin-light:text-emerald-700 mt-1">{formatPeso(fareRules.succeedingFare)}</p>
               <p className="text-[10px] text-white/25 admin-light:text-slate-400 mt-0.5">Per barangay</p>
             </div>
             <div className="bg-[#050F1A]/60 admin-light:bg-[#F8FAFC] rounded-xl px-4 py-3 text-center border border-white/5 admin-light:border-[#E2E8F0]">
               <p className="text-[10px] text-white/30 admin-light:text-slate-500 uppercase tracking-wider font-semibold">Discount</p>
-              <p className="text-xl font-extrabold text-amber-400 admin-light:text-amber-700 mt-1">20%</p>
+              <p className="text-xl font-extrabold text-amber-400 admin-light:text-amber-700 mt-1">{fareRules.discountRate}%</p>
               <p className="text-[10px] text-white/25 admin-light:text-slate-400 mt-0.5">Student/Senior/PWD</p>
             </div>
           </div>
@@ -644,7 +598,7 @@ export default function FareMatrixPage() {
                 <span className="w-5 h-5 rounded-full bg-[#FF6D3A] text-white flex items-center justify-center text-[9px] font-bold">B</span>
                 <span className="min-w-0 break-words text-sm text-white admin-light:text-slate-900 font-medium">{farePreview.fareResult.toPoint.name}</span>
               </div>
-              <div className="flex justify-between text-sm"><span className="text-white/60 admin-light:text-slate-600">Barangays Traveled</span><span className="font-semibold text-white admin-light:text-slate-900">{farePreview.fareResult.barangaysTraveled} pts</span></div>
+              <div className="flex justify-between text-sm"><span className="text-white/60 admin-light:text-slate-600">Barangays Traveled</span><span className="font-semibold text-white admin-light:text-slate-900">{farePreview.fareResult.barangaysTraveled}</span></div>
               <div className="flex justify-between text-sm"><span className="text-white/60 admin-light:text-slate-600">Base Fare</span><span className="font-semibold text-white admin-light:text-slate-900">{formatPeso(farePreview.fareResult.baseFare)}</span></div>
               {farePreview.fareResult.succeedingCount > 0 && (
                 <div className="flex justify-between text-sm"><span className="text-white/60 admin-light:text-slate-600">Succeeding ({farePreview.fareResult.succeedingCount} x {formatPeso(farePreview.fareResult.succeedingFare)})</span><span className="font-semibold text-white admin-light:text-slate-900">{formatPeso(farePreview.fareResult.succeedingFare * farePreview.fareResult.succeedingCount)}</span></div>
@@ -683,21 +637,14 @@ export default function FareMatrixPage() {
                     onDraftChange={setNewSubStopDraft}
                   />
                 </div>
-                <div>
-                  <label className="block text-[10px] text-white/30 admin-light:text-slate-500 uppercase tracking-wider mb-1.5">Regular Fare (₱)</label>
-                  <input type="number" step="0.25" value={newRegular} onChange={(e) => setNewRegular(e.target.value)} className={inputClasses} />
-                </div>
-                <div>
-                  <label className="block text-[10px] text-white/30 admin-light:text-slate-500 uppercase tracking-wider mb-1.5">Discounted Fare (₱)</label>
-                  <input type="number" step="0.25" value={newDiscounted} onChange={(e) => setNewDiscounted(e.target.value)} className={inputClasses} />
-                </div>
+                <StopFareNote rules={fareRules} pointNumber={farePoints.length + 1} />
               </div>
               <div>
                 <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-white/30 admin-light:text-slate-500">Point Location</label>
                 <FarePointMapPicker
                   value={newLocation}
                   onChange={setNewLocation}
-                  routeGeometry={selectedRoute?.active_version?.geometry ?? []}
+                  routeGeometry={selectedRoute?.geometry ?? []}
                 />
               </div>
               <button type="button" onClick={handleAddPoint} disabled={isSaving} className="px-6 py-2.5 bg-[#1A5FB4] text-white text-sm font-bold rounded-xl hover:bg-[#165a9f] transition-colors active:scale-95 disabled:opacity-50">
@@ -725,21 +672,14 @@ export default function FareMatrixPage() {
                     onDraftChange={setEditSubStopDraft}
                   />
                 </div>
-                <div>
-                  <label className="block text-[10px] text-white/30 admin-light:text-slate-500 uppercase tracking-wider mb-1.5">Regular Fare (₱)</label>
-                  <input type="number" step="0.25" value={editRegular} onChange={(e) => setEditRegular(e.target.value)} className={inputClasses} />
-                </div>
-                <div>
-                  <label className="block text-[10px] text-white/30 admin-light:text-slate-500 uppercase tracking-wider mb-1.5">Discounted Fare (₱)</label>
-                  <input type="number" step="0.25" value={editDiscounted} onChange={(e) => setEditDiscounted(e.target.value)} className={inputClasses} />
-                </div>
+                <StopFareNote rules={fareRules} pointNumber={editingPoint} />
               </div>
               <div>
                 <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-white/30 admin-light:text-slate-500">Point Location</label>
                 <FarePointMapPicker
                   value={editLocation}
                   onChange={setEditLocation}
-                  routeGeometry={selectedRoute?.active_version?.geometry ?? []}
+                  routeGeometry={selectedRoute?.geometry ?? []}
                 />
               </div>
               <div className="flex gap-3">
@@ -784,13 +724,14 @@ export default function FareMatrixPage() {
                   No fare points found. Click &quot;Add Point Area&quot; to create one.
                 </div>
               ) : filteredPoints.map((point) => {
-                const isBaseZone = point.regularFare <= 17;
+                const isBaseZone = point.regularFare <= fareRules.minimumFare;
 
                 return (
                   <div key={point.pointNumber}>
                     <div className="grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2 px-4 py-3.5 hover:bg-white/[0.03] admin-light:hover:bg-[#F8FAFC] transition-colors @[32rem]/fare-matrix:grid-cols-[2rem_minmax(0,1fr)_auto]">
                       {/* Point Number Badge */}
-                      <span className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-bold ${isBaseZone ? 'bg-emerald-500/15 text-emerald-400 admin-light:text-emerald-700' : 'bg-[#62A0EA]/15 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4]'}`}>
+                      {/* One neutral tone: the zone is already spelled out under the name. */}
+                      <span className="text-center text-base font-bold tabular-nums text-slate-300 admin-light:text-slate-600">
                         {point.pointNumber}
                       </span>
 
@@ -800,7 +741,7 @@ export default function FareMatrixPage() {
                           <MapPin size={12} className={isBaseZone ? 'text-emerald-400/60 admin-light:text-emerald-600 flex-shrink-0' : 'text-[#62A0EA]/60 admin-light:text-[#1A5FB4]/60 flex-shrink-0'} />
                           <span className="min-w-0 flex-1 text-sm text-white admin-light:text-slate-900 font-medium truncate" title={point.name}>{point.name}</span>
                           {point.subStops && point.subStops.length > 0 && (
-                            <span className="rounded-full border border-[#62A0EA]/20 admin-light:border-[#1A5FB4]/20 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 px-2 py-0.5 text-[9px] font-semibold text-[#93C5FD] admin-light:text-[#1A5FB4]">
+                            <span className="shrink-0 text-[11px] text-slate-400 admin-light:text-slate-500">
                               {point.subStops.length} sub-area{point.subStops.length === 1 ? '' : 's'}
                             </span>
                           )}
@@ -856,40 +797,6 @@ export default function FareMatrixPage() {
           </div>
         </form>
       </div>
-
-      <Modal isOpen={isDeleteRouteOpen} onClose={() => { if (!isDeletingRoute) setIsDeleteRouteOpen(false); }} adminThemed>
-        <div className="space-y-5">
-          <div>
-            <h2 className="text-lg font-bold text-white admin-light:text-slate-900">Delete route?</h2>
-            <p className="mt-1 text-sm text-slate-400 admin-light:text-slate-500">
-              {selectedRoute?.name ?? 'This route'} will be removed. A route can only be deleted once no vehicle
-              is assigned to it and it has no Fare Points.
-            </p>
-          </div>
-          {deleteRouteError && (
-            <InlineError>{deleteRouteError}</InlineError>
-          )}
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setIsDeleteRouteOpen(false)}
-              disabled={isDeletingRoute}
-              className="rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] px-5 py-2.5 text-slate-300 admin-light:text-slate-700 hover:bg-[#131C2E] admin-light:hover:bg-slate-100 disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleDeleteRoute()}
-              disabled={isDeletingRoute}
-              className="flex items-center gap-2 rounded-md bg-red-600 px-5 py-2.5 font-medium text-white hover:bg-red-700 disabled:opacity-50"
-            >
-              <Trash2 size={16} />
-              {isDeletingRoute ? 'Deleting...' : 'Delete Route'}
-            </button>
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 }

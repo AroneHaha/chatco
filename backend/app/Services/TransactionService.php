@@ -1122,12 +1122,7 @@ class TransactionService
             return null;
         }
 
-        $minimum = (float) (Setting::where('key', 'base_fare_discounted')->value('value') ?? 13.6);
-
-        return round(max(
-            abs((float) $from->discounted_fare - (float) $to->discounted_fare),
-            $minimum,
-        ), 2);
+        return $this->fareCalculationService->fareBetween($from, $to, true);
     }
 
     /** Resolve the regular fare for the scanner added to a grouped GCash QR. */

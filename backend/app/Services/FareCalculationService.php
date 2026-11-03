@@ -4,7 +4,7 @@ namespace App\Services;
 
 use App\Enums\PassengerType;
 use App\Models\FarePoint;
-use App\Models\Setting;
+use App\Support\FareRules;
 
 class FareCalculationService
 {
@@ -50,8 +50,9 @@ class FareCalculationService
             abort(422, 'Pickup and drop-off must belong to the same route.');
         }
 
-        $regularFare = $this->fareBetween($pickup, $dropoff, false);
-        $discountedFare = $this->fareBetween($pickup, $dropoff, true);
+        $rules = FareRules::current();
+        $regularFare = $rules->fareBetween($pickup, $dropoff);
+        $discountedFare = $rules->fareBetween($pickup, $dropoff, true);
         $lines = [];
         $totalPassengers = 0;
         $grossAmount = 0.0;
@@ -200,14 +201,10 @@ class FareCalculationService
         return mb_strtolower(trim((string) $value));
     }
 
+    /** Priced from the Financial Rules (see App\Support\FareRules), not the stored stop fares. */
     public function fareBetween(FarePoint $pickup, FarePoint $dropoff, bool $discounted): float
     {
-        $column = $discounted ? 'discounted_fare' : 'regular_fare';
-        $setting = $discounted ? 'base_fare_discounted' : 'base_fare_regular';
-        $default = $discounted ? 13.6 : 17.0;
-        $minimum = (float) (Setting::where('key', $setting)->value('value') ?? $default);
-
-        return round(max(abs((float) $pickup->{$column} - (float) $dropoff->{$column}), $minimum), 2);
+        return FareRules::current()->fareBetween($pickup, $dropoff, $discounted);
     }
 
     private function normalizePassengers(array $passengers): array
