@@ -23,7 +23,9 @@ export default function SosSlideToSend({ onSend }: { onSend: () => void }) {
   }, []);
 
   return (
-    <div ref={containerRef}>
+    // --sos-outline feeds .sos-slider in slide-commit.css: the track needs an
+    // edge, since a fill alone vanished into the conductor confirm panel.
+    <div ref={containerRef} style={{ "--sos-outline": isLight ? "#FCA5A5" : "#991B1B" } as React.CSSProperties}>
       <SlideCommit
         label="Slide to send SOS"
         doneLabel="Sending"
@@ -34,10 +36,11 @@ export default function SosSlideToSend({ onSend }: { onSend: () => void }) {
         width={width}
         height={56}
         commitRatio={0.9}
-        trackColor={isLight ? "#EEF2F7" : "#1A2540"}
+        // Not #1A2540: that is the conductor SOS panel's own fill.
+        trackColor={isLight ? "#FEF2F2" : "#0B1120"}
         handleColor={red}
         successColor={red}
-        className="conductor-duty-slider"
+        className="conductor-duty-slider sos-slider"
       />
     </div>
   );
