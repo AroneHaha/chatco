@@ -1,6 +1,6 @@
 // app/(commuter)/rewards/use-voucher-wallet.ts
 //
-// Infinite-scroll state for the voucher wallet's Available / Used / Expired
+// Infinite-scroll state for the voucher wallet's Available / Expired
 // tabs. Each tab keeps its own loaded pages and cursor, so switching tabs
 // doesn't refetch what was already loaded. `resetKey` changes whenever the
 // commuter's set of usable vouchers changes (a voucher earned, used or
@@ -20,7 +20,7 @@ interface TabPages {
 }
 
 const EMPTY: TabPages = { items: [], nextCursor: null, loaded: false, loadingMore: false, error: null };
-const EMPTY_TABS: Record<VoucherTab, TabPages> = { available: EMPTY, used: EMPTY, expired: EMPTY };
+const EMPTY_TABS: Record<VoucherTab, TabPages> = { available: EMPTY, expired: EMPTY };
 
 export function useVoucherWallet(tab: VoucherTab, resetKey: string) {
   const [tabs, setTabs] = useState(EMPTY_TABS);
