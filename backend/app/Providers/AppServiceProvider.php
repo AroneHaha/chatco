@@ -227,10 +227,21 @@ class AppServiceProvider extends ServiceProvider
         // 1 per 5 minutes; we use 1 per minute (the strictest perMinute
         // limiter available without custom decay) — the 2nd immediate request
         // still gets 429, which is the core abuse-prevention behavior.
+        // Only a created alert (201) spends that slot: a commuter refused for
+        // being out of range must be able to retry once they reach a jeepney.
+        // Every other attempt shares a looser 10/min cap.
         RateLimiter::for('sos', function (Request $request) use ($rateLimitResponse) {
-            return Limit::perMinute(1)
-                ->by($request->user()?->id ?: $request->ip())
-                ->response($rateLimitResponse);
+            $key = $request->user()?->id ?: $request->ip();
+
+            return [
+                Limit::perMinute(1)
+                    ->by('created:'.$key)
+                    ->after(fn ($response) => $response->getStatusCode() === 201)
+                    ->response($rateLimitResponse),
+                Limit::perMinute(10)
+                    ->by('any:'.$key)
+                    ->response($rateLimitResponse),
+            ];
         });
     }
 }

@@ -348,7 +348,6 @@ Student account fare eligibility checks the stored October 1 expiry directly, ev
 | Remittance status | `PENDING`, `COMPLETE`, `SHORTAGE`, `OVERAGE` |
 | SOS status | `ACTIVE`, `ACKNOWLEDGED`, `RESOLVED` |
 | Vehicle status | `ACTIVE`, `MAINTENANCE`, `INACTIVE` |
-| Route version status | `DRAFT`, `PUBLISHED` |
 
 Payment status transitions are guarded by `PaymentStatus::canTransitionTo()`:
 
@@ -525,9 +524,7 @@ Everything here requires role `A`. Rows marked `PUT/PATCH` accept either method.
 | | GET, PUT/PATCH, DELETE | `/admin/vehicles/{id}` | | [admin-fleet.md](admin-fleet.md#vehicles) |
 | Routes | GET, POST | `/admin/routes` | | [admin-fleet.md](admin-fleet.md#routes) |
 | | GET, PUT/PATCH, DELETE | `/admin/routes/{id}` | | [admin-fleet.md](admin-fleet.md#routes) |
-| | PUT | `/admin/routes/{id}/draft` | | [admin-fleet.md](admin-fleet.md#put-adminroutesiddraft) |
-| | POST | `/admin/routes/{id}/publish` | | [admin-fleet.md](admin-fleet.md#post-adminroutesidpublish) |
-| | GET | `/admin/routes/{id}/versions` | | [admin-fleet.md](admin-fleet.md#get-adminroutesidversions) |
+| | PUT | `/admin/routes/{id}/geometry` | | [admin-fleet.md](admin-fleet.md#put-adminroutesidgeometry) |
 | Fare points | GET, POST | `/admin/fare-points` | | [admin-fleet.md](admin-fleet.md#fare-points) |
 | | PUT | `/admin/fare-points/reorder` | | [admin-fleet.md](admin-fleet.md#put-adminfare-pointsreorder) |
 | | PUT/PATCH, DELETE | `/admin/fare-points/{id}` | | [admin-fleet.md](admin-fleet.md#fare-points) |

@@ -6,7 +6,6 @@ import { usePathname } from 'next/navigation';
 import { Menu, LogOut } from 'lucide-react';
 import {
   mobileMainItems,
-  mobileOverflowItems,
   mobileMoreItems,
 } from '@/config/admin-nav';
 import { useSettingsDrawer } from '@/components/admin/ui/settings-drawer';
@@ -134,26 +133,6 @@ export function AdminBottomNav({ isMoreOpen, setIsMoreOpen, onSignOut }: AdminBo
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              {mobileOverflowItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = pathname === item.href;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setIsMoreOpen(false)}
-                    className={`flex flex-col items-center justify-center p-3 rounded-md transition-colors ${
-                      isActive
-                        ? 'bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4]'
-                        : 'text-slate-300 admin-light:text-slate-700 hover:bg-[#131C2E] admin-light:hover:bg-[#F1F5F9]'
-                    }`}
-                  >
-                    <Icon size={22} />
-                    <span className="mt-2 text-xs text-center leading-tight">{item.label}</span>
-                  </Link>
-                );
-              })}
-
               {mobileMoreItems.map((item) => {
                 const Icon = item.icon;
                 const isSettings = item.href === '/settings';

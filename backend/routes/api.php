@@ -344,9 +344,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'role:ADMIN'])->group(functi
     Route::put('/routes/{id}', [AdminRouteController::class, 'update'])->middleware('throttle:conductor-write');
     Route::patch('/routes/{id}', [AdminRouteController::class, 'update'])->middleware('throttle:conductor-write');
     Route::delete('/routes/{id}', [AdminRouteController::class, 'destroy'])->middleware('throttle:conductor-write');
-    Route::put('/routes/{id}/draft', [AdminRouteController::class, 'saveDraft'])->middleware('throttle:conductor-write');
-    Route::post('/routes/{id}/publish', [AdminRouteController::class, 'publish'])->middleware('throttle:conductor-write');
-    Route::get('/routes/{id}/versions', [AdminRouteController::class, 'versions'])->middleware('throttle:admin-read');
+    Route::put('/routes/{id}/geometry', [AdminRouteController::class, 'saveGeometry'])->middleware('throttle:conductor-write');
     Route::get('/fare-points', [AdminFarePointController::class, 'index'])->middleware('throttle:admin-read');
     Route::post('/fare-points', [AdminFarePointController::class, 'store'])->middleware('throttle:conductor-write');
     Route::put('/fare-points/reorder', [AdminFarePointController::class, 'reorder'])->middleware('throttle:conductor-write');

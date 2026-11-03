@@ -6,6 +6,7 @@ use App\Enums\ActivityLogCategory;
 use App\Models\CommuterProfile;
 use App\Models\DiscountApplication;
 use App\Models\User;
+use App\Support\MessageTemplates;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -287,15 +288,17 @@ class DiscountApplicationService
             } elseif ($decision === 'REJECTED' && $isRenewal) {
                 $profile->update(['commuter_type' => 'REGULAR', 'applied_type' => 'STUDENT']);
             }
-            $message = $isRenewal ? match ($decision) {
-                'APPROVED' => 'Your student status has been renewed. Your student discount is available.',
-                'NEEDS_CORRECTION' => 'Please submit corrected enrollment proof within seven days. '.$application->reason,
-                default => 'Your student renewal was not approved. Your commuter type is now Regular. '.$application->reason,
-            } : match ($decision) {
-                'APPROVED' => 'Your '.$this->categoryLabel($application->requested_type).' discount application is approved. Your commuter classification has been updated.',
-                'NEEDS_CORRECTION' => 'Your discount application needs a correction. Submit corrected supporting documents from your Discount Application page. Your account remains Regular until it is approved. '.$application->reason,
-                default => 'Your discount application was not approved. Your account remains Regular. '.$application->reason,
-            };
+            // Wording is admin-editable (Settings > Notifications).
+            $templateKey = ($isRenewal ? 'renewal_' : 'discount_').match ($decision) {
+                'APPROVED' => 'approved',
+                'NEEDS_CORRECTION' => 'correction',
+                default => 'rejected',
+            }.'_template';
+            $message = MessageTemplates::render(MessageTemplates::get($templateKey), [
+                'name' => trim($profile->first_name.' '.$profile->surname),
+                'discount_type' => $this->categoryLabel($application->requested_type),
+                'reason' => $application->reason,
+            ]);
             // The title carries the outcome so the Updates list reads at a glance;
             // the feed already labels the category (Discount application / Student renewal).
             $category = $this->categoryLabel($application->requested_type);

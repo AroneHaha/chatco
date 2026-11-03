@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 class Route extends Model
@@ -20,12 +19,16 @@ class Route extends Model
         'name',
         'status',
         'waypoints',
+        'geometry',
     ];
 
     protected function casts(): array
     {
         return [
+            // Editor control points, [[lat, lng], ...].
             'waypoints' => 'array',
+            // The live road line, [[lat, lng], ...]. One line, no history.
+            'geometry' => 'array',
         ];
     }
 
@@ -48,8 +51,9 @@ class Route extends Model
         return $this->hasMany(FarePoint::class);
     }
 
-    public function versions(): HasMany
+    /** Whether a road line has been saved (maps and hail coverage need one). */
+    public function hasGeometry(): bool
     {
-        return $this->hasMany(RouteVersion::class)->orderByDesc('version');
+        return count($this->geometry ?? []) >= 2;
     }
 }

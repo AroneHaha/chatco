@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\Remittance;
 use App\Models\Setting;
 use App\Services\AnnouncementService;
+use App\Support\MessageTemplates;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -35,6 +36,8 @@ class SendRemittanceReminders extends Command
         $sent = 0;
         $failed = 0;
         $reminderCutoff = now()->subMinutes($interval);
+        // Admin-editable wording (Settings > Notifications), read once per run.
+        $template = MessageTemplates::get('remittance_reminder_template');
 
         Remittance::query()
             ->where('remittance_status', Remittance::STATUS_PENDING)
@@ -45,10 +48,10 @@ class SendRemittanceReminders extends Command
                     ->orWhere('last_reminder_at', '<=', $reminderCutoff);
             })
             ->orderBy('shift_id')
-            ->chunkById(100, function ($candidates) use ($interval, &$sent, &$failed): void {
+            ->chunkById(100, function ($candidates) use ($interval, $template, &$sent, &$failed): void {
                 foreach ($candidates as $candidate) {
                     try {
-                        $created = DB::transaction(function () use ($candidate, $interval): bool {
+                        $created = DB::transaction(function () use ($candidate, $interval, $template): bool {
                             $remittance = Remittance::query()
                                 ->where('shift_id', $candidate->shift_id)
                                 ->lockForUpdate()
@@ -69,11 +72,12 @@ class SendRemittanceReminders extends Command
                                 $remittance->conductor_id,
                                 'REMITTANCE_REMINDER',
                                 sprintf('Remittance pending: PHP %.2f', (float) $remittance->cash_total),
-                                sprintf(
-                                    'Shift %s still has PHP %.2f in expected cash awaiting remittance.',
-                                    $remittance->shift_id,
-                                    (float) $remittance->cash_total,
-                                ),
+                                MessageTemplates::render($template, [
+                                    'conductor_name' => $remittance->conductor_name,
+                                    'shift_id' => $remittance->shift_id,
+                                    'unit_number' => $remittance->unit_number,
+                                    'amount' => sprintf('%.2f', (float) $remittance->cash_total),
+                                ]),
                                 $remittance->shift_id,
                             );
 

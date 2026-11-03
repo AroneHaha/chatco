@@ -7,7 +7,7 @@
 
 @section('content')
     <h1 style="margin:0 0 6px; font-size:22px; font-weight:700; line-height:1.3; color:#0f172a;">Your CHATCO account is ready</h1>
-    <p style="margin:0 0 22px; font-size:15px; line-height:1.6; color:#334155;">Hi {{ $name }}, an admin created your commuter account at a CHATCO terminal. Sign in with the default password below.</p>
+    <div style="margin:0 0 8px;">@include('emails.partials.message', ['body' => $body])</div>
 
     <!-- Credentials -->
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px; background-color:#f8fafc; border:1px solid #e2e8f0; border-radius:12px;">

@@ -6,19 +6,18 @@ use App\Enums\ActivityLogCategory;
 use App\Enums\UserRole;
 use App\Events\FaresUpdated;
 use App\Http\Controllers\Controller;
-use App\Models\FarePoint;
 use App\Models\PersonalAccessToken;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\ActivityLogService;
 use App\Services\MaintenanceStatus;
+use App\Support\FareRules;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
 
 /**
@@ -78,8 +77,10 @@ class AdminSettingController extends Controller
             'max_shift_hours' => ['required', 'integer', 'min:1', 'max:48'],
             'remittance_grace_minutes' => ['required', 'integer', 'min:1', 'max:1440'],
             'remittance_reminder_interval_minutes' => ['required', 'integer', 'min:5', 'max:10080'],
-            self::MINIMUM_FARE_KEY => ['required', 'numeric', 'min:1', 'max:1000', 'decimal:0,2'],
-            self::DISCOUNT_RATE_KEY => ['required', 'numeric', 'min:0', 'max:100', 'decimal:0,2'],
+            FareRules::MINIMUM_FARE_KEY => ['required', 'numeric', 'min:1', 'max:1000', 'decimal:0,2'],
+            FareRules::DISCOUNT_RATE_KEY => ['required', 'numeric', 'min:0', 'max:100', 'decimal:0,2'],
+            FareRules::SUCCEEDING_FARE_KEY => ['required', 'numeric', 'min:0', 'max:1000', 'decimal:0,2'],
+            FareRules::BASE_BARANGAY_COUNT_KEY => ['required', 'integer', 'min:0', 'max:100'],
             default => ['nullable', 'string'],
         };
 
@@ -106,11 +107,12 @@ class AdminSettingController extends Controller
             'max_shift_hours',
             'remittance_grace_minutes',
             'remittance_reminder_interval_minutes',
+            FareRules::BASE_BARANGAY_COUNT_KEY,
         ];
         $value = match (true) {
             in_array($key, $integerKeys, true) => (string) $validated['value'],
             // Fixed format so re-saving "17" over "17.00" is not logged as a change.
-            in_array($key, [self::MINIMUM_FARE_KEY, self::DISCOUNT_RATE_KEY], true) => number_format((float) $validated['value'], 2, '.', ''),
+            in_array($key, [FareRules::MINIMUM_FARE_KEY, FareRules::DISCOUNT_RATE_KEY, FareRules::SUCCEEDING_FARE_KEY], true) => number_format((float) $validated['value'], 2, '.', ''),
             default => $validated['value'] ?? null,
         };
         // For the activity log: the settings pages save every key on each
@@ -145,7 +147,7 @@ class AdminSettingController extends Controller
 
                 return $setting;
             }, 3);
-        } elseif (in_array($key, [self::MINIMUM_FARE_KEY, self::DISCOUNT_RATE_KEY], true)) {
+        } elseif (in_array($key, FareRules::KEYS, true)) {
             $setting = $this->saveFareRule($key, $value, $category, $request);
         } else {
             $setting = Setting::updateOrCreate(
@@ -189,80 +191,42 @@ class AdminSettingController extends Controller
         );
     }
 
-    private const MINIMUM_FARE_KEY = 'base_fare_regular';
-
-    private const DISCOUNT_RATE_KEY = 'discount_rate';
-
-    /** Used until an admin saves these; match the fares the migrations seeded. */
-    private const DEFAULT_MINIMUM_FARE = 17.0;
-
-    private const DEFAULT_DISCOUNT_RATE = 20.0;
-
-    private const DEFAULT_SUCCEEDING_FARE = 2.25;
-
     /**
-     * Saves the minimum fare or the shared discount rate and re-prices the
-     * fare matrix in the same transaction:
-     * - a minimum fare change shifts every stop's regular fare by the same
-     *   amount, keeping the gaps between stops;
-     * - every discounted fare (stops, minimum, succeeding) is then recomputed
-     *   as the regular fare less the discount rate.
+     * Saves one of the four fare rules (minimum fare, discount rate,
+     * succeeding fare, base barangay count) and, in the same transaction,
+     * rewrites every stop's stored fares and the derived discounted settings
+     * from the new rules (App\Support\FareRules). Trips are priced from the
+     * rules themselves, so the matrix can never disagree with them.
      * Transactions already started keep the amount they were priced at.
      * A real change also signs every conductor out (signOutConductors).
      */
     private function saveFareRule(string $key, string $value, string $category, Request $request): Setting
     {
         return DB::transaction(function () use ($key, $value, $category, $request): Setting {
-            // Locking both rules serializes concurrent fare-rule saves, so one
-            // never re-prices from a value the other is about to change.
-            $rules = Setting::whereIn('key', [self::MINIMUM_FARE_KEY, self::DISCOUNT_RATE_KEY])
-                ->lockForUpdate()->pluck('value', 'key');
-            $minimum = (float) ($rules[self::MINIMUM_FARE_KEY] ?? self::DEFAULT_MINIMUM_FARE);
-            $rate = (float) ($rules[self::DISCOUNT_RATE_KEY] ?? self::DEFAULT_DISCOUNT_RATE);
+            // Locking the rules serializes concurrent fare-rule saves, so one
+            // never re-prices from a value another is about to change.
+            $before = FareRules::current(lock: true);
+            $setting = Setting::updateOrCreate(['key' => $key], [
+                'value' => $value,
+                'category' => $category,
+                'updated_by' => $request->user()->id,
+            ]);
+            $rules = FareRules::current();
 
-            if ($key === self::MINIMUM_FARE_KEY) {
-                $shift = round((float) $value - $minimum, 2);
-                $changed = $shift != 0.0;
-                if ($changed) {
-                    $lowest = FarePoint::min('regular_fare');
-                    if ($lowest !== null && (float) $lowest + $shift < 0) {
-                        throw ValidationException::withMessages([
-                            'value' => 'This minimum fare would push some fare matrix stops below ₱0.',
-                        ]);
-                    }
-                    FarePoint::query()->increment('regular_fare', $shift);
-                }
-                $minimum = (float) $value;
-            } else {
-                $changed = round((float) $value - $rate, 2) != 0.0;
-                $rate = (float) $value;
-            }
-
-            if ($changed) {
+            if ($rules != $before) {
                 $this->signOutConductors();
             }
 
-            $payable = (100 - $rate) / 100;
-            FarePoint::query()->update([
-                'discounted_fare' => DB::raw(sprintf('ROUND(regular_fare * %.4F, 2)', $payable)),
-            ]);
-            $succeeding = (float) (Setting::where('key', 'succeeding_fare_regular')->value('value') ?? self::DEFAULT_SUCCEEDING_FARE);
-            foreach ([
-                'base_fare_discounted' => $minimum * $payable,
-                'succeeding_fare_discounted' => $succeeding * $payable,
-            ] as $derivedKey => $amount) {
+            $rules->syncStopFares();
+            foreach ($rules->derivedSettings() as $derivedKey => $derivedValue) {
                 Setting::updateOrCreate(['key' => $derivedKey], [
-                    'value' => number_format(round($amount, 2), 2, '.', ''),
+                    'value' => $derivedValue,
                     'category' => 'financial',
                     'updated_by' => $request->user()->id,
                 ]);
             }
 
-            return Setting::updateOrCreate(['key' => $key], [
-                'value' => $value,
-                'category' => $category,
-                'updated_by' => $request->user()->id,
-            ]);
+            return $setting;
         }, 3);
     }
 
@@ -293,8 +257,10 @@ class AdminSettingController extends Controller
     /** Readable names for the activity log; other keys fall back to a headline of the key. */
     private const SETTING_LABELS = [
         Setting::RIDES_FOR_FREE_REWARD_KEY => 'Paid rides for 1 free ride',
-        self::MINIMUM_FARE_KEY => 'Minimum fare (₱)',
-        self::DISCOUNT_RATE_KEY => 'Discount rate (%)',
+        FareRules::MINIMUM_FARE_KEY => 'Minimum fare (₱)',
+        FareRules::DISCOUNT_RATE_KEY => 'Discount rate (%)',
+        FareRules::SUCCEEDING_FARE_KEY => 'Succeeding fare per barangay (₱)',
+        FareRules::BASE_BARANGAY_COUNT_KEY => 'Barangays covered by the minimum fare',
         'regular_discount' => 'Regular discount (%)',
         'student_discount' => 'Student discount (%)',
         'senior_discount' => 'Senior citizen discount (%)',
@@ -310,6 +276,16 @@ class AdminSettingController extends Controller
         'ride_receipt_template' => 'Ride receipt template',
         'account_approved_template' => 'Account approved email',
         'account_rejected_template' => 'Account rejected email',
+        'onsite_account_template' => 'Terminal account welcome email',
+        'discount_approved_template' => 'Discount approved notification',
+        'discount_correction_template' => 'Discount needs correction notification',
+        'discount_rejected_template' => 'Discount rejected notification',
+        'renewal_reminder_template' => 'Student renewal reminder',
+        'renewal_approved_template' => 'Student renewal approved notification',
+        'renewal_correction_template' => 'Student renewal correction notification',
+        'renewal_rejected_template' => 'Student renewal rejected notification',
+        'renewal_expired_template' => 'Student discount expired notification',
+        'remittance_reminder_template' => 'Remittance reminder notification',
         'maintenance_mode' => 'Maintenance mode',
         'maintenance_roles' => 'Maintenance applies to',
         'maintenance_message' => 'Maintenance message',

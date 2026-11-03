@@ -32,6 +32,13 @@ final class GeoHelper
     public const HAIL_RADIUS_M = 1000;
 
     /**
+     * A commuter SOS is accepted only within this distance of an on-duty
+     * unit (active shift, not on break). Sized for two phones' GPS error
+     * plus the conductor's 5-15s ping lag, so an on-board rider is not refused.
+     */
+    public const SOS_RADIUS_M = 100;
+
+    /**
      * Haversine formula — calculates the great-circle distance
      * between two lat/lng points on Earth.
      *

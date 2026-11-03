@@ -1,26 +1,17 @@
 export type RouteCoordinate = [number, number];
 
-export interface RouteVersion {
-  id: string;
-  number: number;
-  status: "DRAFT" | "PUBLISHED";
-  geometry: RouteCoordinate[];
-  waypoints: RouteCoordinate[];
-  notes: string | null;
-  effective_from: string | null;
-  effective_until: string | null;
-  published_at: string | null;
-  is_temporary: boolean;
-}
-
+/** A route has one live line, replaced in place on save; no versions or drafts. */
 export interface AdminRoute {
   id: string;
   name: string;
   status: "ACTIVE" | "INACTIVE";
   vehicles_count: number;
   fare_points_count: number;
-  active_version: RouteVersion | null;
-  draft_version: RouteVersion | null;
+  /** The live road line; empty until one is saved. */
+  geometry: RouteCoordinate[];
+  /** Editor control points the line was generated from. */
+  waypoints: RouteCoordinate[];
+  updated_at: string | null;
 }
 
 export interface RoadPreview {
@@ -52,8 +43,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const body = await response.json().catch(() => null);
 
   if (!response.ok) {
-    // Validation failures carry the real reason (e.g. "The detour expiration
-    // must be after its start time.") in `errors`, under a generic message.
+    // Validation failures carry the real reason in `errors`, under a generic message.
     const errors = body?.errors as Record<string, string[]> | undefined;
     const specific = errors ? Object.values(errors).flat().find(Boolean) : undefined;
     throw new RouteServiceError(specific ?? body?.message ?? `Request failed (HTTP ${response.status})`, response.status);
@@ -73,32 +63,19 @@ export function createRoute(name: string): Promise<AdminRoute> {
   });
 }
 
-export function saveRouteDraft(
+/** Replaces the route's line; it is live on every map on the next fetch. */
+export function saveRouteGeometry(
   routeId: string,
-  input: { geometry: RouteCoordinate[]; waypoints: RouteCoordinate[]; notes?: string | null }
-): Promise<RouteVersion> {
-  return request<RouteVersion>(`/api/admin/routes/${routeId}/draft`, {
+  input: { geometry: RouteCoordinate[]; waypoints: RouteCoordinate[] }
+): Promise<AdminRoute> {
+  return request<AdminRoute>(`/api/admin/routes/${routeId}/geometry`, {
     method: "PUT",
-    body: JSON.stringify(input),
-  });
-}
-
-export function publishRoute(
-  routeId: string,
-  input: { effective_from?: string | null; effective_until?: string | null; notes?: string | null }
-): Promise<RouteVersion> {
-  return request<RouteVersion>(`/api/admin/routes/${routeId}/publish`, {
-    method: "POST",
     body: JSON.stringify(input),
   });
 }
 
 export function deleteRoute(routeId: string): Promise<null> {
   return request<null>(`/api/admin/routes/${routeId}`, { method: "DELETE" });
-}
-
-export function listRouteVersions(routeId: string): Promise<RouteVersion[]> {
-  return request<RouteVersion[]>(`/api/admin/routes/${routeId}/versions`);
 }
 
 export function previewRoadGeometry(waypoints: RouteCoordinate[]): Promise<RoadPreview> {

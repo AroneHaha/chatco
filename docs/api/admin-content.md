@@ -121,12 +121,15 @@ This is the actual read/write wiring across the codebase — which admin setting
 |---|---|
 | `receipt_business_name`, `receipt_address_line`, `receipt_footer_note`, `receipt_paper_width`, `receipt_auto_print`, `receipt_show_datetime`, `receipt_show_transaction_id`, `receipt_show_route`, `receipt_show_unit`, `receipt_show_conductor`, `receipt_show_passenger`, `receipt_show_fare_breakdown` | `GET /conductor/receipt-settings` ([conductor.md](conductor.md#get-conductorreceipt-settings)) — each merged over a hardcoded default, so an unsaved key still serves a sane value |
 
-**Read by the fare engine, but with no admin page exposing them at all — only reachable via a direct `PUT /admin/settings/{key}` call:**
+**The fare rules** (Settings > Financial Rules, read through `App\Support\FareRules`). Saving any of them re-prices every stop's stored fare and the two derived keys in one transaction, and signs conductors out after a 20-second grace when a value really changed:
 
-| Key | Read by |
+| Key | Meaning (default) |
 |---|---|
-| `base_fare_regular` | `FareCalculationService`, `FareMatrixController` — the regular-fare floor (code default ₱15) |
-| `base_fare_discounted` | `FareCalculationService`, `FareMatrixController`, `TransactionService` (voucher-fare minimum) — the discounted-fare floor (code default ₱12) |
+| `base_fare_regular` | Minimum fare (₱17.00) |
+| `base_barangay_count` | Barangays the minimum fare covers, both ends counted (4) |
+| `succeeding_fare_regular` | Added per barangay beyond that (₱2.25) |
+| `discount_rate` | Percent off for Student, Senior Citizen and PWD (20) |
+| `base_fare_discounted`, `succeeding_fare_discounted` | Derived (the two fares above less the discount rate); written by the server, not by the page |
 
 ---
 

@@ -4,3 +4,4 @@
 # Claude Code / design tooling (local, not part of the app)
 /.claude/
 /.impeccable/
+/.agents/skills/

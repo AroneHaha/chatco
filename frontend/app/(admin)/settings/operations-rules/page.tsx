@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
-import { Save, AlertCircle, ShieldAlert, Gauge, Timer, BellRing, Hourglass, Repeat, ArrowRight, type LucideIcon } from 'lucide-react';
+import { Save, AlertCircle, ShieldAlert, BellRing, ArrowRight } from 'lucide-react';
 import { defaultOperationsRules, type OperationsRulesConfig } from '@/app/(admin)/settings/data/settings-data';
 import { getSettings, updateSetting } from '@/lib/admin/services/setting.service';
 import { SettingsSection, UnitInput } from '@/components/admin/ui/settings-section';
@@ -17,17 +17,12 @@ function formatMinutes(total: number): string {
   return [days && `${days}d`, hours && `${hours}h`, minutes && `${minutes}m`].filter(Boolean).join(' ') || '0m';
 }
 
-function RuleField({ icon: Icon, label, help, children }: { icon: LucideIcon; label: string; help: string; children: ReactNode }) {
+function RuleField({ label, help, children }: { label: string; help: string; children: ReactNode }) {
   return (
     <label className="flex flex-col gap-3 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628]/60 admin-light:bg-[#F8FAFC] p-3 transition-colors focus-within:border-[#62A0EA]/60 admin-light:focus-within:border-[#1A5FB4]/60">
-      <span className="flex items-start gap-3">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 text-[#8CB9F0] admin-light:text-[#1A5FB4]">
-          <Icon size={16} aria-hidden="true" />
-        </span>
-        <span className="min-w-0">
-          <span className="block text-sm font-medium text-white admin-light:text-slate-900">{label}</span>
-          <span className="block text-xs text-slate-500">{help}</span>
-        </span>
+      <span className="min-w-0">
+        <span className="block text-sm font-medium text-white admin-light:text-slate-900">{label}</span>
+        <span className="block text-xs text-slate-500">{help}</span>
       </span>
       {children}
     </label>
@@ -134,10 +129,10 @@ export default function OperationsRulesPage() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {/* min/max mirror AdminSettingController's rules, so an
                   out-of-range value is caught here instead of as a 422. */}
-              <RuleField icon={Gauge} label="Overspeeding limit" help="Monitoring flags a unit driving faster than this (10–120).">
+              <RuleField label="Overspeeding limit" help="Monitoring flags a unit driving faster than this (10–120).">
                 <UnitInput min="10" max="120" step="1" name="speedLimitKmh" value={rules.speedLimitKmh} onChange={handleChange} required unit="km/h" />
               </RuleField>
-              <RuleField icon={Timer} label="Maximum shift duration" help="Remittance flags a conductor whose shift runs longer (1–48).">
+              <RuleField label="Maximum shift duration" help="Remittance flags a conductor whose shift runs longer (1–48).">
                 <UnitInput min="1" max="48" step="1" name="maxShiftHours" value={rules.maxShiftHours} onChange={handleChange} required unit="hours" unitWidth="pr-16" />
               </RuleField>
             </div>
@@ -145,10 +140,10 @@ export default function OperationsRulesPage() {
 
           <SettingsSection icon={BellRing} title="Remittance Reminders" description="When conductors are reminded to remit after a shift closes automatically.">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <RuleField icon={Hourglass} label="Grace period" help="Wait after the shift closes before the first reminder.">
+              <RuleField label="Grace period" help="Wait after the shift closes before the first reminder.">
                 <UnitInput min="1" max="1440" name="remittanceGraceMinutes" value={rules.remittanceGraceMinutes} onChange={handleChange} required unit="min" />
               </RuleField>
-              <RuleField icon={Repeat} label="Repeat interval" help="Minimum time between reminders for the same shift.">
+              <RuleField label="Repeat interval" help="Minimum time between reminders for the same shift.">
                 <UnitInput min="5" max="10080" name="remittanceReminderIntervalMinutes" value={rules.remittanceReminderIntervalMinutes} onChange={handleChange} required unit="min" />
               </RuleField>
             </div>
