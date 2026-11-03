@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Support\MessageTemplates;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -37,6 +38,13 @@ class OnsiteAccountCreatedMail extends Mailable
         return new Content(
             view: 'emails.onsite-account-created',
             with: [
+                // Intro paragraph is admin-editable; the credentials and the
+                // must-change-password notice stay fixed in the view.
+                'body' => MessageTemplates::render(MessageTemplates::get('onsite_account_template'), [
+                    'name' => $this->name,
+                    'email' => $this->email,
+                    'username' => $this->username,
+                ]),
                 'name' => $this->name,
                 'email' => $this->email,
                 'username' => $this->username,
