@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Modal } from '@/components/admin/ui/modal';
 import { Check, Copy, ImagePlus, PackageSearch, Pencil, RotateCcw, X } from 'lucide-react';
-import { itemCategories, type LostFoundItem } from '@/app/(admin)/lost-found/data/lost-found-data';
+import { isItemEditable, itemCategories, type LostFoundItem } from '@/app/(admin)/lost-found/data/lost-found-data';
 
 const MAX_PHOTOS = 3;
 
@@ -306,10 +306,12 @@ export function ViewItemModal({
           otherwise Edit is the one action. */}
       <div className="sticky -bottom-4 z-10 -mx-4 -mb-4 mt-8 flex flex-col-reverse gap-2 border-t border-white/10 admin-light:border-[#E2E8F0] bg-[#1A2540] admin-light:bg-white px-4 py-4 sm:-bottom-6 sm:-mx-6 sm:-mb-6 sm:flex-row sm:justify-end sm:px-6">
         <button type="button" onClick={onClose} className={secondaryButton}>Close</button>
-        <button type="button" onClick={() => onEdit(item)} className={isExpired ? secondaryButton : primaryButton}>
-          <Pencil className="h-4 w-4" />
-          Edit Item
-        </button>
+        {isItemEditable(item.status) && (
+          <button type="button" onClick={() => onEdit(item)} className={isExpired ? secondaryButton : primaryButton}>
+            <Pencil className="h-4 w-4" />
+            Edit Item
+          </button>
+        )}
         {isExpired && (
           <button type="button" onClick={() => void handleReactivate()} disabled={isActing || isReactivating} className={primaryButton}>
             {isReactivating ? (

@@ -293,8 +293,9 @@ export default function RemittancePage() {
           </div>
 
           {/* Table card — fills whatever vertical space is left, on every screen
-              size, instead of a fixed height that either clips or leaves a gap. */}
-          <div className="flex flex-1 min-h-0 flex-col bg-[#0B1220] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-xl p-3 sm:p-4">
+              size, instead of a fixed height that either clips or leaves a gap.
+              Below sm the card chrome is dropped: DataTable's own border is enough. */}
+          <div className="flex flex-1 min-h-0 flex-col sm:bg-[#0B1220] sm:admin-light:bg-white sm:border sm:border-[#1E2D45] sm:admin-light:border-[#E2E8F0] sm:rounded-xl sm:p-4">
             <RemittanceTable
               searchQuery={debouncedSearchQuery}
               selectedDate={selectedDate}

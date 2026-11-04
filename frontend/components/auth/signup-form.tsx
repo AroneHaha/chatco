@@ -326,8 +326,11 @@ export default function SignupForm({ onBusyChange, initialMaintenanceMessage = n
       if (err instanceof VerificationError) {
         // Already asked for a code moments ago — they have a usable one, so
         // let them carry on to the code screen rather than blocking here.
-        if (err.status === 429) {
-          setResendIn(60);
+        // Only the per-address cooldown says so (resendInSeconds); a plain
+        // rate-limit 429 means no code may exist, so it falls through to the
+        // error below instead of restarting the timer with nothing sent.
+        if (err.status === 429 && err.resendInSeconds) {
+          setResendIn(err.resendInSeconds);
           setCodeNote("You requested a code a moment ago — check your inbox for it.");
           return true;
         }

@@ -218,19 +218,29 @@ class LostItemService
     }
 
     /**
+     * Released items are already back with their owner and Closed items are
+     * archived, so both are a fixed record: no detail or photo changes.
+     *
+     * @throws LostFoundException
+     */
+    private function assertEditable(LostItem $item): void
+    {
+        if (in_array($item->status, [self::ITEM_RELEASED, self::ITEM_CLOSED], true)) {
+            throw LostFoundException::invalid('Cannot edit a '.strtolower($item->status).' item');
+        }
+    }
+
+    /**
      * Admin edits a previously reported item's descriptive fields. Blocked
-     * once the item is CLOSED — that's a finalized historical record.
+     * once the item is RELEASED or CLOSED (see assertEditable).
      * Photos, status, and the claim/release audit trail are untouched here.
      *
-     * @throws LostFoundException Item not found, or item is CLOSED.
+     * @throws LostFoundException Item not found, or item is RELEASED/CLOSED.
      */
     public function update(string $itemId, array $data): LostItem
     {
         $item = $this->show($itemId);
-
-        if ($item->status === self::ITEM_CLOSED) {
-            throw LostFoundException::invalid('Cannot edit a closed item');
-        }
+        $this->assertEditable($item);
 
         $item->update(array_filter([
             'item_name' => $data['item_name'] ?? null,
@@ -257,6 +267,7 @@ class LostItemService
     public function addPhoto(string $itemId, UploadedFile $file): LostItem
     {
         $item = $this->show($itemId);
+        $this->assertEditable($item);
         $existing = $item->photos()->count();
 
         if ($existing >= self::MAX_PHOTOS) {
@@ -297,6 +308,7 @@ class LostItemService
     public function replacePhoto(string $itemId, string $photoId, UploadedFile $file): LostItem
     {
         $item = $this->show($itemId);
+        $this->assertEditable($item);
 
         if (! $item->photos()->where('id', $photoId)->exists()) {
             throw LostFoundException::notFound('Photo');
@@ -345,6 +357,7 @@ class LostItemService
     public function deletePhoto(string $itemId, string $photoId): LostItem
     {
         $item = $this->show($itemId);
+        $this->assertEditable($item);
         $photo = $item->photos()->where('id', $photoId)->first();
 
         if (! $photo) {
@@ -821,9 +834,10 @@ class LostItemService
     /**
      * Admin releases an approved claim (Stage 2 of the 2-stage workflow).
      *
-     * Sets item → RELEASED with released_to + released_at. The claim stays
-     * RELEASED with its own released_at timestamp. This records the actual
-     * handover to the commuter on the claim as well as the item.
+     * Sets item → CLOSED in one step, stamping released_to + released_at and
+     * closed_by + closed_at. The claim becomes RELEASED with its own
+     * released_at timestamp. This records the actual handover to the commuter
+     * on the claim as well as the item.
      *
      * @throws LostFoundException Claim not found, not APPROVED, or item not APPROVED.
      */

@@ -1517,6 +1517,34 @@ class LostFoundFlowTest extends TestCase
         $response->assertStatus(422);
     }
 
+    public function test_cannot_edit_or_change_photos_of_released_item(): void
+    {
+        $item = $this->createItem();
+        $this->commuter();
+        $claim = $this->postJson("/api/v1/lost-found/{$item->id}/claim", ['proof' => 'It has a keychain'])->json('data');
+
+        $this->admin();
+        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim['id']}/approve", $this->pickup());
+        $this->patchJson("/api/v1/admin/lost-items/{$item->id}/claims/{$claim['id']}/release")->assertOk();
+
+        // Releasing hands the item over and closes it in one step.
+        $this->assertSame('CLOSED', $item->fresh()->status);
+        $edit = fn () => $this->patchJson("/api/v1/admin/lost-items/{$item->id}", [
+            'item_name' => 'Should not apply',
+            'description' => $item->description,
+        ]);
+        $edit()->assertStatus(422)->assertJsonPath('message', 'Cannot edit a closed item');
+        $this->post("/api/v1/admin/lost-items/{$item->id}/photos", [
+            'image' => \Illuminate\Http\UploadedFile::fake()->image('extra.jpg'),
+        ], ['Accept' => 'application/json'])->assertStatus(422)->assertJsonPath('message', 'Cannot edit a closed item');
+
+        // A row still in the older RELEASED state is locked the same way.
+        $item->update(['status' => 'RELEASED']);
+        $edit()->assertStatus(422)->assertJsonPath('message', 'Cannot edit a released item');
+
+        $this->assertNotSame('Should not apply', $item->fresh()->item_name);
+    }
+
     public function test_commuter_cannot_edit_item(): void
     {
         $item = $this->createItem();

@@ -34,6 +34,17 @@ const REMINDER_INTERVAL_MS = 4000;
 // How long the hail button must be held before a hail is sent.
 const HAIL_HOLD_MS = 600;
 
+/**
+ * HailService refuses with abort(422, reason) — a bare `{ message }` such as
+ * "Vehicle is currently on break". Form validation 422s carry `errors` and a
+ * generic "Validation failed", which isn't worth showing, so those return null.
+ */
+function hailRefusalReason(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null;
+  const { message, errors } = body as { message?: unknown; errors?: unknown };
+  return typeof message === "string" && message && !errors ? message : null;
+}
+
 export default function CommuterHome() {
   const { user, commuterProfile } = useAuth();
 
@@ -162,6 +173,9 @@ export default function CommuterHome() {
         );
       } else if (err instanceof ApiError && err.status === 409) {
         setHailError("You already have a pending hail.");
+      } else if (err instanceof ApiError && err.status === 422 && hailRefusalReason(err.body)) {
+        // e.g. the unit went on break between the map refresh and this hail.
+        setHailError(hailRefusalReason(err.body));
       } else if (err instanceof ApiError || err instanceof NetworkError) {
         setHailError("Unable to send the hail. Please try again.");
       } else {

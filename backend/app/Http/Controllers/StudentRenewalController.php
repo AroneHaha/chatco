@@ -17,6 +17,12 @@ class StudentRenewalController extends Controller
 
     public function state(Request $request)
     {
+        // Checked here, not in the service's state(): switching to Regular
+        // returns that same state for an account that is no longer eligible.
+        if ($profile = $request->user()->commuterProfile) {
+            $this->renewals->assertEligible($profile);
+        }
+
         return $this->successResponse($this->renewals->state($request->user()));
     }
 
