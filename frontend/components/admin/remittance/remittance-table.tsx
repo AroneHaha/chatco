@@ -225,7 +225,7 @@ export function RemittanceTable({ searchQuery, selectedDate, dateFrom, statusFil
       </div>
 
       {/* Pagination Controls */}
-      <div className="shrink-0 flex flex-col sm:flex-row justify-between items-center mt-4 pt-4 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] gap-4 text-xs text-slate-400 admin-light:text-slate-500">
+      <div className="shrink-0 flex flex-wrap justify-between items-center mt-3 pt-3 sm:mt-4 sm:pt-4 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] gap-3 text-xs text-slate-400 admin-light:text-slate-500">
         <div>
           Showing {paginatedData.length > 0 ? (safeCurrentPage - 1) * ROWS_PER_PAGE + 1 : 0} to{' '}
           {(safeCurrentPage - 1) * ROWS_PER_PAGE + paginatedData.length} of <span className="text-slate-300 admin-light:text-slate-700 font-medium">{total}</span> results

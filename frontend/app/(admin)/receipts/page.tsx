@@ -8,6 +8,7 @@ import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
 import { Download, Wallet, ChevronLeft, ChevronRight, ChevronDown, AlertCircle, AlertTriangle, RefreshCw, ReceiptText, Smartphone, Coins, SlidersHorizontal } from 'lucide-react';
 import { useReceiptsData, type Receipt, type PaymentMethod } from '@/app/(admin)/receipts/data/receipts-data';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
+import { SummaryPages } from '@/components/admin/ui/summary-pages';
 import { exportReport, type ReportFormat } from '@/lib/utils/export-report';
 import { formatPeso } from '@/lib/utils/display';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
@@ -328,43 +329,29 @@ export default function ReceiptsPage() {
         </div>
       )}
 
-      <div className="grid shrink-0 grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        <div className="bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-xl p-3 flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center text-[#62A0EA] admin-light:text-[#1A5FB4]">
-            <ReceiptText size={36} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] text-slate-500 uppercase tracking-wider">Receipts Shown</p>
-            <p className="text-xl font-bold text-slate-100 admin-light:text-slate-900 truncate">{filteredData.length}</p>
-          </div>
-        </div>
-        <div className="bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-xl p-3 flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center text-[#62A0EA] admin-light:text-[#1A5FB4]">
-            <Wallet size={36} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] text-slate-500 uppercase tracking-wider">Settled Fares</p>
-            <p className="text-xl font-bold text-slate-100 admin-light:text-slate-900 truncate">{formatPeso(totalFare)}</p>
-          </div>
-        </div>
-        <div className="bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-xl p-3 flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center text-[#62A0EA] admin-light:text-[#1A5FB4]">
-            <Coins size={36} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] text-slate-500 uppercase tracking-wider">Cash Settled</p>
-            <p className="text-xl font-bold text-slate-100 admin-light:text-slate-900 truncate">{cashCount}</p>
-          </div>
-        </div>
-        <div className="bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-xl p-3 flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center text-[#62A0EA] admin-light:text-[#1A5FB4]">
-            <Smartphone size={36} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] text-slate-500 uppercase tracking-wider">GCash Settled</p>
-            <p className="text-xl font-bold text-slate-100 admin-light:text-slate-900 truncate">{gcashCount}</p>
-          </div>
-        </div>
+      {/* Below md: the cards swipe sideways (SummaryPages, same as Remittance),
+          a single row while the filters are collapsed and 2x2 when open. */}
+      <div className="mb-4 shrink-0">
+        <SummaryPages
+          perPage={showMobileFilters ? 4 : 2}
+          gridClassName="md:grid-cols-2 lg:grid-cols-4"
+          cards={[
+            { label: 'Receipts Shown', value: filteredData.length, Icon: ReceiptText },
+            { label: 'Settled Fares', value: formatPeso(totalFare), Icon: Wallet },
+            { label: 'Cash Settled', value: cashCount, Icon: Coins },
+            { label: 'GCash Settled', value: gcashCount, Icon: Smartphone },
+          ].map(({ label, value, Icon }) => (
+            <div key={label} className="bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-xl p-3 flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center text-[#62A0EA] admin-light:text-[#1A5FB4]">
+                <Icon size={36} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] text-slate-500 uppercase tracking-wider">{label}</p>
+                <p className="text-xl font-bold text-slate-100 admin-light:text-slate-900 truncate">{value}</p>
+              </div>
+            </div>
+          ))}
+        />
       </div>
 
       {/* ── Filters ──
