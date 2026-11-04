@@ -15,7 +15,7 @@ import {
   XCircle,
   type LucideIcon,
 } from 'lucide-react';
-import type { LostFoundItem } from '@/app/(admin)/lost-found/data/lost-found-data';
+import { isItemEditable, type LostFoundItem } from '@/app/(admin)/lost-found/data/lost-found-data';
 
 interface LostFoundGridProps {
   items: LostFoundItem[];
@@ -229,10 +229,12 @@ export function LostFoundGrid({ items, claimSummaries = {}, onViewClaims, onView
                 <span className={`tabular-nums ${hasNewClaims ? 'text-[#FF6D3A]' : isClaimed ? 'text-emerald-300/70 admin-light:text-emerald-700' : 'text-slate-500'}`}>{claimSummary.total}</span>
                 {hasNewClaims && <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[#FF6D3A]" />}
               </ActionButton>
-              <ActionButton onClick={() => onEdit(item)} label="Edit item" className="text-slate-300 admin-light:text-slate-700 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] hover:text-white admin-light:hover:text-slate-900">
-                <Pencil className="h-4 w-4" aria-hidden="true" />
-                <span className="hidden sm:inline">Edit</span>
-              </ActionButton>
+              {isItemEditable(item.status) && (
+                <ActionButton onClick={() => onEdit(item)} label="Edit item" className="text-slate-300 admin-light:text-slate-700 hover:bg-[#1A2540] admin-light:hover:bg-[#EEF2F7] hover:text-white admin-light:hover:text-slate-900">
+                  <Pencil className="h-4 w-4" aria-hidden="true" />
+                  <span className="hidden sm:inline">Edit</span>
+                </ActionButton>
+              )}
             </div>
           </article>
         );
