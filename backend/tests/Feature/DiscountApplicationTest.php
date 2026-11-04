@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use App\Models\Announcement;
 use App\Models\CommuterProfile;
 use App\Models\DiscountApplication;
+use App\Models\Setting;
 use App\Models\User;
 use App\Models\UserSuspension;
 use App\Services\AuthService;
@@ -188,6 +189,25 @@ class DiscountApplicationTest extends TestCase
         $this->assertNotSame($first->id, $second->id);
         $this->assertSame('REJECTED', $first->fresh()->status);
         $this->assertNotEmpty(app(AuthService::class)->login('commuter022@gmail.com', 'password123'));
+    }
+
+    public function test_decision_messages_use_the_admin_templates_or_the_defaults(): void
+    {
+        $rejected = $this->submit('SENIOR');
+        $this->review($rejected, 'REJECTED', 'Document does not match the commuter.')->assertOk();
+        $this->assertSame(
+            'Your discount application was not approved. Your account remains Regular. Document does not match the commuter.',
+            Announcement::where('type', 'DISCOUNT_APPLICATION_DONE')->where('reference_id', $rejected->id)->value('message'),
+        );
+
+        Setting::create(['key' => 'discount_approved_template', 'value' => "Hi {name},\n\nYour {discount_type} fare is active.", 'category' => 'safety']);
+        $approved = $this->submit('PWD');
+        $this->review($approved, 'APPROVED')->assertOk();
+        $profile = $this->commuter->fresh()->commuterProfile;
+        $this->assertSame(
+            "Hi {$profile->first_name} {$profile->surname},\n\nYour PWD fare is active.",
+            Announcement::where('type', 'DISCOUNT_APPLICATION_DONE')->where('reference_id', $approved->id)->value('message'),
+        );
     }
 
     public function test_application_corrections_have_no_deadline(): void

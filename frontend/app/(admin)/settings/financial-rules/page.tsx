@@ -12,8 +12,6 @@ const peso = (amount: number) => `₱${amount.toFixed(2)}`;
 
 export default function FinancialRulesPage() {
   const [rules, setRules] = useState<FinancialRulesConfig>({ ...defaultFinancialRules });
-  // The minimum fare the fare matrix is currently priced at, for the shift read-back.
-  const [savedMinimumFare, setSavedMinimumFare] = useState(defaultFinancialRules.minimumFare);
   const [isSaved, setIsSaved] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -26,14 +24,14 @@ export default function FinancialRulesPage() {
     try {
       const data = await getSettings('financial');
       // Map DB keys → form field names. DB keys use snake_case.
-      const minimumFare = data.base_fare_regular ?? defaultFinancialRules.minimumFare;
       setRules({
         ridesForFreeReward: data.rides_for_free_reward ?? defaultFinancialRules.ridesForFreeReward,
         regularDiscount: data.regular_discount ?? defaultFinancialRules.regularDiscount,
         discountRate: data.discount_rate ?? defaultFinancialRules.discountRate,
-        minimumFare,
+        minimumFare: data.base_fare_regular ?? defaultFinancialRules.minimumFare,
+        succeedingFare: data.succeeding_fare_regular ?? defaultFinancialRules.succeedingFare,
+        baseBarangayCount: data.base_barangay_count ?? defaultFinancialRules.baseBarangayCount,
       });
-      setSavedMinimumFare(minimumFare);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load financial rules');
     } finally {
@@ -56,15 +54,16 @@ export default function FinancialRulesPage() {
     setError(null);
     try {
       // Save each field individually to the key-value store. The server
-      // re-prices the fare matrix for the minimum fare and discount rate, and
-      // serializes those two saves itself.
+      // re-prices the fare matrix for each of the four fare rules and
+      // serializes those saves itself (App\Support\FareRules).
       await Promise.all([
         updateSetting('rides_for_free_reward', rules.ridesForFreeReward, 'financial'),
         updateSetting('regular_discount', rules.regularDiscount, 'financial'),
         updateSetting('discount_rate', rules.discountRate, 'financial'),
         updateSetting('base_fare_regular', rules.minimumFare, 'financial'),
+        updateSetting('succeeding_fare_regular', rules.succeedingFare, 'financial'),
+        updateSetting('base_barangay_count', rules.baseBarangayCount, 'financial'),
       ]);
-      setSavedMinimumFare(rules.minimumFare);
       setIsSaved(true);
       setTimeout(() => setIsSaved(false), 3000);
     } catch (err) {
@@ -82,9 +81,16 @@ export default function FinancialRulesPage() {
   const rides = Number(rules.ridesForFreeReward);
   const minimumFare = Number(rules.minimumFare);
   const discountRate = Number(rules.discountRate);
+  const succeedingFare = Number(rules.succeedingFare);
+  const baseCount = Number(rules.baseBarangayCount);
   const fareValid = rules.minimumFare !== '' && minimumFare >= 1 && minimumFare <= 1000;
   const rateValid = rules.discountRate !== '' && discountRate >= 0 && discountRate <= 100;
-  const shift = fareValid ? Math.round((minimumFare - Number(savedMinimumFare)) * 100) / 100 : 0;
+  const succeedingValid = rules.succeedingFare !== '' && succeedingFare >= 0 && succeedingFare <= 1000;
+  const countValid = rules.baseBarangayCount !== '' && Number.isInteger(baseCount) && baseCount >= 0 && baseCount <= 100;
+  const faresValid = fareValid && succeedingValid && countValid;
+  // Worked example for the read-back: a trip 6 barangays past the minimum zone.
+  const exampleBarangays = baseCount + 6;
+  const exampleFare = Math.round((minimumFare + 6 * succeedingFare) * 100) / 100;
 
   return (
     <div className="min-h-screen pb-12 px-4 sm:px-6">
@@ -105,21 +111,27 @@ export default function FinancialRulesPage() {
 
         <form onSubmit={handleSave} className="space-y-6">
 
-          <SettingsSection icon={Banknote} title="Fares" description="The lowest fare a passenger pays. Changing it moves the whole fare matrix.">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-              <label className="block w-full sm:max-w-56">
+          <SettingsSection icon={Banknote} title="Fares" description="How every trip is priced. The fare matrix, the conductor and commuter calculators, and charging all follow these.">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <label className="block">
                 <span className="mb-1.5 block text-xs font-medium text-slate-300 admin-light:text-slate-700">Minimum fare</span>
                 <UnitInput name="minimumFare" value={rules.minimumFare} onChange={handleChange} min={1} max={1000} step={0.01} required unit="PHP" />
               </label>
-              {/* Live read-back of what saving does to the fare matrix. */}
-              <p className="flex-1 text-sm text-slate-300 admin-light:text-slate-700">
-                {!fareValid
-                  ? 'Enter an amount from ₱1.00 to ₱1,000.00.'
-                  : shift === 0
-                    ? <>Every fare in the fare matrix keeps its current amount.</>
-                    : <>Saving {shift > 0 ? 'raises' : 'lowers'} <span className="font-semibold text-white admin-light:text-slate-900">every fare in the fare matrix by {peso(Math.abs(shift))}</span>, keeping the gaps between stops.</>}
-              </p>
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-medium text-slate-300 admin-light:text-slate-700">Barangays covered</span>
+                <UnitInput name="baseBarangayCount" value={rules.baseBarangayCount} onChange={handleChange} min={0} max={100} step={1} required unit="brgy" unitWidth="pr-12" />
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-medium text-slate-300 admin-light:text-slate-700">Each barangay after</span>
+                <UnitInput name="succeedingFare" value={rules.succeedingFare} onChange={handleChange} min={0} max={1000} step={0.01} required unit="PHP" />
+              </label>
             </div>
+            {/* Live read-back of the pricing rule, with a worked example. */}
+            <p className="mt-4 text-sm text-slate-300 admin-light:text-slate-700">
+              {!faresValid
+                ? 'Enter a minimum fare from ₱1.00 to ₱1,000.00, a whole number of barangays from 0 to 100, and a per-barangay fare from ₱0.00 to ₱1,000.00.'
+                : <>A trip through up to <span className="font-semibold text-white admin-light:text-slate-900">{baseCount} barangays</span> costs {peso(minimumFare)}; each barangay after that adds {peso(succeedingFare)}. Both the pickup and drop-off barangays count, so a {exampleBarangays}-barangay trip costs <span className="font-semibold text-white admin-light:text-slate-900">{peso(exampleFare)}</span>. Saving re-prices every stop in the fare matrix.</>}
+            </p>
           </SettingsSection>
 
           <SettingsSection icon={Percent} title="Commuter Discount" description="One rate for Student, Senior Citizen and PWD commuters.">

@@ -9,7 +9,7 @@ export default function FinalCTA() {
       </div>
 
       <div className="relative max-w-7xl mx-auto px-5 md:px-8 py-24">
-        <div className="grid lg:grid-cols-2 gap-14 items-center">
+        <div className="grid xl:grid-cols-[minmax(0,4fr)_minmax(0,7fr)] gap-12 items-center">
           <div>
             <h2 className="font-sans font-bold text-3xl md:text-4xl text-white tracking-tight leading-tight">
               Ready for an Easier
@@ -22,33 +22,65 @@ export default function FinalCTA() {
           </div>
 
           {/* Boarding pass — echoes the Hero's Calumpit–Meycauayan dateline */}
-          <div className="flex justify-center lg:justify-end">
-            <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl shadow-black/30 overflow-hidden">
-              <div className="p-6">
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">CHATCO Pass</div>
-                <div className="mt-5 flex items-center justify-between gap-3">
-                  <div>
+          <div className="flex xl:justify-end">
+            {/* Wide ticket from sm up: route on the main body, actions on a tear-off stub */}
+            <div className="w-full max-w-sm sm:max-w-3xl rounded-2xl bg-white shadow-2xl shadow-black/30 overflow-hidden sm:flex">
+              <div className="flex-1 min-w-0 p-6 sm:p-8">
+                <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                  <span>CHATCO Pass</span>
+                  <span>Bulacan</span>
+                </div>
+
+                <div className="mt-6 flex items-end justify-between gap-4">
+                  <div className="min-w-0">
                     <p className="text-[10px] text-gray-400 uppercase tracking-wider">From</p>
-                    <p className="text-lg font-bold text-gray-900">Calumpit</p>
+                    <p className="mt-1 text-xl xl:text-2xl font-bold tracking-tight text-gray-900">Calumpit</p>
                   </div>
-                  <Bus size={18} className="text-[#1A5FB4] shrink-0" strokeWidth={2} />
-                  <div className="text-right">
+                  <div className="min-w-0 text-right">
                     <p className="text-[10px] text-gray-400 uppercase tracking-wider">To</p>
-                    <p className="text-lg font-bold text-gray-900">Meycauayan</p>
+                    <p className="mt-1 text-xl xl:text-2xl font-bold tracking-tight text-gray-900">Meycauayan</p>
                   </div>
                 </div>
+                {/* The corridor: a full-width dashed track with the jeepney mid-route */}
+                <div aria-hidden className="mt-4 flex items-center gap-2">
+                  <span className="size-2 shrink-0 rounded-full border-2 border-gray-300" />
+                  <span className="flex-1 border-t-2 border-dashed border-gray-200" />
+                  <Bus size={18} className="text-[#1A5FB4] shrink-0" strokeWidth={2} />
+                  <span className="flex-1 border-t-2 border-dashed border-gray-200" />
+                  <span className="size-2 shrink-0 rounded-full bg-[#1A5FB4]" />
+                </div>
+
+                <dl className="mt-6 pt-5 border-t border-gray-100 grid grid-cols-3 gap-4">
+                  <div>
+                    <dt className="text-[10px] text-gray-400 uppercase tracking-wider">Stops</dt>
+                    <dd className="mt-1 text-sm font-semibold text-gray-900">34 points</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] text-gray-400 uppercase tracking-wider">Fare</dt>
+                    <dd className="mt-1 text-sm font-semibold text-gray-900">GCash or cash</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] text-gray-400 uppercase tracking-wider">Tracking</dt>
+                    <dd className="mt-1 text-sm font-semibold text-gray-900">Live GPS</dd>
+                  </div>
+                </dl>
               </div>
 
-              <div className="relative border-t border-dashed border-gray-200">
-                <span className="absolute -left-3 -top-3 w-6 h-6 rounded-full bg-[#071A2E]" />
-                <span className="absolute -right-3 -top-3 w-6 h-6 rounded-full bg-[#071A2E]" />
+              {/* Perforation: horizontal on mobile, vertical beside the stub from sm up */}
+              <div aria-hidden className="relative border-t border-dashed border-gray-200 sm:border-t-0 sm:border-l">
+                <span className="absolute -left-3 -top-3 size-6 rounded-full bg-[#071A2E]" />
+                <span className="absolute -right-3 -top-3 size-6 rounded-full bg-[#071A2E] sm:right-auto sm:top-auto sm:-left-3 sm:-bottom-3" />
               </div>
 
-              <div className="p-6 space-y-3">
+              <div className="p-6 sm:w-64 shrink-0 flex flex-col justify-center gap-3">
+                <div
+                  aria-hidden
+                  className="hidden sm:block h-10 mb-2 opacity-80 bg-[repeating-linear-gradient(90deg,#111827_0_2px,transparent_2px_4px,#111827_4px_5px,transparent_5px_8px,#111827_8px_11px,transparent_11px_13px)]"
+                />
                 <Link
                   href="/login"
                   scroll={false}
-                  className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full text-sm font-bold bg-[#1A5FB4] text-white hover:bg-[#164A8F] transition-colors shadow-lg shadow-[#1A5FB4]/25"
+                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-full text-sm font-bold whitespace-nowrap bg-[#1A5FB4] text-white hover:bg-[#164A8F] active:scale-[0.98] transition-[background-color,transform]"
                 >
                   Login to CHATCO
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -57,7 +89,7 @@ export default function FinalCTA() {
                 </Link>
                 <a
                   href="#how-it-works"
-                  className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full text-sm font-bold border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                  className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full text-sm font-bold border border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100 active:scale-[0.98] transition-[background-color,transform]"
                 >
                   Learn More
                 </a>

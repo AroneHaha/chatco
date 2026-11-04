@@ -4,21 +4,30 @@ import {
   Map,
   Package,
   BarChart3,
-  Car,
   Sliders,
   Users,
   FileText,
   Megaphone,
   History,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { mdiJeepney } from "@mdi/js";
+import type { ComponentType } from "react";
 
 /* ─── Nav Item Interface ─── */
 
 export interface NavItem {
   href: string;
   label: string;
-  icon: LucideIcon;
+  icon: ComponentType<{ size?: number; className?: string }>;
+}
+
+/** The jeepney glyph the live maps use for units, sized like a Lucide icon. */
+function JeepneyIcon({ size = 24, className }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
+      <path d={mdiJeepney} />
+    </svg>
+  );
 }
 
 /* ─── Desktop Sidebar Nav Groups ─── */
@@ -31,7 +40,7 @@ export const operationsNav: NavItem[] = [
 ];
 
 export const managementNav: NavItem[] = [
-  { href: "/vehicles", label: "Fleet Management", icon: Car },
+  { href: "/vehicles", label: "Fleet Management", icon: JeepneyIcon },
   { href: "/lost-found", label: "Lost & Found", icon: Package },
   { href: "/announcements", label: "Updates Center", icon: Megaphone },
   { href: "/users", label: "User Management", icon: Users },
@@ -45,25 +54,13 @@ export const systemNav: NavItem[] = [
 
 /* ─── Mobile Bottom Nav ─── */
 
-export const mobileMainItems: NavItem[] = [
-  { href: "/admin-dashboard", label: "Dashboard", icon: Home },
-  { href: "/remittance", label: "Remittance", icon: Receipt },
-  { href: "/monitoring", label: "Monitoring", icon: Map },
-  { href: "/analytics", label: "Analytics", icon: BarChart3 },
-];
+// Derived from the sidebar groups so both navs list modules in the same order:
+// the first four sit in the tab bar, the rest in the More sheet.
+const sidebarOrder: NavItem[] = [...operationsNav, ...managementNav, ...systemNav];
 
-export const mobileOverflowItems: NavItem[] = [
-  { href: "/receipts", label: "Receipts", icon: FileText },
-];
+export const mobileMainItems: NavItem[] = sidebarOrder.slice(0, 4);
 
-export const mobileMoreItems: NavItem[] = [
-  { href: "/vehicles", label: "Fleet Management", icon: Car },
-  { href: "/lost-found", label: "Lost & Found", icon: Package },
-  { href: "/announcements", label: "Updates Center", icon: Megaphone },
-  { href: "/users", label: "User Management", icon: Users },
-  { href: "/activity-logs", label: "Activity Logs", icon: History },
-  { href: "/settings", label: "Settings", icon: Sliders },
-];
+export const mobileMoreItems: NavItem[] = sidebarOrder.slice(4);
 
 /* ─── Settings sub-routes (for active-state matching) ─── */
 

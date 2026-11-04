@@ -690,6 +690,33 @@ class OperationalLifecycleTest extends TestCase
         $this->assertSame(1, Announcement::where('type', 'REMITTANCE_REMINDER')->count());
     }
 
+    public function test_remittance_reminder_uses_the_admin_template_and_falls_back_when_blank(): void
+    {
+        [$conductor, , , , $shift] = $this->activeShift();
+        $this->fare($shift, PaymentMethod::CASH, PaymentStatus::PAID, 50);
+        app(ShiftCloseoutService::class)->close($shift->shift_id, null, ShiftCloseoutService::REASON_STALE);
+        Remittance::where('shift_id', $shift->shift_id)->update(['remittance_due_at' => now()->subMinute()]);
+
+        // Blank saved value = default wording, never an empty message.
+        Setting::create(['key' => 'remittance_reminder_template', 'value' => '   ', 'category' => 'safety']);
+        $this->artisan('remittances:send-reminders')->assertSuccessful();
+        $this->assertSame(
+            "Shift {$shift->shift_id} still has PHP 50.00 in expected cash awaiting remittance.",
+            Announcement::where('type', 'REMITTANCE_REMINDER')->where('user_id', $conductor->id)->value('message'),
+        );
+
+        Setting::where('key', 'remittance_reminder_template')->update(['value' => 'Remit PHP {amount} for {shift_id}, {unknown}.']);
+        Remittance::where('shift_id', $shift->shift_id)->update(['last_reminder_at' => now()->subHours(2)]);
+        $this->artisan('remittances:send-reminders')->assertSuccessful();
+        // Both reminders share a test-clock timestamp, so match by content.
+        $this->assertSame(2, Announcement::where('type', 'REMITTANCE_REMINDER')->count());
+        $this->assertDatabaseHas('announcements', [
+            'type' => 'REMITTANCE_REMINDER',
+            'user_id' => $conductor->id,
+            'message' => "Remit PHP 50.00 for {$shift->shift_id}, {unknown}.",
+        ]);
+    }
+
     public function test_conductor_reminder_feed_returns_only_unanswered_reminders(): void
     {
         [$conductor, , , , $shift] = $this->activeShift();

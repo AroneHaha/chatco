@@ -1,20 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CirclePlus, GitBranch, ListPlus, Loader2, LocateFixed, MapPin, Plus, Save, Send, Trash2, WandSparkles } from "lucide-react";
+import { GitBranch, ListPlus, Loader2, LocateFixed, MapPin, Plus, Save, Trash2, WandSparkles } from "lucide-react";
 import { MapContainer, Marker, Polyline, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { AdminDatePicker } from "@/components/admin/ui/admin-date-picker";
 import type { FarePoint } from "@/lib/admin/services/fare-point.service";
 import {
-  listRouteVersions,
   previewRoadGeometry,
-  publishRoute,
-  saveRouteDraft,
+  saveRouteGeometry,
   type AdminRoute,
   type RouteCoordinate,
-  type RouteVersion,
 } from "@/lib/admin/services/route.service";
 
 interface RouteEditorProps {
@@ -60,8 +56,8 @@ function FitGeometry({ coordinates, routeId, request }: { coordinates: RouteCoor
   return null;
 }
 
-function formatVersionDate(value: string | null) {
-  if (!value) return "Not published";
+function formatSavedDate(value: string | null) {
+  if (!value) return "Not saved yet";
   return new Intl.DateTimeFormat("en-PH", {
     dateStyle: "medium",
     timeStyle: "short",
@@ -101,52 +97,32 @@ function insertionIndexFor(coordinates: RouteCoordinate[], point: RouteCoordinat
   return closestIndex;
 }
 
+// One live line per route: Save replaces it in place (no drafts, versions or
+// temporary detours). Fare Point moves never change it; rebuild from Point
+// Areas, generate, and save to make the line follow them.
 export default function RouteEditor({ route, farePoints, onRouteChanged, onEditFarePoint }: RouteEditorProps) {
-  const activeGeometry = route.active_version?.geometry ?? [];
+  const activeGeometry = route.geometry;
   const [waypoints, setWaypoints] = useState<RouteCoordinate[]>([]);
   const [previewGeometry, setPreviewGeometry] = useState<RouteCoordinate[]>([]);
-  const [notes, setNotes] = useState("");
-  const [expiresAtDate, setExpiresAtDate] = useState("");
-  const [expiresAtTime, setExpiresAtTime] = useState("");
-  const expiresAt = expiresAtDate && expiresAtTime ? `${expiresAtDate}T${expiresAtTime}` : "";
-  const [versions, setVersions] = useState<RouteVersion[]>([]);
   const [isRouting, setIsRouting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [isPublishing, setIsPublishing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [hasSavedDraft, setHasSavedDraft] = useState(Boolean(route.draft_version?.geometry?.length));
   const [mapClickMode, setMapClickMode] = useState<"insert" | "append">("insert");
   const [waypointSource, setWaypointSource] = useState<"route" | "fare_points" | "manual">("route");
   const [detourWarnings, setDetourWarnings] = useState<Array<{ from_index: number; to_index: number }>>([]);
   const [fitRequest, setFitRequest] = useState(0);
 
   useEffect(() => {
-    const draft = route.draft_version;
-    const nextWaypoints = draft?.waypoints?.length
-      ? draft.waypoints
-      : route.active_version?.waypoints ?? [];
-    const nextGeometry = draft?.geometry?.length
-      ? draft.geometry
-      : route.active_version?.geometry ?? [];
-
-    setWaypoints(nextWaypoints);
-    setPreviewGeometry(nextGeometry);
-    setNotes(draft?.notes ?? "");
-    setHasSavedDraft(Boolean(draft?.geometry?.length));
-    setWaypointSource(draft && !draft.geometry?.length && draft.notes?.includes("Fare Point") ? "fare_points" : "route");
+    setWaypoints(route.waypoints.length >= 2 ? route.waypoints : route.geometry);
+    setPreviewGeometry(route.geometry);
+    setWaypointSource("route");
     setDetourWarnings([]);
   }, [route]);
 
   useEffect(() => {
     setMessage(null);
     setError(null);
-  }, [route.id]);
-
-  useEffect(() => {
-    void listRouteVersions(route.id)
-      .then(setVersions)
-      .catch(() => setVersions([]));
   }, [route.id]);
 
   const displayedGeometry = previewGeometry.length >= 2 ? previewGeometry : activeGeometry;
@@ -159,8 +135,7 @@ export default function RouteEditor({ route, farePoints, onRouteChanged, onEditF
   const markDirty = (nextWaypoints: RouteCoordinate[]) => {
     setWaypoints(nextWaypoints);
     setPreviewGeometry(nextWaypoints);
-    setHasSavedDraft(false);
-    setMessage("Control points changed. Generate the road path, then save the draft.");
+    setMessage("Control points changed. Generate the road path, then save the route.");
     setError(null);
     setDetourWarnings([]);
   };
@@ -215,15 +190,13 @@ export default function RouteEditor({ route, farePoints, onRouteChanged, onEditF
   };
 
   const useActiveRoute = () => {
-    const active = route.active_version;
-    if (!active || active.geometry.length < 2) return;
-    setWaypoints(active.waypoints.length >= 2 ? active.waypoints : active.geometry);
-    setPreviewGeometry(active.geometry);
+    if (route.geometry.length < 2) return;
+    setWaypoints(route.waypoints.length >= 2 ? route.waypoints : route.geometry);
+    setPreviewGeometry(route.geometry);
     setMapClickMode("insert");
     setWaypointSource("route");
     setDetourWarnings([]);
-    setHasSavedDraft(false);
-    setMessage("Active route loaded as an editable copy.");
+    setMessage("Live route loaded for editing.");
     setError(null);
   };
 
@@ -238,7 +211,6 @@ export default function RouteEditor({ route, farePoints, onRouteChanged, onEditF
       const preview = await previewRoadGeometry(waypoints);
       setWaypoints(preview.snapped_waypoints);
       setDetourWarnings(preview.warnings);
-      setHasSavedDraft(false);
       if (preview.warnings.length > 0 && waypointSource === "fare_points" && activeGeometry.length >= 2) {
         setPreviewGeometry(activeGeometry);
         setMessage(null);
@@ -266,7 +238,7 @@ export default function RouteEditor({ route, farePoints, onRouteChanged, onEditF
       .filter((point): point is FarePoint => Boolean(point));
   }, [farePoints, warningWaypointIndexes, waypointSource]);
 
-  const saveDraft = async () => {
+  const saveRoute = async () => {
     if (waypointSource === "fare_points" && detourWarnings.length > 0) {
       setError("Fix the highlighted Point Area locations or keep the current live route before saving.");
       return;
@@ -278,51 +250,13 @@ export default function RouteEditor({ route, farePoints, onRouteChanged, onEditF
     setIsSaving(true);
     setError(null);
     try {
-      await saveRouteDraft(route.id, { geometry: previewGeometry, waypoints, notes: notes || null });
-      setHasSavedDraft(true);
+      await saveRouteGeometry(route.id, { geometry: previewGeometry, waypoints });
       await onRouteChanged();
-      setVersions(await listRouteVersions(route.id));
-      setMessage("Draft saved. The live commuter map has not changed yet.");
+      setMessage("Route saved. Tracking and hailing update within one minute.");
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Failed to save the route draft.");
+      setError(caught instanceof Error ? caught.message : "Failed to save the route.");
     } finally {
       setIsSaving(false);
-    }
-  };
-
-  const publish = async () => {
-    if (!hasSavedDraft) {
-      setError("Save the current draft before publishing.");
-      return;
-    }
-    if (expiresAtDate && !expiresAtTime) {
-      setError("Choose a time for the temporary detour expiration.");
-      return;
-    }
-    if (expiresAt && new Date(expiresAt).getTime() <= Date.now()) {
-      setError("Choose a future date and time for the temporary detour expiration.");
-      return;
-    }
-    setIsPublishing(true);
-    setError(null);
-    try {
-      await publishRoute(route.id, {
-        effective_until: expiresAt ? new Date(expiresAt).toISOString() : null,
-        notes: notes || null,
-      });
-      const publishedMessage = expiresAt
-        ? "Temporary detour published. The previous route will return automatically after expiration."
-        : "Route published. Tracking and hailing will update within one minute.";
-      setExpiresAtDate("");
-      setExpiresAtTime("");
-      setHasSavedDraft(false);
-      await onRouteChanged();
-      setVersions(await listRouteVersions(route.id));
-      setMessage(publishedMessage);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Failed to publish the route.");
-    } finally {
-      setIsPublishing(false);
     }
   };
 
@@ -332,15 +266,15 @@ export default function RouteEditor({ route, farePoints, onRouteChanged, onEditF
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <GitBranch className="shrink-0 text-[#62A0EA] admin-light:text-[#1A5FB4]" size={20} />
-            <h2 className="font-bold text-white admin-light:text-slate-900">Published Route Editor</h2>
+            <h2 className="font-bold text-white admin-light:text-slate-900">Route Editor</h2>
           </div>
           <p className="mt-1 max-w-2xl text-xs text-white/45 admin-light:text-slate-500">
-            Use Insert Correction to fix a middle street, or Extend Route to add at the end. Drag numbered points to fine-tune. Changes remain drafts until published.
+            Use Insert Correction to fix a middle street, or Extend Route to add at the end. Drag numbered points to fine-tune. Saving replaces the live route right away.
           </p>
         </div>
         <div className="shrink-0 rounded-xl border border-white/10 admin-light:border-[#CBD5E1] bg-[#050F1A] admin-light:bg-[#F8FAFC] px-4 py-2 text-xs text-white/60 admin-light:text-slate-600">
-          <p>Live version: <span className="font-bold text-white admin-light:text-slate-900">{route.active_version ? `v${route.active_version.number}` : "None"}</span></p>
-          <p className="mt-0.5">{route.active_version?.is_temporary ? "Temporary detour active" : "Permanent route"}</p>
+          <p>Live route: <span className="font-bold text-white admin-light:text-slate-900">{activeGeometry.length >= 2 ? "Saved" : "None"}</span></p>
+          <p className="mt-0.5">Last saved {formatSavedDate(activeGeometry.length >= 2 ? route.updated_at : null)}</p>
         </div>
       </div>
 
@@ -356,7 +290,7 @@ export default function RouteEditor({ route, farePoints, onRouteChanged, onEditF
           <p className="mt-1 text-xs leading-relaxed text-amber-100/65 admin-light:text-amber-800/80">
             {waypointSource === "fare_points"
               ? "You can keep using the safe live route now, then correct these locations through the map picker when convenient."
-              : "Check the red control points on the map. If the detour is intentional, you may continue and save the draft."}
+              : "Check the red control points on the map. If the detour is intentional, you may continue and save the route."}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {activeGeometry.length >= 2 && (
@@ -441,7 +375,7 @@ export default function RouteEditor({ route, farePoints, onRouteChanged, onEditF
           </button>
 
           <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={useActiveRoute} disabled={!route.active_version} className="rounded-xl bg-white/5 admin-light:bg-slate-100 px-3 py-2.5 text-xs font-semibold text-white/70 admin-light:text-slate-700 hover:bg-white/10 admin-light:hover:bg-slate-200 disabled:opacity-40">
+            <button type="button" onClick={useActiveRoute} disabled={activeGeometry.length < 2} className="rounded-xl bg-white/5 admin-light:bg-slate-100 px-3 py-2.5 text-xs font-semibold text-white/70 admin-light:text-slate-700 hover:bg-white/10 admin-light:hover:bg-slate-200 disabled:opacity-40">
               Edit Live Route
             </button>
             <button type="button" onClick={useFarePoints} className="rounded-xl bg-white/5 admin-light:bg-slate-100 px-3 py-2.5 text-xs font-semibold text-white/70 admin-light:text-slate-700 hover:bg-white/10 admin-light:hover:bg-slate-200">
@@ -467,88 +401,20 @@ export default function RouteEditor({ route, farePoints, onRouteChanged, onEditF
             ))}
           </div>
 
-          <button type="button" onClick={generateRoadPath} disabled={isRouting || waypoints.length < 2} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1A5FB4] px-4 py-3 text-sm font-bold text-white hover:bg-[#165a9f] disabled:opacity-40">
+          <button type="button" onClick={generateRoadPath} disabled={isRouting || waypoints.length < 2} className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 admin-light:border-[#CBD5E1] bg-[#0E2238] admin-light:bg-white px-4 py-3 text-sm font-bold text-white admin-light:text-slate-800 hover:bg-[#13304D] admin-light:hover:bg-slate-100 disabled:opacity-40">
             {isRouting ? <Loader2 className="animate-spin" size={16} /> : <WandSparkles size={16} />}
             Generate Road Preview
           </button>
 
-          <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={2} placeholder="Reason for reroute or revision" className="w-full rounded-xl border border-white/10 admin-light:border-[#CBD5E1] bg-[#050F1A] admin-light:bg-[#F8FAFC] px-3 py-2 text-xs text-white admin-light:text-slate-900 outline-none focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4]" />
-
-          <button type="button" onClick={saveDraft} disabled={isSaving || previewGeometry.length < 2 || waypoints.length < 2 || (waypointSource === "fare_points" && detourWarnings.length > 0)} className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#62A0EA]/30 admin-light:border-[#1A5FB4]/30 px-4 py-3 text-sm font-bold text-[#93C5FD] admin-light:text-[#1A5FB4] hover:bg-[#1A5FB4]/10 disabled:opacity-40">
+          <button type="button" onClick={saveRoute} disabled={isSaving || previewGeometry.length < 2 || waypoints.length < 2 || (waypointSource === "fare_points" && detourWarnings.length > 0)} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1A5FB4] px-4 py-3 text-sm font-bold text-white hover:bg-[#164A8F] disabled:opacity-40">
             {isSaving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-            Save Draft
-          </button>
-
-          <div>
-            <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-white/35 admin-light:text-slate-500">Optional detour expiration</label>
-            <div className="space-y-2">
-              <AdminDatePicker
-                value={expiresAtDate}
-                onChange={(date) => {
-                  setExpiresAtDate(date);
-                  if (!date) setExpiresAtTime("");
-                }}
-                ariaLabel="Detour expiration date"
-                clearLabel="Clear detour expiration"
-                disabled={isPublishing}
-                min={new Date().toLocaleDateString('en-CA')}
-                popover
-                yearNavigation
-                className="w-full"
-                triggerClassName="h-10 w-full text-xs"
-              />
-              {expiresAtDate && (
-                <div className="flex items-center gap-2">
-                  <label htmlFor="detour-expiration-time" className="shrink-0 text-xs text-white/50 admin-light:text-slate-600">Time</label>
-                  <input
-                    id="detour-expiration-time"
-                    type="time"
-                    value={expiresAtTime}
-                    onChange={(event) => setExpiresAtTime(event.target.value)}
-                    disabled={isPublishing}
-                    className="h-10 min-w-0 flex-1 rounded-xl border border-white/10 admin-light:border-[#CBD5E1] bg-[#050F1A] admin-light:bg-[#F8FAFC] px-3 text-xs text-white admin-light:text-slate-900 outline-none focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4] disabled:opacity-60 scheme-dark admin-light:scheme-light"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-
-          <button type="button" onClick={publish} disabled={isPublishing || !hasSavedDraft} className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-500 disabled:opacity-40">
-            {isPublishing ? <Loader2 className="animate-spin" size={16} /> : expiresAtDate ? <CirclePlus size={16} /> : <Send size={16} />}
-            {expiresAtDate ? "Publish Temporary Detour" : "Publish Permanent Route"}
+            Save Route
           </button>
         </div>
       </div>
 
-      {/* Route versions — every version, newest first, with its publish date
-          and revision note. Previously only the latest three were shown with
-          no heading, so older published versions were unreachable. */}
-      <div>
-        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-white/35 admin-light:text-slate-500">
-          Route versions ({versions.length})
-        </p>
-        {versions.length === 0 ? (
-          <p className="rounded-xl border border-white/5 admin-light:border-[#E2E8F0] bg-[#050F1A]/70 admin-light:bg-[#F8FAFC] px-3 py-2 text-xs text-white/35 admin-light:text-slate-500">No versions saved yet.</p>
-        ) : (
-          <div className="grid max-h-56 gap-2 overflow-y-auto pr-1 @[40rem]/fare-matrix:grid-cols-2 @[56rem]/fare-matrix:grid-cols-3">
-            {versions.map((version) => (
-              <div key={version.id} className="rounded-xl border border-white/5 admin-light:border-[#E2E8F0] bg-[#050F1A]/70 admin-light:bg-[#F8FAFC] px-3 py-2 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-white admin-light:text-slate-900">v{version.number}</span>
-                  <span className={version.status === "PUBLISHED" ? "text-emerald-400 admin-light:text-emerald-700" : "text-amber-400 admin-light:text-amber-700"}>
-                    {version.status}{version.is_temporary ? " · DETOUR" : ""}
-                  </span>
-                </div>
-                <p className="mt-1 truncate text-white/35 admin-light:text-slate-500" title={version.notes ?? undefined}>{version.notes || "No revision note"}</p>
-                <p className="mt-1 text-[10px] text-white/25 admin-light:text-slate-400">{formatVersionDate(version.published_at)}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
       <p className="flex items-start gap-1.5 text-[10px] text-white/30 admin-light:text-slate-500">
-        <MapPin size={12} className="shrink-0" /> The gray line is live. The blue line is the preview. Publishing updates tracking and route coverage together.
+        <MapPin size={12} className="shrink-0" /> The gray line is live. The blue line is the preview. Saving replaces the live line for tracking and route coverage; the previous line is not kept.
       </p>
     </section>
   );

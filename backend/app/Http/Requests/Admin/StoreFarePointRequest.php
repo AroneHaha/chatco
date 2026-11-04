@@ -23,8 +23,7 @@ class StoreFarePointRequest extends FormRequest
             'name' => ['required', 'string', 'max:100'],
             'landmarks' => ['nullable', 'string', 'max:500'],
             'sub_stops' => ['nullable', 'string', 'max:500'],
-            'regular_fare' => ['required', 'numeric', 'min:0'],
-            'discounted_fare' => ['required', 'numeric', 'min:0'],
+            // No fare fields: a stop's fares come from Financial Rules (FareRules).
             'latitude' => ['nullable', 'required_with:longitude', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'required_with:latitude', 'numeric', 'between:-180,180'],
         ];
@@ -38,8 +37,6 @@ class StoreFarePointRequest extends FormRequest
             'point_number.required' => 'The point number is required.',
             'code.required' => 'The fare code is required.',
             'name.required' => 'The stop name is required.',
-            'regular_fare.required' => 'The regular fare is required.',
-            'discounted_fare.required' => 'The discounted fare is required.',
         ];
     }
 }

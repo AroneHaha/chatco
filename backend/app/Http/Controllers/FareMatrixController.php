@@ -4,8 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\FarePoint;
 use App\Models\Route;
-use App\Models\Setting;
-use App\Services\RouteGeometryService;
+use App\Support\FareRules;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,27 +21,13 @@ use Illuminate\Http\Request;
  * consume this endpoint.
  *
  * No auth required — fare information is public (like a bus schedule).
- * The admin's /settings/fare-matrix page edits the fare_points table;
- * changes are immediately visible to all consumers on their next fetch.
- *
- * The config constants (base_barangay_count, base_fare_regular, etc.) are
- * read from the settings table if present, otherwise hardcoded defaults
- * are used. The admin's /settings/financial-rules page can override them.
+ * The admin's /settings/fare-matrix page edits the stops; the fares come
+ * from /settings/financial-rules. Each point's regularFare/discountedFare is
+ * its fare from stop 1, kept in sync with those rules (FareRules).
  */
 class FareMatrixController extends Controller
 {
     use ApiResponse;
-
-    public function __construct(private RouteGeometryService $routeGeometryService) {}
-
-    /** Default fare config — used when the settings table has no override. */
-    private const DEFAULT_CONFIG = [
-        'base_barangay_count' => 4,
-        'base_fare_regular' => 17.0,
-        'base_fare_discounted' => 13.6,
-        'succeeding_fare_regular' => 2.25,
-        'succeeding_fare_discounted' => 1.8,
-    ];
 
     public function index(Request $request): JsonResponse
     {
@@ -54,7 +39,7 @@ class FareMatrixController extends Controller
                 ->orderBy('created_at')
                 ->get();
             $route = $activeRoutes
-                ->first(fn (Route $candidate) => $this->routeGeometryService->activeVersion($candidate) !== null)
+                ->first(fn (Route $candidate) => $candidate->hasGeometry())
                 ?? $activeRoutes->first();
         }
 
@@ -83,14 +68,17 @@ class FareMatrixController extends Controller
             ];
         });
 
-        // Read config overrides from the settings table (if the admin has
-        // set them via /settings/financial-rules). Falls back to defaults.
+        // The Financial Rules every trip is priced with (App\Support\FareRules).
+        // Clients compute: minimum + max(0, |stop gap| + 1 - baseBarangayCount) ×
+        // succeeding, then less discountRate for discounted fares.
+        $rules = FareRules::current();
         $config = [
-            'baseBarangayCount' => (int) $this->getSetting('base_barangay_count', self::DEFAULT_CONFIG['base_barangay_count']),
-            'baseFareRegular' => (float) $this->getSetting('base_fare_regular', self::DEFAULT_CONFIG['base_fare_regular']),
-            'baseFareDiscounted' => (float) $this->getSetting('base_fare_discounted', self::DEFAULT_CONFIG['base_fare_discounted']),
-            'succeedingFareRegular' => (float) $this->getSetting('succeeding_fare_regular', self::DEFAULT_CONFIG['succeeding_fare_regular']),
-            'succeedingFareDiscounted' => (float) $this->getSetting('succeeding_fare_discounted', self::DEFAULT_CONFIG['succeeding_fare_discounted']),
+            'baseBarangayCount' => $rules->baseBarangayCount,
+            'baseFareRegular' => $rules->minimumFare,
+            'baseFareDiscounted' => $rules->discounted($rules->minimumFare),
+            'succeedingFareRegular' => $rules->succeedingFare,
+            'succeedingFareDiscounted' => $rules->discounted($rules->succeedingFare),
+            'discountRate' => $rules->discountRate,
             'totalPoints' => $farePoints->count(),
         ];
 
@@ -102,16 +90,6 @@ class FareMatrixController extends Controller
             'points' => $points,
             'config' => $config,
         ], 'Fare matrix retrieved');
-    }
-
-    /**
-     * Read a setting value from the settings table, with a fallback default.
-     */
-    private function getSetting(string $key, $default)
-    {
-        $setting = Setting::where('key', $key)->value('value');
-
-        return $setting !== null ? $setting : $default;
     }
 
     /**

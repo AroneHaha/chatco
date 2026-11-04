@@ -17,7 +17,7 @@ class RouteGeometryController extends Controller
     /**
      * Public single source of truth for tracking maps and route coverage.
      * An optional route_id selects a vehicle-specific route; otherwise the
-     * first active route with a currently effective published version is used.
+     * first active route with a saved road line is used.
      */
     public function active(Request $request): JsonResponse
     {
@@ -27,16 +27,14 @@ class RouteGeometryController extends Controller
             $query->whereKey($request->string('route_id')->toString());
         }
 
-        foreach ($query->get() as $route) {
-            $version = $this->routeGeometryService->activeVersion($route);
-            if ($version) {
-                return $this->successResponse(
-                    $this->routeGeometryService->routePayload($route, $version),
-                    'Active route geometry retrieved'
-                );
-            }
+        $route = $query->get()->first(fn (Route $route) => $route->hasGeometry());
+        if ($route) {
+            return $this->successResponse(
+                $this->routeGeometryService->routePayload($route),
+                'Active route geometry retrieved'
+            );
         }
 
-        return $this->errorResponse('No published route geometry is currently active.', 404);
+        return $this->errorResponse('No route line has been saved for an active route.', 404);
     }
 }

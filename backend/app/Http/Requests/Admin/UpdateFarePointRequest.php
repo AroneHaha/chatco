@@ -24,8 +24,7 @@ class UpdateFarePointRequest extends FormRequest
             'name' => ['sometimes', 'string', 'max:100'],
             'landmarks' => ['nullable', 'string', 'max:500'],
             'sub_stops' => ['nullable', 'string', 'max:500'],
-            'regular_fare' => ['sometimes', 'numeric', 'min:0'],
-            'discounted_fare' => ['sometimes', 'numeric', 'min:0'],
+            // No fare fields: a stop's fares come from Financial Rules (FareRules).
             'latitude' => ['nullable', 'required_with:longitude', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'required_with:latitude', 'numeric', 'between:-180,180'],
         ];

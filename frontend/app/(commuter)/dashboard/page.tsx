@@ -6,6 +6,7 @@ import type { NearbyVehicle, GpsStatus } from "@/lib/shared/geo/nearby-detector"
 import { useAuth } from "@/contexts/auth-context";
 import { CommuterGreeting } from "@/components/commuter/commuter-greeting";
 import { HailRangeHint } from "@/components/commuter/hail-range-hint";
+import { NearbyUnitsCard } from "@/components/commuter/nearby-units-card";
 import { createHail, cancelHail, isOutsideRadiusError } from "@/lib/commuter/services/hail.service";
 import { useHoldToConfirm } from "@/hooks/use-hold-to-confirm";
 import { ApiError, NetworkError } from "@/lib/api/client";
@@ -304,24 +305,7 @@ export default function CommuterHome() {
             </div>
           )}
 
-          {gpsStatus === "available" && canHail && nearestVehicle && (
-            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-xs font-bold text-emerald-400 light:text-emerald-600 uppercase tracking-wider">Live Tracking</span>
-                </div>
-                <span className="text-2xl font-extrabold text-white light:text-gray-900">~{nearestVehicle.estimatedArrivalMinutes} min</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-white/40 light:text-gray-500">{nearestVehicle.plateNumber}</span>
-                <span className="text-xs text-white/50 light:text-gray-500">{(nearestVehicle.distanceInMeters / 1000).toFixed(1)} km away</span>
-              </div>
-              {nearbyVehicles.length > 1 && (
-                <p className="text-[10px] text-emerald-400/60 light:text-emerald-700/70 mt-2">+{nearbyVehicles.length - 1} more vehicle{nearbyVehicles.length > 2 ? "s" : ""} in range</p>
-              )}
-            </div>
-          )}
+          {gpsStatus === "available" && <NearbyUnitsCard vehicles={nearbyVehicles} />}
 
     </>
   );
@@ -356,7 +340,7 @@ export default function CommuterHome() {
       </div>
 
       {/* Collapsed offset is in px, not %: a % is relative to the sheet's own
-          height, which grows with the ETA/GPS cards, so the taller the sheet the
+          height, which grows with the nearby-units/GPS cards, so the taller the sheet the
           more of it peeked out. 64px keeps the drag handle visible and a further
           64px (+ safe area) parks it clear of the bottom nav. */}
       <div
@@ -418,7 +402,7 @@ export default function CommuterHome() {
           )}
         </div>
         <div className="px-5 pb-24 overflow-y-auto max-h-[60vh]">
-          {/* --- ETA / STATUS SECTION (Mobile) --- */}
+          {/* --- NEARBY UNITS / STATUS SECTION (Mobile) --- */}
           {gpsStatus === "loading" && (
             <div className="bg-white/5 border border-white/10 light:bg-gray-50 light:border-gray-200 rounded-xl p-3 mb-3 flex items-center gap-2.5">
               <div className="w-4 h-4 rounded-full border-2 border-[#62A0EA] border-t-transparent animate-spin flex-shrink-0" />
@@ -426,21 +410,7 @@ export default function CommuterHome() {
             </div>
           )}
 
-          {gpsStatus === "available" && canHail && nearestVehicle && (
-            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 mb-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-[10px] font-bold text-emerald-400 light:text-emerald-600 uppercase tracking-wider">Live</span>
-                </div>
-                <span className="text-lg font-extrabold text-white light:text-gray-900">~{nearestVehicle.estimatedArrivalMinutes} min</span>
-              </div>
-              <div className="flex items-center justify-between mt-1.5">
-                <span className="text-[10px] text-white/40 light:text-gray-500">{nearestVehicle.plateNumber}</span>
-                <span className="text-[10px] text-white/50 light:text-gray-500">{(nearestVehicle.distanceInMeters / 1000).toFixed(1)} km away</span>
-              </div>
-            </div>
-          )}
+          {gpsStatus === "available" && <NearbyUnitsCard vehicles={nearbyVehicles} className="mb-3" />}
 
           {hailError && (
             <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 mb-3">
@@ -565,7 +535,7 @@ export default function CommuterHome() {
             </div>
           </div>
 
-          {/* --- ETA / STATUS SECTION (Desktop) --- */}
+          {/* --- NEARBY UNITS / STATUS SECTION (Desktop) --- */}
           {desktopStatus}
           {/* Quick Actions */}
           <div>
@@ -754,7 +724,7 @@ export default function CommuterHome() {
           </div>
         </div>
 
-        <div className="pointer-events-auto empty:hidden w-[26rem] max-w-full space-y-3 p-3 bg-[#071A2E]/95 backdrop-blur-xl rounded-2xl border border-white/10 light:bg-white/95 light:border-gray-200 shadow-2xl shadow-black/10 [&>*:last-child]:mb-0">
+        <div className="pointer-events-auto empty:hidden w-[26rem] max-w-full space-y-3 p-3 bg-[#071A2E] rounded-2xl border border-[#1C3350] light:bg-white light:border-gray-200 shadow-2xl shadow-black/10 [&>*:last-child]:mb-0">
           {desktopStatus}
           {desktopHailError}
         </div>

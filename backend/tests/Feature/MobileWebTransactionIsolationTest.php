@@ -53,6 +53,40 @@ class MobileWebTransactionIsolationTest extends TestCase
             ->assertJsonPath('data.summary.total_spent', 50)->assertJsonPath('data.summary.average_fare', 25);
     }
 
+    public function test_payment_history_filters_by_single_date_or_date_range(): void
+    {
+        $commuter = User::create(['email' => 'range@test.com', 'password' => bcrypt('password'), 'role' => UserRole::COMMUTER]);
+        \App\Models\CommuterProfile::create([
+            'id' => $commuter->id, 'first_name' => 'Range', 'surname' => 'Reader', 'birthdate' => '1995-01-01',
+            'gender' => 'Female', 'email' => $commuter->email, 'contact_number' => '09171234568',
+            'commuter_type' => 'REGULAR', 'username' => 'rangereader', 'account_status' => 'ACTIVE', 'language_preference' => 'en',
+        ]);
+        foreach ([['2026-10-01 08:00:00', 15], ['2026-10-05 00:00:00', 20], ['2026-10-05 23:59:59', 25], ['2026-10-09 12:00:00', 30]] as [$at, $amount]) {
+            $txn = Transaction::create([
+                'transaction_id' => 'TXN-'.strtoupper(Str::random(12)), 'shift_id' => $this->shift->shift_id,
+                'passenger_id' => $commuter->id, 'payment_method' => 'CASH', 'final_amount' => $amount,
+                'status' => 'PAID', 'total_passengers' => 1,
+                'pickup_stop_id' => $this->stop1->id, 'dropoff_stop_id' => $this->stop2->id,
+            ]);
+            $txn->created_at = $at;
+            $txn->save();
+        }
+        Sanctum::actingAs($commuter);
+
+        // One date (either end) = that whole day only.
+        foreach (['date_from', 'date_to'] as $param) {
+            $this->getJson("/api/v1/commuter/payments?{$param}=2026-10-05")->assertOk()
+                ->assertJsonPath('data.total', 2)->assertJsonPath('data.summary.total_spent', 45);
+        }
+
+        // Both = inclusive range, and it overrides a preset filter.
+        $this->getJson('/api/v1/commuter/payments?filter=today&date_from=2026-10-01&date_to=2026-10-05')->assertOk()
+            ->assertJsonPath('data.total', 3)->assertJsonPath('data.summary.total_spent', 60);
+
+        $this->getJson('/api/v1/commuter/payments?date_from=2026-10-09&date_to=2026-10-01')->assertStatus(422);
+        $this->getJson('/api/v1/commuter/payments?date_from=10/05/2026')->assertStatus(422);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

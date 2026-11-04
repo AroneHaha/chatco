@@ -93,6 +93,8 @@ export interface PaymentHistoryPage {
   page: number;
   lastPage: number;
   total: number;
+  /** PAID totals over every row the filter matches, not just this page. */
+  summary: { rideCount: number; totalSpent: number; averageFare: number } | null;
 }
 
 export interface ClaimResult {
@@ -196,6 +198,7 @@ interface Paginated<T> {
   current_page: number;
   last_page: number;
   total: number;
+  summary?: { ride_count: number; total_spent: number; average_fare: number };
 }
 
 interface Envelope<T> {
@@ -263,14 +266,21 @@ export type PaymentHistoryFilter = "all" | "today" | "week" | "month";
  * Today/This Week/This Month tabs) so a narrow filter doesn't require
  * paging through the commuter's full history to find matching rows.
  * Omitting it (default "all") is the original, unfiltered query.
+ *
+ * `range` (YYYY-MM-DD) overrides `filter` server-side: one date alone
+ * returns that day, both return the inclusive from-to range.
  */
 export async function fetchPaymentHistory(
   page = 1,
   perPage = 20,
-  filter: PaymentHistoryFilter = "all"
+  filter: PaymentHistoryFilter = "all",
+  range: { from?: string; to?: string } = {}
 ): Promise<PaymentHistoryPage> {
-  const filterParam = filter !== "all" ? `&filter=${filter}` : "";
-  const url = `${COMMUTER_API.payments.history}?page=${page}&per_page=${perPage}${filterParam}`;
+  const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
+  if (filter !== "all") params.set("filter", filter);
+  if (range.from) params.set("date_from", range.from);
+  if (range.to) params.set("date_to", range.to);
+  const url = `${COMMUTER_API.payments.history}?${params}`;
   const response = await api.get<Envelope<Paginated<RawTransaction>>>(url);
   const p = response.data;
 
@@ -279,6 +289,9 @@ export async function fetchPaymentHistory(
     page: p?.current_page ?? page,
     lastPage: p?.last_page ?? page,
     total: p?.total ?? 0,
+    summary: p?.summary
+      ? { rideCount: p.summary.ride_count, totalSpent: p.summary.total_spent, averageFare: p.summary.average_fare }
+      : null,
   };
 }
 

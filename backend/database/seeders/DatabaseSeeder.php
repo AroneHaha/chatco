@@ -8,9 +8,9 @@ use App\Models\ConductorProfile;
 use App\Models\Driver;
 use App\Models\FarePoint;
 use App\Models\Route;
-use App\Models\RouteVersion;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Support\FareRules;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -145,51 +145,25 @@ class DatabaseSeeder extends Seeder
             ['code' => 'MYC-07', 'name' => 'Banga',                'lat' => 14.7046000, 'lng' => 120.7619000, 'landmarks' => ['Banga Terminal', 'Banga Market']],
         ];
 
-        // Build waypoints JSON for the route
-        $waypoints = array_map(function ($stop) {
-            return ['lat' => $stop['lat'], 'lng' => $stop['lng'], 'name' => $stop['name']];
-        }, $barangayStops);
-
+        // The verified road line is both the live line and the editor's control points.
         $route = Route::create([
             'name' => 'McArthur Highway — Calumpit to Meycauayan',
             'status' => 'ACTIVE',
-            'waypoints' => $waypoints, // auto JSON via cast
-        ]);
-
-        RouteVersion::create([
-            'route_id' => $route->id,
-            'version' => 1,
-            'status' => RouteVersion::STATUS_PUBLISHED,
-            'geometry' => config('chatco_route.bootstrap_geometry'),
             'waypoints' => config('chatco_route.bootstrap_geometry'),
-            'notes' => 'Initial verified route.',
-            'effective_from' => now(),
-            'published_at' => now(),
-            'created_by' => $admin->id,
-            'published_by' => $admin->id,
+            'geometry' => config('chatco_route.bootstrap_geometry'),
         ]);
 
         // ════════════════════════════════════════════════════
         // 3. FARE POINTS — 33 Barangays
         // ════════════════════════════════════════════════════
 
-        $BASE_BARANGAY_COUNT = 4;
-        $BASE_FARE_REGULAR = 17.00;
-        $BASE_FARE_DISCOUNTED = 13.60;
-        $SUCCEEDING_REGULAR = 2.25;
-        $SUCCEEDING_DISCOUNTED = 1.80;
+        // Each stop stores its fare from stop 1 under the default Financial Rules.
+        $fareRules = FareRules::fromValues([]);
 
         foreach ($barangayStops as $index => $stop) {
             $pointNumber = $index + 1;
-
-            if ($pointNumber <= $BASE_BARANGAY_COUNT) {
-                $regularFare = $BASE_FARE_REGULAR;
-                $discountedFare = $BASE_FARE_DISCOUNTED;
-            } else {
-                $extra = $pointNumber - $BASE_BARANGAY_COUNT;
-                $regularFare = $BASE_FARE_REGULAR + ($extra * $SUCCEEDING_REGULAR);
-                $discountedFare = $BASE_FARE_DISCOUNTED + ($extra * $SUCCEEDING_DISCOUNTED);
-            }
+            $regularFare = $fareRules->fare($pointNumber);
+            $discountedFare = $fareRules->discounted($regularFare);
 
             FarePoint::create([
                 'route_id' => $route->id,

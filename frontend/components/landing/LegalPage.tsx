@@ -37,8 +37,8 @@ export default function LegalPage({ kind, description, sections }: {
       <main>
         <div className="bg-[#071A2E] text-white">
           <div className="mx-auto max-w-7xl px-5 pb-14 pt-14 md:px-8 md:pb-20 md:pt-20">
-            <span className="mb-6 grid h-12 w-12 place-items-center rounded-2xl border border-[#62A0EA]/20 bg-[#1A5FB4]/20 text-[#62A0EA]">
-              <Icon size={24} aria-hidden="true" />
+            <span className="mb-6 grid h-16 w-16 place-items-center rounded-full border border-[#1C3350] bg-[#0E2440] text-white">
+              <Icon size={32} strokeWidth={1.75} aria-hidden="true" />
             </span>
             <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#62A0EA]">Riding with CHATCO</p>
             <h1 className="mt-4 text-3xl font-bold leading-tight tracking-tight sm:text-4xl md:text-5xl">{title}</h1>

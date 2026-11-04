@@ -195,7 +195,6 @@ export default function RewardsPage() {
                   availableCount={available.length}
                   ridesRemaining={remaining || data.ridesNeeded}
                   resetKey={walletResetKey}
-                  scrollRoot={scrollRef}
                   onScanReceipt={() => setShowReceiptScan(true)}
                 />
               </>

@@ -3,8 +3,13 @@
 namespace Tests\Feature;
 
 use App\Models\Announcement;
+use App\Models\Driver;
+use App\Models\Route;
+use App\Models\ShiftLog;
 use App\Models\SosAlert;
 use App\Models\User;
+use App\Models\Vehicle;
+use App\Models\VehicleLocation;
 use App\Services\SosService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -38,6 +43,7 @@ class SosFlowTest extends TestCase
     private User $admin;
     private User $commuter;
     private User $conductor;
+    private ShiftLog $shift;
 
     protected function setUp(): void
     {
@@ -46,6 +52,37 @@ class SosFlowTest extends TestCase
         $this->admin = User::factory()->admin()->create();
         $this->commuter = User::factory()->commuter()->create();
         $this->conductor = User::factory()->conductor()->create();
+        // Commuter SOS needs an on-duty unit within 100 m; park one on the
+        // coordinates the trigger tests send.
+        $this->shift = $this->onDutyUnitAt(14.5995, 120.9842);
+    }
+
+    private function onDutyUnitAt(float $lat, float $lng): ShiftLog
+    {
+        $vehicle = Vehicle::factory()->create();
+        $shift = ShiftLog::create([
+            'shift_id' => 'SFT-SOS-'.$vehicle->id,
+            'conductor_id' => $this->conductor->id,
+            'driver_id' => Driver::factory()->create()->id,
+            'vehicle_id' => $vehicle->id,
+            'route_id' => Route::factory()->create()->id,
+            'conductor_name' => 'Ramon Bautista',
+            'driver_name' => 'Elmer Dizon',
+            'plate_number' => $vehicle->plate_number,
+            'unit_number' => $vehicle->unit_number,
+            'time_in' => now(),
+            'status' => 'ACTIVE',
+        ]);
+        $vehicle->update(['active_shift_id' => $shift->shift_id]);
+        VehicleLocation::create([
+            'vehicle_id' => $vehicle->id,
+            'shift_id' => $shift->shift_id,
+            'conductor_id' => $this->conductor->id,
+            'lat' => $lat,
+            'lng' => $lng,
+        ]);
+
+        return $shift;
     }
 
     private function admin(): void
@@ -225,11 +262,120 @@ class SosFlowTest extends TestCase
         $otherCommuter = User::factory()->commuter()->create();
         Sanctum::actingAs($otherCommuter);
         $response = $this->postJson('/api/v1/commuter/sos', [
-            'lat' => 14.6000,
-            'lng' => 120.9850,
+            'lat' => 14.5996,
+            'lng' => 120.9843,
         ]);
 
         $response->assertStatus(201);
+    }
+
+    // ── Proximity, open-alert reuse and throttle (anti-misuse) ──
+
+    public function test_sos_is_refused_when_no_on_duty_unit_is_within_100_m(): void
+    {
+        \App\Models\Setting::query()->updateOrCreate(
+            ['key' => 'emergency_hotline'],
+            ['value' => '0917 555 0911', 'category' => 'safety'],
+        );
+        $this->commuter();
+
+        // ~110 m north of the parked unit.
+        $this->postJson('/api/v1/commuter/sos', ['lat' => 14.6005, 'lng' => 120.9842])
+            ->assertStatus(422)
+            ->assertJsonPath('error', 'outside_radius')
+            ->assertJsonPath('emergency_hotline', '0917 555 0911')
+            ->assertJsonMissingPath('distance_m');
+
+        $this->assertDatabaseCount('sos_alerts', 0);
+        $this->assertSame(0, Announcement::where('type', 'SOS_TRIGGERED')->count());
+    }
+
+    public function test_sos_is_accepted_just_inside_100_m(): void
+    {
+        $this->commuter();
+
+        // ~89 m north of the parked unit.
+        $this->postJson('/api/v1/commuter/sos', ['lat' => 14.6003, 'lng' => 120.9842])
+            ->assertStatus(201);
+    }
+
+    public function test_unit_on_break_does_not_count_as_nearby(): void
+    {
+        $this->shift->update(['is_on_break' => true, 'break_started_at' => now()]);
+        $this->commuter();
+
+        $this->postJson('/api/v1/commuter/sos', ['lat' => 14.5995, 'lng' => 120.9842])
+            ->assertStatus(422)
+            ->assertJsonPath('error', 'outside_radius');
+    }
+
+    public function test_unit_with_stale_gps_fix_does_not_count_as_nearby(): void
+    {
+        $this->shift->update(['time_in' => now()->subHour()]);
+        DB::table('vehicle_locations')->update(['updated_at' => now()->subMinutes(3)]);
+        $this->commuter();
+
+        $this->postJson('/api/v1/commuter/sos', ['lat' => 14.5995, 'lng' => 120.9842])
+            ->assertStatus(422)
+            ->assertJsonPath('error', 'outside_radius');
+    }
+
+    public function test_refused_attempt_does_not_spend_the_one_per_minute_slot(): void
+    {
+        $this->commuter();
+
+        $this->postJson('/api/v1/commuter/sos', ['lat' => 14.6100, 'lng' => 120.9842])
+            ->assertStatus(422);
+        // The commuter reaches the jeepney seconds later: must not get 429.
+        $this->postJson('/api/v1/commuter/sos', ['lat' => 14.5995, 'lng' => 120.9842])
+            ->assertStatus(201);
+    }
+
+    public function test_refused_attempts_are_capped_at_ten_per_minute(): void
+    {
+        $this->commuter();
+
+        foreach (range(1, 10) as $i) {
+            $this->postJson('/api/v1/commuter/sos', ['lat' => 14.6100, 'lng' => 120.9842])
+                ->assertStatus(422);
+        }
+        $this->postJson('/api/v1/commuter/sos', ['lat' => 14.6100, 'lng' => 120.9842])
+            ->assertStatus(429);
+    }
+
+    public function test_open_alert_is_returned_instead_of_creating_another(): void
+    {
+        $this->commuter();
+        $first = $this->postJson('/api/v1/commuter/sos', ['lat' => 14.5995, 'lng' => 120.9842])
+            ->assertStatus(201)
+            ->json('data.id');
+
+        $this->travel(61)->seconds();
+        // Even out of range, the commuter gets their open alert back.
+        $this->postJson('/api/v1/commuter/sos', ['lat' => 14.6100, 'lng' => 120.9842])
+            ->assertStatus(200)
+            ->assertJsonPath('data.id', $first)
+            ->assertJsonPath('data.status', 'ACTIVE');
+
+        $this->assertDatabaseCount('sos_alerts', 1);
+        $this->assertSame(1, Announcement::where('type', 'SOS_TRIGGERED')->count());
+    }
+
+    public function test_new_alert_is_allowed_after_the_open_one_is_resolved(): void
+    {
+        $this->commuter();
+        $first = $this->postJson('/api/v1/commuter/sos', ['lat' => 14.5995, 'lng' => 120.9842])
+            ->assertStatus(201)
+            ->json('data.id');
+        SosAlert::whereKey($first)->update(['status' => 'RESOLVED', 'resolved_at' => now()]);
+        $this->travel(61)->seconds();
+        // Keep the unit's fix fresh across the time jump.
+        DB::table('vehicle_locations')->update(['updated_at' => now()]);
+
+        $second = $this->postJson('/api/v1/commuter/sos', ['lat' => 14.5995, 'lng' => 120.9842])
+            ->assertStatus(201)
+            ->json('data.id');
+        $this->assertNotSame($first, $second);
     }
 
     // ── GET /admin/sos (list) ───────────────────────────────────

@@ -5,7 +5,7 @@
 // Conductor Emergency SOS modal — wired to the real Laravel backend.
 //
 // Flow (mirrors the commuter SOS modal):
-//   confirming  → conductor taps "Send SOS"
+//   confirming  → conductor slides "Slide to send SOS"
 //   locating    → navigator.geolocation.getCurrentPosition (high accuracy, 6s)
 //   sending     → POST /api/conductor/sos { lat, lng, note? }
 //   active      → polling GET /api/conductor/sos/{id} every 3s, waiting for admin
@@ -23,6 +23,7 @@ import { Check, Clock3, Info, LoaderCircle, Phone, ShieldAlert } from "lucide-re
 import { useAuth } from "@/contexts/auth-context";
 import { clearSosSession, readSosSession, saveSosSession } from "@/lib/shared/sos-session";
 import SosActions from "@/components/shared/sos-actions";
+import SosSlideToSend from "@/components/shared/sos-slide-to-send";
 
 interface SosConfirmModalProps {
   isOpen: boolean;
@@ -278,13 +279,10 @@ export default function SosConfirmModal({
               <span className="text-red-400 font-semibold">Only use this in actual emergencies.</span>
             </p>
 
-            <div className="flex gap-3">
-              <button onClick={handleClose} className="flex-1 px-4 py-3.5 rounded-xl text-sm font-semibold border border-white/10 light:border-gray-300 text-white/70 light:text-gray-700 hover:bg-white/10 light:hover:bg-gray-100 transition-colors">
+            <div className="space-y-3 text-left">
+              <SosSlideToSend onSend={handleActivate} />
+              <button onClick={handleClose} className="w-full px-4 py-3.5 rounded-xl text-sm font-semibold border border-white/10 light:border-gray-300 text-white/70 light:text-gray-700 hover:bg-white/10 light:hover:bg-gray-100 transition-colors">
                 Cancel
-              </button>
-              <button onClick={handleActivate} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-700 px-4 py-3.5 text-sm font-bold text-white transition-colors hover:bg-red-800">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
-                Send SOS
               </button>
             </div>
           </div>

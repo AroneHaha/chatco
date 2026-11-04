@@ -81,6 +81,12 @@
   opacity: 1;
 }
 
+/* SOS slide-to-send: outline the track so the slide path reads at a glance
+   (colour set per theme in components/shared/sos-slide-to-send.tsx). */
+.sos-slider .slide-commit__track {
+  box-shadow: inset 0 0 0 1.5px var(--sos-outline);
+}
+
 .slide-commit__text--error {
   color: var(--sc-no);
   opacity: 0;

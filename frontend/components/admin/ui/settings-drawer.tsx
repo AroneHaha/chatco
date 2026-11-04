@@ -7,7 +7,7 @@ import { SkeletonFareMatrix } from './skeleton/skeleton-fare-matrix';
 import { useAdminTheme } from '@/contexts/admin-theme-context';
 import {
   X, Calculator, PiggyBank, Ticket, Gauge,
-  Shield, MessageCircleQuestion, Settings2, ArrowLeft, Printer, ChevronRight, UserRoundCog, Moon
+  Mail, MessageCircleQuestion, Settings2, ArrowLeft, Printer, ChevronRight, UserRoundCog, Moon
 } from 'lucide-react';
 
 // ─── Lazy-loaded settings page components ───
@@ -34,7 +34,7 @@ const settingsOptions = [
   { title: 'Voucher Generator', description: 'Generate bulk promo codes.', icon: Ticket, href: '/settings/voucher-generator', group: 'fares', component: VoucherGeneratorPage },
   { title: 'Receipt', description: 'Thermal fare-receipt content and printing.', icon: Printer, href: '/settings/receipt', group: 'fares', component: ReceiptPage },
   { title: 'Operations Rules', description: 'Speed limits, shifts, expenses.', icon: Gauge, href: '/settings/operations-rules', group: 'operations', component: OperationsRulesPage },
-  { title: 'Safety & Notifications', description: 'Emergency contacts, push templates.', icon: Shield, href: '/settings/safety-notifications', group: 'operations', component: SafetyNotificationsPage },
+  { title: 'Notifications', description: 'Wording of automatic emails and notifications.', icon: Mail, href: '/settings/safety-notifications', group: 'operations', component: SafetyNotificationsPage },
   { title: 'FAQ Management', description: 'Manage commuter FAQ questions and answers.', icon: MessageCircleQuestion, href: '/settings/faq-management', group: 'app', component: FaqManagementPage },
   { title: 'App Configuration', description: 'Maintenance mode, registration.', icon: Settings2, href: '/settings/app-configuration', group: 'app', component: AppConfigurationPage },
 ] as const;

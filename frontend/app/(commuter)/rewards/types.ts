@@ -24,7 +24,7 @@ export interface WalletVoucher extends Voucher {
   usedRoute: string | null;
 }
 
-export type VoucherTab = "available" | "used" | "expired";
+export type VoucherTab = "available" | "expired";
 
 export interface RewardData {
   totalRides: number;

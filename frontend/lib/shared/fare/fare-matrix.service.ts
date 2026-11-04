@@ -19,9 +19,6 @@
 
 import {
   initialFarePoints,
-  getFareByPoints as hardcodedGetFareByPoints,
-  getFareBetween as hardcodedGetFareBetween,
-  getBarangaysTraversed as hardcodedGetBarangaysTraversed,
   FARE_CONFIG as HARDCODED_FARE_CONFIG,
   FARE_MATRIX as HARDCODED_FARE_MATRIX,
   type FarePoint,
@@ -52,6 +49,8 @@ export interface FareConfig {
   baseFareDiscounted: number;
   succeedingFareRegular: number;
   succeedingFareDiscounted: number;
+  /** Percent off the regular fare for Student / Senior Citizen / PWD. */
+  discountRate: number;
   totalPoints: number;
 }
 
@@ -79,6 +78,7 @@ interface ApiFareMatrixResponse {
     baseFareDiscounted: number;
     succeedingFareRegular: number;
     succeedingFareDiscounted: number;
+    discountRate?: number;
     totalPoints: number;
   };
 }
@@ -174,6 +174,7 @@ export async function loadFareMatrix({
         baseFareDiscounted: data.config.baseFareDiscounted ?? 13.6,
         succeedingFareRegular: data.config.succeedingFareRegular ?? 2.25,
         succeedingFareDiscounted: data.config.succeedingFareDiscounted ?? 1.8,
+        discountRate: data.config.discountRate ?? 20,
         totalPoints: data.config.totalPoints ?? data.points.length,
       };
       cachedRouteKey = routeKey;
@@ -192,6 +193,7 @@ export async function loadFareMatrix({
         baseFareDiscounted: HARDCODED_FARE_CONFIG.BASE_FARE_DISCOUNTED,
         succeedingFareRegular: HARDCODED_FARE_CONFIG.SUCCEEDING_FARE_REGULAR,
         succeedingFareDiscounted: HARDCODED_FARE_CONFIG.SUCCEEDING_FARE_DISCOUNTED,
+        discountRate: 20,
         totalPoints: HARDCODED_FARE_CONFIG.TOTAL_BARANGAYS,
       };
       cachedRouteKey = routeKey;
@@ -231,78 +233,63 @@ export function getFareConfig(): FareConfig {
     baseFareDiscounted: HARDCODED_FARE_CONFIG.BASE_FARE_DISCOUNTED,
     succeedingFareRegular: HARDCODED_FARE_CONFIG.SUCCEEDING_FARE_REGULAR,
     succeedingFareDiscounted: HARDCODED_FARE_CONFIG.SUCCEEDING_FARE_DISCOUNTED,
+    discountRate: 20,
     totalPoints: HARDCODED_FARE_CONFIG.TOTAL_BARANGAYS,
   };
 }
 
 // ─── Fare calculation (uses cached API data, falls back to hardcoded) ───
 
+/** The Financial Rules a fare is computed from (a subset of FareConfig). */
+export type FareRuleValues = Pick<FareConfig, "baseFareRegular" | "baseBarangayCount" | "succeedingFareRegular" | "discountRate">;
+
+const roundPeso = (value: number) => Math.round(value * 100) / 100;
+
 /**
- * Calculate fare between two points using the CUMULATIVE FARE MODEL.
- *
- * The fare_points table stores regular_fare and discounted_fare as
- * CUMULATIVE fares from the terminal (Point 34 = ₱0). The fare between
- * any two points is:
- *   abs(from.regularFare - to.regularFare)
- * floored at the minimum fare.
- *
- * This matches the backend's fare_points table structure — the admin's
- * /settings/fare-matrix edits directly affect this calculation.
+ * The one fare formula, same as the backend's App\Support\FareRules:
+ *   regular    = minimum + max(0, barangays traversed - base count) × succeeding
+ *   discounted = regular less the discount rate
+ * Barangays traversed counts both ends: |dropoff - pickup| + 1.
+ */
+export function fareForBarangays(rules: FareRuleValues, barangaysTraversed: number, discounted: boolean): number {
+  const regular = roundPeso(
+    rules.baseFareRegular + Math.max(0, barangaysTraversed - rules.baseBarangayCount) * rules.succeedingFareRegular
+  );
+  return discounted ? roundPeso((regular * (100 - rules.discountRate)) / 100) : regular;
+}
+
+/**
+ * Fare between two stops, priced from the Financial Rules (the stops' stored
+ * fares are only their fare from stop 1 and are not used here).
  */
 export function getFareByPoints(fromPointNumber: number, toPointNumber: number): FareResult {
-  const points = getFarePoints();
-  const fromPoint = points.find(p => p.pointNumber === fromPointNumber);
-  const toPoint = points.find(p => p.pointNumber === toPointNumber);
+  const find = (pointNumber: number) =>
+    getFarePoints().find(p => p.pointNumber === pointNumber)
+    ?? initialFarePoints.find(p => p.pointNumber === pointNumber);
+  const fromPoint = find(fromPointNumber);
+  const toPoint = find(toPointNumber);
 
   if (!fromPoint || !toPoint) {
-    // Fallback to the hardcoded implementation (which has the same logic
-    // but uses its own data set).
-    return hardcodedGetFareByPoints(fromPointNumber, toPointNumber);
+    throw new Error(`Invalid point number: from=${fromPointNumber}, to=${toPointNumber}.`);
   }
 
-  const barangaysTraveled = Math.abs(fromPointNumber - toPointNumber);
   const config = getFareConfig();
-
-  if (barangaysTraveled === 0) {
-    return {
-      fromPoint,
-      toPoint,
-      barangaysTraveled: 0,
-      regularFare: config.baseFareRegular,
-      discountedFare: config.baseFareDiscounted,
-      baseFare: config.baseFareRegular,
-      succeedingFare: config.succeedingFareRegular,
-      succeedingCount: 0,
-    };
-  }
-
-  // Cumulative fare difference — this is the KEY calculation.
-  // The fare_points table stores fares as cumulative from the terminal,
-  // so the fare between two points is the absolute difference.
-  const rawRegularFare = Math.abs(fromPoint.regularFare - toPoint.regularFare);
-  const rawDiscountedFare = Math.abs(fromPoint.discountedFare - toPoint.discountedFare);
-
-  // Floor at the minimum fare (base fare for the first zone).
-  const regularFare = Math.max(rawRegularFare, config.baseFareRegular);
-  const discountedFare = Math.max(rawDiscountedFare, config.baseFareDiscounted);
-
-  const succeedingCount = Math.max(0, barangaysTraveled - config.baseBarangayCount);
+  const barangaysTraveled = getBarangaysTraversed(fromPointNumber, toPointNumber);
 
   return {
     fromPoint,
     toPoint,
     barangaysTraveled,
-    regularFare: Math.round(regularFare * 100) / 100,
-    discountedFare: Math.round(discountedFare * 100) / 100,
+    regularFare: fareForBarangays(config, barangaysTraveled, false),
+    discountedFare: fareForBarangays(config, barangaysTraveled, true),
     baseFare: config.baseFareRegular,
     succeedingFare: config.succeedingFareRegular,
-    succeedingCount,
+    succeedingCount: Math.max(0, barangaysTraveled - config.baseBarangayCount),
   };
 }
 
 /**
- * Calculate fare between two points by position number.
- * Uses the cumulative fare model (same as getFareByPoints).
+ * Calculate fare between two points by position number (see getFareByPoints).
  *
  * @param isDiscounted true for Student / Senior / PWD
  */

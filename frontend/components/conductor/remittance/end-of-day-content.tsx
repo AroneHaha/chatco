@@ -11,7 +11,7 @@ import {
 } from "@/lib/conductor/services/transactions.service";
 import { getPendingCashTransactions } from "@/lib/conductor/persistence/transactions.store";
 import { useRemittanceData } from "@/app/(conductor)/hooks/use-remittance-data";
-import { fmt, methodConfig } from "@/app/(conductor)/conductor-dashboard/end-of-day/helpers";
+import { fmt } from "@/app/(conductor)/conductor-dashboard/end-of-day/helpers";
 
 import HistorySection, { type RemittanceHistoryFilter } from "@/components/conductor/remittance/HistorySection";
 import ConfirmModal from "@/components/conductor/remittance/ConfirmModal";
@@ -334,45 +334,19 @@ export default function EndOfDayContent() {
 
         {/* Grand Total card */}
         <div className="bg-[#071A2E] light:bg-white border border-white/[0.06] light:border-gray-200 rounded-2xl p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-7 h-7 rounded-lg bg-[#1A5FB4]/15 light:bg-gray-100 flex items-center justify-center">
-              <svg className="w-4 h-4 text-[#62A0EA] light:text-[#1A5FB4]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
-              </svg>
-            </div>
+          <div className="flex items-center gap-2 mb-1">
+            <svg className="w-5 h-5 flex-shrink-0 text-[#62A0EA] light:text-[#1A5FB4]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
+            </svg>
             <p className="text-[10px] font-semibold text-white/40 light:text-gray-500 uppercase tracking-wider">Total Collections</p>
+            {/* Shift start, not today: a pending remittance can be for an
+                earlier, auto-closed shift. */}
+            <p className="ml-auto text-[11px] font-medium text-white/60 light:text-gray-600">
+              {new Date(shiftInfo.timeIn).toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
+            </p>
           </div>
-          <p className="text-3xl font-extrabold text-[#62A0EA] light:text-[#1A5FB4]">{fmt(summary.grandTotal)}</p>
+          <p className="text-5xl font-extrabold leading-tight tracking-tight tabular-nums text-white light:text-gray-900">{fmt(summary.grandTotal)}</p>
           <p className="text-[11px] text-white/25 light:text-gray-500 mt-1">{summary.totalPassengers} passenger{summary.totalPassengers !== 1 ? "s" : ""} · {transactions.length} transaction{transactions.length !== 1 ? "s" : ""}</p>
-        </div>
-
-        {/* Payment Breakdown */}
-        <div className="bg-[#071A2E] light:bg-white border border-white/[0.06] light:border-gray-200 rounded-2xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-white/5 light:border-gray-200">
-            <p className="text-[10px] font-bold text-white/40 light:text-gray-500 uppercase tracking-wider">Payment Breakdown</p>
-          </div>
-          <div className="divide-y divide-white/[0.04] light:divide-gray-100">
-            {(Object.entries(summary.breakdown) as [string, { count: number; amount: number }][])
-              .filter(([, val]) => val.count > 0 || val.amount > 0)
-              .map(([key, val]) => {
-                const cfg = methodConfig[key];
-                if (!cfg) return null;
-                return (
-                  <div key={key} className="flex items-center justify-between px-4 py-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className={`w-2 h-2 rounded-full ${cfg.dot} light:bg-[#1A5FB4]`} />
-                      <span className="text-sm font-medium text-white/70 light:text-gray-700">{cfg.label}</span>
-                      <span className="text-[11px] text-white/30 light:text-gray-500 font-medium tabular-nums">{val.count}x</span>
-                    </div>
-                    <span className={`text-sm font-bold tabular-nums ${cfg.color} light:text-gray-900`}>{fmt(val.amount)}</span>
-                  </div>
-                );
-              })}
-          </div>
-          <div className="px-4 py-3 bg-white/[0.02] light:bg-gray-50 border-t border-white/[0.06] light:border-gray-200 flex items-center justify-between">
-            <span className="text-xs font-bold text-white/50 light:text-gray-600 uppercase tracking-wider">Grand Total</span>
-            <span className="text-base font-extrabold text-white light:text-gray-900 tabular-nums">{fmt(summary.grandTotal)}</span>
-          </div>
         </div>
 
         {/* Collection Summary — GCash vs Cash high-level */}
@@ -391,7 +365,7 @@ export default function EndOfDayContent() {
           <div className="h-px bg-white/10 light:bg-gray-200" />
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-white/70 light:text-gray-700 uppercase tracking-wider">Grand Total</span>
-            <span className="text-2xl font-extrabold text-[#62A0EA] light:text-[#1A5FB4] tabular-nums">{fmt(summary.grandTotal)}</span>
+            <span className="text-2xl font-extrabold text-white light:text-gray-900 tabular-nums">{fmt(summary.grandTotal)}</span>
           </div>
         </div>
 
@@ -399,9 +373,7 @@ export default function EndOfDayContent() {
         {!hasRemittedToday ? (
           <div className="space-y-3">
             <div className="bg-white/[0.03] light:bg-gray-50 border border-white/[0.06] light:border-gray-200 rounded-xl p-3.5 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-[#1A5FB4]/15 light:bg-gray-100 flex items-center justify-center flex-shrink-0">
-                <svg className="w-4 h-4 text-[#62A0EA] light:text-[#1A5FB4]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5a17.92 17.92 0 0 1-8.716-2.247m0 0A9 9 0 0 1 3 12c0-1.47.353-2.856.978-4.082" /></svg>
-              </div>
+              <svg className="w-5 h-5 flex-shrink-0 text-[#62A0EA] light:text-[#1A5FB4]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5a17.92 17.92 0 0 1-8.716-2.247m0 0A9 9 0 0 1 3 12c0-1.47.353-2.856.978-4.082" /></svg>
               <div>
                 <p className="text-xs font-semibold text-white/70 light:text-gray-800">Remittance to Admin</p>
                 <p className="text-[10px] text-white/30 light:text-gray-500 mt-0.5">All recorded transactions will be submitted to admin</p>
