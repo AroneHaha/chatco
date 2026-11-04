@@ -4,15 +4,13 @@ namespace App\Http\Controllers\Admin;
 
 use App\Enums\ActivityLogCategory;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Admin\PublishRouteVersionRequest;
-use App\Http\Requests\Admin\SaveRouteDraftRequest;
+use App\Http\Requests\Admin\SaveRouteGeometryRequest;
 use App\Http\Requests\Admin\StoreRouteRequest;
 use App\Http\Requests\Admin\UpdateRouteRequest;
 use App\Models\Route;
 use App\Services\ActivityLogService;
 use App\Services\RouteGeometryService;
 use App\Traits\ApiResponse;
-use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -64,8 +62,7 @@ class AdminRouteController extends Controller
     public function update(UpdateRouteRequest $request, string $id): JsonResponse
     {
         $route = Route::findOrFail($id);
-        // Waypoints are logged as a count; the coordinates themselves live in
-        // the route's version history.
+        // Waypoints are logged as a count, not as coordinates.
         $snapshot = fn (Route $route) => [
             'name' => $route->name,
             'status' => $route->status,
@@ -109,67 +106,28 @@ class AdminRouteController extends Controller
         return $this->successResponse(null, 'Route deleted successfully');
     }
 
-    public function saveDraft(SaveRouteDraftRequest $request, string $id): JsonResponse
+    /**
+     * PUT /admin/routes/{id}/geometry. Replaces the route's road line in place
+     * and makes the route active: it is live on every map on the next fetch.
+     * Nothing about the previous line is kept.
+     */
+    public function saveGeometry(SaveRouteGeometryRequest $request, string $id): JsonResponse
     {
         $route = Route::findOrFail($id);
         $validated = $request->validated();
-        $draft = $this->routeGeometryService->saveDraft(
-            $route,
-            $validated['geometry'],
-            $validated['waypoints'],
-            $validated['notes'] ?? null,
-            $request->user()?->id,
-        );
-
-        return $this->successResponse(
-            $this->routeGeometryService->versionPayload($draft),
-            'Route draft saved'
-        );
-    }
-
-    public function publish(PublishRouteVersionRequest $request, string $id): JsonResponse
-    {
-        $route = Route::findOrFail($id);
-        $validated = $request->validated();
-        $effectiveFrom = isset($validated['effective_from'])
-            ? Carbon::parse($validated['effective_from'])
-            : now();
-        $effectiveUntil = isset($validated['effective_until'])
-            ? Carbon::parse($validated['effective_until'])
-            : null;
-
-        if ($effectiveUntil && $effectiveUntil->lessThanOrEqualTo($effectiveFrom)) {
-            return $this->errorResponse('The detour expiration must be after its start time.', 422);
-        }
-
-        $version = $this->routeGeometryService->publishDraft(
-            $route,
-            $effectiveFrom,
-            $effectiveUntil,
-            $validated['notes'] ?? null,
-            $request->user()?->id,
-        );
+        $route->update([
+            'geometry' => array_values($validated['geometry']),
+            'waypoints' => array_values($validated['waypoints']),
+            'status' => 'ACTIVE',
+        ]);
 
         $this->activityLogService->record(
             ActivityLogCategory::ROUTE,
-            ($effectiveUntil ? "Published temporary detour for route {$route->name}" : "Published route {$route->name}"),
+            "Updated the route line of {$route->name}",
             $request->user(),
         );
 
-        return $this->successResponse(
-            $this->routeGeometryService->versionPayload($version),
-            $effectiveUntil ? 'Temporary route published' : 'Route published'
-        );
-    }
-
-    public function versions(string $id): JsonResponse
-    {
-        $route = Route::findOrFail($id);
-        $versions = $route->versions()
-            ->get()
-            ->map(fn ($version) => $this->routeGeometryService->versionPayload($version));
-
-        return $this->successResponse($versions, 'Route versions retrieved');
+        return $this->successResponse($this->adminPayload($route->fresh()), 'Route saved');
     }
 
     private function adminPayload(Route $route): array
@@ -180,12 +138,9 @@ class AdminRouteController extends Controller
             'status' => $route->status,
             'vehicles_count' => (int) ($route->vehicles_count ?? $route->vehicles()->count()),
             'fare_points_count' => (int) ($route->fare_points_count ?? $route->farePoints()->count()),
-            'active_version' => $this->routeGeometryService->versionPayload(
-                $this->routeGeometryService->activeVersion($route)
-            ),
-            'draft_version' => $this->routeGeometryService->versionPayload(
-                $this->routeGeometryService->latestDraft($route)
-            ),
+            'geometry' => array_values($route->geometry ?? []),
+            'waypoints' => $this->routeGeometryService->controlPoints($route),
+            'updated_at' => $route->updated_at?->toIso8601String(),
         ];
     }
 }

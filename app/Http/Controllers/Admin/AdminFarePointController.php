@@ -9,7 +9,7 @@ use App\Http\Requests\Admin\UpdateFarePointRequest;
 use App\Models\FarePoint;
 use App\Models\Route;
 use App\Services\ActivityLogService;
-use App\Services\RouteGeometryService;
+use App\Support\FareRules;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -29,8 +29,14 @@ class AdminFarePointController extends Controller
 {
     use ApiResponse;
 
+    /**
+     * Fare Point moves never touch the live road line (routes.geometry); the
+     * line stays as it is (it is only written by PUT /admin/routes/{id}/geometry),
+     * so maps never lose their route.
+     */
+    private const LINE_UNCHANGED = 'The route line on the maps is unchanged.';
+
     public function __construct(
-        private RouteGeometryService $routeGeometryService,
         private ActivityLogService $activityLogService,
     ) {}
 
@@ -59,6 +65,9 @@ class AdminFarePointController extends Controller
     public function store(StoreFarePointRequest $request): JsonResponse
     {
         $validated = $request->validated();
+        // Stored fares are the stop's fare from stop 1 under the Financial Rules.
+        $rules = FareRules::current();
+        $regularFare = $rules->fare((int) $validated['point_number']);
 
         // Convert sub_stops string to the DB format (it's stored as a string).
         $farePoint = FarePoint::create([
@@ -68,17 +77,13 @@ class AdminFarePointController extends Controller
             'name' => $validated['name'],
             'landmarks' => $validated['landmarks'] ?? null,
             'sub_stops' => $validated['sub_stops'] ?? null,
-            'regular_fare' => $validated['regular_fare'],
-            'discounted_fare' => $validated['discounted_fare'],
+            'regular_fare' => $regularFare,
+            'discounted_fare' => $rules->discounted($regularFare),
             'latitude' => $validated['latitude'] ?? null,
             'longitude' => $validated['longitude'] ?? null,
         ]);
 
         $farePoint->load('route:id,name');
-        $this->routeGeometryService->syncDraftWaypointsFromFarePoints(
-            $farePoint->route,
-            $request->user()?->id,
-        );
 
         $this->activityLogService->record(
             ActivityLogCategory::FARE_POINT,
@@ -88,7 +93,7 @@ class AdminFarePointController extends Controller
 
         return $this->successResponse(
             $farePoint,
-            'Fare point created. Review and publish the updated route draft.',
+            'Fare point created. '.self::LINE_UNCHANGED,
             201
         );
     }
@@ -100,13 +105,14 @@ class AdminFarePointController extends Controller
     public function update(UpdateFarePointRequest $request, string $id): JsonResponse
     {
         $farePoint = FarePoint::findOrFail($id);
-        $originalRouteId = $farePoint->route_id;
         $before = $this->farePointSnapshot($farePoint);
+        $originalRouteId = $farePoint->route_id;
 
         $validated = $request->validated();
-        $routeFieldsChanged = collect(['route_id', 'point_number', 'latitude', 'longitude'])
-            ->contains(fn ($field) => array_key_exists($field, $validated)
-                && (string) $farePoint->{$field} !== (string) $validated[$field]);
+        $changed = fn (string $field) => array_key_exists($field, $validated)
+            && (string) $farePoint->{$field} !== (string) $validated[$field];
+        $routeFieldsChanged = collect(['route_id', 'point_number', 'latitude', 'longitude'])->contains($changed);
+        $positionChanged = $changed('route_id') || $changed('point_number');
 
         // Only update fields that were sent.
         $updateData = array_filter($validated, function ($value, $key) {
@@ -114,25 +120,18 @@ class AdminFarePointController extends Controller
             return $value !== null || in_array($key, ['landmarks', 'sub_stops', 'latitude', 'longitude']);
         }, ARRAY_FILTER_USE_BOTH);
 
-        $farePoint->update($updateData);
-        $farePoint->load('route:id,name');
-
-        if ($routeFieldsChanged) {
-            if ($originalRouteId !== $farePoint->route_id) {
-                $originalRoute = Route::find($originalRouteId);
-                if ($originalRoute) {
-                    $this->routeGeometryService->syncDraftWaypointsFromFarePoints(
-                        $originalRoute,
-                        $request->user()?->id,
-                    );
+        DB::transaction(function () use ($farePoint, $updateData, $positionChanged, $originalRouteId) {
+            $farePoint->update($updateData);
+            // A stop's fares follow its position, so re-derive them when it moves.
+            if ($positionChanged) {
+                $rules = FareRules::current();
+                $rules->syncStopFares($farePoint->route_id);
+                if ($originalRouteId !== $farePoint->route_id) {
+                    $rules->syncStopFares($originalRouteId);
                 }
             }
-
-            $this->routeGeometryService->syncDraftWaypointsFromFarePoints(
-                $farePoint->route,
-                $request->user()?->id,
-            );
-        }
+        });
+        $farePoint->refresh()->load('route:id,name');
 
         $changes = ActivityLogService::diff($before, $this->farePointSnapshot($farePoint), [
             'route' => 'Route',
@@ -157,7 +156,7 @@ class AdminFarePointController extends Controller
         return $this->successResponse(
             $farePoint,
             $routeFieldsChanged
-                ? 'Fare point updated. Review and publish the updated route draft.'
+                ? 'Fare point updated. '.self::LINE_UNCHANGED
                 : 'Fare point updated successfully'
         );
     }
@@ -170,12 +169,17 @@ class AdminFarePointController extends Controller
     {
         $farePoint = FarePoint::findOrFail($id);
         $farePointName = $farePoint->name;
-        $route = $farePoint->route;
-        $farePoint->delete();
-        $this->routeGeometryService->syncDraftWaypointsFromFarePoints(
-            $route,
-            $request->user()?->id,
-        );
+        // Close the gap so later stops move up one: fares are priced by the
+        // number of stops between pickup and drop-off, and a removed stop
+        // must not still count as a barangay traveled.
+        DB::transaction(function () use ($farePoint) {
+            $routeId = $farePoint->route_id;
+            $farePoint->delete();
+            FarePoint::where('route_id', $routeId)
+                ->where('point_number', '>', $farePoint->point_number)
+                ->decrement('point_number');
+            FareRules::current()->syncStopFares($routeId);
+        });
 
         $this->activityLogService->record(
             ActivityLogCategory::FARE_POINT,
@@ -183,7 +187,7 @@ class AdminFarePointController extends Controller
             $request->user(),
         );
 
-        return $this->successResponse(null, 'Fare point deleted. Review and publish the updated route draft.');
+        return $this->successResponse(null, 'Fare point deleted. '.self::LINE_UNCHANGED);
     }
 
     public function reorder(Request $request): JsonResponse
@@ -204,16 +208,12 @@ class AdminFarePointController extends Controller
             return $this->errorResponse('The ordered list must contain every Fare Point for this route exactly once.', 422);
         }
 
-        DB::transaction(function () use ($orderedIds) {
+        DB::transaction(function () use ($orderedIds, $route) {
             foreach ($orderedIds as $index => $id) {
                 FarePoint::whereKey($id)->update(['point_number' => $index + 1]);
             }
+            FareRules::current()->syncStopFares($route->id);
         });
-
-        $this->routeGeometryService->syncDraftWaypointsFromFarePoints(
-            $route,
-            $request->user()?->id,
-        );
 
         $this->activityLogService->record(
             ActivityLogCategory::FARE_POINT,
@@ -223,7 +223,7 @@ class AdminFarePointController extends Controller
 
         return $this->successResponse(
             $route->farePoints()->orderBy('point_number')->get(),
-            'Fare Points reordered. Review and publish the updated route draft.'
+            'Fare Points reordered. '.self::LINE_UNCHANGED
         );
     }
 

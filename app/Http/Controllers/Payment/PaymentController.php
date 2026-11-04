@@ -17,8 +17,10 @@ use App\Support\Payments\WebhookEvent;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 /**
  * Thin controller for commuter payment actions, status polling, the
@@ -107,6 +109,9 @@ class PaymentController extends Controller
      * did I pay today". Omitting it (or `filter=all`) is the original,
      * unfiltered query. Cutoffs use the app timezone (Asia/Manila), matching
      * what a Philippine commuter's device would compute locally.
+     *
+     * Optional `date_from` / `date_to` (Y-m-d) pick a calendar range and
+     * override `filter`: one date alone returns that single day.
      */
     public function history(Request $request): JsonResponse
     {
@@ -120,6 +125,10 @@ class PaymentController extends Controller
 
         $validated = $request->validate([
             'filter' => 'nullable|in:all,today,week,month',
+            'date_from' => 'nullable|date_format:Y-m-d',
+            // after_or_equal fails outright when date_from is absent, so only
+            // apply it when both ends are given.
+            'date_to' => ['nullable', 'date_format:Y-m-d', Rule::when($request->filled('date_from'), 'after_or_equal:date_from')],
         ]);
         $filter = $validated['filter'] ?? 'all';
 
@@ -136,7 +145,17 @@ class PaymentController extends Controller
             default => null,
         };
 
-        if ($cutoff !== null) {
+        // A picked date range wins over the preset tabs. One date alone means
+        // that single day; both mean from-to inclusive (Asia/Manila days).
+        $dateFrom = $validated['date_from'] ?? $validated['date_to'] ?? null;
+        $dateTo = $validated['date_to'] ?? $dateFrom;
+
+        if ($dateFrom !== null) {
+            $query->whereBetween('created_at', [
+                Carbon::parse($dateFrom)->startOfDay(),
+                Carbon::parse($dateTo)->endOfDay(),
+            ]);
+        } elseif ($cutoff !== null) {
             $query->where('created_at', '>=', $cutoff);
         }
 

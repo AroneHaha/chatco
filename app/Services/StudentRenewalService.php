@@ -7,6 +7,7 @@ use App\Models\Announcement;
 use App\Models\CommuterProfile;
 use App\Models\DiscountApplication;
 use App\Models\User;
+use App\Support\MessageTemplates;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -197,11 +198,14 @@ class StudentRenewalService
         $failures = [];
         $year = $this->cycleYear();
         $cutoff = $this->cutoff($year);
+        // Admin-editable wording, read once per run rather than per commuter.
+        $expiredTemplate = MessageTemplates::get('renewal_expired_template');
+        $reminderTemplate = MessageTemplates::get('renewal_reminder_template');
         CommuterProfile::where('commuter_type', 'STUDENT')->whereHas('user')
             ->where(fn ($q) => $q->whereNull('student_discount_expires_at')->orWhere('student_discount_expires_at', '<=', now()))
-            ->select('id')->chunkById(100, function ($profiles) use (&$failures) {
+            ->select('id')->chunkById(100, function ($profiles) use (&$failures, $expiredTemplate) {
                 foreach ($profiles as $candidate) {
-                    $this->processAccount($candidate->id, 'expiration', function () use ($candidate) {
+                    $this->processAccount($candidate->id, 'expiration', function () use ($candidate, $expiredTemplate) {
                         $profile = CommuterProfile::whereKey($candidate->id)->lockForUpdate()->firstOrFail();
                         if ($profile->commuter_type !== 'STUDENT' || $profile->effectiveFareType() === 'STUDENT') {
                             return;
@@ -227,7 +231,9 @@ class StudentRenewalService
                             null,
                             [['field' => 'Commuter type', 'from' => 'Student', 'to' => 'Regular']],
                         );
-                        $this->announcements->notifyUser($profile->id, 'STUDENT_RENEWAL_DONE', 'Student discount expired', 'Your student renewal deadline has passed. Your account remains available as a Regular commuter. Submit current enrollment proof to apply again.', $profile->id);
+                        $this->announcements->notifyUser($profile->id, 'STUDENT_RENEWAL_DONE', 'Student discount expired', MessageTemplates::render($expiredTemplate, [
+                            'name' => trim($profile->first_name.' '.$profile->surname),
+                        ]), $profile->id);
                     }, $failures);
                 }
             });
@@ -250,9 +256,9 @@ class StudentRenewalService
                 $q->selectRaw('1')->from('announcements')->whereColumn('announcements.user_id', 'commuter_profiles.id')
                     ->where('type', 'STUDENT_RENEWAL')->where('created_at', '>=', $slot);
             })
-            ->select('id')->chunkById(100, function ($profiles) use ($slot, $year, &$failures) {
+            ->select('id')->chunkById(100, function ($profiles) use ($slot, $year, &$failures, $reminderTemplate) {
                 foreach ($profiles as $candidate) {
-                    $this->processAccount($candidate->id, 'reminder', function () use ($candidate, $slot, $year) {
+                    $this->processAccount($candidate->id, 'reminder', function () use ($candidate, $slot, $year, $reminderTemplate) {
                         $profile = CommuterProfile::whereKey($candidate->id)->lockForUpdate()->firstOrFail();
                         if ($profile->commuter_type !== 'STUDENT' || $profile->student_discount_expires_at?->gt($this->cutoff($year))
                             || $profile->discountApplications()->where('request_type', 'RENEWAL')->outstanding()->exists()
@@ -264,7 +270,11 @@ class StudentRenewalService
                         }
                         $period = $this->periodLabel($year);
                         $deadline = $this->cutoff($year)->format('F j');
-                        $this->announcements->notifyUser($profile->id, 'STUDENT_RENEWAL', "Renew student status by {$deadline}", "Renew your student status {$period}. Submit a school ID showing the current school year or valid enrollment proof. Your discount continues throughout the renewal period. Without a submission by {$deadline}, your commuter type becomes Regular. Open Student Renewal to submit proof or choose No Longer a Student.", $profile->id);
+                        $this->announcements->notifyUser($profile->id, 'STUDENT_RENEWAL', "Renew student status by {$deadline}", MessageTemplates::render($reminderTemplate, [
+                            'name' => trim($profile->first_name.' '.$profile->surname),
+                            'period' => $period,
+                            'deadline' => $deadline,
+                        ]), $profile->id);
                     }, $failures);
                 }
             });
