@@ -7,12 +7,15 @@ export class VerificationError extends Error {
   /** Field-keyed messages from a 422 (e.g. { email: ["..."] }). */
   errors: Record<string, string[]>;
   status: number;
+  /** Set only on the send-code cooldown 429: seconds until a new code may be sent. */
+  resendInSeconds: number | null;
 
-  constructor(message: string, status: number, errors: Record<string, string[]> = {}) {
+  constructor(message: string, status: number, errors: Record<string, string[]> = {}, resendInSeconds: number | null = null) {
     super(message);
     this.name = "VerificationError";
     this.status = status;
     this.errors = errors;
+    this.resendInSeconds = resendInSeconds;
   }
 
   /** True when the code is spent or rate-limited — the user needs a new one. */
@@ -48,7 +51,8 @@ async function post(path: string, payload: Record<string, string | undefined>) {
     throw new VerificationError(
       data?.message ?? "Something went wrong. Please try again.",
       res.status,
-      data?.errors ?? {}
+      data?.errors ?? {},
+      typeof data?.data?.resend_in_seconds === "number" ? data.data.resend_in_seconds : null
     );
   }
 

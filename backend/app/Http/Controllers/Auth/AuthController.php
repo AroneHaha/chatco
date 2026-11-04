@@ -243,10 +243,16 @@ class AuthController extends Controller
         $wait = $this->emailVerification->secondsUntilResend($email);
 
         if ($wait > 0) {
-            return $this->errorResponse(
-                "You just requested a code. Please wait {$wait} seconds before asking for another.",
-                429
-            );
+            // `resend_in_seconds` marks this 429 as the per-address cooldown
+            // (a code is already in the inbox), unlike the `throttle:auth`
+            // 429, where no code may exist. The form relies on the difference.
+            return response()->json([
+                'success' => false,
+                'data' => ['resend_in_seconds' => $wait],
+                'message' => "You just requested a code. Please wait {$wait} seconds before asking for another.",
+                'errors' => null,
+                'meta' => null,
+            ], 429);
         }
 
         try {
