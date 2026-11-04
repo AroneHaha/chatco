@@ -178,6 +178,23 @@ class HailHttpTest extends TestCase
         $response->assertJsonPath('data.status', 'PENDING');
     }
 
+    public function test_post_hail_to_unit_on_break_returns_422_even_within_radius(): void
+    {
+        $this->shift->update(['is_on_break' => true, 'break_started_at' => now()]);
+
+        $this->actingAs($this->commuter, 'sanctum')
+            ->postJson('/api/v1/commuter/hail', [
+                'vehicle_id' => $this->vehicle->id,
+                'commuter_lat' => $this->vehicleLat + 0.0045, // ~500m north
+                'commuter_lng' => $this->vehicleLng,
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Vehicle is currently on break')
+            ->assertJsonMissingPath('errors');
+
+        $this->assertSame(0, Hail::count());
+    }
+
     public function test_hail_creation_and_cancellation_broadcast_without_a_queue_worker(): void
     {
         config(['queue.default' => 'database']);
