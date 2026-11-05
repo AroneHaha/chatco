@@ -351,16 +351,16 @@ export default function EndOfDayContent() {
         </div>
 
         {/* Collection Summary — GCash vs Cash high-level */}
-        <div className="bg-[#1A5FB4]/8 light:bg-white border border-[#1A5FB4]/20 light:border-gray-200 rounded-2xl p-4 space-y-3">
-          <p className="text-[10px] font-bold text-[#62A0EA]/60 light:text-gray-600 uppercase tracking-wider">Collection Summary</p>
+        <div className="bg-[#071A2E] light:bg-white border border-white/[0.06] light:border-gray-200 rounded-2xl p-4 space-y-3">
+          <p className="text-[10px] font-bold text-white/50 light:text-gray-600 uppercase tracking-wider">Collection Summary</p>
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-white/5 light:bg-gray-50 rounded-xl p-3 border border-white/5 light:border-gray-200">
-              <p className="text-[10px] font-semibold text-blue-400/60 light:text-gray-600 uppercase tracking-wider">GCash</p>
-              <p className="text-lg font-extrabold text-blue-400 light:text-gray-900 mt-0.5">{fmt(summary.gcashTotal)}</p>
+            <div className="bg-[#0A2038] light:bg-gray-50 rounded-xl p-3 border border-white/[0.06] light:border-gray-200">
+              <p className="text-[10px] font-semibold text-white/50 light:text-gray-600 uppercase tracking-wider">GCash</p>
+              <p className="text-lg font-extrabold text-white light:text-gray-900 mt-0.5">{fmt(summary.gcashTotal)}</p>
             </div>
-            <div className="bg-white/5 light:bg-gray-50 rounded-xl p-3 border border-white/5 light:border-gray-200">
-              <p className="text-[10px] font-semibold text-emerald-400/60 light:text-gray-600 uppercase tracking-wider">Cash</p>
-              <p className="text-lg font-extrabold text-emerald-400 light:text-gray-900 mt-0.5">{fmt(summary.cashTotal)}</p>
+            <div className="bg-[#0A2038] light:bg-gray-50 rounded-xl p-3 border border-white/[0.06] light:border-gray-200">
+              <p className="text-[10px] font-semibold text-white/50 light:text-gray-600 uppercase tracking-wider">Cash</p>
+              <p className="text-lg font-extrabold text-white light:text-gray-900 mt-0.5">{fmt(summary.cashTotal)}</p>
             </div>
           </div>
           <div className="h-px bg-white/10 light:bg-gray-200" />
