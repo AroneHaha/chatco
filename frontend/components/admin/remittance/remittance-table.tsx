@@ -33,6 +33,8 @@ interface RemittanceTableProps {
   /** Inclusive lower bound for the range presets (Today/7 Days/Month) — used
    * only when `selectedDate` (the exact-date picker) is empty. */
   dateFrom: string;
+  /** Inclusive upper bound when two dates are picked; '' otherwise. */
+  dateTo?: string;
   statusFilter: RemittanceStatus | 'All';
   /** Conductor/driver dropdowns now render in the page header, alongside
    * search + date, so their value is a controlled prop instead of local state. */
@@ -49,9 +51,9 @@ interface RemittanceTableProps {
 
 const ROWS_PER_PAGE = 20;
 
-export function RemittanceTable({ searchQuery, selectedDate, dateFrom, statusFilter, conductorFilter, driverFilter, autoOpenShiftId, onAutoOpenHandled, onCashDeclared }: RemittanceTableProps) {
+export function RemittanceTable({ searchQuery, selectedDate, dateFrom, dateTo = '', statusFilter, conductorFilter, driverFilter, autoOpenShiftId, onAutoOpenHandled, onCashDeclared }: RemittanceTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
-  const { records, total, lastPage, isLoading, error, refresh } = useRemittanceData(currentPage, searchQuery, selectedDate, statusFilter, dateFrom, conductorFilter, driverFilter);
+  const { records, total, lastPage, isLoading, error, refresh } = useRemittanceData(currentPage, searchQuery, selectedDate, statusFilter, dateFrom, conductorFilter, driverFilter, 20, undefined, dateTo);
   const [selectedRecord, setSelectedRecord] = useState<RemittanceRow | null>(null);
   const [declaringRecord, setDeclaringRecord] = useState<RemittanceRow | null>(null);
 
@@ -155,17 +157,18 @@ export function RemittanceTable({ searchQuery, selectedDate, dateFrom, statusFil
       // Shifts awaiting cash declaration (canDeclareCash) remain visible under range
       // presets (such as "Today") so midnight closeouts from the previous day are
       // immediately accessible for declaration.
+      // A two-date range also caps the end (inclusive).
       const matchesDate = selectedDate
         ? item.date === selectedDate
-        : !dateFrom || item.date >= dateFrom || canDeclareCash(item.remittanceStatus);
+        : (!dateFrom || item.date >= dateFrom || canDeclareCash(item.remittanceStatus)) && (!dateTo || item.date <= dateTo);
       const matchesConductor = !conductorFilter || item.conductorName === conductorFilter;
       const matchesDriver = !driverFilter || item.driverName === driverFilter;
 
       return matchesStatus && matchesSearch && matchesDate && matchesConductor && matchesDriver;
     });
-  }, [records, searchQuery, selectedDate, dateFrom, statusFilter, conductorFilter, driverFilter]);
+  }, [records, searchQuery, selectedDate, dateFrom, dateTo, statusFilter, conductorFilter, driverFilter]);
 
-  const filterKey = `${searchQuery}|${selectedDate}|${dateFrom}|${statusFilter}|${conductorFilter}|${driverFilter}`;
+  const filterKey = `${searchQuery}|${selectedDate}|${dateFrom}|${dateTo}|${statusFilter}|${conductorFilter}|${driverFilter}`;
   const [previousFilterKey, setPreviousFilterKey] = useState(filterKey);
   if (filterKey !== previousFilterKey) {
     setPreviousFilterKey(filterKey);

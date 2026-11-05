@@ -1319,6 +1319,12 @@ class AdminController extends Controller
 
     public function transactions(Request $request): JsonResponse
     {
+        // Malformed dates would reach Carbon::parse() as a 500; a reversed range is a 422.
+        $request->validate([
+            'date' => ['nullable', 'date_format:Y-m-d'],
+            'date_from' => ['nullable', 'date_format:Y-m-d'],
+            'date_to' => ['nullable', 'date_format:Y-m-d', Rule::when($request->filled('date_from'), 'after_or_equal:date_from')],
+        ]);
         $perPage = (int) $request->integer('per_page', 100);
 
         // The voucher a ride used, so Receipts can show it alongside the real
@@ -1376,6 +1382,12 @@ class AdminController extends Controller
      */
     public function remittances(Request $request): JsonResponse
     {
+        // Malformed dates would reach Carbon::parse() as a 500; a reversed range is a 422.
+        $request->validate([
+            'date' => ['nullable', 'date_format:Y-m-d'],
+            'date_from' => ['nullable', 'date_format:Y-m-d'],
+            'date_to' => ['nullable', 'date_format:Y-m-d', Rule::when($request->filled('date_from'), 'after_or_equal:date_from')],
+        ]);
         // Cap raised from 100 to 500: the Analytics Overview/Reports tabs and
         // the CSV/PDF/Excel exports (frontend/app/(admin)/analytics/page.tsx)
         // request per_page=500 to get the full scoped range in one page. The
@@ -1586,9 +1598,11 @@ class AdminController extends Controller
             $trendBy = in_array($request->input('trend_by'), ['day', 'week', 'month'], true)
                 ? $request->input('trend_by')
                 : 'day';
-            // The trend ends on the exact date being viewed, otherwise today.
-            $trendEnd = $request->filled('date')
-                ? Carbon::parse($request->input('date'), 'Asia/Manila')->startOfDay()
+            // The trend ends on the exact date being viewed, else a picked range's
+            // last day, otherwise today.
+            $trendEndDate = $request->input('date') ?: $request->input('date_to');
+            $trendEnd = $trendEndDate
+                ? Carbon::parse($trendEndDate, 'Asia/Manila')->startOfDay()
                 : now('Asia/Manila')->startOfDay();
             $payload['summary'] = $this->remittanceSummary($rows, $request->input('date_from'), $trendBy, $trendEnd);
         }

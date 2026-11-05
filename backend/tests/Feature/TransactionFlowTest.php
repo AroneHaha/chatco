@@ -878,6 +878,31 @@ class TransactionFlowTest extends TestCase
             ->assertJsonCount(2, 'data.data');
     }
 
+    public function test_admin_transactions_two_date_range_is_inclusive_and_validated(): void
+    {
+        $svc = app(TransactionService::class);
+        $rows = [];
+        foreach ([12, 10, 8, 0] as $daysAgo) {
+            $txn = $svc->recordCashFare($this->conductor, ['final_amount' => 17.00, 'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos']);
+            // Late in the day, so the inclusive end date is what keeps it.
+            DB::table('transactions')->where('transaction_id', $txn->transaction_id)
+                ->update(['created_at' => now()->subDays($daysAgo)->setTime(23, 30)]);
+            $rows[$daysAgo] = $txn->transaction_id;
+        }
+        Sanctum::actingAs($this->admin);
+
+        // Receipts' two pickers: 10 days ago to 8 days ago, both ends included.
+        $ids = collect($this->getJson('/api/v1/admin/transactions?date_from='.now()->subDays(10)->toDateString().'&date_to='.now()->subDays(8)->toDateString())
+            ->assertOk()->json('data.data'))->pluck('transaction_id')->sort()->values()->all();
+        $this->assertSame(collect([$rows[10], $rows[8]])->sort()->values()->all(), $ids);
+
+        // A reversed range or a malformed date is a 422, not a 500.
+        $this->getJson('/api/v1/admin/transactions?date_from='.now()->toDateString().'&date_to='.now()->subDay()->toDateString())
+            ->assertStatus(422)->assertJsonValidationErrors('date_to');
+        $this->getJson('/api/v1/admin/transactions?date=not-a-date')
+            ->assertStatus(422)->assertJsonValidationErrors('date');
+    }
+
     public function test_group_gcash_settles_all_receipts_but_credits_only_the_payer_once(): void
     {
         config(['payments.gateways.paymongo.secret' => null]);
