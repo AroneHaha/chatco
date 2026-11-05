@@ -23,7 +23,6 @@ class BroadcastTest extends TestCase
         $payload = [
             'vehicle_id' => 'test-vehicle-id',
             'plate_number' => 'ABC123',
-            'vehicle_type' => 'Jeepney',
             'lat' => 14.5995,
             'lng' => 120.9842,
             'speed' => 45.50,

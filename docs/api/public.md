@@ -253,7 +253,6 @@ There is no distance filter: every qualifying vehicle is returned.
     {
       "vehicle_id": "c3d4…",
       "plate_number": "ABC 1234",
-      "vehicle_type": "Jeepney",
       "unit_number": "U-07",
       "vehicle_capacity_status": "AVAILABLE",
       "lat": "14.8433120",

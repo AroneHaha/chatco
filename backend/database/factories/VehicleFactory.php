@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Vehicle>
  *
  * Per Sprint 2 Handoff Brief:
- *   "VehicleFactory — must populate plate_number, vehicle_type, status"
+ *   "VehicleFactory — must populate plate_number, status"
  */
 class VehicleFactory extends Factory
 {
@@ -22,7 +22,6 @@ class VehicleFactory extends Factory
         return [
             'unit_number' => 'UNIT-' . fake()->unique()->numberBetween(1000, 9999),
             'plate_number' => strtoupper(fake()->bothify('???####')),
-            'vehicle_type' => fake()->randomElement(['Jeepney', 'Bus', 'Van', 'UV Express']),
             'route_id' => null,
             'driver_id' => null,
             'conductor_id' => null,

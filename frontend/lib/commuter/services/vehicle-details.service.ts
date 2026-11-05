@@ -10,7 +10,6 @@ export interface CommuterUnitDetails {
   shift_id: string;
   unit_number: string;
   plate_number: string;
-  vehicle_type: string;
   route_name: string | null;
   location_updated_at: string | null;
   driver: UnitCrewDetails | null;

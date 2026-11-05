@@ -59,7 +59,6 @@ class AdminVehicleCrudTest extends TestCase
         return Vehicle::create(array_merge([
             'unit_number'  => "UNIT-{$this->seq}",
             'plate_number' => "PLT-{$this->seq}",
-            'vehicle_type' => 'Jeepney',
             'status'       => 'ACTIVE',
         ], $overrides));
     }
@@ -74,7 +73,6 @@ class AdminVehicleCrudTest extends TestCase
             'plate_number' => 'NEW-1234',
             'brand'        => 'Isuzu',
             'model'        => 'Elf NHR',
-            'vehicle_type' => 'Bus',
         ]);
 
         $response->assertStatus(201)->assertJsonPath('success', true)
@@ -84,7 +82,6 @@ class AdminVehicleCrudTest extends TestCase
             'plate_number' => 'NEW-1234',
             'brand'        => 'Isuzu',
             'model'        => 'Elf NHR',
-            'vehicle_type' => 'Bus',
         ]);
     }
 
@@ -114,16 +111,6 @@ class AdminVehicleCrudTest extends TestCase
             'brand' => 'Isuzu',
             'model' => 'Elf NHR',
         ])->assertStatus(422)->assertJsonStructure(['errors' => ['plate_number']]);
-    }
-
-    public function test_create_rejects_invalid_vehicle_type(): void
-    {
-        $admin = $this->makeAdmin();
-
-        $this->actingAs($admin)->postJson('/api/v1/admin/vehicles', [
-            'plate_number' => 'X-0001',
-            'vehicle_type' => 'Spaceship',
-        ])->assertStatus(422)->assertJsonStructure(['errors' => ['vehicle_type']]);
     }
 
     // ── Read / list ──────────────────────────────────────────────
@@ -282,13 +269,11 @@ class AdminVehicleCrudTest extends TestCase
 
         $this->actingAs($admin)->putJson("/api/v1/admin/vehicles/{$vehicle->id}", [
             'status'       => 'MAINTENANCE',
-            'vehicle_type' => 'Van',
         ])->assertStatus(200);
 
         $this->assertDatabaseHas('vehicles', [
             'id'           => $vehicle->id,
             'status'       => 'MAINTENANCE',
-            'vehicle_type' => 'Van',
         ]);
     }
 

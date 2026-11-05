@@ -29,7 +29,7 @@ class AdminOperationalNotificationsTest extends TestCase
             $this->actingAs($admin)->putJson("/api/v1/admin/vehicles/{$vehicle->id}", ['status' => $status])->assertOk();
             $this->putJson("/api/v1/admin/vehicles/{$vehicle->id}", ['status' => $status])->assertOk();
         }
-        $this->putJson("/api/v1/admin/vehicles/{$vehicle->id}", ['vehicle_type' => 'Van'])->assertOk();
+        $this->putJson("/api/v1/admin/vehicles/{$vehicle->id}", ['plate_number' => 'NOT-STATUS'])->assertOk();
         $notices = Announcement::where('type', 'VEHICLE_STATUS_CHANGED')->get();
         $this->assertCount(6, $notices);
         $this->assertEqualsCanonicalizing([$admin->id, $otherAdmin->id], $notices->pluck('user_id')->unique()->all());

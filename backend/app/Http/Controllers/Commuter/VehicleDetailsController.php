@@ -34,7 +34,6 @@ class VehicleDetailsController extends Controller
             'shift_id' => $shift->shift_id,
             'unit_number' => $vehicle->unit_number,
             'plate_number' => $vehicle->plate_number,
-            'vehicle_type' => $vehicle->vehicle_type,
             'route_name' => $shift->route?->name,
             'location_updated_at' => $vehicle->currentLocation?->shift_id === $shift->shift_id
                 ? $vehicle->currentLocation->updated_at?->toIso8601String() : null,
