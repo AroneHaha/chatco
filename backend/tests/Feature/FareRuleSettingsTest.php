@@ -215,4 +215,53 @@ class FareRuleSettingsTest extends TestCase
         $this->assertSame('17.00', $this->far->fresh()->regular_fare);
         $this->assertSame(17.00, $this->trip());
     }
+
+    public function test_fare_matrix_place_changes_sign_out_every_conductor(): void
+    {
+        Event::fake([FaresUpdated::class]);
+        $admin = $this->actingAs($this->admin);
+        $changes = [
+            'add' => fn () => $admin->postJson('/api/v1/admin/fare-points', [
+                'route_id' => $this->first->route_id, 'point_number' => 8, 'code' => 'NEW', 'name' => 'New place',
+            ])->assertCreated(),
+            'rename' => fn () => $admin->putJson("/api/v1/admin/fare-points/{$this->far->id}", ['name' => 'Dampol Crossing'])->assertOk(),
+            'sub places' => fn () => $admin->putJson("/api/v1/admin/fare-points/{$this->far->id}", ['sub_stops' => 'Terminal, Church'])->assertOk(),
+            'reorder' => fn () => $admin->putJson('/api/v1/admin/fare-points/reorder', [
+                'route_id' => $this->first->route_id,
+                'ordered_ids' => FarePoint::where('route_id', $this->first->route_id)->orderByDesc('point_number')->pluck('id')->all(),
+            ])->assertOk(),
+            'delete' => fn () => $admin->deleteJson("/api/v1/admin/fare-points/{$this->far->id}")->assertOk(),
+        ];
+
+        foreach ($changes as $label => $change) {
+            $token = User::factory()->conductor()->create()->createToken('auth-token:WEB');
+            $change();
+            $this->assertNotNull($token->accessToken->fresh()->expires_at, "{$label} should sign conductors out");
+        }
+        Event::assertDispatchedTimes(FaresUpdated::class, count($changes));
+    }
+
+    public function test_fare_update_reaches_conductors_privately_and_commuter_calculators_publicly(): void
+    {
+        $channels = array_map(fn ($channel) => $channel->name, (new FaresUpdated(20))->broadcastOn());
+
+        // Conductors sign out; open commuter fare calculators only reload the public matrix.
+        $this->assertSame(['private-conductors', 'fares'], $channels);
+    }
+
+    public function test_pinning_a_place_or_saving_the_same_order_keeps_conductors_signed_in(): void
+    {
+        Event::fake([FaresUpdated::class]);
+        $token = User::factory()->conductor()->create()->createToken('auth-token:WEB');
+
+        $this->actingAs($this->admin)->putJson("/api/v1/admin/fare-points/{$this->far->id}", ['latitude' => 14.85, 'longitude' => 120.75])->assertOk();
+        $this->actingAs($this->admin)->putJson("/api/v1/admin/fare-points/{$this->far->id}", ['name' => 'Dampol'])->assertOk();
+        $this->actingAs($this->admin)->putJson('/api/v1/admin/fare-points/reorder', [
+            'route_id' => $this->first->route_id,
+            'ordered_ids' => [$this->first->id, $this->far->id],
+        ])->assertOk();
+
+        $this->assertNull($token->accessToken->fresh()->expires_at);
+        Event::assertNotDispatched(FaresUpdated::class);
+    }
 }

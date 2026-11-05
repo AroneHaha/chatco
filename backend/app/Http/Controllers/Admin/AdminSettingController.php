@@ -3,14 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Enums\ActivityLogCategory;
-use App\Enums\UserRole;
-use App\Events\FaresUpdated;
 use App\Http\Controllers\Controller;
-use App\Models\PersonalAccessToken;
 use App\Models\Setting;
-use App\Models\User;
 use App\Services\ActivityLogService;
 use App\Services\MaintenanceStatus;
+use App\Support\ConductorSignOut;
 use App\Support\FareRules;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -198,7 +195,7 @@ class AdminSettingController extends Controller
      * from the new rules (App\Support\FareRules). Trips are priced from the
      * rules themselves, so the matrix can never disagree with them.
      * Transactions already started keep the amount they were priced at.
-     * A real change also signs every conductor out (signOutConductors).
+     * A real change also signs every conductor out (ConductorSignOut).
      */
     private function saveFareRule(string $key, string $value, string $category, Request $request): Setting
     {
@@ -214,7 +211,7 @@ class AdminSettingController extends Controller
             $rules = FareRules::current();
 
             if ($rules != $before) {
-                $this->signOutConductors();
+                ConductorSignOut::afterFareChange();
             }
 
             $rules->syncStopFares();
@@ -228,30 +225,6 @@ class AdminSettingController extends Controller
 
             return $setting;
         }, 3);
-    }
-
-    /** How long an open conductor app has to show its notice before its token stops working. */
-    private const CONDUCTOR_SIGN_OUT_GRACE_SECONDS = 20;
-
-    /**
-     * Ends every conductor session (web and mobile) so each signs back in on
-     * the new fares. Tokens expire after a short grace instead of being
-     * deleted, so an open app first gets FaresUpdated and shows why it is
-     * signing out rather than failing on a bare 401 mid-poll. Active shifts
-     * are untouched; the conductor resumes on the next sign-in.
-     * Runs inside the fare-rule transaction; the event is sent after commit.
-     */
-    private function signOutConductors(): void
-    {
-        $expiresAt = now()->addSeconds(self::CONDUCTOR_SIGN_OUT_GRACE_SECONDS);
-        PersonalAccessToken::query()
-            ->where('tokenable_type', (new User)->getMorphClass())
-            ->whereIn('tokenable_id', User::where('role', UserRole::CONDUCTOR)->select('id'))
-            // Never extend a token that already expires sooner.
-            ->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', $expiresAt))
-            ->update(['expires_at' => $expiresAt]);
-
-        DB::afterCommit(fn () => broadcast(new FaresUpdated(self::CONDUCTOR_SIGN_OUT_GRACE_SECONDS)));
     }
 
     /** Readable names for the activity log; other keys fall back to a headline of the key. */
