@@ -17,6 +17,7 @@ import HistorySection, { type RemittanceHistoryFilter } from "@/components/condu
 import ConfirmModal from "@/components/conductor/remittance/ConfirmModal";
 import SuccessOverlay from "@/components/conductor/remittance/SuccessOverlay";
 import OfficialReportModal, { buildPrintHTML } from "@/components/conductor/remittance/OfficialReportModal";
+import { UserAvatar } from "@/components/admin/ui/user-avatar";
 
 /**
  * The actual End-of-Day report/remit body — everything except page chrome
@@ -330,7 +331,7 @@ export default function EndOfDayContent() {
     <>
       <div className="px-4 pt-5 space-y-5">
         {/* Driver info */}
-        <div className="bg-[#071A2E] light:bg-white border border-white/[0.06] light:border-gray-200 rounded-2xl p-4 flex items-center justify-between"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-[#1A5FB4]/15 light:bg-gray-100 flex items-center justify-center text-[#62A0EA] light:text-[#1A5FB4] font-bold text-sm">{shiftInfo.driverName[0]}</div><div><p className="text-sm font-bold text-white light:text-gray-900">{shiftInfo.driverName}</p><p className="text-[11px] text-white/40 light:text-gray-500 font-medium">{shiftInfo.unitNumber} · {shiftInfo.route}</p></div></div></div>
+        <div className="bg-[#071A2E] light:bg-white border border-white/[0.06] light:border-gray-200 rounded-2xl p-4 flex items-center justify-between"><div className="flex items-center gap-3"><UserAvatar alt="" surfaceClassName="rounded-full bg-[#1A5FB4] text-white" /><div><p className="text-sm font-bold text-white light:text-gray-900">{shiftInfo.driverName}</p><p className="text-[11px] text-white/40 light:text-gray-500 font-medium">{shiftInfo.unitNumber} · {shiftInfo.route}</p></div></div></div>
 
         {/* Grand Total card */}
         <div className="bg-[#071A2E] light:bg-white border border-white/[0.06] light:border-gray-200 rounded-2xl p-4">
