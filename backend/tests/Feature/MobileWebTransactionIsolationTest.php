@@ -168,14 +168,21 @@ class MobileWebTransactionIsolationTest extends TestCase
         ]);
     }
 
-    public function test_web_to_mobile_handoff_keeps_one_shift_and_both_platform_sessions(): void
+    public function test_web_to_mobile_handoff_keeps_shift_data_and_ends_the_web_session(): void
     {
-        $this->postJson('/api/v1/auth/login', [
+        $webLogin = $this->postJson('/api/v1/auth/login', [
             'login' => 'mreyes', 'password' => 'password',
             'device_id' => 'web-handoff-device-12345', 'device_type' => 'WEB',
         ])->assertOk();
+        $webToken = $webLogin->json('data.token');
+        $webTransaction = $this->withHeader('Authorization', 'Bearer '.$webToken)
+            ->postJson('/api/v1/conductor/transactions', [
+                'payment_method' => 'CASH', 'pickup_name' => 'Cubao', 'dropoff_name' => 'Antipolo',
+                'idempotency_key' => 'web-handoff-cash-ticket',
+                'device_id' => 'web-handoff-device-12345', 'device_type' => 'WEB',
+            ])->assertCreated();
 
-        $this->postJson('/api/v1/mobile/auth/login', [
+        $mobileLogin = $this->postJson('/api/v1/mobile/auth/login', [
             'login' => 'mreyes', 'password' => 'password',
             'device_id' => 'mobile-handoff-device-12345',
             // The mobile endpoint must establish MOBILE even if input says WEB.
@@ -185,12 +192,22 @@ class MobileWebTransactionIsolationTest extends TestCase
         $this->assertSame(1, ShiftLog::where('conductor_id', $this->conductor->id)->active()->count());
         $this->assertSame('mobile-handoff-device-12345', $this->shift->fresh()->operating_device_id);
         $this->assertSame('MOBILE', $this->shift->fresh()->operating_device_type);
-        $this->assertSame(1, $this->conductor->tokens()->where('name', 'auth-token:WEB')->count());
-        $this->assertSame(1, $this->conductor->tokens()->where('name', 'auth-token:MOBILE')->count());
+        $this->assertDatabaseCount('transactions', 1);
+        $this->assertSame(1, $this->conductor->tokens()->count());
+        $this->app['auth']->forgetGuards();
+        $this->withHeader('Authorization', 'Bearer '.$webToken)
+            ->getJson('/api/v1/user')->assertUnauthorized();
 
-        Sanctum::actingAs($this->conductor);
-        $mobile = $this->getJson('/api/v1/mobile/conductor/shift')->assertOk()->json('data');
-        $web = $this->getJson('/api/v1/conductor/shift')->assertOk()->json('data');
+        $mobileToken = $mobileLogin->json('data.token');
+        $this->app['auth']->forgetGuards();
+        $retrievedTransactions = $this->withHeader('Authorization', 'Bearer '.$mobileToken)
+            ->getJson('/api/v1/mobile/conductor/transactions?shift_id='.$this->shift->shift_id)
+            ->assertOk()->json('data');
+        $this->assertSame($webTransaction->json('data.transaction_id'), $retrievedTransactions[0]['transaction_id']);
+        $mobile = $this->withHeader('Authorization', 'Bearer '.$mobileToken)
+            ->getJson('/api/v1/mobile/conductor/shift')->assertOk()->json('data');
+        $web = $this->withHeader('Authorization', 'Bearer '.$mobileToken)
+            ->getJson('/api/v1/conductor/shift')->assertOk()->json('data');
         $this->assertSame($web, $mobile);
         $this->postJson('/api/v1/mobile/conductor/shifts/start', [
             'vehicle_id' => $this->vehicle->id, 'driver_id' => $this->driver->id,
@@ -198,32 +215,42 @@ class MobileWebTransactionIsolationTest extends TestCase
         ])->assertStatus(409);
     }
 
-    public function test_mobile_to_web_handoff_preserves_cash_and_rejects_previous_operator_break(): void
+    public function test_mobile_to_web_handoff_preserves_cash_and_ends_mobile_session(): void
     {
-        $this->postJson('/api/v1/mobile/auth/login', [
+        $mobileLogin = $this->postJson('/api/v1/mobile/auth/login', [
             'login' => 'mreyes', 'password' => 'password',
             'device_id' => 'mobile-handoff-device-12345',
         ])->assertOk();
+        $mobileToken = $mobileLogin->json('data.token');
 
-        Sanctum::actingAs($this->conductor);
-        $this->postJson('/api/v1/mobile/conductor/transactions', [
+        $transaction = $this->withHeader('Authorization', 'Bearer '.$mobileToken)
+            ->postJson('/api/v1/mobile/conductor/transactions', [
             'payment_method' => 'CASH', 'pickup_name' => 'Cubao', 'dropoff_name' => 'Antipolo',
             'idempotency_key' => 'handoff-cash-ticket',
             'device_id' => 'mobile-handoff-device-12345', 'device_type' => 'MOBILE',
         ])->assertCreated();
 
-        $this->postJson('/api/v1/auth/login', [
+        $webLogin = $this->postJson('/api/v1/auth/login', [
             'login' => 'mreyes', 'password' => 'password',
             'device_id' => 'web-handoff-device-12345', 'device_type' => 'WEB',
         ])->assertOk();
+        $webToken = $webLogin->json('data.token');
 
         $this->assertSame('web-handoff-device-12345', $this->shift->fresh()->operating_device_id);
         $this->assertDatabaseCount('transactions', 1);
         $this->assertDatabaseHas('transactions', ['shift_id' => $this->shift->shift_id, 'idempotency_key' => 'handoff-cash-ticket']);
-        $this->postJson('/api/v1/mobile/conductor/break-status', [
+        $this->app['auth']->forgetGuards();
+        $this->withHeader('Authorization', 'Bearer '.$mobileToken)
+            ->getJson('/api/v1/user')->assertUnauthorized();
+        $this->app['auth']->forgetGuards();
+        $retrievedTransactions = $this->withHeader('Authorization', 'Bearer '.$webToken)
+            ->getJson('/api/v1/conductor/transactions?shift_id='.$this->shift->shift_id)
+            ->assertOk()->json('data');
+        $this->assertSame($transaction->json('data.transaction_id'), $retrievedTransactions[0]['transaction_id']);
+        $this->withHeader('Authorization', 'Bearer '.$webToken)->postJson('/api/v1/conductor/break-status', [
             'is_on_break' => true, 'device_id' => 'mobile-handoff-device-12345', 'device_type' => 'MOBILE',
         ])->assertStatus(409);
-        $this->postJson('/api/v1/conductor/break-status', [
+        $this->withHeader('Authorization', 'Bearer '.$webToken)->postJson('/api/v1/conductor/break-status', [
             'is_on_break' => true, 'device_id' => 'web-handoff-device-12345', 'device_type' => 'WEB',
         ])->assertOk();
     }
@@ -381,14 +408,13 @@ class MobileWebTransactionIsolationTest extends TestCase
     }
 
     // =========================================================================
-    // Phase 3 — Session & Device Lock Decoupling Tests
+    // Shared conductor session and device ownership transfer tests
     // =========================================================================
 
     /**
-     * A WEB login must not revoke an active MOBILE token, and vice versa.
-     * Both platform tokens must remain valid simultaneously.
+     * A WEB login revokes the previous MOBILE session.
      */
-    public function test_web_login_does_not_revoke_active_mobile_token(): void
+    public function test_web_login_revokes_active_mobile_session(): void
     {
         // Conductor logs in on MOBILE first
         $mobileResponse = $this->postJson('/api/v1/auth/login', [
@@ -408,23 +434,22 @@ class MobileWebTransactionIsolationTest extends TestCase
         ])->assertOk();
         $webToken = $webResponse->json('data.token');
 
-        // Both tokens must be valid
+        // The previous MOBILE token has been revoked.
         $this->withHeader('Authorization', "Bearer {$mobileToken}")
             ->getJson('/api/v1/user')
-            ->assertOk();
+            ->assertUnauthorized();
 
         $this->withHeader('Authorization', "Bearer {$webToken}")
             ->getJson('/api/v1/user')
             ->assertOk();
 
-        // Conductor holds exactly 2 tokens (one per platform)
-        $this->assertSame(2, $this->conductor->tokens()->count());
+        $this->assertSame(1, $this->conductor->tokens()->count());
     }
 
     /**
-     * A MOBILE login must not revoke an active WEB token.
+     * A MOBILE login revokes the previous WEB session.
      */
-    public function test_mobile_login_does_not_revoke_active_web_token(): void
+    public function test_mobile_login_revokes_active_web_session(): void
     {
         // Conductor logs in on WEB first
         $webResponse = $this->postJson('/api/v1/auth/login', [
@@ -444,10 +469,10 @@ class MobileWebTransactionIsolationTest extends TestCase
         ])->assertOk();
         $mobileToken = $mobileResponse->json('data.token');
 
-        // WEB token must still be valid — Phase 3 isolation
+        // The WEB token was revoked by the later MOBILE login.
         $this->withHeader('Authorization', "Bearer {$webToken}")
             ->getJson('/api/v1/user')
-            ->assertOk();
+            ->assertUnauthorized();
 
         // MOBILE token is also valid
         $this->withHeader('Authorization', "Bearer {$mobileToken}")
@@ -456,10 +481,10 @@ class MobileWebTransactionIsolationTest extends TestCase
     }
 
     /**
-     * A second MOBILE login must revoke only the first MOBILE token
-     * and must leave the WEB token completely untouched.
+     * A later MOBILE login replaces the single conductor token, regardless
+     * of which platform created it.
      */
-    public function test_second_mobile_login_revokes_first_mobile_token_not_web_token(): void
+    public function test_second_mobile_login_revokes_all_prior_conductor_tokens(): void
     {
         // Login on WEB
         $webResponse = $this->postJson('/api/v1/auth/login', [
@@ -471,14 +496,15 @@ class MobileWebTransactionIsolationTest extends TestCase
         $webToken = $webResponse->json('data.token');
 
         // Login on MOBILE (first device)
-        $this->postJson('/api/v1/auth/login', [
+        $mobile1Response = $this->postJson('/api/v1/auth/login', [
             'login'       => 'mreyes',
             'password'    => 'password',
             'device_id'   => 'mobile-ddddddddddddddddddd',
             'device_type' => 'MOBILE',
         ])->assertOk();
+        $mobileToken1 = $mobile1Response->json('data.token');
 
-        // Login on MOBILE (second device — should revoke first MOBILE token only)
+        // A later MOBILE login replaces all prior conductor sessions.
         $mobile2Response = $this->postJson('/api/v1/auth/login', [
             'login'       => 'mreyes',
             'password'    => 'password',
@@ -487,13 +513,15 @@ class MobileWebTransactionIsolationTest extends TestCase
         ])->assertOk();
         $mobileToken2 = $mobile2Response->json('data.token');
 
-        // Exactly 2 tokens remain: auth-token:WEB + auth-token:MOBILE (second device)
-        $this->assertSame(2, $this->conductor->tokens()->count());
+        $this->assertSame(1, $this->conductor->tokens()->count());
 
-        // WEB token still valid
+        // Previous WEB and MOBILE sessions are both revoked.
         $this->withHeader('Authorization', "Bearer {$webToken}")
             ->getJson('/api/v1/user')
-            ->assertOk();
+            ->assertUnauthorized();
+        $this->withHeader('Authorization', "Bearer {$mobileToken1}")
+            ->getJson('/api/v1/user')
+            ->assertUnauthorized();
 
         // Second MOBILE token valid
         $this->withHeader('Authorization', "Bearer {$mobileToken2}")
