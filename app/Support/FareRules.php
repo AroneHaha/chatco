@@ -9,7 +9,11 @@ use App\Models\Setting;
  * The one fare formula (Settings > Financial Rules):
  *
  *   regular    = minimum fare + max(0, barangays traversed - base count) × succeeding fare
- *   discounted = regular less the discount rate (Student, Senior Citizen, PWD)
+ *   discounted = that amount less the discount rate (Student, Senior Citizen, PWD)
+ *
+ * Both are rounded to the nearest ₱0.25, and the discount is taken before
+ * rounding, as in the LTFRB jeepney fare matrix (₱17 first 4 km, ₱2.40 per
+ * km after: 12 km is ₱36.25, ₱29.00 discounted).
  *
  * Barangays traversed counts both ends: |dropoff - pickup| + 1, the same
  * count the fare explanation shows riders (stop 1 to stop 6 is 6 barangays).
@@ -38,7 +42,7 @@ final class FareRules
     public const DEFAULTS = [
         self::MINIMUM_FARE_KEY => 17.0,
         self::DISCOUNT_RATE_KEY => 20.0,
-        self::SUCCEEDING_FARE_KEY => 2.25,
+        self::SUCCEEDING_FARE_KEY => 2.40,
         self::BASE_BARANGAY_COUNT_KEY => 4,
     ];
 
@@ -76,12 +80,15 @@ final class FareRules
     /** @param  int  $barangaysTraversed  Barangays on the trip, counting both ends. */
     public function fare(int $barangaysTraversed, bool $discounted = false): float
     {
-        $regular = round(
-            $this->minimumFare + max(0, $barangaysTraversed - $this->baseBarangayCount) * $this->succeedingFare,
-            2,
-        );
+        $amount = $this->minimumFare + max(0, $barangaysTraversed - $this->baseBarangayCount) * $this->succeedingFare;
 
-        return $discounted ? $this->discounted($regular) : $regular;
+        return self::toQuarter($discounted ? $amount * (100 - $this->discountRate) / 100 : $amount);
+    }
+
+    /** Nearest ₱0.25; the inner round drops float noise such as 144.79999 before rounding. */
+    private static function toQuarter(float $amount): float
+    {
+        return round(round($amount * 4, 6)) / 4;
     }
 
     public function fareBetween(FarePoint $pickup, FarePoint $dropoff, bool $discounted = false): float
@@ -89,6 +96,7 @@ final class FareRules
         return $this->fare(abs((int) $pickup->point_number - (int) $dropoff->point_number) + 1, $discounted);
     }
 
+    /** A rate less the discount, to the centavo (not a fare; fares come from fare()). */
     public function discounted(float $regular): float
     {
         return round($regular * (100 - $this->discountRate) / 100, 2);
@@ -107,11 +115,10 @@ final class FareRules
 
         foreach ($pointNumbers as $pointNumber) {
             // Stop 1 to stop n traverses n barangays.
-            $regular = $this->fare((int) $pointNumber);
             FarePoint::query()
                 ->when($routeId, fn ($query) => $query->where('route_id', $routeId))
                 ->where('point_number', $pointNumber)
-                ->update(['regular_fare' => $regular, 'discounted_fare' => $this->discounted($regular)]);
+                ->update(['regular_fare' => $this->fare((int) $pointNumber), 'discounted_fare' => $this->fare((int) $pointNumber, true)]);
         }
     }
 
@@ -119,7 +126,7 @@ final class FareRules
     public function derivedSettings(): array
     {
         return [
-            'base_fare_discounted' => number_format($this->discounted($this->minimumFare), 2, '.', ''),
+            'base_fare_discounted' => number_format($this->fare(0, true), 2, '.', ''),
             'succeeding_fare_discounted' => number_format($this->discounted($this->succeedingFare), 2, '.', ''),
         ];
     }

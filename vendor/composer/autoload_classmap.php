@@ -236,6 +236,7 @@ return array(
     'App\\Services\\StudentRenewalService' => $baseDir . '/app/Services/StudentRenewalService.php',
     'App\\Services\\TransactionService' => $baseDir . '/app/Services/TransactionService.php',
     'App\\Services\\VoucherDistributionService' => $baseDir . '/app/Services/VoucherDistributionService.php',
+    'App\\Support\\ConductorSignOut' => $baseDir . '/app/Support/ConductorSignOut.php',
     'App\\Support\\FareRules' => $baseDir . '/app/Support/FareRules.php',
     'App\\Support\\Feedback\\FeedbackException' => $baseDir . '/app/Support/Feedback/FeedbackException.php',
     'App\\Support\\LostFound\\LostFoundException' => $baseDir . '/app/Support/LostFound/LostFoundException.php',

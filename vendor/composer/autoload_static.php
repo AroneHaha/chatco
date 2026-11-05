@@ -740,6 +740,7 @@ class ComposerStaticInit1554d9a7755277c7b64a5a5f7daac88e
         'App\\Services\\StudentRenewalService' => __DIR__ . '/../..' . '/app/Services/StudentRenewalService.php',
         'App\\Services\\TransactionService' => __DIR__ . '/../..' . '/app/Services/TransactionService.php',
         'App\\Services\\VoucherDistributionService' => __DIR__ . '/../..' . '/app/Services/VoucherDistributionService.php',
+        'App\\Support\\ConductorSignOut' => __DIR__ . '/../..' . '/app/Support/ConductorSignOut.php',
         'App\\Support\\FareRules' => __DIR__ . '/../..' . '/app/Support/FareRules.php',
         'App\\Support\\Feedback\\FeedbackException' => __DIR__ . '/../..' . '/app/Support/Feedback/FeedbackException.php',
         'App\\Support\\LostFound\\LostFoundException' => __DIR__ . '/../..' . '/app/Support/LostFound/LostFoundException.php',

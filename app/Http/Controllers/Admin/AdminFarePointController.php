@@ -9,6 +9,7 @@ use App\Http\Requests\Admin\UpdateFarePointRequest;
 use App\Models\FarePoint;
 use App\Models\Route;
 use App\Services\ActivityLogService;
+use App\Support\ConductorSignOut;
 use App\Support\FareRules;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -78,12 +79,13 @@ class AdminFarePointController extends Controller
             'landmarks' => $validated['landmarks'] ?? null,
             'sub_stops' => $validated['sub_stops'] ?? null,
             'regular_fare' => $regularFare,
-            'discounted_fare' => $rules->discounted($regularFare),
+            'discounted_fare' => $rules->fare((int) $validated['point_number'], true),
             'latitude' => $validated['latitude'] ?? null,
             'longitude' => $validated['longitude'] ?? null,
         ]);
 
         $farePoint->load('route:id,name');
+        ConductorSignOut::afterFareChange();
 
         $this->activityLogService->record(
             ActivityLogCategory::FARE_POINT,
@@ -132,8 +134,13 @@ class AdminFarePointController extends Controller
             }
         });
         $farePoint->refresh()->load('route:id,name');
+        $after = $this->farePointSnapshot($farePoint);
+        // Pinning a place on the map changes nothing conductors pick or charge.
+        if (array_diff_key($before, ['location' => true]) != array_diff_key($after, ['location' => true])) {
+            ConductorSignOut::afterFareChange();
+        }
 
-        $changes = ActivityLogService::diff($before, $this->farePointSnapshot($farePoint), [
+        $changes = ActivityLogService::diff($before, $after, [
             'route' => 'Route',
             'point_number' => 'Point number',
             'code' => 'Code',
@@ -179,6 +186,7 @@ class AdminFarePointController extends Controller
                 ->where('point_number', '>', $farePoint->point_number)
                 ->decrement('point_number');
             FareRules::current()->syncStopFares($routeId);
+            ConductorSignOut::afterFareChange();
         });
 
         $this->activityLogService->record(
@@ -208,11 +216,14 @@ class AdminFarePointController extends Controller
             return $this->errorResponse('The ordered list must contain every Fare Point for this route exactly once.', 422);
         }
 
-        DB::transaction(function () use ($orderedIds, $route) {
+        DB::transaction(function () use ($orderedIds, $existingIds, $route) {
             foreach ($orderedIds as $index => $id) {
                 FarePoint::whereKey($id)->update(['point_number' => $index + 1]);
             }
             FareRules::current()->syncStopFares($route->id);
+            if ($orderedIds !== $existingIds) {
+                ConductorSignOut::afterFareChange();
+            }
         });
 
         $this->activityLogService->record(

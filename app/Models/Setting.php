@@ -74,6 +74,21 @@ class Setting extends Model
         return $value === null || $value === 'true';
     }
 
+    /** Settings > Voucher Generator > "Receipt QR free-ride promo". */
+    public const RECEIPT_SCAN_REWARD_KEY = 'receipt_scan_reward_enabled';
+
+    /**
+     * Whether scanning a paper cash receipt's QR binds the ride and counts it
+     * toward the free-ride reward. Defaults to true (the behaviour before this
+     * setting existed) until an admin saves the toggle.
+     */
+    public static function receiptScanRewardEnabled(): bool
+    {
+        $value = static::query()->where('key', self::RECEIPT_SCAN_REWARD_KEY)->value('value');
+
+        return $value === null || $value === 'true';
+    }
+
     /**
      * Return a calculation-safe reward threshold.
      *
