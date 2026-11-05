@@ -1,11 +1,15 @@
 "use client";
 
 import { useRef } from "react";
+import Image, { type StaticImageData } from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
 import { Hand, MapPin, Wallet, type LucideIcon } from "lucide-react";
+import trackingShot from "../../assets/landing-features/tracking.png";
+import hailShot from "../../assets/landing-features/hail.png";
+import gcashShot from "../../assets/landing-features/gcash.png";
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
@@ -16,6 +20,9 @@ type Step = {
   title: string;
   desc: string;
   icon: LucideIcon;
+  shot: StaticImageData;
+  /** object-position Y: frames the part of the screen this step is about. */
+  focus: string;
 };
 
 const STEPS: Step[] = [
@@ -24,24 +31,42 @@ const STEPS: Step[] = [
     title: "Track nearby units",
     desc: "See CHATCO jeeps on the live map before you head out. No more blind waiting by the road: you know how far the next unit is and when to start walking.",
     icon: MapPin,
+    shot: trackingShot,
+    focus: "34%",
   },
   {
     step: "02",
     title: "Hail your ride",
-    desc: "Tap Hail Me and conductors of units within 1 km see your location on their map, so the jeep knows to stop for you.",
+    desc: "Press and hold the hail button and conductors of units within 1 km see your location on their map, so the jeep knows to stop for you.",
     icon: Hand,
+    shot: hailShot,
+    focus: "20%",
   },
   {
     step: "03",
     title: "Pay cash or GCash",
-    desc: "Pay the conductor in cash, or show your QR to pay with GCash. GCash rides count toward free-ride rewards automatically.",
+    desc: "Pay the conductor in cash, or scan the conductor's QR to pay with GCash. GCash rides count toward free-ride rewards automatically.",
     icon: Wallet,
+    shot: gcashShot,
+    focus: "95%",
   },
 ];
 
-/* Empty step frame, kept at the cards' size until the step images are ready. */
-function StepFrame() {
-  return <div className="w-full aspect-4/3 min-h-60 overflow-hidden rounded-2xl border border-[#1E3F6E] bg-[#08203F]" />;
+/* Step frame: a crop of the same app screen the features section shows for this step. */
+function StepFrame({ shot, focus }: { shot: StaticImageData; focus: string }) {
+  return (
+    <div className="relative w-full aspect-4/3 min-h-60 overflow-hidden rounded-2xl border border-[#1E3F6E] bg-[#08203F]">
+      <Image
+        src={shot}
+        alt=""
+        fill
+        sizes="(min-width: 768px) 400px, 100vw"
+        placeholder="blur"
+        className="object-cover"
+        style={{ objectPosition: `50% ${focus}` }}
+      />
+    </div>
+  );
 }
 
 export default function HowItWorks() {
@@ -128,7 +153,7 @@ export default function HowItWorks() {
               >
                 <div data-step>
                   <div aria-hidden="true">
-                    <StepFrame />
+                    <StepFrame shot={s.shot} focus={s.focus} />
                   </div>
                   <div className="relative mt-7 flex h-11 items-center justify-center">
                     {i < STEPS.length - 1 && (
