@@ -13,7 +13,6 @@ interface LaravelVehicle {
   id: string;
   unit_number: string;
   plate_number: string;
-  vehicle_type: string | null;
   route_id: string | null;
   status: string;
   capacity_status: string | null;

@@ -6,7 +6,7 @@ import { getEcho } from '@/lib/echo';
  * VehicleLocation — matches the backend broadcast payload (snake_case).
  *
  * Backend `VehicleLocationUpdated` event broadcasts (per S2-T7 spec):
- *   vehicle_id, plate_number, vehicle_type, lat, lng, speed, heading,
+ *   vehicle_id, plate_number, lat, lng, speed, heading,
  *   capacity_status, route_name, updated_at
  *
  * The GET /api/vehicles/locations fallback returns the same shape plus
@@ -17,8 +17,6 @@ import { getEcho } from '@/lib/echo';
 export interface VehicleLocation {
   vehicle_id: string;
   plate_number: string;
-  /** Vehicle type (e.g. Jeepney, Bus) from the vehicles row. */
-  vehicle_type?: string;
   /** Capacity status baked into the vehicles row (denormalized). */
   vehicle_capacity_status?: string;
   lat: number;

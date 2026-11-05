@@ -271,7 +271,6 @@ class RoleAccessMatrixTest extends TestCase
             '/api/v1/admin/vehicles' => [
                 'unit_number'  => 'UNIT-MATRIX-' . uniqid(),
                 'plate_number' => 'MAT-' . uniqid(),
-                'vehicle_type' => 'Jeepney',
                 'status'       => 'ACTIVE',
             ],
             '/api/v1/admin/conductors' => [

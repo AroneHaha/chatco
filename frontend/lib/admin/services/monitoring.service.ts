@@ -14,7 +14,6 @@ export interface FleetVehicle {
   id: string;
   unit_number: string;
   plate_number: string;
-  vehicle_type: string | null;
   lat: number | null;
   lng: number | null;
   speed: number | null;

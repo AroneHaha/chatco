@@ -179,7 +179,6 @@ export default function UnitDetailsPanel({ vehicleId, vehicle, commuterLocation,
           <p className="mt-3 break-words text-sm font-medium leading-relaxed text-white">{vehicle.routeName ?? details?.route_name ?? "Route unavailable"}</p>
           {details && <dl className="mt-3 space-y-2 border-t border-white/[0.06] pt-3 text-xs">
             <div className="flex justify-between gap-3"><dt className="text-slate-400">Plate number</dt><dd className="text-right font-medium text-slate-200">{details.plate_number}</dd></div>
-            <div className="flex justify-between gap-3"><dt className="text-slate-400">Vehicle type</dt><dd className="text-right capitalize text-slate-200">{details.vehicle_type.toLowerCase().replaceAll("_", " ")}</dd></div>
           </dl>}
         </section>
 

@@ -111,7 +111,6 @@ class AdminVehicleController extends Controller
         $changes = ActivityLogService::diff($before, $this->vehicleSnapshot($vehicle), [
             'unit_number' => 'Unit number',
             'plate_number' => 'Plate number',
-            'vehicle_type' => 'Vehicle type',
             'route' => 'Route',
             'driver' => 'Driver',
             'conductor' => 'Conductor',
@@ -139,7 +138,6 @@ class AdminVehicleController extends Controller
         return [
             'unit_number' => $vehicle->unit_number,
             'plate_number' => $vehicle->plate_number,
-            'vehicle_type' => $vehicle->vehicle_type,
             'route' => $vehicle->route?->name,
             'driver' => $name($vehicle->driver),
             'conductor' => $name($vehicle->conductor),

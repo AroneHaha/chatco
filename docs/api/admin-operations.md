@@ -104,7 +104,7 @@ The live fleet view — every vehicle currently on an **active shift**, with its
 
 ```json
 {
-  "id": "…", "unit_number": "U-07", "plate_number": "ABC 1234", "vehicle_type": "Jeepney",
+  "id": "…", "unit_number": "U-07", "plate_number": "ABC 1234",
   "lat": 14.8601, "lng": 120.7791, "speed": 32, "heading": 180,
   "capacity_status": "AVAILABLE", "is_on_break": false, "break_started_at": null,
   "route_name": "Malolos - Meycauayan - Calumpit",

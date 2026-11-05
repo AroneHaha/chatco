@@ -302,7 +302,6 @@ class LocationService
             ->select([
                 'vehicle_locations.vehicle_id',
                 'vehicles.plate_number',
-                'vehicles.vehicle_type',
                 'vehicles.unit_number',
                 'vehicles.capacity_status as vehicle_capacity_status',
                 'vehicle_locations.lat',
@@ -360,7 +359,6 @@ class LocationService
                 'vehicles.id as id',
                 'vehicles.unit_number',
                 'vehicles.plate_number',
-                'vehicles.vehicle_type',
                 'vehicle_locations.lat',
                 'vehicle_locations.lng',
                 'vehicle_locations.speed',
@@ -394,7 +392,6 @@ class LocationService
                     'id' => $row->id,
                     'unit_number' => $row->unit_number,
                     'plate_number' => $row->plate_number,
-                    'vehicle_type' => $row->vehicle_type,
                     'lat' => $row->lat !== null ? (float) $row->lat : null,
                     'lng' => $row->lng !== null ? (float) $row->lng : null,
                     'speed' => $row->speed !== null ? (int) $row->speed : null,
@@ -457,7 +454,6 @@ class LocationService
             ->select([
                 'vehicle_locations.vehicle_id',
                 'vehicles.plate_number',
-                'vehicles.vehicle_type',
                 'vehicle_locations.lat',
                 'vehicle_locations.lng',
                 'vehicle_locations.speed',

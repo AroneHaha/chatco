@@ -26,7 +26,6 @@ class UpdateVehicleRequest extends FormRequest
         return [
             'unit_number'      => ['sometimes', 'string', 'max:20', Rule::unique('vehicles', 'unit_number')->ignore($vehicleId)],
             'plate_number'     => ['sometimes', 'string', 'max:20', Rule::unique('vehicles', 'plate_number')->ignore($vehicleId)],
-            'vehicle_type'     => 'nullable|string|max:50|in:Jeepney,Bus,Van,UV Express',
             'route_id'         => 'nullable|uuid|exists:routes,id',
             'driver_id'        => 'nullable|uuid|exists:drivers,id',
             'conductor_id'     => 'nullable|uuid|exists:conductor_profiles,id',
@@ -40,7 +39,6 @@ class UpdateVehicleRequest extends FormRequest
         return [
             'unit_number.unique'  => 'The unit number has already been taken.',
             'plate_number.unique' => 'The plate number has already been taken.',
-            'vehicle_type.in'     => 'The vehicle type must be one of: Jeepney, Bus, Van, UV Express.',
             'capacity_status.in'  => 'The capacity status must be one of: AVAILABLE, STANDING, FULL.',
         ];
     }
