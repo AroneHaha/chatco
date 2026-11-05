@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
-import { useAuth } from "@/contexts/auth-context";
+import { useState, useMemo, useEffect } from "react";
 import { clearShift } from "@/lib/conductor/services/shift.service";
 import { submitRemittance, type RemittanceRecord } from "@/lib/conductor/services/remittance.service";
 import {
@@ -35,8 +34,7 @@ import OfficialReportModal, { buildPrintHTML } from "@/components/conductor/remi
  * mounted — the page no longer needs its own copy of this hook.
  */
 export default function EndOfDayContent() {
-  const { logout } = useAuth();
-  const { shift, transactions, earnings, history, status, error } = useRemittanceData();
+  const { shift, transactions, earnings, history, status, error, refresh } = useRemittanceData();
 
   const [showConfirm, setShowConfirm] = useState(false);
   const [isRemitting, setIsRemitting] = useState(false);
@@ -49,11 +47,23 @@ export default function EndOfDayContent() {
   const [reportForRecord, setReportForRecord] = useState<RemittanceRecord | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const isLoggingOutAfterRemit = useRef(false);
   const pendingRemittance = useMemo(
     () => history.find((record) => record.remittanceStatus === "For Cash Declaration" || record.remittanceStatus === "Overdue") ?? null,
     [history],
   );
+
+  // Keep the conductor signed in after closeout and refresh the server-backed history.
+  useEffect(() => {
+    if (!showSuccess) return;
+
+    const timer = window.setTimeout(() => {
+      setShowSuccess(false);
+      setShowHistory(true);
+      void refresh();
+    }, 3000);
+
+    return () => window.clearTimeout(timer);
+  }, [showSuccess, refresh]);
 
   // Captured totals for the SuccessOverlay. We must store these in state
   // (not just local vars) because the overlay renders AFTER handleRemit
@@ -101,14 +111,6 @@ export default function EndOfDayContent() {
   }, [transactions, earnings, pendingRemittance]);
 
   const canRemit = (transactions.length > 0 || pendingRemittance !== null) && !hasRemittedToday;
-
-  const logoutAfterRemittance = async () => {
-    if (isLoggingOutAfterRemit.current) return;
-    isLoggingOutAfterRemit.current = true;
-    setShowSuccess(false);
-
-    await logout();
-  };
 
   const filteredHistory = useMemo(() => {
     const today = new Date();
@@ -271,9 +273,6 @@ export default function EndOfDayContent() {
       setShowConfirm(false);
       setShowSuccess(true);
       setHasRemittedToday(true);
-      setTimeout(() => {
-        void logoutAfterRemittance();
-      }, 3000);
     } catch (err) {
       setSubmitError(
         err instanceof Error ? err.message : "Unable to submit remittance."
@@ -420,7 +419,11 @@ export default function EndOfDayContent() {
           after endShift() clears the live shift data. */}
       <SuccessOverlay
         show={showSuccess}
-        onClose={() => { void logoutAfterRemittance(); }}
+        onClose={() => {
+          setShowSuccess(false);
+          setShowHistory(true);
+          void refresh();
+        }}
         gcashTotal={capturedTotals?.gcashTotal ?? summary.gcashTotal}
         cashTotal={capturedTotals?.cashTotal ?? summary.cashTotal}
         grandTotal={capturedTotals?.grandTotal ?? summary.grandTotal}
