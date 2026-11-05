@@ -85,14 +85,15 @@ Logging in revokes older tokens. Which tokens it revokes depends on role and `de
 | Who | `device_type` sent? | Tokens revoked | New token name |
 |---|---|---|---|
 | Admin | any | **All** of the user's tokens (one session total) | `auth-token` |
-| Conductor or commuter | `WEB` or `MOBILE` | Only that platform's token, plus any legacy `auth-token` | `auth-token:WEB` / `auth-token:MOBILE` |
-| Conductor or commuter | omitted | **All** of the user's tokens | `auth-token` |
+| Conductor | any | **All** of the user's tokens across web and mobile | `auth-token` |
+| Commuter | `WEB` or `MOBILE` | Only that platform's token, plus any legacy `auth-token` | `auth-token:WEB` / `auth-token:MOBILE` |
+| Commuter | omitted | **All** of the user's tokens | `auth-token` |
 
-So a conductor can stay signed in on the web portal and the mobile app at once, but a second web login kicks out the first.
+Conductors have one session across web and mobile: logging in on mobile signs out the web session, and logging in on web signs out the mobile session. Commuters may stay signed in on both platforms. A login on the same platform also replaces the previous session there.
 
 The displaced device finds out on its next request, which returns `401`. The web client then redirects to `/login?reason=session_ended`.
 
-Logins are serialized with a row lock on the user, so two simultaneous logins always leave exactly one token per slot.
+Logins are serialized with a row lock on the user, so concurrent conductor logins leave only the token issued by the last login, while commuter logins leave one token per platform.
 
 **Conductor shift handoff on login.** If the conductor has an active shift and logs in with a `device_id`:
 
