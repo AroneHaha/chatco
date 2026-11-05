@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Camera, Check, CheckCircle2, Eye, EyeOff, ImagePlus, KeyRound, Mail, Trash2, Upload, X } from 'lucide-react';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/auth-context';
-import { getInitials } from '@/components/admin/layout/admin-identity';
+import { UserAvatar } from '@/components/admin/ui/user-avatar';
 import CodeInput from '@/components/auth/code-input';
 import { PASSWORD_RULES } from '@/lib/utils/password-policy';
 import {
@@ -118,7 +118,6 @@ export default function ProfileSecurityPage() {
   const [photoNotice, setPhotoNotice] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoSaving, setPhotoSaving] = useState(false);
-  const [failedPhotoUrl, setFailedPhotoUrl] = useState<string | null>(null);
   const photoFlight = useRef(false);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -281,11 +280,15 @@ export default function ProfileSecurityPage() {
           {user ? (
             <>
               <div className="flex min-w-0 flex-wrap items-center gap-4">
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#1A2540] admin-light:bg-[#EEF2F7] text-base font-semibold text-[#62A0EA] admin-light:text-[#1A5FB4]" aria-label="Current profile picture">
-                  {user.profilePictureUrl && failedPhotoUrl !== user.profilePictureUrl
-                    ? <Image src={user.profilePictureUrl} alt="Your profile picture" width={56} height={56} unoptimized className="h-full w-full rounded-md object-cover" onError={() => setFailedPhotoUrl(user.profilePictureUrl ?? null)} />
-                    : getInitials(name)}
-                </div>
+                {/* No R2 photo (or it fails to load): the same person placeholder commuters and conductors get. */}
+                <UserAvatar
+                  src={user.profilePictureUrl}
+                  alt="Your profile picture"
+                  className="h-14 w-14"
+                  iconClassName="h-7 w-7"
+                  sizes="56px"
+                  surfaceClassName="rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#1A5FB4] text-white"
+                />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-base font-semibold text-white admin-light:text-slate-900" title={name}>{name}</p>
                   <p className="text-xs text-slate-500">Administrator</p>
