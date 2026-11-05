@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Save, AlertCircle, Percent, Gift, Lock, UserRound, Tag, Banknote } from 'lucide-react';
 import { defaultFinancialRules, type FinancialRulesConfig } from '@/app/(admin)/settings/data/settings-data';
 import { getSettings, updateSetting } from '@/lib/admin/services/setting.service';
+import { fareForBarangays } from '@/lib/shared/fare/fare-matrix.service';
 import { SkeletonFinancialRules } from '@/components/admin/ui/skeleton';
 import { SettingsSection, UnitInput } from '@/components/admin/ui/settings-section';
 
@@ -90,7 +91,8 @@ export default function FinancialRulesPage() {
   const faresValid = fareValid && succeedingValid && countValid;
   // Worked example for the read-back: a trip 6 barangays past the minimum zone.
   const exampleBarangays = baseCount + 6;
-  const exampleFare = Math.round((minimumFare + 6 * succeedingFare) * 100) / 100;
+  const previewRules = { baseFareRegular: minimumFare, baseBarangayCount: baseCount, succeedingFareRegular: succeedingFare, discountRate };
+  const exampleFare = fareForBarangays(previewRules, exampleBarangays, false);
 
   return (
     <div className="min-h-screen pb-12 px-4 sm:px-6">
@@ -155,7 +157,7 @@ export default function FinancialRulesPage() {
                   <span className="block text-sm font-medium text-white admin-light:text-slate-900">Student, Senior Citizen, PWD</span>
                   <span className="block text-xs text-slate-500">
                     {fareValid && rateValid
-                      ? `Minimum fare becomes ${peso(Math.round(minimumFare * (100 - discountRate)) / 100)}. Every discounted fare is recalculated on save.`
+                      ? `Minimum fare becomes ${peso(fareForBarangays(previewRules, 0, true))}. Every discounted fare is recalculated on save.`
                       : 'Enter a rate from 0 to 100.'}
                   </span>
                 </span>

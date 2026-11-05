@@ -171,9 +171,9 @@ export async function loadFareMatrix({
       cachedConfig = {
         baseBarangayCount: data.config.baseBarangayCount ?? 4,
         baseFareRegular: data.config.baseFareRegular ?? 17.0,
-        baseFareDiscounted: data.config.baseFareDiscounted ?? 13.6,
-        succeedingFareRegular: data.config.succeedingFareRegular ?? 2.25,
-        succeedingFareDiscounted: data.config.succeedingFareDiscounted ?? 1.8,
+        baseFareDiscounted: data.config.baseFareDiscounted ?? 13.5,
+        succeedingFareRegular: data.config.succeedingFareRegular ?? 2.4,
+        succeedingFareDiscounted: data.config.succeedingFareDiscounted ?? 1.92,
         discountRate: data.config.discountRate ?? 20,
         totalPoints: data.config.totalPoints ?? data.points.length,
       };
@@ -243,19 +243,20 @@ export function getFareConfig(): FareConfig {
 /** The Financial Rules a fare is computed from (a subset of FareConfig). */
 export type FareRuleValues = Pick<FareConfig, "baseFareRegular" | "baseBarangayCount" | "succeedingFareRegular" | "discountRate">;
 
-const roundPeso = (value: number) => Math.round(value * 100) / 100;
+/** Nearest ₱0.25; toFixed drops float noise such as 144.79999 before rounding. */
+const toQuarter = (value: number) => Math.round(Number((value * 4).toFixed(6))) / 4;
 
 /**
  * The one fare formula, same as the backend's App\Support\FareRules:
  *   regular    = minimum + max(0, barangays traversed - base count) × succeeding
- *   discounted = regular less the discount rate
- * Barangays traversed counts both ends: |dropoff - pickup| + 1.
+ *   discounted = that amount less the discount rate
+ * Both rounded to the nearest ₱0.25 with the discount taken before rounding,
+ * as in the LTFRB jeepney matrix. Barangays traversed counts both ends:
+ * |dropoff - pickup| + 1.
  */
 export function fareForBarangays(rules: FareRuleValues, barangaysTraversed: number, discounted: boolean): number {
-  const regular = roundPeso(
-    rules.baseFareRegular + Math.max(0, barangaysTraversed - rules.baseBarangayCount) * rules.succeedingFareRegular
-  );
-  return discounted ? roundPeso((regular * (100 - rules.discountRate)) / 100) : regular;
+  const amount = rules.baseFareRegular + Math.max(0, barangaysTraversed - rules.baseBarangayCount) * rules.succeedingFareRegular;
+  return toQuarter(discounted ? (amount * (100 - rules.discountRate)) / 100 : amount);
 }
 
 /**

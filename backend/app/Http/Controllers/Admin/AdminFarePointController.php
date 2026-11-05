@@ -78,7 +78,7 @@ class AdminFarePointController extends Controller
             'landmarks' => $validated['landmarks'] ?? null,
             'sub_stops' => $validated['sub_stops'] ?? null,
             'regular_fare' => $regularFare,
-            'discounted_fare' => $rules->discounted($regularFare),
+            'discounted_fare' => $rules->fare((int) $validated['point_number'], true),
             'latitude' => $validated['latitude'] ?? null,
             'longitude' => $validated['longitude'] ?? null,
         ]);

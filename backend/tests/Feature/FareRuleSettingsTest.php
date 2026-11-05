@@ -15,8 +15,9 @@ use Tests\TestCase;
 /**
  * Fares come from the Financial Rules: minimum fare + max(0, barangays
  * traversed - base count) × succeeding fare, less the discount rate. Stop 1
- * to stop 7 traverses 7 barangays, so with the defaults (₱17, 4, ₱2.25,
- * 20%) it is 17 + 3 × 2.25 = ₱23.75 and ₱19.00 discounted.
+ * to stop 7 traverses 7 barangays, so with ₱17, a base count of 4, ₱2.40 and
+ * 20% it is 17 + 3 × 2.40 = 24.20 → ₱24.25 and 19.36 → ₱19.25 discounted
+ * (nearest ₱0.25, discount before rounding: the LTFRB 7 km row).
  */
 class FareRuleSettingsTest extends TestCase
 {
@@ -35,13 +36,15 @@ class FareRuleSettingsTest extends TestCase
         $route = Route::factory()->create();
         $this->first = FarePoint::create([
             'route_id' => $route->id, 'point_number' => 1, 'code' => 'PAL',
-            'name' => 'Paliwas', 'regular_fare' => 17, 'discounted_fare' => 13.6,
+            'name' => 'Paliwas', 'regular_fare' => 17, 'discounted_fare' => 13.5,
         ]);
         $this->far = FarePoint::create([
             'route_id' => $route->id, 'point_number' => 7, 'code' => 'DAM',
-            'name' => 'Dampol', 'regular_fare' => 23.75, 'discounted_fare' => 19.0,
+            'name' => 'Dampol', 'regular_fare' => 24.25, 'discounted_fare' => 19.25,
         ]);
         Setting::updateOrCreate(['key' => 'base_fare_regular'], ['value' => '17.00', 'category' => 'financial']);
+        Setting::updateOrCreate(['key' => 'base_barangay_count'], ['value' => '4', 'category' => 'financial']);
+        Setting::updateOrCreate(['key' => 'succeeding_fare_regular'], ['value' => '2.40', 'category' => 'financial']);
     }
 
     private function save(string $key, mixed $value)
@@ -61,14 +64,14 @@ class FareRuleSettingsTest extends TestCase
         $this->save('base_fare_regular', '19')->assertOk()->assertJsonPath('data.value', '19.00');
 
         $this->assertSame('19.00', $this->first->fresh()->regular_fare);
-        $this->assertSame('25.75', $this->far->fresh()->regular_fare);
-        $this->assertSame('15.20', $this->first->fresh()->discounted_fare);
-        $this->assertSame('20.60', $this->far->fresh()->discounted_fare);
-        $this->assertSame('15.20', Setting::where('key', 'base_fare_discounted')->value('value'));
-        $this->assertSame('1.80', Setting::where('key', 'succeeding_fare_discounted')->value('value'));
+        $this->assertSame('26.25', $this->far->fresh()->regular_fare); // 26.20
+        $this->assertSame('15.25', $this->first->fresh()->discounted_fare); // 15.20
+        $this->assertSame('21.00', $this->far->fresh()->discounted_fare); // 20.96
+        $this->assertSame('15.25', Setting::where('key', 'base_fare_discounted')->value('value'));
+        $this->assertSame('1.92', Setting::where('key', 'succeeding_fare_discounted')->value('value'));
         // A trip is priced by the same rules the stops show.
-        $this->assertSame(25.75, $this->trip());
-        $this->assertSame(20.60, $this->trip(true));
+        $this->assertSame(26.25, $this->trip());
+        $this->assertSame(21.00, $this->trip(true));
     }
 
     public function test_lowering_the_minimum_fare_reverses_the_change(): void
@@ -77,9 +80,9 @@ class FareRuleSettingsTest extends TestCase
         $this->save('base_fare_regular', 17)->assertOk();
 
         $this->assertSame('17.00', $this->first->fresh()->regular_fare);
-        $this->assertSame('23.75', $this->far->fresh()->regular_fare);
-        $this->assertSame('19.00', $this->far->fresh()->discounted_fare);
-        $this->assertSame('13.60', Setting::where('key', 'base_fare_discounted')->value('value'));
+        $this->assertSame('24.25', $this->far->fresh()->regular_fare);
+        $this->assertSame('19.25', $this->far->fresh()->discounted_fare);
+        $this->assertSame('13.50', Setting::where('key', 'base_fare_discounted')->value('value'));
     }
 
     public function test_discount_rate_reprices_discounted_fares_without_touching_regular_fares(): void
@@ -88,7 +91,7 @@ class FareRuleSettingsTest extends TestCase
 
         $this->assertSame('17.00', $this->first->fresh()->regular_fare);
         $this->assertSame('12.75', $this->first->fresh()->discounted_fare);
-        $this->assertSame('17.81', $this->far->fresh()->discounted_fare);
+        $this->assertSame('18.25', $this->far->fresh()->discounted_fare); // 24.20 × 0.75 = 18.15
         $this->assertSame('12.75', Setting::where('key', 'base_fare_discounted')->value('value'));
 
         // A later minimum change uses the saved rate, not the 20% default.
@@ -104,9 +107,9 @@ class FareRuleSettingsTest extends TestCase
 
         $this->save('base_barangay_count', 2)->assertOk()->assertJsonPath('data.value', '2');
         $this->assertSame('32.00', $this->far->fresh()->regular_fare);
-        $this->assertSame('25.60', $this->far->fresh()->discounted_fare);
+        $this->assertSame('25.50', $this->far->fresh()->discounted_fare); // 25.60
         $this->assertSame(32.00, $this->trip());
-        $this->assertSame(25.60, $this->trip(true));
+        $this->assertSame(25.50, $this->trip(true));
 
         $this->getJson('/api/v1/fare-matrix?route_id='.$this->first->route_id)->assertOk()
             ->assertJsonPath('data.config.baseBarangayCount', 2)
@@ -120,7 +123,7 @@ class FareRuleSettingsTest extends TestCase
         $this->save('base_fare_regular', '17')->assertOk();
 
         $this->assertSame('17.00', $this->first->fresh()->regular_fare);
-        $this->assertSame('23.75', $this->far->fresh()->regular_fare);
+        $this->assertSame('24.25', $this->far->fresh()->regular_fare);
         $this->assertDatabaseMissing('activity_logs', ['description' => 'Changed Minimum fare (₱) from 17.00 to 17.00']);
     }
 
@@ -140,8 +143,8 @@ class FareRuleSettingsTest extends TestCase
         }
 
         $this->assertSame('17.00', $this->first->fresh()->regular_fare);
-        $this->assertSame('13.60', $this->first->fresh()->discounted_fare);
-        $this->assertSame('23.75', $this->far->fresh()->regular_fare);
+        $this->assertSame('13.50', $this->first->fresh()->discounted_fare);
+        $this->assertSame('24.25', $this->far->fresh()->regular_fare);
     }
 
     public function test_a_fare_change_signs_out_every_conductor_after_a_grace_period(): void
@@ -190,7 +193,7 @@ class FareRuleSettingsTest extends TestCase
 
         $this->save('base_fare_regular', '17')->assertOk();
         $this->save('discount_rate', '20')->assertOk();
-        $this->save('succeeding_fare_regular', '2.25')->assertOk();
+        $this->save('succeeding_fare_regular', '2.40')->assertOk();
         $this->save('base_barangay_count', '4')->assertOk();
         $this->save('base_fare_regular', '1000.01')->assertStatus(422);
 

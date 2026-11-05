@@ -394,7 +394,7 @@ class OfflineCashSafetyTest extends TestCase
             ->assertCreated();
 
         $remittance = $shift->fresh()->remittance;
-        $this->assertSame(47.6, (float) $remittance->cash_total);
+        $this->assertSame(47.5, (float) $remittance->cash_total);
         $this->assertSame(3, $remittance->total_passengers);
         $this->assertSame(1, PaymentGroup::where('idempotency_key', 'offline-group-key')->count());
     }
