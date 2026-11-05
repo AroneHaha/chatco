@@ -19,6 +19,7 @@ import { getSettings, updateSetting } from '@/lib/admin/services/setting.service
 import { MAINTENANCE_ROLES, parseMaintenanceRoles, type MaintenanceRole } from '@/lib/maintenance';
 import { ADMIN_BUTTON, DetailRows, ModalKickerHeader } from '@/components/admin/ui/modal-parts';
 import { InlineError } from '@/components/admin/ui/inline-error';
+import { ConfigSwitch } from '@/components/admin/ui/settings-section';
 
 const ROLE_LABELS: Record<MaintenanceRole, string> = { COMMUTER: 'Commuters', CONDUCTOR: 'Conductors' };
 
@@ -51,37 +52,6 @@ const MAINTENANCE_REASONS = [
 function getMaintenanceReason(message: string) {
   const effectiveMessage = message.trim() || defaultAppConfiguration.maintenanceMessage;
   return MAINTENANCE_REASONS.find((reason) => reason.message === effectiveMessage)?.id ?? 'custom';
-}
-
-function ConfigSwitch({
-  id,
-  checked,
-  onChange,
-  tone = 'blue',
-}: {
-  id: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  tone?: 'blue' | 'amber';
-}) {
-  return (
-    <label className="relative inline-flex h-11 w-12 shrink-0 cursor-pointer items-center">
-      <input
-        id={id}
-        type="checkbox"
-        role="switch"
-        aria-labelledby={`${id}-label`}
-        aria-describedby={`${id}-hint`}
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        className="peer sr-only"
-      />
-      <span
-        aria-hidden="true"
-        className={`relative h-6 w-11 rounded-full bg-[#2A3951] admin-light:bg-slate-300 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-transform after:content-[''] peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-[#8CB9F0] admin-light:peer-focus-visible:ring-[#1A5FB4] peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-[#111A2B] admin-light:peer-focus-visible:ring-offset-white peer-disabled:opacity-50 ${tone === 'amber' ? 'peer-checked:bg-amber-500' : 'peer-checked:bg-[#62A0EA] admin-light:peer-checked:bg-[#1A5FB4]'}`}
-      />
-    </label>
-  );
 }
 
 function SaveConfirmation({
@@ -269,9 +239,7 @@ export default function AppConfigurationPage() {
     <div className="@container/app-config min-w-0 px-4 pb-6 sm:px-6">
       <div className="mx-auto w-full max-w-4xl space-y-5">
         <header className="flex items-start gap-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#62A0EA]/20 admin-light:border-[#1A5FB4]/20 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4]">
-            <Settings2 size={20} aria-hidden="true" />
-          </span>
+          <Settings2 size={32} className="shrink-0 text-[#62A0EA] admin-light:text-[#1A5FB4]" aria-hidden="true" />
           <div className="min-w-0">
             <h1 className="text-xl font-bold text-white admin-light:text-slate-900">App Configuration</h1>
             <p className="mt-1 text-sm leading-relaxed text-slate-400 admin-light:text-slate-500">
@@ -340,8 +308,9 @@ export default function AppConfigurationPage() {
                       </p>
                     </div>
                     <span
-                      className={`shrink-0 rounded-md px-2 py-1 text-[11px] font-medium ${config.maintenanceMode ? 'bg-amber-500/10 text-amber-300 admin-light:text-amber-700' : 'bg-emerald-500/10 text-emerald-300 admin-light:text-emerald-700'}`}
+                      className={`inline-flex shrink-0 items-center gap-1.5 text-xs font-medium ${config.maintenanceMode ? 'text-amber-500 admin-light:text-amber-600' : 'text-emerald-500 admin-light:text-emerald-600'}`}
                     >
+                      <span className={`h-1.5 w-1.5 rounded-full ${config.maintenanceMode ? 'bg-amber-500 admin-light:bg-amber-600' : 'bg-emerald-500 admin-light:bg-emerald-600'}`} aria-hidden="true" />
                       {config.maintenanceMode ? 'Maintenance' : 'Online'}
                     </span>
                   </div>

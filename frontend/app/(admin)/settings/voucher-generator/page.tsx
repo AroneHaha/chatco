@@ -2,9 +2,15 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Ticket, Copy, CheckCircle, Trash2, RefreshCw, X, Bus, Banknote, Gift, Clock, type LucideIcon } from 'lucide-react';
-import { SettingsSection } from '@/components/admin/ui/settings-section';
+import { Ticket, Copy, CheckCircle, Trash2, RefreshCw, Bus, Banknote, Gift, Clock, QrCode, type LucideIcon } from 'lucide-react';
+import { ConfigSwitch, SettingsSection } from '@/components/admin/ui/settings-section';
+import { getSettings, updateSetting } from '@/lib/admin/services/setting.service';
+import { InlineError } from '@/components/admin/ui/inline-error';
+
+/** Same key as App\Models\Setting::RECEIPT_SCAN_REWARD_KEY. */
+const RECEIPT_PROMO_KEY = 'receipt_scan_reward_enabled';
 import { Modal } from '@/components/admin/ui/modal';
+import { SuccessModal } from '@/components/admin/ui/success-modal';
 
 interface Voucher {
   id: string;
@@ -30,9 +36,9 @@ interface VoucherGenerationDetails {
   validity_hours: number | null;
 }
 
-const GENERATE_TYPES: { value: 'FREE_RIDE' | 'DISCOUNT'; label: string; description: string; icon: LucideIcon }[] = [
-  { value: 'FREE_RIDE', label: 'Free Ride', description: 'Covers one full fare', icon: Bus },
-  { value: 'DISCOUNT', label: 'Discount', description: 'Fixed peso amount off a fare', icon: Banknote },
+const GENERATE_TYPES: { value: 'FREE_RIDE' | 'DISCOUNT'; label: string; description: string }[] = [
+  { value: 'FREE_RIDE', label: 'Free Ride', description: 'Covers one full fare' },
+  { value: 'DISCOUNT', label: 'Discount', description: 'Fixed peso amount off a fare' },
 ];
 
 function voucherTypeInfo(voucher: Voucher): { label: string; icon: LucideIcon } {
@@ -72,12 +78,13 @@ function ExpiryLabel({ expiresAt, usable, now }: { expiresAt: string | null; usa
   if (!expiresAt || !usable) return null;
   const expiry = new Date(expiresAt);
   const msLeft = expiry.getTime() - now;
+  // Under a day left reads brighter, by weight and white text rather than a colour (UI rule: no colour coding).
   const isSoon = msLeft < 24 * 60 * 60 * 1000;
   return (
     <span
       title={`Expires ${expiry.toLocaleString()}`}
-      className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium tabular-nums ${
-        isSoon ? 'bg-amber-400/10 text-amber-300 admin-light:text-amber-700' : 'bg-[#1A2540] admin-light:bg-slate-100 text-slate-300 admin-light:text-slate-700'
+      className={`inline-flex shrink-0 items-center gap-1 rounded-md bg-[#1A2540] admin-light:bg-slate-100 px-2 py-1 text-xs tabular-nums ${
+        isSoon ? 'font-semibold text-white admin-light:text-slate-900' : 'font-medium text-slate-300 admin-light:text-slate-700'
       }`}
     >
       <Clock size={12} aria-hidden="true" />
@@ -115,6 +122,51 @@ export default function VoucherGeneratorPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const deletionRequest = useRef(false);
+  // Receipt QR promo: null until loaded, so the switch never shows a guessed state.
+  const [receiptPromoOn, setReceiptPromoOn] = useState<boolean | null>(null);
+  const [receiptPromoSaving, setReceiptPromoSaving] = useState(false);
+  const [receiptPromoError, setReceiptPromoError] = useState<string | null>(null);
+  // The value the admin flipped the switch to, awaiting confirmation; the switch keeps the saved value until then.
+  const [receiptPromoToConfirm, setReceiptPromoToConfirm] = useState<boolean | null>(null);
+  const [receiptPromoSaveError, setReceiptPromoSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getSettings('financial')
+      .then(settings => { if (active) setReceiptPromoOn(settings[RECEIPT_PROMO_KEY] !== 'false'); })
+      .catch(() => { if (active) setReceiptPromoError('Could not load the receipt promo setting. Refresh to try again.'); });
+    return () => { active = false; };
+  }, []);
+
+  const requestReceiptPromoChange = (enabled: boolean) => {
+    if (receiptPromoSaving || receiptPromoOn === null) return;
+    setReceiptPromoSaveError(null);
+    setReceiptPromoToConfirm(enabled);
+  };
+
+  const closeReceiptPromoModal = () => {
+    if (receiptPromoSaving) return;
+    setReceiptPromoToConfirm(null);
+    setReceiptPromoSaveError(null);
+  };
+
+  const confirmReceiptPromoChange = async () => {
+    if (receiptPromoToConfirm === null || receiptPromoSaving) return;
+    const enabled = receiptPromoToConfirm;
+    setReceiptPromoSaving(true);
+    setReceiptPromoSaveError(null);
+    try {
+      await updateSetting(RECEIPT_PROMO_KEY, String(enabled), 'financial');
+      setReceiptPromoOn(enabled);
+      setReceiptPromoToConfirm(null);
+      showSuccess(enabled ? 'Receipt QR promo turned on.' : 'Receipt QR promo turned off.');
+    } catch (err) {
+      // The switch never moved, so a failed save leaves the old value showing.
+      setReceiptPromoSaveError(err instanceof Error ? err.message : 'Failed to save the receipt promo setting');
+    } finally {
+      setReceiptPromoSaving(false);
+    }
+  };
 
   const fetchVouchers = useCallback(async (cursor: string | null = null) => {
     // Gate repeated observer notifications synchronously, and cancel a prior
@@ -184,7 +236,8 @@ export default function VoucherGeneratorPage() {
     return () => clearInterval(timer);
   }, []);
 
-  const showSuccess = (msg: string) => { setSuccessMsg(msg); setTimeout(() => setSuccessMsg(null), 4000); };
+  // Stays open until the admin dismisses it.
+  const showSuccess = (msg: string) => setSuccessMsg(msg);
 
   const handleGenerate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -285,12 +338,25 @@ export default function VoucherGeneratorPage() {
         </div>
 
         {/* Success */}
-        {successMsg && (
-          <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 flex items-center justify-between">
-            <p className="text-sm text-emerald-400 admin-light:text-emerald-700">{successMsg}</p>
-            <button onClick={() => setSuccessMsg(null)} className="text-emerald-400 admin-light:text-emerald-700 hover:text-emerald-300 admin-light:hover:text-emerald-800"><X size={16} /></button>
+        <SuccessModal message={successMsg} onClose={() => setSuccessMsg(null)} />
+
+        {/* Receipt QR promo */}
+        <SettingsSection icon={QrCode} title="Receipt QR Promo" description="Paper cash receipts carry a QR that commuters scan for +1 ride.">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p id="receipt-promo-label" className="text-sm font-medium text-white admin-light:text-slate-900">Count scanned cash receipts toward free rides</p>
+              <p id="receipt-promo-hint" className="mt-0.5 text-xs text-slate-500">
+                {receiptPromoOn === false
+                  ? 'Off for all commuters. Scanning a receipt shows: “The free ride promo isn’t available at the moment.”'
+                  : 'On for all commuters. Each receipt counts once, for the first commuter who scans it.'}
+              </p>
+            </div>
+            <fieldset disabled={receiptPromoOn === null || receiptPromoSaving} className="shrink-0">
+              <ConfigSwitch id="receipt-promo" checked={receiptPromoOn ?? false} onChange={requestReceiptPromoChange} />
+            </fieldset>
           </div>
-        )}
+          {receiptPromoError && <InlineError className="mt-3">{receiptPromoError}</InlineError>}
+        </SettingsSection>
 
         {/* Generator */}
         <SettingsSection icon={Ticket} title="Generate Vouchers" description="Create a batch of single-use voucher codes.">
@@ -312,9 +378,6 @@ export default function VoucherGeneratorPage() {
                         : 'border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] hover:border-[#2A3D5C] admin-light:hover:border-[#CBD5E1]'
                     }`}
                   >
-                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${isSelected ? 'bg-[#62A0EA]/20 admin-light:bg-[#1A5FB4]/10 text-[#8CB9F0] admin-light:text-[#1A5FB4]' : 'bg-white/5 admin-light:bg-slate-100 text-slate-500'}`}>
-                      <option.icon size={18} aria-hidden="true" />
-                    </span>
                     <span className="min-w-0">
                       <span className={`block text-sm font-semibold ${isSelected ? 'text-white admin-light:text-slate-900' : 'text-slate-300 admin-light:text-slate-700'}`}>{option.label}</span>
                       <span className="block text-xs text-slate-500">{option.description}</span>
@@ -493,6 +556,29 @@ export default function VoucherGeneratorPage() {
                 <button type="button" onClick={() => void confirmGeneration()} disabled={isGenerating} className="flex items-center gap-2 rounded-md bg-[#62A0EA] admin-light:bg-[#1A5FB4] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] disabled:opacity-50">
                   <Ticket size={16} aria-hidden="true" />
                   {isGenerating ? 'Distributing...' : 'Generate & Distribute'}
+                </button>
+              </div>
+            </div>
+          </Modal>
+        )}
+        {receiptPromoToConfirm !== null && (
+          <Modal isOpen onClose={closeReceiptPromoModal} adminThemed>
+            <div className="space-y-5">
+              <div className="pr-8">
+                <h2 className="text-lg font-bold text-white admin-light:text-slate-900">{receiptPromoToConfirm ? 'Turn On Receipt QR Promo' : 'Turn Off Receipt QR Promo'}</h2>
+                <p className="mt-1 text-sm text-slate-400 admin-light:text-slate-500">This applies to all commuters right away.</p>
+              </div>
+              <p className="rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F8FAFC] p-4 text-sm leading-relaxed text-white admin-light:text-slate-900">
+                {receiptPromoToConfirm
+                  ? 'Scanning the QR on a paper cash receipt will count the ride toward a free ride again. Receipts still within their claim window can be scanned.'
+                  : 'Scanning the QR on a paper cash receipt will no longer count the ride toward a free ride. Commuters who scan one will see: \u201cThe free ride promo isn\u2019t available at the moment.\u201d'}
+              </p>
+              {receiptPromoSaveError && <p role="alert" className="text-sm text-red-400 admin-light:text-red-600">{receiptPromoSaveError}</p>}
+              <div className="flex justify-end gap-2 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] pt-4">
+                <button type="button" onClick={closeReceiptPromoModal} disabled={receiptPromoSaving} className="rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] px-5 py-2.5 text-sm text-slate-300 admin-light:text-slate-700 transition-colors hover:bg-[#131C2E] admin-light:hover:bg-slate-100 disabled:opacity-50">Cancel</button>
+                <button type="button" onClick={() => void confirmReceiptPromoChange()} disabled={receiptPromoSaving} className="flex items-center gap-2 rounded-md bg-[#62A0EA] admin-light:bg-[#1A5FB4] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] disabled:opacity-50">
+                  <QrCode size={16} aria-hidden="true" />
+                  {receiptPromoSaving ? 'Saving...' : receiptPromoToConfirm ? 'Turn On' : 'Turn Off'}
                 </button>
               </div>
             </div>

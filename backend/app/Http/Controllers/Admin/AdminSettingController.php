@@ -59,6 +59,7 @@ class AdminSettingController extends Controller
     {
         $valueRules = match ($key) {
             'maintenance_mode' => ['required', 'string', 'in:true,false'],
+            Setting::RECEIPT_SCAN_REWARD_KEY => ['required', 'string', 'in:true,false'],
             'maintenance_message' => ['nullable', 'string', 'max:500'],
             'maintenance_roles' => ['required', 'string', function ($attribute, $value, $fail) {
                 $roles = json_decode($value, true);
@@ -230,6 +231,7 @@ class AdminSettingController extends Controller
     /** Readable names for the activity log; other keys fall back to a headline of the key. */
     private const SETTING_LABELS = [
         Setting::RIDES_FOR_FREE_REWARD_KEY => 'Paid rides for 1 free ride',
+        Setting::RECEIPT_SCAN_REWARD_KEY => 'Receipt QR free-ride promo',
         FareRules::MINIMUM_FARE_KEY => 'Minimum fare (₱)',
         FareRules::DISCOUNT_RATE_KEY => 'Discount rate (%)',
         FareRules::SUCCEEDING_FARE_KEY => 'Succeeding fare per barangay (₱)',

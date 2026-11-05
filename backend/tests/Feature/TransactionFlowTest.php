@@ -511,6 +511,55 @@ class TransactionFlowTest extends TestCase
         $this->assertSame(1, Voucher::where('commuter_id', $this->commuter1->commuterProfile->id)->count());
     }
 
+    public function test_receipt_claim_is_refused_while_the_receipt_promo_is_off(): void
+    {
+        Setting::create(['key' => Setting::RIDES_FOR_FREE_REWARD_KEY, 'value' => '1', 'category' => 'financial']);
+        Setting::create(['key' => Setting::RECEIPT_SCAN_REWARD_KEY, 'value' => 'false', 'category' => 'financial']);
+        $txn = app(TransactionService::class)->recordCashFare($this->conductor, [
+            'final_amount' => 15.00, 'pickup_name' => 'Calumpit', 'dropoff_name' => 'Bustos',
+        ]);
+        $profileId = $this->commuter1->commuterProfile->id;
+        $message = "The free ride promo isn't available at the moment.";
+
+        // A real token and a made-up one get the same answer: no probing which tokens exist.
+        foreach ([$txn->qr_token, 'not-a-real-token'] as $token) {
+            $this->actingAs($this->commuter1)->postJson('/api/v1/commuter/receipts/claim', ['qr_token' => $token])
+                ->assertForbidden()
+                ->assertJsonPath('message', $message);
+        }
+
+        // Nothing bound, nothing counted, no reward voucher.
+        $this->assertNull($txn->fresh()->passenger_id);
+        $this->assertSame(0, $this->paidRideCountFor($profileId));
+        $this->assertSame(0, Voucher::where('commuter_id', $profileId)->count());
+
+        // Turned back on, the same receipt (still within its window) claims normally.
+        Setting::where('key', Setting::RECEIPT_SCAN_REWARD_KEY)->update(['value' => 'true']);
+        $this->actingAs($this->commuter1)->postJson('/api/v1/commuter/receipts/claim', ['qr_token' => $txn->qr_token])
+            ->assertOk()->assertJsonPath('data.already_claimed', false);
+        $this->assertSame(1, $this->paidRideCountFor($profileId));
+    }
+
+    public function test_receipt_promo_toggle_is_admin_only_and_accepts_only_true_or_false(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $save = fn (User $user, mixed $value) => $this->actingAs($user)->putJson(
+            '/api/v1/admin/settings/'.Setting::RECEIPT_SCAN_REWARD_KEY,
+            ['value' => $value, 'category' => 'financial'],
+        );
+
+        $this->assertTrue(Setting::receiptScanRewardEnabled(), 'on by default');
+        $save($this->commuter1, 'false')->assertForbidden();
+        foreach (['', 'off', '0', 'TRUE'] as $invalid) {
+            $save($admin, $invalid)->assertStatus(422);
+        }
+        $this->assertTrue(Setting::receiptScanRewardEnabled());
+
+        $save($admin, 'false')->assertOk();
+        $this->assertFalse(Setting::receiptScanRewardEnabled());
+        $this->assertDatabaseHas('activity_logs', ['description' => 'Changed Receipt QR free-ride promo from none to Off']);
+    }
+
     public function test_receipt_claim_rejects_a_second_commuter_with_409(): void
     {
         $svc = app(TransactionService::class);

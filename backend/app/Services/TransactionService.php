@@ -1275,6 +1275,7 @@ class TransactionService
      *               }
      *
      * @throws HttpException
+     *                       403 if the receipt QR promo is turned off (Voucher Generator)
      *                       404 if no transaction carries this token
      *                       410 if the receipt is older than the TTL
      *                       409 if another commuter already claimed it
@@ -1282,6 +1283,13 @@ class TransactionService
      */
     public function claimCashReceipt(User $commuter, string $qrToken): array
     {
+        // Checked before the token is looked up, so while the promo is off the
+        // endpoint binds nothing, credits nothing, and reveals nothing about
+        // whether a token exists.
+        if (! Setting::receiptScanRewardEnabled()) {
+            abort(403, "The free ride promo isn't available at the moment.");
+        }
+
         // passenger_id references commuter_profiles.id, not users.id.
         $commuterProfile = $commuter->commuterProfile;
         if (! $commuterProfile) {
