@@ -264,9 +264,7 @@ export default function FaqManagementPage() {
       <div className="@container/faq mx-auto min-w-0 w-full max-w-3xl space-y-5">
         <header className="flex flex-col gap-4 @[36rem]/faq:flex-row @[36rem]/faq:items-center @[36rem]/faq:justify-between">
           <div className="flex min-w-0 items-start gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#62A0EA]/20 admin-light:border-[#1A5FB4]/20 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4]">
-              <MessageCircleQuestion size={20} aria-hidden="true" />
-            </span>
+            <MessageCircleQuestion size={32} className="shrink-0 text-[#62A0EA] admin-light:text-[#1A5FB4]" aria-hidden="true" />
             <div className="min-w-0">
               <h1 className="text-xl font-bold text-white admin-light:text-slate-900">FAQ Management</h1>
               <p className="mt-1 text-sm text-slate-400 admin-light:text-slate-500">Manage the questions commuters see.</p>
@@ -543,10 +541,10 @@ export default function FaqManagementPage() {
                       </details>
                       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                         <span
-                          className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] font-medium ${faq.is_active ? 'bg-emerald-500/10 text-emerald-300 admin-light:text-emerald-700' : 'bg-white/5 admin-light:bg-slate-100 text-slate-500'}`}
+                          className={`inline-flex items-center gap-1.5 text-xs font-medium ${faq.is_active ? 'text-emerald-500 admin-light:text-emerald-600' : 'text-slate-500'}`}
                         >
                           <span
-                            className={`h-1.5 w-1.5 rounded-full ${faq.is_active ? 'bg-emerald-400' : 'bg-slate-500'}`}
+                            className={`h-1.5 w-1.5 rounded-full ${faq.is_active ? 'bg-emerald-500 admin-light:bg-emerald-600' : 'bg-slate-500'}`}
                           />
                           {faq.is_active ? 'Visible' : 'Hidden'}
                         </span>

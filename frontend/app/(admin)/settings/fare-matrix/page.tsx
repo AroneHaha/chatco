@@ -14,6 +14,7 @@ import { getSettings } from '@/lib/admin/services/setting.service';
 import { fareForBarangays } from '@/lib/shared/fare/fare-matrix.service';
 import { defaultFinancialRules } from '@/app/(admin)/settings/data/settings-data';
 import { SkeletonFareMatrix } from '@/components/admin/ui/skeleton/skeleton-fare-matrix';
+import { SuccessModal } from '@/components/admin/ui/success-modal';
 
 const FarePointMapPicker = dynamic(() => import('@/components/admin/routes/fare-point-map-picker'), {
   ssr: false,
@@ -322,10 +323,8 @@ export default function FareMatrixPage() {
     };
   }, [previewFrom, previewTo, farePoints, fareRules]);
 
-  const showSuccess = (msg: string) => {
-    setSuccessMsg(msg);
-    setTimeout(() => setSuccessMsg(null), 4000);
-  };
+  // Stays open until the admin dismisses it.
+  const showSuccess = (msg: string) => setSuccessMsg(msg);
 
   const scrollToForm = (id: 'fare-point-add-form' | 'fare-point-edit-form') => {
     window.setTimeout(() => {
@@ -516,12 +515,7 @@ export default function FareMatrixPage() {
         )}
 
         {/* Success Banner */}
-        {successMsg && (
-          <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 flex items-center justify-between">
-            <p className="text-sm text-emerald-400 admin-light:text-emerald-700">{successMsg}</p>
-            <button onClick={() => setSuccessMsg(null)} className="text-emerald-400 admin-light:text-emerald-700 hover:text-emerald-300 admin-light:hover:text-emerald-800"><X size={16} /></button>
-          </div>
-        )}
+        <SuccessModal message={successMsg} onClose={() => setSuccessMsg(null)} />
 
         {/* The route-line editor (components/admin/routes/route-editor.tsx,
             saved through PUT /admin/routes/{id}/geometry) is hidden from this
@@ -539,17 +533,17 @@ export default function FareMatrixPage() {
           <div className="grid grid-cols-1 gap-3 @[28rem]/fare-matrix:grid-cols-3">
             <div className="bg-[#050F1A]/60 admin-light:bg-[#F8FAFC] rounded-xl px-4 py-3 text-center border border-white/5 admin-light:border-[#E2E8F0]">
               <p className="text-[10px] text-white/30 admin-light:text-slate-500 uppercase tracking-wider font-semibold">Base Fare</p>
-              <p className="text-xl font-extrabold text-[#62A0EA] admin-light:text-[#1A5FB4] mt-1">{formatPeso(fareRules.minimumFare)}</p>
+              <p className="text-xl font-extrabold text-white admin-light:text-slate-900 mt-1">{formatPeso(fareRules.minimumFare)}</p>
               <p className="text-[10px] text-white/25 admin-light:text-slate-400 mt-0.5">First {fareRules.baseBarangayCount} barangays</p>
             </div>
             <div className="bg-[#050F1A]/60 admin-light:bg-[#F8FAFC] rounded-xl px-4 py-3 text-center border border-white/5 admin-light:border-[#E2E8F0]">
               <p className="text-[10px] text-white/30 admin-light:text-slate-500 uppercase tracking-wider font-semibold">Succeeding</p>
-              <p className="text-xl font-extrabold text-emerald-400 admin-light:text-emerald-700 mt-1">{formatPeso(fareRules.succeedingFare)}</p>
+              <p className="text-xl font-extrabold text-white admin-light:text-slate-900 mt-1">{formatPeso(fareRules.succeedingFare)}</p>
               <p className="text-[10px] text-white/25 admin-light:text-slate-400 mt-0.5">Per barangay</p>
             </div>
             <div className="bg-[#050F1A]/60 admin-light:bg-[#F8FAFC] rounded-xl px-4 py-3 text-center border border-white/5 admin-light:border-[#E2E8F0]">
               <p className="text-[10px] text-white/30 admin-light:text-slate-500 uppercase tracking-wider font-semibold">Discount</p>
-              <p className="text-xl font-extrabold text-amber-400 admin-light:text-amber-700 mt-1">{fareRules.discountRate}%</p>
+              <p className="text-xl font-extrabold text-white admin-light:text-slate-900 mt-1">{fareRules.discountRate}%</p>
               <p className="text-[10px] text-white/25 admin-light:text-slate-400 mt-0.5">Student/Senior/PWD</p>
             </div>
           </div>
@@ -604,8 +598,8 @@ export default function FareMatrixPage() {
                 <div className="flex justify-between text-sm"><span className="text-white/60 admin-light:text-slate-600">Succeeding ({farePreview.fareResult.succeedingCount} x {formatPeso(farePreview.fareResult.succeedingFare)})</span><span className="font-semibold text-white admin-light:text-slate-900">{formatPeso(farePreview.fareResult.succeedingFare * farePreview.fareResult.succeedingCount)}</span></div>
               )}
               <div className="border-t border-dashed border-white/10 admin-light:border-[#CBD5E1] my-2" />
-              <div className="flex justify-between text-sm"><span className="text-white/60 admin-light:text-slate-600">Regular</span><span className="font-semibold text-[#62A0EA] admin-light:text-[#1A5FB4]">{formatPeso(farePreview.fareResult.regularFare)}</span></div>
-              <div className="flex justify-between text-sm"><span className="text-white/60 admin-light:text-slate-600">Discounted</span><span className="font-semibold text-emerald-400 admin-light:text-emerald-700">{formatPeso(farePreview.fareResult.discountedFare)}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-white/60 admin-light:text-slate-600">Regular</span><span className="font-semibold text-white admin-light:text-slate-900">{formatPeso(farePreview.fareResult.regularFare)}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-white/60 admin-light:text-slate-600">Discounted</span><span className="font-semibold text-white admin-light:text-slate-900">{formatPeso(farePreview.fareResult.discountedFare)}</span></div>
             </div>
           ) : (
             <div className="text-white/20 admin-light:text-slate-400 text-xs text-center py-3">
@@ -738,7 +732,7 @@ export default function FareMatrixPage() {
                       {/* Name + Landmark indicator */}
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <MapPin size={12} className={isBaseZone ? 'text-emerald-400/60 admin-light:text-emerald-600 flex-shrink-0' : 'text-[#62A0EA]/60 admin-light:text-[#1A5FB4]/60 flex-shrink-0'} />
+                          <MapPin size={12} className="text-white/40 admin-light:text-slate-400 flex-shrink-0" />
                           <span className="min-w-0 flex-1 text-sm text-white admin-light:text-slate-900 font-medium truncate" title={point.name}>{point.name}</span>
                           {point.subStops && point.subStops.length > 0 && (
                             <span className="shrink-0 text-[11px] text-slate-400 admin-light:text-slate-500">
@@ -747,15 +741,15 @@ export default function FareMatrixPage() {
                           )}
                         </div>
                         {isBaseZone && (
-                          <p className="text-[9px] text-emerald-400/50 admin-light:text-emerald-700 ml-4 mt-0.5">Base fare zone</p>
+                          <p className="text-[9px] text-white/40 admin-light:text-slate-500 ml-4 mt-0.5">Base fare zone</p>
                         )}
                       </div>
 
                       {/* Fares */}
                       <div className="col-start-2 flex min-w-0 items-center justify-between gap-3 @[32rem]/fare-matrix:col-start-auto @[32rem]/fare-matrix:justify-end">
                         <div className="shrink-0 @[32rem]/fare-matrix:text-right">
-                          <p className="text-xs font-bold text-[#62A0EA] admin-light:text-[#1A5FB4]">{formatPeso(point.regularFare)}</p>
-                          <p className="text-[10px] text-emerald-400/70 admin-light:text-emerald-700">{formatPeso(point.discountedFare)}</p>
+                          <p className="text-xs font-bold text-white admin-light:text-slate-900">{formatPeso(point.regularFare)}</p>
+                          <p className="text-[10px] text-white/60 admin-light:text-slate-500">{formatPeso(point.discountedFare)}</p>
                         </div>
 
                         {/* Actions */}

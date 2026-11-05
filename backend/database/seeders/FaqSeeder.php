@@ -25,7 +25,7 @@ class FaqSeeder extends Seeder
                 ['How do I create a CHATCO account?', 'Super easy! Sign up with your email or phone, pick "Commuter," and you\'re in. You\'ll get your QR code right away — no ID needed. Welcome aboard!'],
                 ['What is my CHATCO QR code for?', 'It\'s your digital boarding pass! Show it to the conductor, they scan it, and your fare is processed through GCash. No cash, no card — just your phone!'],
                 ['Is CHATCO free to use?', 'Yep, totally free! You only pay when you ride — fares go directly through GCash. No subscriptions, no hidden fees, no wallet to maintain!'],
-                ['Where does CHATCO operate?', 'We\'re currently on the Calumpit–Meycauayan route in Bulacan with 34 official stop points. More routes coming soon!'],
+                ['What time is the first trip and last trip?', 'The first trip starts at 4:10 AM on weekdays and 5:00 AM on weekends. Trips run until 9:00 PM every day.'],
             ],
             'payments' => [
                 ['How do I pay for my ride?', 'When you ride, show your QR code to the conductor. They scan it, select your fare based on your pickup and drop-off points, and you pay directly through GCash. No need to load a wallet beforehand!'],

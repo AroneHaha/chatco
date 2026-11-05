@@ -30,6 +30,10 @@ function bucketLabel({ start, end }: RemittanceTrendBucket, by: RemittanceTrendB
   return `${startLabel}–${fmtDate(end, sameMonth ? { day: 'numeric' } : { month: 'short', day: 'numeric' })}`;
 }
 
+/** 'YYYY-MM-DD' as "Nov 5". */
+export const fmtShortDate = (date: string) =>
+  new Date(`${date}T00:00:00`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+
 const TREND_CAPTIONS: Record<RemittanceTrendBy, string> = {
   day: 'Last 7 days',
   week: 'Last 6 weeks',
@@ -152,9 +156,11 @@ function StatCard({ label, value, icon, valueClassName = 'text-slate-100 admin-l
  * preset — so they carry no period label. Active shifts ("Pending") are never
  * counted as ready for declaration.
  */
-export function RemittanceSummary({ selectedDate = '', dateFrom = todayStr(), rangeLabel = 'Today', trendBy = 'day', refreshKey = 0, compact = false }: {
+export function RemittanceSummary({ selectedDate = '', dateFrom = todayStr(), dateTo = '', rangeLabel = 'Today', trendBy = 'day', refreshKey = 0, compact = false }: {
   selectedDate?: string;
   dateFrom?: string;
+  /** Inclusive end of a two-date range; '' otherwise. */
+  dateTo?: string;
   rangeLabel?: string;
   /** Sparkline bucket size, picked by the page from the range filter. */
   trendBy?: RemittanceTrendBy;
@@ -165,7 +171,7 @@ export function RemittanceSummary({ selectedDate = '', dateFrom = todayStr(), ra
   compact?: boolean;
 }) {
   // per_page=1: the cards only need the `summary`, not the rows themselves.
-  const { summary, isLoading, refreshSilently } = useRemittanceData(1, '', selectedDate, 'All', dateFrom, '', '', 1, trendBy);
+  const { summary, isLoading, refreshSilently } = useRemittanceData(1, '', selectedDate, 'All', dateFrom, '', '', 1, trendBy, dateTo);
 
   const lastRefreshKey = useRef(refreshKey);
   useEffect(() => {
@@ -175,9 +181,7 @@ export function RemittanceSummary({ selectedDate = '', dateFrom = todayStr(), ra
   }, [refreshKey, refreshSilently]);
 
   const perPage = compact ? 2 : 4;
-  const periodLabel = selectedDate
-    ? new Date(`${selectedDate}T00:00:00`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
-    : rangeLabel;
+  const periodLabel = selectedDate ? fmtShortDate(selectedDate) : rangeLabel;
 
   if (isLoading) {
     const skeletons = Array.from({ length: 8 }).map((_, i) => (
@@ -199,8 +203,9 @@ export function RemittanceSummary({ selectedDate = '', dateFrom = todayStr(), ra
   // failed load shows only the dash.
   const buckets = summary?.trend ?? [];
   const bucketLabels = buckets.map((bucket) => bucketLabel(bucket, trendBy));
-  // An exact date's line is the 7 days up to it, not up to today.
-  const trendCaption = selectedDate ? `7 days to ${periodLabel}` : TREND_CAPTIONS[trendBy];
+  // An exact date's line is the 7 days up to it, not up to today; a range's ends on its last day.
+  const trendEndLabel = (selectedDate || dateTo) ? fmtShortDate(selectedDate || dateTo) : '';
+  const trendCaption = trendEndLabel ? `7 days to ${trendEndLabel}` : TREND_CAPTIONS[trendBy];
   const shiftCount = (n: number) => `${n} shift${n === 1 ? '' : 's'}`;
   const trendOf = (pick: (bucket: RemittanceTrendBucket) => number, format: (n: number) => string): CardTrend | undefined =>
     buckets.length ? { caption: trendCaption, labels: bucketLabels, values: buckets.map(pick), format } : undefined;

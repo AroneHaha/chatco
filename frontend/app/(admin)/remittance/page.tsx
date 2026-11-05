@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { RemittanceTable } from '@/components/admin/remittance/remittance-table';
-import { RemittanceSummary } from '@/components/admin/remittance/remittance-summary';
+import { RemittanceSummary, fmtShortDate } from '@/components/admin/remittance/remittance-summary';
 import { SearchBar } from '@/components/admin/ui/search-bar';
 import { ChevronUp } from 'lucide-react';
 import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
@@ -16,7 +16,7 @@ import { useAdminNotifications } from '@/contexts/admin-notifications-context';
 // Local (Asia/Manila) YYYY-MM-DD — matches the RemittanceRecord `date` field.
 const todayStr = () => new Date().toLocaleDateString('en-CA');
 
-type RangePreset = 'today' | '7days' | 'month' | 'all';
+type RangePreset = 'today' | '7days' | 'month';
 
 // Summary sparkline bucket per range: a short period gets a daily line, longer
 // ones zoom out so the line still shows a trend rather than one point.
@@ -24,14 +24,12 @@ const TREND_BY_RANGE: Record<RangePreset, RemittanceTrendBy> = {
   today: 'day',
   '7days': 'week',
   month: 'month',
-  all: 'month',
 };
 
 const RANGE_OPTIONS: { value: RangePreset; label: string }[] = [
   { value: 'today', label: 'Today' },
   { value: '7days', label: 'Last 7 Days' },
   { value: 'month', label: 'This Month' },
-  { value: 'all', label: 'All Time' },
 ];
 
 export default function RemittancePage() {
@@ -70,6 +68,8 @@ export default function RemittancePage() {
   // The exact-date picker and the range dropdown are mutually exclusive —
   // choosing one clears the other, so the active date filter is never ambiguous.
   const [selectedDate, setSelectedDate] = useState('');
+  // Optional second date: with it, the two dates are an inclusive range.
+  const [endDate, setEndDate] = useState('');
   // Defaults to "Today" so the admin sees today's active/pending and already-
   // remitted shifts first, instead of the full unfiltered history.
   const [rangePreset, setRangePreset] = useState<RangePreset>('today');
@@ -123,21 +123,21 @@ export default function RemittancePage() {
 
   const handlePickDate = (value: string) => {
     setSelectedDate(value);
+    // The second date only counts after the first; drop it once it no longer follows.
+    if (!value || (endDate && endDate < value)) setEndDate('');
   };
 
   const handlePickRange = (value: RangePreset) => {
     setRangePreset(value);
     setSelectedDate('');
+    setEndDate('');
     // Matches what the range dropdown is for: show every shift in scope
     // (Pending/active AND already-Remitted), not whatever status was left selected.
     setStatusFilter('All');
   };
 
   // Inclusive lower bound for the active preset, as a YYYY-MM-DD string.
-  // "All Time" has no lower bound — dateFrom stays empty, so RemittanceTable
-  // fetches unfiltered by date.
   const rangeStart = useMemo(() => {
-    if (rangePreset === 'all') return '';
     const now = new Date();
     if (rangePreset === 'today') return todayStr();
     if (rangePreset === 'month') return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
@@ -145,6 +145,9 @@ export default function RemittancePage() {
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); // 6 back + today = 7 days
     return sevenDaysAgo.toLocaleDateString('en-CA');
   }, [rangePreset]);
+
+  // One date: that day. Both dates: the inclusive range between them.
+  const isRange = Boolean(selectedDate && endDate);
 
   const quickFilters: (RemittanceStatus | 'All')[] = ['All', 'Pending', 'For Cash Declaration', 'Overdue', 'Settled', 'Shortage', 'Overage'];
 
@@ -167,10 +170,13 @@ export default function RemittancePage() {
       <div className="flex flex-1 min-h-0 flex-col xl:flex-row xl:gap-4">
         <aside className="mb-4 shrink-0 xl:mb-0 xl:flex xl:w-76 xl:flex-col xl:overflow-y-auto scrollbar-themed">
           <RemittanceSummary
-            selectedDate={selectedDate}
-            dateFrom={rangeStart}
-            rangeLabel={RANGE_OPTIONS.find((option) => option.value === rangePreset)?.label ?? 'Today'}
-            // An exact date is a single day, so it gets the daily line too.
+            selectedDate={isRange ? '' : selectedDate}
+            dateFrom={isRange ? selectedDate : rangeStart}
+            dateTo={isRange ? endDate : ''}
+            rangeLabel={isRange
+              ? `${fmtShortDate(selectedDate)} to ${fmtShortDate(endDate)}`
+              : RANGE_OPTIONS.find((option) => option.value === rangePreset)?.label ?? 'Today'}
+            // Picked dates get the daily line (ending on the last picked day).
             trendBy={selectedDate ? 'day' : TREND_BY_RANGE[rangePreset]}
             refreshKey={summaryRefreshKey}
             compact={!isMobileFiltersExpanded}
@@ -214,12 +220,13 @@ export default function RemittancePage() {
               <div className="flex flex-col gap-4">
                 {/* Search + date (left) — range/status/conductor/driver dropdowns (right, shorter) */}
                 <div className="flex flex-col md:flex-row md:flex-wrap md:items-center gap-3 w-full">
-                  <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                  {/* Below md: search full width, then the two dates side by side. */}
+                  <div className="grid grid-cols-2 gap-3 w-full md:flex md:flex-row md:w-auto">
                     <SearchBar
                       placeholder="Search by Conductor or ID..."
                       value={searchQuery}
                       onChange={setSearchQuery}
-                      className="w-full md:w-64"
+                      className="col-span-2 w-full md:w-64"
                     />
 
                     {/* popover: the filters wrapper above is overflow-hidden for
@@ -229,13 +236,31 @@ export default function RemittancePage() {
                       accent="blue"
                       popover
                       yearNavigation
-                      ariaLabel="Filter remittances by date"
-                      clearLabel="Clear date"
+                      ariaLabel="Filter remittances by date, or from this date"
+                      clearLabel="Clear dates"
+                      placeholder="Date"
                       value={selectedDate}
                       onChange={handlePickDate}
                       max={todayStr()}
                       triggerClassName="h-9.5 w-full text-sm"
-                      className="w-full md:w-48"
+                      className="w-full md:w-40"
+                    />
+                    {/* Optional end of a range; usable once the first date is set, never before it. */}
+                    <AdminDatePicker
+                      accent="blue"
+                      popover
+                      yearNavigation
+                      ariaLabel="Filter remittances up to this date (optional)"
+                      clearLabel="Clear end date"
+                      align="right"
+                      placeholder="To (optional)"
+                      value={endDate}
+                      onChange={setEndDate}
+                      disabled={!selectedDate}
+                      min={selectedDate || undefined}
+                      max={todayStr()}
+                      triggerClassName="h-9.5 w-full text-sm"
+                      className="w-full md:w-40"
                     />
                   </div>
 
@@ -298,8 +323,9 @@ export default function RemittancePage() {
           <div className="flex flex-1 min-h-0 flex-col sm:bg-[#0B1220] sm:admin-light:bg-white sm:border sm:border-[#1E2D45] sm:admin-light:border-[#E2E8F0] sm:rounded-xl sm:p-4">
             <RemittanceTable
               searchQuery={debouncedSearchQuery}
-              selectedDate={selectedDate}
-              dateFrom={selectedDate ? '' : rangeStart}
+              selectedDate={isRange ? '' : selectedDate}
+              dateFrom={isRange ? selectedDate : selectedDate ? '' : rangeStart}
+              dateTo={isRange ? endDate : ''}
               statusFilter={statusFilter}
               conductorFilter={conductorFilter}
               driverFilter={driverFilter}

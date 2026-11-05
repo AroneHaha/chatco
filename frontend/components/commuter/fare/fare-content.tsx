@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect,useMemo,useState } from "react";
+import { useEffect,useMemo,useRef,useState } from "react";
+import { getEcho } from "@/lib/echo";
 import {
   loadFareMatrix,
   getPointAreas,
@@ -38,14 +39,47 @@ export default function FareContent({ variant="page" }: FareContentProps) {
   // gets the screen; the list's hint line and the fare bar still show progress.
   const [routePanelOpen,setRoutePanelOpen]=useState(false);
 
+  // The live refresh below runs outside render; it reads the current selection from here.
+  const selectionRef=useRef<{ pickup: PointArea|null; dropoff: PointArea|null }>({ pickup: null,dropoff: null });
+  useEffect(() => {
+    selectionRef.current={ pickup: pickupPoint,dropoff: dropoffPoint };
+  },[pickupPoint,dropoffPoint]);
+
   useEffect(() => {
     let active=true;
-    void loadFareMatrix({ force: true }).then(() => {
+    const refresh=() => loadFareMatrix({ force: true }).then(() => {
       if(!active) return;
-      setPointAreas(getPointAreas());
+      const latest=getPointAreas();
+      setPointAreas(latest);
+      // Re-point the selection at the fresh rows (new fares); a removed place or sub place clears.
+      const remap=(current: PointArea|null) => current? latest.find((p) => p.id===current.id)??null:null;
+      const keepLandmark=(point: PointArea|null,landmark: string|null) =>
+        point&&landmark&&subDropoffPoints(point).includes(landmark)? landmark:null;
+      const pickup=remap(selectionRef.current.pickup);
+      const dropoff=remap(selectionRef.current.dropoff);
+      setPickupPoint(pickup);
+      setDropoffPoint(dropoff);
+      setPickupLandmark((current) => keepLandmark(pickup,current));
+      setDropoffLandmark((current) => keepLandmark(dropoff,current));
       setIsLoading(false);
     });
-    return () => { active=false; };
+    void refresh();
+
+    // An admin fare or place change reloads an open calculator (no sign-out for commuters).
+    const onFaresUpdated=() => { void refresh(); };
+    let stopListening: (() => void)|null=null;
+    try {
+      const channel=getEcho().channel("fares");
+      channel.listen(".FaresUpdated",onFaresUpdated);
+      // Remove only this listener: the page and the dashboard modal can share the channel.
+      stopListening=() => { channel.stopListening(".FaresUpdated",onFaresUpdated); };
+    } catch(error) {
+      console.warn("Live fare updates unavailable; fares refresh when the calculator reopens:",error);
+    }
+    return () => {
+      active=false;
+      stopListening?.();
+    };
   },[]);
 
   const selectField=(field: "pickup"|"dropoff") => {

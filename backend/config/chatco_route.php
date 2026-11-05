@@ -53,4 +53,46 @@ return [
         [14.73118850798765, 120.96137476925526], [14.729202256905156, 120.96135109408412],
         [14.725646764905104, 120.9604838112117],
     ],
+
+    /*
+    | Fare points (main places) in route order, from the cooperative's fare
+    | matrix. Each main place is one fare step; its sub places share its fare.
+    | Read by DatabaseSeeder and the 2026_11_05 fare-point migration. Fares
+    | are not listed here: they come from Settings > Financial Rules.
+    */
+    'fare_points' => [
+        ['code' => 'CMLPT', 'name' => 'Calumpit', 'sub_stops' => ['Gatbuca', 'Crossing', 'Caltex']],
+        ['code' => 'CI', 'name' => 'C.I. (Colegio de Calumpit)', 'sub_stops' => ['ASM']],
+        ['code' => 'BAGBG', 'name' => 'Bagbag', 'sub_stops' => ['UPPC', 'Petron', 'Xebron', 'Phoenix']],
+        ['code' => 'SMARC', 'name' => 'San Marcos', 'sub_stops' => ['PEO', 'Lares', 'Dream Oil']],
+        ['code' => 'BORNE', 'name' => 'Borneo', 'sub_stops' => ['Gardenville', 'Metropolis', 'Lexber', 'McArthur']],
+        ['code' => 'LONGS', 'name' => 'Longos', 'sub_stops' => ['MBB Royal', 'Vista', 'Walter', 'Heritage']],
+        ['code' => 'CEU', 'name' => 'CEU', 'sub_stops' => ['South', 'Grand Royal']],
+        ['code' => 'BLDRS', 'name' => 'Builders', 'sub_stops' => ['BPC', 'Alido', 'City Hall', 'Puregold']],
+        ['code' => 'BSU', 'name' => 'BSU', 'sub_stops' => ['Xentromall', 'Graceland', 'Kapitolyo']],
+        ['code' => 'CROML', 'name' => 'Crossing Malolos', 'sub_stops' => ['Pag-IBIG', 'Robinsons', 'Grand Town', 'Landbank']],
+        ['code' => 'STIML', 'name' => 'S.T.I.', 'sub_stops' => ['Rapids', 'Gramman', 'Dakila']],
+        ['code' => 'MARCL', 'name' => 'Marcelo', 'sub_stops' => ['Paradise', 'S&R', 'Madera']],
+        ['code' => 'SNPBL', 'name' => 'San Pablo', 'sub_stops' => ['Ford', 'Stoplight', 'Kanto Maliit', 'Pastry']],
+        ['code' => 'TIKAY', 'name' => 'Tikay', 'sub_stops' => ['DPWH', 'School', 'NFA', 'Industrial', 'Caltex', 'Jollibee']],
+        ['code' => 'TABNG', 'name' => 'Tabang', 'sub_stops' => ['Eurobake', 'Tulay', 'Tawiran']],
+        ['code' => 'TESDA', 'name' => 'TESDA', 'sub_stops' => ['Junkshop', 'LTO (Masagana)', 'Ajinomoto', 'Iral', 'Estrella', 'Mighty']],
+        ['code' => 'ILANG', 'name' => 'Ilang-Ilang', 'sub_stops' => ['Aldea', 'Walter', 'Church', 'Munisipyo', 'Agatha Square']],
+        ['code' => 'CRUZ', 'name' => 'Cruz', 'sub_stops' => ['Builders', 'Honda', 'Buslo', 'Unitop', 'Divimart']],
+        ['code' => 'TUKTK', 'name' => 'Tuktukan', 'sub_stops' => ['Orovilla', 'Barangay Hall', 'Patubig', 'Russi', 'AFA', 'San Pablo Street', 'Wilcon']],
+        ['code' => 'SAPRO', 'name' => 'SAPRO / STI', 'sub_stops' => ['Palmera', 'Pascual', 'Honda', 'Rocka']],
+        ['code' => 'BALGT', 'name' => 'Balagtas', 'sub_stops' => ['Petron/Ultra', 'Meralco', 'Mariano', 'Palengke', 'Munisipyo', 'San Juan/Sabungan', 'Olma']],
+        ['code' => 'GATE2', 'name' => 'Intercity (Gate 2)', 'sub_stops' => ['Galaxy', 'Gate 2']],
+        ['code' => 'GATE1', 'name' => 'Intercity (Gate 1)', 'sub_stops' => ['Cruz sa Wawa', 'Gate 1', 'BDO', 'SSS', 'Golden Aub']],
+        ['code' => 'WAKAS', 'name' => 'Wakas', 'sub_stops' => ['Yanga', 'Wakas Terminal', 'BPI', 'Metrobank', 'Palengke', 'Crossing']],
+        ['code' => 'BINNG', 'name' => 'Binang', 'sub_stops' => ['Sto. Niño', 'Shell', 'Igolot', 'BDO', 'Puregold', 'Tawiran', 'JIL']],
+        ['code' => 'BONLO', 'name' => 'Bonlo', 'sub_stops' => ['Barangay Hall', 'Petron', 'Joners', 'McDo']],
+        ['code' => 'LOLMB', 'name' => 'Lolomboy', 'sub_stops' => ['Caltex', 'LTO', 'Specialist', 'Honda']],
+        ['code' => 'TOYOT', 'name' => 'Toyota / Marilao', 'sub_stops' => ['Sabungan', 'Socorro', 'PDM', 'Decca', 'Dating Petron']],
+        ['code' => 'CRMLA', 'name' => 'Crossing Marilao', 'sub_stops' => ['Ford', 'Tulay']],
+        ['code' => 'SMMRL', 'name' => 'SM Marilao', 'sub_stops' => ['Saog', 'Lias', 'Nazareno', 'Medallion']],
+        ['code' => 'PNDYN', 'name' => 'Pandayan', 'sub_stops' => ['C Fuel', '7-Eleven', 'Iglesia']],
+        ['code' => 'MEYCA', 'name' => 'Meycauayan', 'sub_stops' => ['City Hall', 'Crossing', 'MC', 'Metrobank']],
+        ['code' => 'BANGA', 'name' => 'Banga', 'sub_stops' => ['STI', 'Petron']],
+    ],
 ];

@@ -1,31 +1,18 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { formatNumber, type AnalyticsHeatmapZone } from "@/lib/admin/services/analytics.service";
 import { ReportPanel } from "@/components/admin/analytics/report-tables";
-
-// Leaflet reaches for `window` on import, so the map stays out of SSR and
-// off the initial bundle; it only loads when this report is opened.
-const DemandMap = dynamic(() => import("./demand-map"), {
-  ssr: false,
-  loading: () => (
-    <div className="h-full flex items-center justify-center text-slate-600 admin-light:text-slate-500 text-xs">
-      Loading map…
-    </div>
-  ),
-});
 
 interface DemandHeatmapDataProps {
   zones: AnalyticsHeatmapZone[];
 }
 
 /**
- * Paid boardings per fare point: a ranked list beside the map. This replaced
+ * Paid boardings per fare point as a ranked list. This replaced
  * two panels ("Most Used Pickup Points" and "Boardings by Location") that
  * counted the same boardings grouped two ways, so their numbers disagreed.
  */
 export function DemandHeatmapData({ zones }: DemandHeatmapDataProps) {
-  const plottable = zones.filter((zone) => zone.lat && zone.lng);
   const maxBoardings = Math.max(...zones.map((zone) => zone.commuters), 1);
   const total = zones.reduce((sum, zone) => sum + zone.commuters, 0);
 
@@ -36,8 +23,7 @@ export function DemandHeatmapData({ zones }: DemandHeatmapDataProps) {
           No boardings in this date range.
         </div>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-2 lg:grid-rows-1 lg:flex-1 lg:min-h-0">
-          <ol className="space-y-3 lg:h-full overflow-y-auto scrollbar-themed pr-1">
+        <ol className="space-y-3 lg:flex-1 lg:min-h-0 overflow-y-auto scrollbar-themed pr-1">
             {zones.map((zone, index) => (
               <li key={zone.zone} className="flex items-center gap-3">
                 <span className="w-5 shrink-0 text-xs tabular-nums text-slate-500">{index + 1}</span>
@@ -60,12 +46,7 @@ export function DemandHeatmapData({ zones }: DemandHeatmapDataProps) {
                 </div>
               </li>
             ))}
-          </ol>
-
-          <div className="h-72 lg:h-full min-w-0">
-            <DemandMap zones={plottable} />
-          </div>
-        </div>
+        </ol>
       )}
     </ReportPanel>
   );

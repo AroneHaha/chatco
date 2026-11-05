@@ -57,3 +57,38 @@ export function UnitInput({
     </span>
   );
 }
+
+/**
+ * On/off switch for Settings pages. Label it with an element whose id is
+ * `${id}-label` and describe it with `${id}-hint`.
+ */
+export function ConfigSwitch({
+  id,
+  checked,
+  onChange,
+  tone = 'blue',
+}: {
+  id: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  tone?: 'blue' | 'amber';
+}) {
+  return (
+    <label className="relative inline-flex h-11 w-12 shrink-0 cursor-pointer items-center">
+      <input
+        id={id}
+        type="checkbox"
+        role="switch"
+        aria-labelledby={`${id}-label`}
+        aria-describedby={`${id}-hint`}
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="peer sr-only"
+      />
+      <span
+        aria-hidden="true"
+        className={`relative h-6 w-11 rounded-full bg-[#2A3951] admin-light:bg-slate-300 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-transform after:content-[''] peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-[#8CB9F0] admin-light:peer-focus-visible:ring-[#1A5FB4] peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-[#111A2B] admin-light:peer-focus-visible:ring-offset-white peer-disabled:opacity-50 ${tone === 'amber' ? 'peer-checked:bg-amber-500' : 'peer-checked:bg-[#62A0EA] admin-light:peer-checked:bg-[#1A5FB4]'}`}
+      />
+    </label>
+  );
+}

@@ -55,6 +55,7 @@ import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
 import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
 import { InlineError } from '@/components/admin/ui/inline-error';
 import { exportReport, type ReportFormat } from '@/lib/utils/export-report';
+import { OverviewExportModal } from '@/components/admin/analytics/overview-export-modal';
 import type { AnalyticsRemittance } from './data/analytics-data';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -665,6 +666,8 @@ export default function AnalyticsPage() {
 
   const [isExportOpen, setIsExportOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+  // Overview export: opens a modal to choose what goes into the file.
+  const [isOverviewExportOpen, setIsOverviewExportOpen] = useState(false);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -839,6 +842,19 @@ export default function AnalyticsPage() {
             </div>
           )}
 
+          {activeTab === 'overview' && (
+            <button
+              type="button"
+              onClick={() => setIsOverviewExportOpen(true)}
+              disabled={!data || isLoading}
+              title="Export the Overview"
+              className="flex items-center gap-1.5 px-2.5 py-2 bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white text-xs font-medium rounded-md hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Download size={13} />
+              <span>Export</span>
+            </button>
+          )}
+
           {/* Export lives here (Reports tab only) so it sits beside the
               day-range presets — days first (leftmost), export after —
               instead of its own row inside the tab body below. */}
@@ -889,6 +905,8 @@ export default function AnalyticsPage() {
           )}
         </div>
       </div>
+
+      {isOverviewExportOpen && <OverviewExportModal data={data} onClose={() => setIsOverviewExportOpen(false)} />}
 
       {activeTab === 'overview' ? (
         <OverviewTab data={data} isLoading={isLoading} error={error} refetch={refetch} />

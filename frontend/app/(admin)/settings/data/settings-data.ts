@@ -233,7 +233,7 @@ export const defaultFinancialRules: FinancialRulesConfig = {
   // Keep in sync with App\Support\FareRules::DEFAULTS.
   discountRate: '20',
   minimumFare: '17',
-  succeedingFare: '2.25',
+  succeedingFare: '2.40',
   baseBarangayCount: '4',
 };
 
