@@ -61,9 +61,9 @@ export const faqCategories: FAQCategory[] = [
           "Yep, totally free! You only pay when you ride — fares go directly through GCash. No subscriptions, no hidden fees, no wallet to maintain!",
       },
       {
-        question: "Where does CHATCO operate?",
+        question: "What time is the first trip and last trip?",
         answer:
-          "We're currently on the Calumpit–Meycauayan route in Bulacan with 34 official stop points. More routes coming soon!",
+          "The first trip starts at 4:10 AM on weekdays and 5:00 AM on weekends. Trips run until 9:00 PM every day.",
       },
     ],
   },

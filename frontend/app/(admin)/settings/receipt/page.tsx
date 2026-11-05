@@ -135,9 +135,7 @@ export default function ReceiptSettingsPage() {
     <div className="@container min-w-0 px-4 sm:px-6">
       <div className="mx-auto w-full max-w-5xl space-y-5 pt-5">
         <div className="flex items-start gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#62A0EA]/20 admin-light:border-[#1A5FB4]/20 bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 text-[#62A0EA] admin-light:text-[#1A5FB4]">
-            <Printer size={20} aria-hidden="true" />
-          </div>
+          <Printer size={32} className="shrink-0 text-[#62A0EA] admin-light:text-[#1A5FB4]" aria-hidden="true" />
           <div className="min-w-0">
             <h1 className="text-xl font-bold text-white admin-light:text-slate-900">Receipt settings</h1>
             <p className="mt-1 text-sm leading-relaxed text-slate-400 admin-light:text-slate-500">Customize the receipt passengers receive after a payment.</p>

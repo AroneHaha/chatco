@@ -150,6 +150,8 @@ test('admin Settings uploads once, retains old photo on failure and allows retry
     'next/image': { default: 'Image' },
     '@/contexts/auth-context': { useAuth: () => ({ user, updateProfilePicture: url => { user.profilePictureUrl = url; } }) },
     '@/components/admin/layout/admin-identity': { getInitials: () => 'A' },
+    '@/components/admin/ui/user-avatar': { UserAvatar: 'UserAvatar' },
+    '@/components/admin/ui/inline-error': { InlineError: props => require('react').createElement('div', { role: 'alert' }, props.children) },
     '@/components/auth/code-input': { default: 'CodeInput' },
     '@/lib/utils/password-policy': { PASSWORD_RULES: [] },
     '@/lib/admin/services/account.service': { uploadProfilePhoto: () => { count++; return new Promise((resolve, reject) => { finish = { resolve, reject }; }); } },

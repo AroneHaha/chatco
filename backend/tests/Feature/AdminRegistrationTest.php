@@ -649,16 +649,16 @@ class AdminRegistrationTest extends TestCase
             ]
         );
 
-        // The same email can now be re-registered (end-to-end: register ->
-        // reject -> register again with the same email).
+        // The same email, username and contact number can now be re-registered
+        // (end-to-end: register -> reject -> register again with all three).
         $response = $this->post('/api/v1/auth/register', [
             'first_name' => 'New',
             'surname' => 'Applicant',
             'birthdate' => '1995-01-01',
             'gender' => 'Male',
             'email' => 'reusable@example.com',
-            'contact_number' => '09179998888',
-            'username' => 'reusable.v2',
+            'contact_number' => '09171234567',
+            'username' => 'reusable',
             'password' => 'SecurePass123!',
             'password_confirmation' => 'SecurePass123!',
             'applied_type' => 'REGULAR',
@@ -688,7 +688,8 @@ class AdminRegistrationTest extends TestCase
         ]);
         $this->assertDatabaseHas('commuter_profiles', [
             'account_status' => 'PENDING',
-            'username' => 'reusable.v2',
+            'username' => 'reusable',
+            'contact_number' => '09171234567',
         ]);
     }
 

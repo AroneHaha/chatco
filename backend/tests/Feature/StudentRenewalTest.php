@@ -228,6 +228,7 @@ class StudentRenewalTest extends TestCase
         $this->getJson('/api/v1/commuter/student-renewal')->assertUnauthorized();
         $regular = $this->commuter('REGULAR');
         Sanctum::actingAs($regular);
+        $this->getJson('/api/v1/commuter/student-renewal')->assertForbidden();
         $this->post('/api/v1/commuter/student-renewal', $this->proof('id.jpg'), ['Accept' => 'application/json'])->assertForbidden();
         $this->getJson('/api/v1/admin/discount-applications')->assertForbidden();
         $student = $this->commuter();
@@ -295,7 +296,7 @@ class StudentRenewalTest extends TestCase
 
         Sanctum::actingAs($this->commuter('REGULAR'));
         $this->postJson($url.'/reminder', ['action' => 'snooze'])->assertForbidden();
-        $this->getJson($url)->assertOk()->assertJsonPath('data.reminder_due', false);
+        $this->getJson($url)->assertForbidden();
     }
 
     public function test_initial_approval_during_renewal_period_counts_for_new_cycle(): void

@@ -28,13 +28,13 @@ const STEPS: Step[] = [
   {
     step: "02",
     title: "Hail your ride",
-    desc: "Tap Hail Me and conductors of units within 1 km see your location on their map, so the jeep knows to stop for you.",
+    desc: "Press and hold the hail button and conductors of units within 1 km see your location on their map, so the jeep knows to stop for you.",
     icon: Hand,
   },
   {
     step: "03",
     title: "Pay cash or GCash",
-    desc: "Pay the conductor in cash, or show your QR to pay with GCash. GCash rides count toward free-ride rewards automatically.",
+    desc: "Pay the conductor in cash, or scan the conductor's QR to pay with GCash. GCash rides count toward free-ride rewards automatically.",
     icon: Wallet,
   },
 ];

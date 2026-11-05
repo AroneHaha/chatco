@@ -6,6 +6,9 @@ export type ItemCategory = 'ACCESSORY' | 'BAG' | 'WALLET' | 'GADGET' | 'CLOTHING
 
 export type ItemStatus = 'Unmatched' | 'Claimed' | 'Released' | 'Returned' | 'Rejected' | 'Closed' | 'Expired';
 
+/** Released (handed back) and Closed items are a fixed record; the server refuses edits to them. */
+export const isItemEditable = (status: ItemStatus) => status !== 'Released' && status !== 'Closed';
+
 export type ClaimStatus = 'Pending' | 'Approved' | 'Rejected' | 'Released' | 'Returned';
 
 export interface LostFoundItem {

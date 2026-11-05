@@ -5,9 +5,10 @@ import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { ReceiptsLedger, type DayStats } from '@/components/admin/receipts/receipts-ledger';
 import { SearchBar } from '@/components/admin/ui/search-bar';
 import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
-import { Download, Wallet, ChevronLeft, ChevronRight, ChevronDown, AlertCircle, AlertTriangle, RefreshCw, ReceiptText, Smartphone, Coins, SlidersHorizontal } from 'lucide-react';
+import { Download, Wallet, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, AlertCircle, AlertTriangle, RefreshCw, ReceiptText, Smartphone, Coins } from 'lucide-react';
 import { useReceiptsData, type Receipt, type PaymentMethod } from '@/app/(admin)/receipts/data/receipts-data';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
+import { SummaryPages } from '@/components/admin/ui/summary-pages';
 import { exportReport, type ReportFormat } from '@/lib/utils/export-report';
 import { formatPeso } from '@/lib/utils/display';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
@@ -15,13 +16,12 @@ import { useDebouncedValue } from '@/hooks/use-debounced-value';
 const ROWS_PER_PAGE = 20;
 
 /** Quick range presets, offered alongside the exact-date picker. */
-type RangePreset = 'all' | 'today' | '7days' | 'month';
+type RangePreset = 'today' | '7days' | 'month';
 
 const RANGE_OPTIONS: { value: RangePreset; label: string }[] = [
   { value: 'today', label: 'Today' },
   { value: '7days', label: 'Last 7 Days' },
   { value: 'month', label: 'This Month' },
-  { value: 'all', label: 'All Time' },
 ];
 
 /** Local YYYY-MM-DD, matching how Receipt.date is built in receipts-data.ts. */
@@ -34,6 +34,8 @@ export default function ReceiptsPage() {
   // The exact-date picker and the range presets are mutually exclusive —
   // choosing one clears the other, so the active date filter is never ambiguous.
   const [specificDate, setSpecificDate] = useState('');
+  // Optional second date: with it, the two dates are an inclusive range.
+  const [endDate, setEndDate] = useState('');
   // Defaults to "Today" so the initial load — and the default fetch below —
   // scopes to today's receipts instead of pulling the entire table.
   const [rangePreset, setRangePreset] = useState<RangePreset>('today');
@@ -57,7 +59,8 @@ export default function ReceiptsPage() {
 
   const handlePickDate = (value: string) => {
     setSpecificDate(value);
-    if (value) setRangePreset('all');
+    // The second date only counts after the first; drop it once it no longer follows.
+    if (!value || (endDate && endDate < value)) setEndDate('');
   };
 
   const handlePickRange = (value: RangePreset) => {
@@ -69,14 +72,14 @@ export default function ReceiptsPage() {
     }
     setRangePreset(value);
     setSpecificDate('');
+    setEndDate('');
   };
 
   // Inclusive lower bound for the active preset, as a YYYY-MM-DD string.
   // Comparing the strings directly avoids re-parsing dates (and any timezone
   // drift) for every row. Also sent to the backend so the fetch itself is
-  // scoped — "All Time" is the only preset that still pulls everything.
+  // scoped; every preset has a lower bound.
   const rangeStart = useMemo(() => {
-    if (rangePreset === 'all') return '';
     const now = new Date();
     if (rangePreset === 'today') return toLocalISODate(now);
     if (rangePreset === 'month') return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
@@ -85,9 +88,12 @@ export default function ReceiptsPage() {
     return toLocalISODate(sevenDaysAgo);
   }, [rangePreset]);
 
+  // One date: that day. Both dates: the inclusive range between them.
+  const isRange = Boolean(specificDate && endDate);
   const { records, isLoading, isRefreshing, error, refresh } = useReceiptsData(
-    specificDate || undefined,
-    specificDate ? undefined : rangeStart || undefined
+    isRange ? undefined : specificDate || undefined,
+    isRange ? specificDate : specificDate ? undefined : rangeStart || undefined,
+    isRange ? endDate : undefined
   );
 
   // The SearchBar updates `searchQuery` immediately (for responsive typing),
@@ -98,7 +104,7 @@ export default function ReceiptsPage() {
   // Reset to page 1 when filters change — uses the "adjust state during
   // render" pattern instead of useEffect to avoid cascading renders.
   const [prevFilterKey, setPrevFilterKey] = useState('');
-  const filterKey = `${debouncedSearchQuery}|${specificDate}|${rangePreset}|${paymentFilter}`;
+  const filterKey = `${debouncedSearchQuery}|${specificDate}|${endDate}|${rangePreset}|${paymentFilter}`;
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey);
     setCurrentPage(1);
@@ -120,13 +126,15 @@ export default function ReceiptsPage() {
         item.commuterRole.toLowerCase().includes(query) ||
         item.multiplePaymentReference?.toLowerCase().includes(query) ||
         item.id.toLowerCase().includes(query);
-      // Exact date wins when set; otherwise fall back to the preset range.
-      const matchesDate = specificDate
-        ? item.date === specificDate
-        : !rangeStart || item.date >= rangeStart;
+      // Two dates: inclusive range. One date: that day. Otherwise the preset range.
+      const matchesDate = isRange
+        ? item.date >= specificDate && item.date <= endDate
+        : specificDate
+          ? item.date === specificDate
+          : !rangeStart || item.date >= rangeStart;
       return matchesPayment && matchesSearch && matchesDate;
     });
-  }, [records, debouncedSearchQuery, specificDate, rangeStart, paymentFilter]);
+  }, [records, debouncedSearchQuery, isRange, specificDate, endDate, rangeStart, paymentFilter]);
 
   // Pagination. currentPage is clamped rather than reset to 1 — if the row
   // count shrinks under you (a filter change, or the 10s background poll),
@@ -145,22 +153,19 @@ export default function ReceiptsPage() {
       title: 'CHATCO Fare Receipts',
       fileName: `chatco-receipts-${new Date().toISOString().split('T')[0]}`,
       format,
-      headers: ['Transaction ID', 'Multiple Payment Ref', 'Commuter', 'Role', 'Paid By', 'Plate Number', 'Route', 'Gross Fare', 'Discount', 'Final Fare', 'Payment Method', 'Voucher', 'Status', 'Reconciliation', 'Date', 'Time'],
+      headers: ['Transaction ID', 'Multiple Payment Ref', 'Commuter', 'Role', 'Paid By', 'Gross Fare', 'Discount', 'Final Fare', 'Payment Method', 'Voucher', 'Status', 'Date', 'Time'],
       rows: filteredData.map((receipt) => [
         receipt.id,
         receipt.multiplePaymentReference ?? '',
         receipt.commuterName,
         receipt.commuterRole,
         receipt.paidBy ?? '',
-        receipt.plateNumber,
-        receipt.route,
         receipt.grossFare.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
         receipt.discountAmount.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
         receipt.fare.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
         receipt.paymentMethod,
         receipt.voucher ? `${receipt.voucher.code} (${receipt.voucher.description})` : '',
         receipt.status,
-        receipt.reconciliationStatus === 'REFUND_REQUIRED' ? 'Refund required' : receipt.reconciliationStatus ?? '',
         receipt.date,
         receipt.time,
       ]),
@@ -183,15 +188,6 @@ export default function ReceiptsPage() {
   const reconciliationRequired = records.filter(
     (item: Receipt) => item.reconciliationStatus === 'REFUND_REQUIRED'
   );
-  const activeRangeLabel = specificDate
-    ? `Date: ${specificDate}`
-    : RANGE_OPTIONS.find((option) => option.value === rangePreset)?.label ?? 'Today';
-  const activePaymentLabel = paymentFilter === 'All' ? 'All Payments' : paymentFilter;
-  const mobileFilterSummary = [
-    searchQuery.trim() ? 'Search on' : null,
-    activePaymentLabel,
-    activeRangeLabel,
-  ].filter(Boolean).join(' | ');
 
   // Per-day count and settled total for the ledger's day headings, over the
   // whole filtered set (not just this page) and settled rows only, the same
@@ -328,43 +324,29 @@ export default function ReceiptsPage() {
         </div>
       )}
 
-      <div className="grid shrink-0 grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        <div className="bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-xl p-3 flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center text-[#62A0EA] admin-light:text-[#1A5FB4]">
-            <ReceiptText size={36} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] text-slate-500 uppercase tracking-wider">Receipts Shown</p>
-            <p className="text-xl font-bold text-slate-100 admin-light:text-slate-900 truncate">{filteredData.length}</p>
-          </div>
-        </div>
-        <div className="bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-xl p-3 flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center text-[#62A0EA] admin-light:text-[#1A5FB4]">
-            <Wallet size={36} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] text-slate-500 uppercase tracking-wider">Settled Fares</p>
-            <p className="text-xl font-bold text-slate-100 admin-light:text-slate-900 truncate">{formatPeso(totalFare)}</p>
-          </div>
-        </div>
-        <div className="bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-xl p-3 flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center text-[#62A0EA] admin-light:text-[#1A5FB4]">
-            <Coins size={36} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] text-slate-500 uppercase tracking-wider">Cash Settled</p>
-            <p className="text-xl font-bold text-slate-100 admin-light:text-slate-900 truncate">{cashCount}</p>
-          </div>
-        </div>
-        <div className="bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-xl p-3 flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center text-[#62A0EA] admin-light:text-[#1A5FB4]">
-            <Smartphone size={36} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] text-slate-500 uppercase tracking-wider">GCash Settled</p>
-            <p className="text-xl font-bold text-slate-100 admin-light:text-slate-900 truncate">{gcashCount}</p>
-          </div>
-        </div>
+      {/* Below md: the cards swipe sideways (SummaryPages, same as Remittance),
+          a single row while the filters are collapsed and 2x2 when open. */}
+      <div className="mb-4 shrink-0">
+        <SummaryPages
+          perPage={showMobileFilters ? 4 : 2}
+          gridClassName="md:grid-cols-2 lg:grid-cols-4"
+          cards={[
+            { label: 'Receipts Shown', value: filteredData.length, Icon: ReceiptText },
+            { label: 'Settled Fares', value: formatPeso(totalFare), Icon: Wallet },
+            { label: 'Cash Settled', value: cashCount, Icon: Coins },
+            { label: 'GCash Settled', value: gcashCount, Icon: Smartphone },
+          ].map(({ label, value, Icon }) => (
+            <div key={label} className="bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-xl p-3 flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center text-[#62A0EA] admin-light:text-[#1A5FB4]">
+                <Icon size={36} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] text-slate-500 uppercase tracking-wider">{label}</p>
+                <p className="text-xl font-bold text-slate-100 admin-light:text-slate-900 truncate">{value}</p>
+              </div>
+            </div>
+          ))}
+        />
       </div>
 
       {/* ── Filters ──
@@ -373,26 +355,6 @@ export default function ReceiptsPage() {
           card wrapper here (matches Remittance's bare filter row) since
           this is a toolbar, not a data panel. */}
       <div className="mb-3 sm:mb-4 flex shrink-0 flex-col gap-3">
-        <button
-          type="button"
-          onClick={() => setShowMobileFilters((value) => !value)}
-          className="flex w-full items-center justify-between gap-3 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 py-2 text-left transition-colors active:scale-[0.99] xl:hidden"
-          aria-expanded={showMobileFilters}
-        >
-          <span className="flex min-w-0 items-center gap-2">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#62A0EA]/15 admin-light:bg-[#1A5FB4]/10">
-              <SlidersHorizontal size={15} className="text-[#62A0EA] admin-light:text-[#1A5FB4]" />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-xs font-semibold text-slate-200 admin-light:text-slate-700">Search & Filters</span>
-              <span className="block truncate text-[10px] text-slate-500">{mobileFilterSummary}</span>
-            </span>
-          </span>
-          <ChevronDown
-            size={16}
-            className={`shrink-0 text-slate-500 transition-transform duration-200 ${showMobileFilters ? 'rotate-180' : ''}`}
-          />
-        </button>
 
         {/* Row 1 — search + payment (left), date picker + range presets (right).
             Every element here shares one xl: breakpoint end-to-end (search,
@@ -406,12 +368,15 @@ export default function ReceiptsPage() {
             room for the full search + payment + date + range-buttons set
             (that room only exists from xl: up — lg: still wraps the range
             buttons onto their own line). */}
-        <div className={`${showMobileFilters ? 'flex' : 'hidden'} flex-col gap-3 xl:flex xl:flex-row xl:items-center`}>
+        {/* Below xl: a 2-column grid (search full width, then payment + range,
+            then the two dates), so the stack is half as tall. The inner group
+            is display:contents there, so its controls join this grid. */}
+        <div className={`${showMobileFilters ? 'grid' : 'hidden'} grid-cols-2 gap-3 xl:flex xl:flex-row xl:items-center`}>
           <SearchBar
             placeholder="Search by Commuter, reference, or receipt ID..."
             value={searchQuery}
             onChange={setSearchQuery}
-            className="w-full xl:w-72"
+            className="col-span-2 w-full xl:w-72"
           />
 
           <select
@@ -427,7 +392,7 @@ export default function ReceiptsPage() {
             ))}
           </select>
 
-          <div className="flex flex-col xl:flex-row xl:items-center gap-3 xl:ml-auto">
+          <div className="contents xl:flex xl:flex-row xl:items-center xl:gap-3 xl:ml-auto">
             <select
               value={specificDate ? 'date' : rangePreset}
               onChange={(e) => {
@@ -438,7 +403,7 @@ export default function ReceiptsPage() {
               aria-label="Filter by date range"
               className="h-9.5 w-full px-3 bg-[#0E1628] admin-light:bg-white border border-[#1E2D45] admin-light:border-[#E2E8F0] rounded-lg text-white admin-light:text-slate-900 text-sm focus:outline-none focus:ring-1 focus:ring-[#62A0EA] admin-light:focus:ring-[#1A5FB4] focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4] [color-scheme:dark] xl:hidden"
             >
-              {specificDate && <option value="date" className="bg-gray-800 admin-light:bg-white">Selected Date</option>}
+              {specificDate && <option value="date" className="bg-gray-800 admin-light:bg-white">{isRange ? 'Selected Dates' : 'Selected Date'}</option>}
               {RANGE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value} className="bg-gray-800 admin-light:bg-white">
                   {option.label}
@@ -451,12 +416,28 @@ export default function ReceiptsPage() {
             <AdminDatePicker
               value={specificDate}
               onChange={handlePickDate}
-              ariaLabel="Show transactions on a specific date"
-              clearLabel="Clear date"
+              ariaLabel="Show transactions on a specific date, or from this date"
+              clearLabel="Clear dates"
+              placeholder="Date"
+              yearNavigation
+              align="left"
+              max={toLocalISODate(new Date())}
+              className="w-full xl:w-40"
+              triggerClassName="h-9.5 w-full text-sm"
+            />
+            {/* Optional end of a range; usable once the first date is set, never before it. */}
+            <AdminDatePicker
+              value={endDate}
+              onChange={setEndDate}
+              ariaLabel="Show transactions up to this date (optional)"
+              clearLabel="Clear end date"
+              placeholder="To (optional)"
+              disabled={!specificDate}
               yearNavigation
               align="right"
+              min={specificDate || undefined}
               max={toLocalISODate(new Date())}
-              className="w-full xl:w-48"
+              className="w-full xl:w-40"
               triggerClassName="h-9.5 w-full text-sm"
             />
 
@@ -477,6 +458,17 @@ export default function ReceiptsPage() {
             </div>
           </div>
         </div>
+
+        {/* Same plain arrow toggle as Remittance's mobile filters. */}
+        <button
+          type="button"
+          onClick={() => setShowMobileFilters((value) => !value)}
+          aria-expanded={showMobileFilters}
+          aria-label={showMobileFilters ? 'Collapse filters' : 'Expand filters'}
+          className="-mt-1 flex w-full shrink-0 items-center justify-center border-t border-white/5 admin-light:border-[#E2E8F0] py-1.5 text-slate-500 transition-colors hover:bg-white/5 admin-light:hover:bg-[#F8FAFC] hover:text-slate-300 admin-light:hover:text-slate-700 active:bg-white/10 admin-light:active:bg-slate-100 xl:hidden"
+        >
+          <ChevronUp className={`h-4 w-4 transition-transform duration-300 ${showMobileFilters ? 'rotate-180' : ''}`} />
+        </button>
       </div>
 
       {/* Table card — fills whatever vertical space is left below the

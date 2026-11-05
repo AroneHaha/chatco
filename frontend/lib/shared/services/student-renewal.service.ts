@@ -45,12 +45,20 @@ export interface RenewalState {
   notice_active: boolean; reminder_due: boolean;
 }
 
+/** Carries the HTTP status so callers can tell "not eligible" (403) from other failures. */
+export class RenewalRequestError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = 'RenewalRequestError';
+  }
+}
+
 export async function renewalRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(path, { credentials: 'include', cache: 'no-store', ...options, headers: { Accept: 'application/json', ...options.headers } });
   const json = await res.json().catch(() => null);
   if (!res.ok) {
     const errors = json?.errors as Record<string, string[]> | undefined;
-    throw new Error((errors && Object.values(errors).flat().join(' ')) || json?.message || 'Unable to complete this request. Please try again.');
+    throw new RenewalRequestError((errors && Object.values(errors).flat().join(' ')) || json?.message || 'Unable to complete this request. Please try again.', res.status);
   }
   return json.data as T;
 }

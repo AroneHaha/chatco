@@ -72,7 +72,7 @@ export default function ConductorFaresUpdatedNotice() {
             System updated
           </h3>
           <p id="fares-updated-message" className="mt-1 text-sm leading-relaxed text-white/60 light:text-gray-500">
-            Fares were updated by an admin. You will be signed out automatically. Sign in again to continue; your shift stays open.
+            Fares or fare points were updated by an admin. You will be signed out automatically. Sign in again to continue; your shift stays open.
           </p>
           <p aria-live="polite" className="mt-3 text-sm font-medium tabular-nums text-white/80 light:text-gray-700">
             Signing out in {secondsLeft}s

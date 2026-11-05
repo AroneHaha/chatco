@@ -45,14 +45,17 @@ export type PaymentMethod = Receipt["paymentMethod"];
 export interface ReceiptsDateFilter {
   /** Exact-date match, from the date picker. */
   date?: string;
-  /** Inclusive lower bound, from the range presets (Today/7 Days/Month). */
+  /** Inclusive lower bound, from the range presets (Today/7 Days/Month) or the first of two picked dates. */
   dateFrom?: string;
+  /** Inclusive upper bound, from the second picked date. */
+  dateTo?: string;
 }
 
 async function fetchTransactions(filter: ReceiptsDateFilter = {}): Promise<Receipt[]> {
   const params = new URLSearchParams({ per_page: "500" });
   if (filter.date) params.set("date", filter.date);
   if (filter.dateFrom) params.set("date_from", filter.dateFrom);
+  if (filter.dateTo) params.set("date_to", filter.dateTo);
 
   const res = await fetch(`/api/admin/transactions?${params.toString()}`, {
     headers: { Accept: "application/json" },
@@ -202,7 +205,8 @@ function mapLaravelTransaction(r: Record<string, unknown>): Receipt {
 
 // ─── Hook ──────────────────────────────────────────────────────────────
 
-export function useReceiptsData(date?: string, dateFrom?: string) {
+/** `dateTo` (inclusive) pairs with `dateFrom` for a two-date range. */
+export function useReceiptsData(date?: string, dateFrom?: string, dateTo?: string) {
   const [records, setRecords] = useState<Receipt[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -222,7 +226,7 @@ export function useReceiptsData(date?: string, dateFrom?: string) {
     setError(null);
 
     try {
-      const data = await fetchTransactions({ date, dateFrom });
+      const data = await fetchTransactions({ date, dateFrom, dateTo });
       setRecords(data);
     } catch (err: unknown) {
       const message =
@@ -235,7 +239,7 @@ export function useReceiptsData(date?: string, dateFrom?: string) {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [date, dateFrom]);
+  }, [date, dateFrom, dateTo]);
 
   useEffect(() => {
     refresh(hasLoadedOnceRef.current);

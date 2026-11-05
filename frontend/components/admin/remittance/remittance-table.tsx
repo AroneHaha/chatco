@@ -33,6 +33,8 @@ interface RemittanceTableProps {
   /** Inclusive lower bound for the range presets (Today/7 Days/Month) — used
    * only when `selectedDate` (the exact-date picker) is empty. */
   dateFrom: string;
+  /** Inclusive upper bound when two dates are picked; '' otherwise. */
+  dateTo?: string;
   statusFilter: RemittanceStatus | 'All';
   /** Conductor/driver dropdowns now render in the page header, alongside
    * search + date, so their value is a controlled prop instead of local state. */
@@ -49,9 +51,9 @@ interface RemittanceTableProps {
 
 const ROWS_PER_PAGE = 20;
 
-export function RemittanceTable({ searchQuery, selectedDate, dateFrom, statusFilter, conductorFilter, driverFilter, autoOpenShiftId, onAutoOpenHandled, onCashDeclared }: RemittanceTableProps) {
+export function RemittanceTable({ searchQuery, selectedDate, dateFrom, dateTo = '', statusFilter, conductorFilter, driverFilter, autoOpenShiftId, onAutoOpenHandled, onCashDeclared }: RemittanceTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
-  const { records, total, lastPage, isLoading, error, refresh } = useRemittanceData(currentPage, searchQuery, selectedDate, statusFilter, dateFrom, conductorFilter, driverFilter);
+  const { records, total, lastPage, isLoading, error, refresh } = useRemittanceData(currentPage, searchQuery, selectedDate, statusFilter, dateFrom, conductorFilter, driverFilter, 20, undefined, dateTo);
   const [selectedRecord, setSelectedRecord] = useState<RemittanceRow | null>(null);
   const [declaringRecord, setDeclaringRecord] = useState<RemittanceRow | null>(null);
 
@@ -155,17 +157,18 @@ export function RemittanceTable({ searchQuery, selectedDate, dateFrom, statusFil
       // Shifts awaiting cash declaration (canDeclareCash) remain visible under range
       // presets (such as "Today") so midnight closeouts from the previous day are
       // immediately accessible for declaration.
+      // A two-date range also caps the end (inclusive).
       const matchesDate = selectedDate
         ? item.date === selectedDate
-        : !dateFrom || item.date >= dateFrom || canDeclareCash(item.remittanceStatus);
+        : (!dateFrom || item.date >= dateFrom || canDeclareCash(item.remittanceStatus)) && (!dateTo || item.date <= dateTo);
       const matchesConductor = !conductorFilter || item.conductorName === conductorFilter;
       const matchesDriver = !driverFilter || item.driverName === driverFilter;
 
       return matchesStatus && matchesSearch && matchesDate && matchesConductor && matchesDriver;
     });
-  }, [records, searchQuery, selectedDate, dateFrom, statusFilter, conductorFilter, driverFilter]);
+  }, [records, searchQuery, selectedDate, dateFrom, dateTo, statusFilter, conductorFilter, driverFilter]);
 
-  const filterKey = `${searchQuery}|${selectedDate}|${dateFrom}|${statusFilter}|${conductorFilter}|${driverFilter}`;
+  const filterKey = `${searchQuery}|${selectedDate}|${dateFrom}|${dateTo}|${statusFilter}|${conductorFilter}|${driverFilter}`;
   const [previousFilterKey, setPreviousFilterKey] = useState(filterKey);
   if (filterKey !== previousFilterKey) {
     setPreviousFilterKey(filterKey);
@@ -225,7 +228,7 @@ export function RemittanceTable({ searchQuery, selectedDate, dateFrom, statusFil
       </div>
 
       {/* Pagination Controls */}
-      <div className="shrink-0 flex flex-col sm:flex-row justify-between items-center mt-4 pt-4 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] gap-4 text-xs text-slate-400 admin-light:text-slate-500">
+      <div className="shrink-0 flex flex-wrap justify-between items-center mt-3 pt-3 sm:mt-4 sm:pt-4 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] gap-3 text-xs text-slate-400 admin-light:text-slate-500">
         <div>
           Showing {paginatedData.length > 0 ? (safeCurrentPage - 1) * ROWS_PER_PAGE + 1 : 0} to{' '}
           {(safeCurrentPage - 1) * ROWS_PER_PAGE + paginatedData.length} of <span className="text-slate-300 admin-light:text-slate-700 font-medium">{total}</span> results

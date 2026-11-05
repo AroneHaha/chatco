@@ -346,6 +346,19 @@ class OperationalLifecycleTest extends TestCase
         $this->assertSame(1, $yesterday['for_cash_declaration_count']);
         $this->assertSame(0, $yesterday['overdue_count']);
 
+        // Two picked dates: the range ends on its last day, so today's shifts drop
+        // out and the trend ends there too.
+        $range = $this->actingAs($admin)
+            ->getJson('/api/v1/admin/remittances?summary=1&date_from='.now()->subDays(3)->toDateString().'&date_to='.now()->subDay()->toDateString())
+            ->assertOk()->json('data');
+        $this->assertSame([now()->subDay()->toDateString()], collect($range['data'])->pluck('date')->unique()->values()->all());
+        $this->assertEquals(20, $range['summary']['cash_total']);
+        $this->assertEquals(10, $range['summary']['shortage_total']);
+        $this->assertSame(now()->subDay()->toDateString(), end($range['summary']['trend'])['end']);
+        $this->actingAs($admin)
+            ->getJson('/api/v1/admin/remittances?date_from='.now()->toDateString().'&date_to='.now()->subDay()->toDateString())
+            ->assertStatus(422)->assertJsonValidationErrors('date_to');
+
         // Opt-in only: existing callers get the unchanged envelope.
         $this->actingAs($admin)
             ->getJson('/api/v1/admin/remittances')

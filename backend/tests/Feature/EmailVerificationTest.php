@@ -105,8 +105,13 @@ class EmailVerificationTest extends TestCase
     {
         $this->postJson('/api/v1/auth/register/send-code', ['email' => self::EMAIL])->assertOk();
 
-        $this->postJson('/api/v1/auth/register/send-code', ['email' => self::EMAIL])
-            ->assertStatus(429);
+        $wait = $this->postJson('/api/v1/auth/register/send-code', ['email' => self::EMAIL])
+            ->assertStatus(429)
+            ->json('data.resend_in_seconds');
+
+        $this->assertIsInt($wait);
+        $this->assertGreaterThan(0, $wait);
+        $this->assertLessThanOrEqual(EmailVerificationService::RESEND_COOLDOWN_SECONDS, $wait);
 
         Mail::assertSentCount(1);
     }

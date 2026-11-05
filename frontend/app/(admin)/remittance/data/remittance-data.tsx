@@ -60,7 +60,7 @@ interface RemittancePage {
   summary: RemittanceSummaryTotals | null;
 }
 
-export async function fetchRemittances(page: number, search: string, date: string, status: RemittanceStatus | 'All', dateFrom = '', conductor = '', driver = '', perPage = 20, summaryTrendBy?: RemittanceTrendBy): Promise<RemittancePage> {
+export async function fetchRemittances(page: number, search: string, date: string, status: RemittanceStatus | 'All', dateFrom = '', conductor = '', driver = '', perPage = 20, summaryTrendBy?: RemittanceTrendBy, dateTo = ''): Promise<RemittancePage> {
   const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
   // Passing a trend granularity is what requests the summary aggregate.
   if (summaryTrendBy) {
@@ -69,8 +69,12 @@ export async function fetchRemittances(page: number, search: string, date: strin
   }
   if (search) params.set('search', search);
   // Exact date wins when set; otherwise fall back to the range preset's lower bound.
+  // A two-date range sends both bounds (dateTo is inclusive).
   if (date) params.set('date', date);
-  else if (dateFrom) params.set('date_from', dateFrom);
+  else {
+    if (dateFrom) params.set('date_from', dateFrom);
+    if (dateTo) params.set('date_to', dateTo);
+  }
   if (status !== 'All') params.set('status', status);
   if (conductor) params.set('conductor', conductor);
   if (driver) params.set('driver', driver);
@@ -178,7 +182,7 @@ function mapLaravelRemittance(r: Record<string, unknown>): RemittanceRecord {
 
 // ─── Hook ──────────────────────────────────────────────────────────────
 
-export function useRemittanceData(page = 1, search = '', date = '', status: RemittanceStatus | 'All' = 'All', dateFrom = '', conductor = '', driver = '', perPage = 20, summaryTrendBy?: RemittanceTrendBy) {
+export function useRemittanceData(page = 1, search = '', date = '', status: RemittanceStatus | 'All' = 'All', dateFrom = '', conductor = '', driver = '', perPage = 20, summaryTrendBy?: RemittanceTrendBy, dateTo = '') {
   const [records, setRecords] = useState<RemittanceRecord[]>([]);
   const [summary, setSummary] = useState<RemittanceSummaryTotals | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -194,7 +198,7 @@ export function useRemittanceData(page = 1, search = '', date = '', status: Remi
     const request = (async () => {
       setError(null);
       try {
-        const data = await fetchRemittances(page, search, date, status, dateFrom, conductor, driver, perPage, summaryTrendBy);
+        const data = await fetchRemittances(page, search, date, status, dateFrom, conductor, driver, perPage, summaryTrendBy, dateTo);
         setRecords(data.records);
         setSummary(data.summary);
         setTotal(data.total);
@@ -211,7 +215,7 @@ export function useRemittanceData(page = 1, search = '', date = '', status: Remi
 
     refreshInFlight.current = request;
     return request;
-  }, [date, dateFrom, page, search, status, conductor, driver, perPage, summaryTrendBy]);
+  }, [date, dateFrom, dateTo, page, search, status, conductor, driver, perPage, summaryTrendBy]);
 
   const refresh = useCallback(() => load(false), [load]);
   // Same refetch without the loading state, so figures already on screen
