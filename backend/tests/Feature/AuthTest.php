@@ -283,7 +283,7 @@ class AuthTest extends TestCase
         $this->assertSame(1, $conductor->tokens()->count());
     }
 
-    public function test_different_device_login_revokes_the_old_token_and_moves_the_active_shift(): void
+    public function test_cross_platform_conductor_login_revokes_the_old_token_and_moves_the_active_shift(): void
     {
         $conductor = $this->seedConductor();
         // Simulate an already-logged-in WEB session (auth-token:WEB)
@@ -305,13 +305,13 @@ class AuthTest extends TestCase
             'device_type' => 'MOBILE',
         ])->assertOk();
 
-        // Phase 3: WEB token must be preserved — only auth-token:MOBILE was wiped
-        $this->assertDatabaseHas('personal_access_tokens', [
+        // The prior WEB session is revoked when MOBILE becomes the last login.
+        $this->assertDatabaseMissing('personal_access_tokens', [
             'id' => $webToken->accessToken->id,
         ]);
 
-        // Conductor now holds 2 tokens: auth-token:WEB (unchanged) + auth-token:MOBILE (new)
-        $this->assertSame(2, $conductor->tokens()->count());
+        // Only the new cross-platform conductor session remains.
+        $this->assertSame(1, $conductor->tokens()->count());
 
         // Shift device handoff happened as usual
         $this->assertDatabaseHas('shift_logs', [
@@ -320,10 +320,10 @@ class AuthTest extends TestCase
             'operating_device_type' => 'MOBILE',
         ]);
 
-        // WEB token is still valid (no 401)
+        // WEB is signed out on its next authenticated request.
         $this->withHeader('Authorization', "Bearer {$webPlainText}")
             ->getJson('/api/v1/user')
-            ->assertOk();
+            ->assertUnauthorized();
 
         // MOBILE token works for device-locked operations
         $this->withHeader('Authorization', "Bearer {$response->json('data.token')}")
@@ -335,10 +335,10 @@ class AuthTest extends TestCase
             ->assertOk();
     }
 
-    public function test_platform_scoped_login_also_revokes_a_pre_existing_legacy_token(): void
+    public function test_conductor_login_revokes_a_pre_existing_legacy_token(): void
     {
         $conductor = $this->seedConductor();
-        // A session created before platform-scoped token names shipped.
+        // A generic session created before conductor tokens were global.
         $legacyToken = $conductor->createToken('auth-token');
 
         $this->postJson('/api/v1/auth/login', [
@@ -384,7 +384,7 @@ class AuthTest extends TestCase
     public function test_active_shift_owner_can_log_in_again_on_the_same_device(): void
     {
         $conductor = $this->seedConductor();
-        // Use the real platform token name so Phase 3 scoping applies correctly
+        // Simulate a token issued to a prior WEB session.
         $previousToken = $conductor->createToken('auth-token:WEB');
 
         ShiftLog::factory()->create([
@@ -402,7 +402,7 @@ class AuthTest extends TestCase
             'device_type' => 'WEB',
         ])->assertOk();
 
-        // Old auth-token:WEB must be gone (same-platform rotation)
+        // The old conductor token must be gone after the new login.
         $this->assertDatabaseMissing('personal_access_tokens', [
             'id' => $previousToken->accessToken->id,
         ]);

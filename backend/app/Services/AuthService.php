@@ -114,13 +114,12 @@ class AuthService
             }
         }
 
-        // ─── Single-session enforcement (per platform) ──────────────
+        // ─── Single-session enforcement ──────────────
         // Admins, and any login that omits device_type, get one active session
         // per account: logging in revokes every previously issued token.
-        // Conductors and commuters get one session per platform (WEB, MOBILE):
-        // logging in revokes only that platform's token, so the web portal and
-        // the mobile app can stay signed in together (see the platform-scoped
-        // block below). Either way the displaced device's next authenticated
+        // Conductors get one session across WEB and MOBILE. Commuters get one
+        // session per platform, so their web and mobile apps can stay signed
+        // in together. The displaced device's next authenticated
         // request 401s and the shared API client
         // (frontend/lib/api/client.ts handleSessionEnded) redirects it to
         // /login?reason=session_ended.
@@ -131,14 +130,15 @@ class AuthService
         // Without the lock, two requests could each see "nothing to delete
         // yet" and both survive, leaving more than one active session per
         // slot; with it, the second request's delete always runs after the
-        // first request's create has committed, so exactly one token per slot
-        // is ever left standing and each request's own new token always
+        // first request's create has committed, so only the latest conductor
+        // token (or one token per commuter platform) remains and each request's new token always
         // survives its own delete (never a later request's).
         // For conductors, the last identified device to complete login becomes
-        // the active shift's operating device. The user row and shift row are
+        // the active shift's operating device and only valid account session.
+        // The user row and shift row are
         // locked before the handoff and token replacement, so two concurrent
-        // logins serialize: exactly one device owns the shift and exactly one
-        // token per platform remains valid after the final commit. Shift,
+        // logins serialize: exactly one device owns the shift and one
+        // conductor token remains valid after the final commit. Shift,
         // vehicle, driver, transaction and remittance records are not
         // recreated or reassigned.
         //
@@ -191,31 +191,20 @@ class AuthService
                 }
             }
 
-            // --- Platform-scoped session isolation for conductors & commuters ---
-            // A conductor or commuter logging in on MOBILE must not revoke the
-            // active WEB token (and vice-versa). Each platform maintains its own
-            // token slot.
-            //
-            // Rules:
-            //   • (conductor or commuter) + known deviceType → delete same-platform tokens only
-            //   • null deviceType                           → delete all tokens (legacy clients
-            //                                                 that don't identify a platform)
-            //   • any other role (admin)                    → delete all tokens (standard
-            //                                                 single-session security)
-            $isPlatformScopedRole = $lockedUser->isConductor() || $lockedUser->isCommuter();
+            // Keep commuter sessions platform-scoped. Conductors and admins
+            // use one account session across platforms.
+            $isPlatformScopedCommuter = $lockedUser->isCommuter() && $deviceType !== null;
 
-            if ($isPlatformScopedRole && $deviceType !== null) {
+            if ($isPlatformScopedCommuter) {
                 $tokenName = 'auth-token:' . $deviceType;
-                // Also sweep the legacy, non-platform-scoped token name so a
-                // session created before this platform-scoping shipped doesn't
-                // survive indefinitely (Sanctum tokens never expire).
+                // Sweep legacy generic commuter tokens so an older session
+                // cannot survive indefinitely.
                 $lockedUser->tokens()->whereIn('name', [$tokenName, 'auth-token'])->delete();
             } else {
                 $endedSessions = $lockedUser->tokens()->delete();
-                $deviceType = null; // force generic token name below
             }
 
-            $tokenName = ($isPlatformScopedRole && $deviceType !== null)
+            $tokenName = $isPlatformScopedCommuter
                 ? 'auth-token:' . $deviceType
                 : 'auth-token';
 
