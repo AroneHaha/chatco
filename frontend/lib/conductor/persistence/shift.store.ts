@@ -1,4 +1,5 @@
 import { logShiftEnd, logShiftStart } from "./shift-history";
+import type { TripDirection } from "@/lib/shared/map/trip-direction";
 
 export interface ConductorShift {
   shiftId: string;
@@ -12,6 +13,8 @@ export interface ConductorShift {
   timeOut: string | null;
   isOnBreak?: boolean;
   breakStartedAt?: string | null;
+  /** FORWARD = Calumpit → Meycauayan (every shift starts here), REVERSE = return. */
+  tripDirection?: TripDirection;
   isActive: boolean;
   operatingDeviceId?: string | null;
   operatingDeviceType?: "WEB" | "MOBILE" | null;

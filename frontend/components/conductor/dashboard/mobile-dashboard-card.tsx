@@ -1,5 +1,6 @@
 "use client";
 
+import { TripDirectionButton } from "./trip-direction-button";
 import { ConductorStatus } from "./use-dashboard-state";
 import { formatPeso } from "@/lib/utils/display";
 import { BreakToggleButton } from "./break-toggle-button";
@@ -19,10 +20,11 @@ interface MobileDashboardCardProps {
   total: number;
   gcash: number;
   cash: number;
-  onHistoryClick: () => void;
   isOnBreak: boolean;
   breakBusy: boolean;
   onOpenBreakModal: () => void;
+  tripDestination: string;
+  onOpenTripModal: () => void;
   canOperate: boolean;
 }
 
@@ -39,10 +41,11 @@ export function MobileDashboardCard({
   total,
   gcash,
   cash,
-  onHistoryClick,
   isOnBreak,
   breakBusy,
   onOpenBreakModal,
+  tripDestination,
+  onOpenTripModal,
   canOperate,
 }: MobileDashboardCardProps) {
   return (
@@ -67,7 +70,7 @@ export function MobileDashboardCard({
         inert={!mobileCardExpanded}
       >
         <div className="min-h-0 overflow-hidden">
-          <div className="px-4 pb-3">
+          <div className="grid grid-cols-2 gap-2 px-4 pb-3">
             <BreakToggleButton
               isOnBreak={isOnBreak}
               busy={breakBusy}
@@ -75,9 +78,14 @@ export function MobileDashboardCard({
               onClick={onOpenBreakModal}
               className="min-h-11 w-full px-4 py-2.5 text-sm"
             />
+            <TripDirectionButton
+              destination={tripDestination}
+              onClick={onOpenTripModal}
+              className="min-h-11 w-full px-4 py-2.5 text-sm"
+            />
           </div>
           <div className="px-4 pb-3 space-y-2.5">
-            {/* Status + History row */}
+            {/* Status row (Payment History lives in the Collect Payment modal) */}
             <div className="flex items-center gap-2">
               <div className={`flex-1 rounded-xl border px-3 py-2 ${UNIT_STATUS_PANEL_CLASS}`}>
                 <div className="flex items-center gap-1.5 mb-1.5">
@@ -102,11 +110,6 @@ export function MobileDashboardCard({
                   ))}
                 </div>
               </div>
-
-              <button onClick={onHistoryClick} className="flex items-center justify-center gap-1 bg-white/5 border border-white/10 text-white/70 px-3 py-2 rounded-xl text-[10px] font-semibold hover:bg-white/10 light:bg-gray-50 light:border-gray-200 light:text-gray-700 light:hover:bg-gray-100 transition-colors active:scale-[0.98] flex-shrink-0">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-                <span>History</span>
-              </button>
             </div>
 
             <div className="bg-[#1A5FB4]/10 border border-[#1A5FB4]/20 rounded-xl p-3 light:bg-[#F0F7FF] light:border-[#DAEEFF]">

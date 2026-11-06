@@ -29,6 +29,12 @@ export interface VehicleLocation {
   updated_at: string;
   /** Broadcast events only: a unit on break is hidden from commuters. */
   is_on_break?: boolean;
+  /** FORWARD = Calumpit → Meycauayan, REVERSE = the return trip. */
+  trip_direction?: string;
+  /** Seconds until the unit counts as offline if no newer update arrives. */
+  visible_for_seconds?: number;
+  /** Client-only: local time (ms) the unit is dropped as offline. */
+  hide_at?: number;
 }
 
 interface UseVehicleLocationsResult {
@@ -50,7 +56,18 @@ function normalizeLocation(location: VehicleLocation): VehicleLocation | null {
   const lat = Number(location.lat);
   const lng = Number(location.lng);
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
-  return { ...location, lat, lng };
+  // A countdown from the server, not updated_at, so a skewed phone clock can't
+  // hide or keep a unit. An offline conductor sends nothing that would remove it.
+  const visibleFor = Number(location.visible_for_seconds);
+  const hideAt = Number.isFinite(visibleFor) ? Date.now() + visibleFor * 1000 : undefined;
+  if (hideAt !== undefined && hideAt <= Date.now()) return null;
+  return { ...location, lat, lng, hide_at: hideAt };
+}
+
+function dropOffline(vehicles: VehicleLocation[]): VehicleLocation[] {
+  const now = Date.now();
+  const online = vehicles.filter((vehicle) => vehicle.hide_at === undefined || vehicle.hide_at > now);
+  return online.length === vehicles.length ? vehicles : online;
 }
 
 function applyLocationUpdate(vehicles: VehicleLocation[], event: VehicleLocation): VehicleLocation[] {
@@ -127,6 +144,7 @@ export function useVehicleLocations(): UseVehicleLocationsResult {
     };
 
     const pollId = window.setInterval(() => {
+      setVehicles(dropOffline);
       // Subscription health matters, not just transport connectivity. A slow
       // safety refresh also reconciles missed events and vehicles leaving duty.
       const refreshMs = isSubscribed ? RECONCILE_INTERVAL_MS : POLL_INTERVAL_MS;

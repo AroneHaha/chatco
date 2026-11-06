@@ -31,6 +31,8 @@ export interface FleetVehicle {
   /** False when the unit is on shift but has never posted a GPS ping. */
   has_gps: boolean;
   is_stale: boolean;
+  /** FORWARD = Calumpit → Meycauayan, REVERSE = the return trip. */
+  trip_direction?: string;
 }
 
 export interface MonitoringState {

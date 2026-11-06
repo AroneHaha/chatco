@@ -28,16 +28,9 @@ export const NearbyUnitsCard = memo(function NearbyUnitsCard({ vehicles, classNa
 
   const panel = `rounded-xl border border-[#1C3350] bg-[#0B1E33] light:border-gray-200 light:bg-gray-50 ${className}`;
 
-  if (vehicles.length === 0) {
-    return (
-      <div className={`${panel} p-3.5`}>
-        <p className="text-sm font-bold text-white light:text-gray-900">No units within 1 km</p>
-        <p className="mt-0.5 text-xs leading-relaxed text-white/50 light:text-gray-500">
-          They appear here as soon as one comes near. Hold to Hail unlocks then.
-        </p>
-      </div>
-    );
-  }
+  // Nothing in range: the hail button's "?" hint (HailRangeHint) already
+  // explains it, so no empty-state card here.
+  if (vehicles.length === 0) return null;
 
   const [nearest, ...others] = vehicles;
   // Collapses on its own if the other units drive out of range.

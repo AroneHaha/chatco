@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 128" width="80" height="128">
+  <!-- Front faces up (heading 0°); rotate the marker by the bus heading. -->
+  <rect x="14" y="14" width="56" height="108" rx="18" fill="#000" opacity=".35"/>
+  <rect x="3" y="24" width="12" height="7" rx="3.5" fill="#1B2B45"/>
+  <rect x="65" y="24" width="12" height="7" rx="3.5" fill="#1B2B45"/>
+  <rect x="12" y="10" width="56" height="108" rx="18" fill="#F7F9FC" stroke="#1B2B45" stroke-width="3"/>
+  <rect x="25" y="9.5" width="7" height="3.5" rx="1.75" fill="#FFC93C"/>
+  <rect x="48" y="9.5" width="7" height="3.5" rx="1.75" fill="#FFC93C"/>
+  <path d="M20 36 Q40 30 60 36 L60 26 Q60 16 50 15 L30 15 Q20 16 20 26 Z" fill="#2F86E8" stroke="#1B2B45" stroke-width="2"/>
+  <path d="M25 25 Q28 19 37 18.5" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round" opacity=".6"/>
+  <rect x="14.5" y="42" width="5" height="62" rx="2.5" fill="#2F86E8"/>
+  <rect x="60.5" y="42" width="5" height="62" rx="2.5" fill="#2F86E8"/>
+  <rect x="23" y="40" width="34" height="70" rx="7" fill="#fff" stroke="#D5DCE6" stroke-width="1.5"/>
+  <rect x="27" y="43" width="9" height="4" rx="2" fill="#E8413C"/>
+  <rect x="44" y="43" width="9" height="4" rx="2" fill="#E8413C"/>
+  <rect x="27" y="51" width="26" height="34" rx="6" fill="#E9EEF5" stroke="#B9C3D1" stroke-width="1.5"/>
+  <rect x="31" y="54" width="18" height="5" rx="2.5" fill="#2A3442"/>
+  <path d="M32 64H48M32 69H48M32 74H48M32 79H48" stroke="#8D99AA" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="40" cy="96" r="6.5" fill="#1E3FA8" stroke="#fff" stroke-width="1.5"/>
+  <circle cx="40" cy="96" r="2.5" fill="#fff"/>
+  <rect x="27" y="103" width="9" height="4" rx="2" fill="#E8413C"/>
+  <rect x="44" y="103" width="9" height="4" rx="2" fill="#E8413C"/>
+  <rect x="24" y="115.5" width="8" height="3.5" rx="1.75" fill="#E8413C"/>
+  <rect x="48" y="115.5" width="8" height="3.5" rx="1.75" fill="#E8413C"/>
+</svg>

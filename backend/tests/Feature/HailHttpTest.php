@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleLocation;
 use App\Services\HailService;
+use App\Services\LocationService;
 use Illuminate\Broadcasting\Broadcasters\LogBroadcaster;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -44,7 +45,7 @@ class HailHttpTest extends TestCase
     {
         parent::setUp();
 
-        // ─── Create users + their role-specific profiles ────────────
+        // â”€â”€â”€ Create users + their role-specific profiles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // Profile models are REQUIRED because shift_logs.conductor_id
         // has a FK constraint to conductor_profiles.id (not users.id),
         // and HailCreated event needs commuterProfile for the name.
@@ -102,7 +103,7 @@ class HailHttpTest extends TestCase
             'profile_picture_url' => null,
         ]);
 
-        // ─── Create driver + route + vehicle ─────────────────────────
+        // â”€â”€â”€ Create driver + route + vehicle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         $driver = Driver::create([
             'first_name' => 'Test',
             'middle_name' => null,
@@ -130,7 +131,7 @@ class HailHttpTest extends TestCase
             'status' => 'ACTIVE',
         ]);
 
-        // ─── Create active shift ─────────────────────────────────────
+        // â”€â”€â”€ Create active shift â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // (forceCreate due to pre-existing ShiftLog model/migration drift
         // -- $fillable doesn't include unit_number, but migration requires it)
         $this->shift = ShiftLog::forceCreate([
@@ -152,7 +153,7 @@ class HailHttpTest extends TestCase
         $this->vehicle->update(['active_shift_id' => $this->shift->shift_id]);
         $driver->update(['active_shift_id' => $this->shift->shift_id]);
 
-        // ─── Put vehicle at Manila coordinate ────────────────────────
+        // â”€â”€â”€ Put vehicle at Manila coordinate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         VehicleLocation::create([
             'vehicle_id' => $this->vehicle->id,
             'shift_id' => $this->shift->shift_id,
@@ -163,7 +164,7 @@ class HailHttpTest extends TestCase
         ]);
     }
 
-    // ─── S3-T6: HTTP endpoint tests ─────────────────────────────────
+    // â”€â”€â”€ S3-T6: HTTP endpoint tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public function test_post_hail_at_500m_returns_201(): void
     {
@@ -176,6 +177,23 @@ class HailHttpTest extends TestCase
 
         $response->assertCreated();
         $response->assertJsonPath('data.status', 'PENDING');
+    }
+
+    public function test_post_hail_to_offline_unit_returns_422_even_within_radius(): void
+    {
+        // No GPS update for over 5 minutes = phone offline, hidden on the map.
+        $this->travel(LocationService::COMMUTER_FRESH_SECONDS + 1)->seconds();
+
+        $this->actingAs($this->commuter, 'sanctum')
+            ->postJson('/api/v1/commuter/hail', [
+                'vehicle_id' => $this->vehicle->id,
+                'commuter_lat' => $this->vehicleLat + 0.0045, // ~500m north
+                'commuter_lng' => $this->vehicleLng,
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Vehicle is offline');
+
+        $this->assertSame(0, Hail::count());
     }
 
     public function test_post_hail_to_unit_on_break_returns_422_even_within_radius(): void
@@ -379,7 +397,7 @@ class HailHttpTest extends TestCase
         $response->assertForbidden();
     }
 
-    // ─── S3-T7: hails:expire command tests ─────────────────────────
+    // â”€â”€â”€ S3-T7: hails:expire command tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public function test_hails_expire_command_transitions_stale_hails(): void
     {

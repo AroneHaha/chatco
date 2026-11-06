@@ -63,6 +63,7 @@ interface LaravelShiftLog {
   plate_number: string;
   is_on_break: boolean;
   break_started_at: string | null;
+  trip_direction?: string;
   time_in: string;
   time_out: string | null;
   status: string;
@@ -139,6 +140,7 @@ import type { ConductorShift } from "@/lib/conductor/persistence/shift.store";
 import type { Transaction } from "@/lib/conductor/persistence/transactions.store";
 import type { RemittanceRecord } from "@/lib/conductor/persistence/remittance.store";
 import type { PaymentMethodType } from "@/types";
+import { toTripDirection } from "@/lib/shared/map/trip-direction";
 
 // ─── Mappers ─────────────────────────────────────────────────────────
 
@@ -199,6 +201,7 @@ export function mapShiftLog(s: unknown): ConductorShift {
     isActive: shift.status === "ACTIVE",
     isOnBreak: Boolean(shift.is_on_break),
     breakStartedAt: shift.break_started_at,
+    tripDirection: toTripDirection(shift.trip_direction),
     operatingDeviceId: shift.operating_device_id,
     operatingDeviceType: shift.operating_device_type,
     latestDeviceRecoveryAt: shift.latest_device_recovery?.created_at ?? null,

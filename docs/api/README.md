@@ -460,6 +460,7 @@ Every route below also exists under `/mobile/conductor/*`. One difference: the m
 | POST | `/conductor/location` | conductor-gps |
 | POST | `/conductor/capacity-status` | conductor-write |
 | POST | `/conductor/break-status` | conductor-write |
+| POST | `/conductor/trip-direction` | conductor-write |
 | GET | `/conductor/transactions` | conductor-read |
 | POST | `/conductor/transactions` | conductor-write |
 | POST | `/conductor/payments/gcash/initiate` | conductor-write |

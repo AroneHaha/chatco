@@ -17,6 +17,23 @@
   font-family: inherit;
 }
 
+/* Reverse: mirror the whole control, then flip the text back so it reads
+   normally. The arrow stays mirrored so it points the way to slide. */
+.slide-commit[data-reverse] {
+  transform: scaleX(-1);
+}
+
+.slide-commit[data-reverse] .slide-commit__label,
+.slide-commit[data-reverse] .slide-commit__upright {
+  transform: scaleX(-1);
+}
+
+.slide-commit__upright {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .slide-commit[data-disabled] {
   opacity: 0.55;
   pointer-events: none;

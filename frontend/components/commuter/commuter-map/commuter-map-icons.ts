@@ -6,7 +6,6 @@
 // map component focused on layout/rendering, and icons can be tested/reused.
 
 import L from "leaflet";
-import { mdiJeepney } from "@mdi/js";
 import { COMMUTER_PIN_SIZE, commuterPinHtml } from "@/components/maps/commuter-pin";
 
 // --- CAPACITY CONFIG ---
@@ -44,35 +43,4 @@ export function createCommuterIcon(): L.DivIcon {
   });
 }
 
-// Only 3 capacities × 2 radius states exist, so the whole icon set is a
-// handful of entries. Caching by that pair means unaffected vehicles keep
-// the exact same L.DivIcon reference across re-renders — react-leaflet's
-// Marker only calls the (relatively expensive) marker.setIcon() when the
-// `icon` prop reference changes, so this skips that DOM work entirely for
-// any vehicle whose capacity/radius status didn't change this tick.
-const jeepneyIconCache = new Map<string, L.DivIcon>();
-
-/** Jeepney marker icon — dynamic based on capacity + within-radius indicator */
-export function createJeepneyIcon(capacity: VehicleCapacity, isWithinRadius: boolean = false): L.DivIcon {
-  const cacheKey = `${capacity}:${isWithinRadius}`;
-  const cached = jeepneyIconCache.get(cacheKey);
-  if (cached) return cached;
-
-  const config = getCapacityConfig(capacity);
-  // Green dot indicates commuter is within THIS conductor's 1km radius
-  const greenDot = isWithinRadius
-    ? `<div style="position: absolute; top: -2px; right: -2px; width: 14px; height: 14px; background: #22c55e; border-radius: 50%; border: 2px solid #071A2E; box-shadow: 0 0 6px rgba(34,197,94,0.6); z-index: 2;"></div>`
-    : '';
-  const icon = new L.DivIcon({
-    className: "custom-jeepney-icon",
-    html: `<div style="position: relative; width: 44px; height: 44px; background: #071A2E; border-radius: 50%; border: 2.5px solid ${config.color}; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 12px rgba(0,0,0,0.5), 0 0 8px ${config.color}40;">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="${config.color}" aria-hidden="true">
-                  <path d="${mdiJeepney}" />
-                </svg>
-                ${greenDot}
-              </div>`,
-    iconSize: [44, 44], iconAnchor: [22, 22], popupAnchor: [0, -25],
-  });
-  jeepneyIconCache.set(cacheKey, icon);
-  return icon;
-}
+// Live unit markers: components/maps/bus-marker-icon.ts (shared by all maps).

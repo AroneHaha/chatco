@@ -17,6 +17,15 @@ class ShiftLog extends Model
 
     protected $keyType = 'string';
 
+    public const TRIP_FORWARD = 'FORWARD';
+
+    public const TRIP_REVERSE = 'REVERSE';
+
+    /** Matches the column default so a just-created shift serializes it too. */
+    protected $attributes = [
+        'trip_direction' => self::TRIP_FORWARD,
+    ];
+
     protected $fillable = [
         'shift_id',
         'conductor_id',
@@ -32,6 +41,7 @@ class ShiftLog extends Model
         'is_active',
         'is_on_break',
         'break_started_at',
+        'trip_direction',
         'notes',
         'status',
         'operating_device_id',

@@ -8,6 +8,7 @@ import { CONDUCTOR_API } from "@/lib/conductor/endpoints";
 import { CONDUCTOR_DEVICE_TYPE, getConductorDeviceId } from "@/lib/conductor/persistence/device.store";
 import { isOperatingDevice } from "@/lib/conductor/services/shift.service";
 import { acceptHail, rejectHail } from "@/lib/conductor/services/hails.service";
+import { toTripDirection, type TripDirection } from "@/lib/shared/map/trip-direction";
 
 export type ConductorStatus = "Available" | "Standing" | "Full";
 
@@ -82,11 +83,33 @@ export function useDashboardState() {
     })();
   }, [canOperate]);
 
-  const [showHistory, setShowHistory] = useState(false);
   const [mobileCardExpanded, setMobileCardExpanded] = useState(true);
   const [breakBusy, setBreakBusy] = useState(false);
   const [breakError, setBreakError] = useState<string | null>(null);
   const [showBreakModal, setShowBreakModal] = useState(false);
+  const [showTripModal, setShowTripModal] = useState(false);
+  // Saved on the shift (FORWARD on every new shift), so it survives reloads.
+  const tripDirection = toTripDirection(shift?.tripDirection);
+
+  /** Throws with the server's message so the confirm step can show it. */
+  const saveTripDirection = useCallback(async (next: TripDirection) => {
+    if (!shift) throw new Error("No active shift.");
+    if (!canOperate) throw new Error("This shift is active on another device. Sync and release that device first.");
+    const res = await fetch(CONDUCTOR_API.tripDirection, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        trip_direction: next,
+        deviceId: getConductorDeviceId(),
+        deviceType: CONDUCTOR_DEVICE_TYPE,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.message ?? `Unable to update trip direction (HTTP ${res.status}).`);
+    }
+    await refreshShift();
+  }, [canOperate, refreshShift, shift]);
 
   const openBreakModal = useCallback(() => {
     if (!canOperate) return;
@@ -153,8 +176,10 @@ export function useDashboardState() {
     showBreakModal,
     openBreakModal,
     closeBreakModal,
-    showHistory,
-    setShowHistory,
+    tripDirection,
+    saveTripDirection,
+    showTripModal,
+    setShowTripModal,
     mobileCardExpanded,
     setMobileCardExpanded,
     conductorName,
