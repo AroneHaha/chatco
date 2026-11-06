@@ -4,6 +4,7 @@ import { formatTime } from "@/lib/conductor/services/shift.service";
 import { formatPeso } from "@/lib/utils/display";
 import { ConductorStatus } from "./use-dashboard-state";
 import { BreakToggleButton } from "./break-toggle-button";
+import { TripDirectionButton } from "./trip-direction-button";
 import { unitStatusOptionClass } from "./unit-status-styles";
 import { ConductorAvatar } from "@/components/conductor/conductor-avatar";
 
@@ -20,8 +21,9 @@ interface DesktopDashboardBarProps {
   isOnBreak: boolean;
   breakBusy: boolean;
   shiftTimeIn: string | undefined;
-  onHistoryClick: () => void;
   onOpenBreakModal: () => void;
+  tripDestination: string;
+  onOpenTripModal: () => void;
   canOperate: boolean;
 }
 
@@ -52,8 +54,9 @@ export function DesktopDashboardBar({
   isOnBreak,
   breakBusy,
   shiftTimeIn,
-  onHistoryClick,
   onOpenBreakModal,
+  tripDestination,
+  onOpenTripModal,
   canOperate,
 }: DesktopDashboardBarProps) {
   return (
@@ -69,19 +72,10 @@ export function DesktopDashboardBar({
         </div>
       </div>
 
-      {/* Payment History / Break — Payment itself already lives in the
-          navbar (ConductorDock at xl:+), so it doesn't need a second
-          entry point here. */}
+      {/* Break + trip direction — Payment (and Payment History inside it)
+          lives in the navbar (ConductorDock at xl:+), so neither needs an
+          entry here. */}
       <div className="flex items-center gap-2 px-4 py-3">
-        <button
-          onClick={onHistoryClick}
-          className="flex items-center gap-2 bg-white/5 border border-white/10 text-white px-4 py-2.5 rounded-xl font-bold text-xs hover:bg-white/10 light:bg-gray-50 light:border-gray-200 light:text-gray-900 light:hover:bg-gray-100 transition-colors whitespace-nowrap"
-        >
-          <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-          </svg>
-          Payment History
-        </button>
         <BreakToggleButton
           isOnBreak={isOnBreak}
           busy={breakBusy}
@@ -89,6 +83,7 @@ export function DesktopDashboardBar({
           onClick={onOpenBreakModal}
           className="px-4 py-2.5 text-xs"
         />
+        <TripDirectionButton destination={tripDestination} onClick={onOpenTripModal} className="px-4 py-2.5 text-xs" />
       </div>
 
       {/* Unit Status */}

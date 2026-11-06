@@ -29,6 +29,8 @@ export interface VehicleLocation {
   updated_at: string;
   /** Broadcast events only: a unit on break is hidden from commuters. */
   is_on_break?: boolean;
+  /** FORWARD = Calumpit → Meycauayan, REVERSE = the return trip. */
+  trip_direction?: string;
   /** Seconds until the unit counts as offline if no newer update arrives. */
   visible_for_seconds?: number;
   /** Client-only: local time (ms) the unit is dropped as offline. */

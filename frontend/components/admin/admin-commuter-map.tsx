@@ -4,8 +4,9 @@ import { useState, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { MapContainer, Marker, Popup, Polyline, useMap, useMapEvents, Circle, Tooltip } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { mdiJeepney } from "@mdi/js";
 import { COMMUTER_PIN_SIZE, commuterPinHtml } from "@/components/maps/commuter-pin";
+import { busMarkerIcon } from "@/components/maps/bus-marker-icon";
+import { tripLabel, unitHeading, type TripDirection } from "@/lib/shared/map/trip-direction";
 import { formatElapsedMinutes } from "@/lib/utils/display";
 import { useRouteGeometry } from "@/hooks/use-route-geometry";
 import DynamicRouteViewport from "@/components/maps/dynamic-route-viewport";
@@ -43,6 +44,7 @@ export interface LiveVehicleMarker {
   break_duration_minutes: number | null;
   is_stale: boolean;
   minutes_since_update: number | null;
+  trip_direction: TripDirection;
 }
 
 export interface CommuterData {
@@ -383,33 +385,21 @@ export default function AdminCommuterMap({
     iconAnchor: [COMMUTER_PIN_SIZE / 2, COMMUTER_PIN_SIZE / 2],
   }), []);
 
-  const getJeepneyIcon = useMemo(() => (
+  // Bus image + trip arrow (bus-marker-icon.ts). The status dot keeps the old
+  // ring's meaning: break wins, then stale (grey, faded, GPS may be
+  // outdated after 10 min), then capacity.
+  const getBusIcon = (
+    lat: number,
+    lng: number,
+    direction: TripDirection,
     capacity: VehicleCapacity,
-    isStale: boolean = false,
-    isOnBreak: boolean = false,
-  ) => {
-    const config = getCapacityConfig(capacity);
-    const breakColor = '#38BDF8';
-    // Stale vehicles get a gray dashed border + reduced opacity to signal
-    // the GPS data may be outdated (>10 min since last update). Break status
-    // takes priority so the admin sees the same state as the conductor.
-    const markerColor = isOnBreak ? breakColor : isStale ? '#94a3b8' : config.color;
-    const borderStyle = isOnBreak
-      ? `2.5px solid ${breakColor}`
-      : isStale
-        ? '2.5px dashed #94a3b8'
-        : `2.5px solid ${config.color}`;
-    const opacity = isStale && !isOnBreak ? '0.55' : '1';
-    return new L.DivIcon({
-      className: "custom-jeepney-icon",
-      html: `<div style="width: 44px; height: 44px; background: #071A2E; border-radius: 50%; border: ${borderStyle}; opacity: ${opacity}; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 12px rgba(0,0,0,0.5), 0 0 8px ${markerColor}40;">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="${markerColor}" aria-hidden="true">
-                  <path d="${mdiJeepney}" />
-                </svg>
-              </div>`,
-      iconSize: [44, 44], iconAnchor: [22, 22], popupAnchor: [0, -25],
-    });
-  }, []);
+    isStale = false,
+    isOnBreak = false,
+  ) => busMarkerIcon({
+    heading: unitHeading(routeGeometry.routeCoords, lat, lng, direction),
+    statusColor: isOnBreak ? '#38BDF8' : isStale ? '#94a3b8' : getCapacityConfig(capacity).color,
+    dimmed: isStale && !isOnBreak,
+  });
 
   const hailingCommuterIcon = useMemo(() => new L.DivIcon({
     className: "custom-hailing-icon",
@@ -527,8 +517,9 @@ export default function AdminCommuterMap({
         {/* --- ACTIVE VEHICLES (route-index based — legacy) --- */}
         {vehicles.map((vehicle) => {
           const config = getCapacityConfig(vehicle.capacity);
+          const position = routeGeometry.routeCoords[Math.min(vehicle.routeIndex, routeGeometry.routeCoords.length - 1)];
           return (
-            <Marker key={vehicle.id} position={routeGeometry.routeCoords[Math.min(vehicle.routeIndex, routeGeometry.routeCoords.length - 1)]} icon={getJeepneyIcon(vehicle.capacity)} zIndexOffset={800}>
+            <Marker key={vehicle.id} position={position} icon={getBusIcon(position[0], position[1], "FORWARD", vehicle.capacity)} zIndexOffset={800}>
               <UnitPopup
                 title={vehicle.plateNumber}
                 status={{ label: config.label, tone: capacityTone(vehicle.capacity) }}
@@ -559,7 +550,7 @@ export default function AdminCommuterMap({
             <SmoothVehicleMarker
               key={`live-${vehicle.id}`}
               position={[vehicle.lat, vehicle.lng]}
-              icon={getJeepneyIcon(vehicle.capacity, vehicle.is_stale, vehicle.is_on_break)}
+              icon={getBusIcon(vehicle.lat, vehicle.lng, vehicle.trip_direction, vehicle.capacity, vehicle.is_stale, vehicle.is_on_break)}
               zIndexOffset={vehicle.is_stale ? 700 : 800}
             >
               <UnitPopup
@@ -569,7 +560,7 @@ export default function AdminCommuterMap({
                   { label: "Unit", value: vehicle.unit_number },
                   { label: "Driver", value: vehicle.driver_name ?? "—" },
                   { label: "Conductor", value: vehicle.conductor_name ?? "—" },
-                  { label: "Route", value: vehicle.route_name ?? "—" },
+                  { label: "Route", value: tripLabel(vehicle.trip_direction) },
                   ...(vehicle.is_on_break ? [{ label: "Time on break", value: formatElapsedMinutes(vehicle.break_duration_minutes) }] : []),
                   ...(vehicle.is_on_break ? [{ label: "Capacity", value: capacityConfig.label }] : []),
                   ...(vehicle.speed !== null ? [{ label: "Speed", value: `${vehicle.speed} km/h` }] : []),
@@ -609,7 +600,7 @@ export default function AdminCommuterMap({
         }
 
         .custom-commuter-icon,
-        .custom-jeepney-icon,
+        .custom-bus-icon,
         .custom-hailing-icon,
         .custom-sos-icon {
           background: transparent !important;

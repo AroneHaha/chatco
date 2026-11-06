@@ -139,7 +139,7 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
       )}
 
       <MapContainer center={routeGeometry.center} zoom={12} zoomControl={false} attributionControl={false} className="commuter-map-container" style={{ background: mapColors.surface }} maxBounds={routeGeometry.mapBoundsArray} maxBoundsViscosity={1.0} minZoom={isDesktop ? 13 : 11}>
-        <DynamicRouteViewport routeBounds={routeGeometry.routeBounds} mapBounds={routeGeometry.mapBounds} />
+        <DynamicRouteViewport routeBounds={routeGeometry.routeBounds} mapBounds={routeGeometry.mapBounds} limitZoomOutToRoute />
         <LocationFinder
           userLocationRef={userLocationRef}
           setUserActualLocation={setUserActualLocation}
@@ -191,6 +191,8 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
               plateNumber={vehicle.plateNumber}
               routeName={vehicle.routeName}
               capacity={vehicle.capacity}
+              tripDirection={vehicle.tripDirection}
+              routeCoords={routeGeometry.routeCoords}
               isWithinRadius={isWithinRadius}
               distanceInMeters={distanceInfo?.distanceInMeters ?? null}
               estimatedArrivalMinutes={withinRadiusInfo?.estimatedArrivalMinutes ?? null}
@@ -226,7 +228,7 @@ export default function CommuterMap({ isDesktop = false, onNearbyVehiclesChange 
           isolation: isolate !important;
         }
 
-        .custom-commuter-icon, .custom-jeepney-icon { background: transparent !important; border: none !important; }
+        .custom-commuter-icon, .custom-bus-icon { background: transparent !important; border: none !important; }
         .leaflet-container { background: ${mapColors.surface} !important; font-family: inherit !important; }
         .leaflet-popup-content-wrapper { background: white !important; border-radius: 12px !important; box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important; padding: 0 !important; }
         .leaflet-popup-content { margin: 12px 16px !important; color: #071A2E !important; line-height: 1.4 !important; }

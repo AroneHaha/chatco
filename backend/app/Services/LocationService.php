@@ -320,6 +320,7 @@ class LocationService
                 'vehicle_locations.heading',
                 'vehicle_locations.capacity_status',
                 'routes.name as route_name',
+                'shift_logs.trip_direction',
                 'vehicle_locations.updated_at',
             ])
             ->orderBy('vehicle_locations.updated_at', 'desc')
@@ -386,6 +387,7 @@ class LocationService
                 'vehicle_locations.capacity_status',
                 'shift_logs.is_on_break',
                 'shift_logs.break_started_at',
+                'shift_logs.trip_direction',
                 'routes.name as route_name',
                 'vehicle_locations.updated_at as last_update',
                 'drivers.first_name as driver_first_name',
@@ -420,6 +422,7 @@ class LocationService
                     'is_on_break' => $isOnBreak,
                     'break_started_at' => $row->break_started_at,
                     'break_duration_minutes' => $breakDurationMinutes,
+                    'trip_direction' => $row->trip_direction ?? ShiftLog::TRIP_FORWARD,
                     'route_name' => $row->route_name,
                     'driver_name' => trim(($row->driver_first_name ?? '').' '.($row->driver_last_name ?? '')) ?: null,
                     'conductor_name' => trim(($row->conductor_first_name ?? '').' '.($row->conductor_last_name ?? '')) ?: null,
@@ -482,6 +485,7 @@ class LocationService
                 'routes.name as route_name',
                 'vehicle_locations.updated_at',
                 'shift_logs.is_on_break',
+                'shift_logs.trip_direction',
             ])
             ->first();
 

@@ -3,12 +3,14 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ConductorDashboardSkeleton } from "@/components/conductor/ui/skeleton";
-import HistoryLogModal from "@/components/conductor/modals/history-log-modal";
 import BreakConfirmModal from "@/components/conductor/modals/break-confirm-modal";
+import TripDirectionModal from "@/components/conductor/modals/trip-direction-modal";
+import { tripTerminals } from "@/lib/shared/map/trip-direction";
 import ConductorConnectivityBanner from "@/components/conductor/conductor-connectivity-banner";
 import ConductorDeviceGuard from "@/components/conductor/conductor-device-guard";
 import { useDashboardState } from "./dashboard/use-dashboard-state";
 import { BreakToggleButton } from "./dashboard/break-toggle-button";
+import { TripDirectionButton } from "./dashboard/trip-direction-button";
 import { useConductorProfile } from "@/app/(conductor)/hooks/use-conductor-profile";
 import { MobileDashboardCard } from "./dashboard/mobile-dashboard-card";
 import { DesktopDashboardCard } from "./dashboard/desktop-dashboard-card";
@@ -39,8 +41,10 @@ export default function ConductorDashboard() {
     showBreakModal,
     openBreakModal,
     closeBreakModal,
-    showHistory,
-    setShowHistory,
+    tripDirection,
+    saveTripDirection,
+    showTripModal,
+    setShowTripModal,
     mobileCardExpanded,
     setMobileCardExpanded,
     conductorName,
@@ -88,12 +92,17 @@ export default function ConductorDashboard() {
           At xl:+, this same "Take a Break" control lives inside
           DesktopDashboardBar itself instead of floating separately in the
           far corner, disconnected from the rest of the bar's controls. */}
-      <div className="absolute right-4 top-4 z-30 hidden flex-col items-end gap-1 lg:flex xl:hidden">
+      <div className="absolute right-4 top-4 z-30 hidden items-center gap-2 lg:flex xl:hidden">
         <BreakToggleButton
           isOnBreak={isOnBreak}
           busy={breakBusy}
           disabled={breakBusy || !canOperate}
           onClick={openBreakModal}
+          className="px-4 py-2 text-xs shadow-lg light:shadow-black/10"
+        />
+        <TripDirectionButton
+          destination={tripTerminals(tripDirection)[1]}
+          onClick={() => setShowTripModal(true)}
           className="px-4 py-2 text-xs shadow-lg light:shadow-black/10"
         />
       </div>
@@ -123,10 +132,11 @@ export default function ConductorDashboard() {
           total={liveTransactions.total}
           gcash={liveTransactions.gcash}
           cash={liveTransactions.cash}
-          onHistoryClick={() => setShowHistory(true)}
           isOnBreak={isOnBreak}
           breakBusy={breakBusy}
           onOpenBreakModal={openBreakModal}
+          tripDestination={tripTerminals(tripDirection)[1]}
+          onOpenTripModal={() => setShowTripModal(true)}
           canOperate={canOperate}
         />
       </div>
@@ -144,12 +154,7 @@ export default function ConductorDashboard() {
         cash={liveTransactions.cash}
         isOnBreak={isOnBreak}
         shiftTimeIn={shift?.timeIn}
-        onPaymentClick={() => {
-          if (!isOnBreak) {
-            window.dispatchEvent(new CustomEvent("conductor:open-payment"));
-          }
-        }}
-        onHistoryClick={() => setShowHistory(true)}
+        onPaymentClick={() => window.dispatchEvent(new CustomEvent("conductor:open-payment"))}
         canOperate={canOperate}
       />
 
@@ -166,8 +171,9 @@ export default function ConductorDashboard() {
         isOnBreak={isOnBreak}
         breakBusy={breakBusy}
         shiftTimeIn={shift?.timeIn}
-        onHistoryClick={() => setShowHistory(true)}
         onOpenBreakModal={openBreakModal}
+        tripDestination={tripTerminals(tripDirection)[1]}
+        onOpenTripModal={() => setShowTripModal(true)}
         canOperate={canOperate}
       />
 
@@ -176,13 +182,20 @@ export default function ConductorDashboard() {
         hails={hails}
         status={status}
         isOnBreak={isOnBreak}
+        tripDirection={tripDirection}
         canOperate={canOperate}
         hailBusyId={hailBusyId}
         hailActionError={hailActionError}
         onHailAction={updateHail}
       />
 
-      <HistoryLogModal isOpen={showHistory} onClose={() => setShowHistory(false)} shiftId={shift?.shiftId || ""} />
+      {showTripModal && (
+        <TripDirectionModal
+          direction={tripDirection}
+          onClose={() => setShowTripModal(false)}
+          onSave={saveTripDirection}
+        />
+      )}
 
       {showBreakModal && (
         <BreakConfirmModal

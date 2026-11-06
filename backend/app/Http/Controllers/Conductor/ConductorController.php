@@ -13,6 +13,7 @@ use App\Http\Requests\Conductor\SubmitRemittanceRequest;
 use App\Http\Requests\Conductor\UpdateLocationRequest;
 use App\Models\Driver;
 use App\Models\Setting;
+use App\Models\ShiftLog;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\ConductorService;
@@ -256,6 +257,28 @@ class ConductorController extends Controller
             $shift,
             $shift->is_on_break ? 'Break started' : 'Break ended',
         );
+    }
+
+    /**
+     * POST /api/conductor/trip-direction
+     * FORWARD = route start to end (Calumpit → Meycauayan), REVERSE = return.
+     */
+    public function updateTripDirection(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'trip_direction' => ['required', 'string', 'in:'.ShiftLog::TRIP_FORWARD.','.ShiftLog::TRIP_REVERSE],
+            'device_id' => ['nullable', 'string', 'min:16', 'max:100', 'regex:/^[A-Za-z0-9._:-]+$/'],
+            'device_type' => ['nullable', 'required_with:device_id', 'string', 'in:WEB,MOBILE'],
+        ]);
+
+        $shift = $this->shiftService->setTripDirection(
+            $request->user(),
+            $validated['trip_direction'],
+            $validated['device_id'] ?? null,
+            $validated['device_type'] ?? null,
+        );
+
+        return $this->successResponse($shift, 'Trip direction updated');
     }
 
     /**

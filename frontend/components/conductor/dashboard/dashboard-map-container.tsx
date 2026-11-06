@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import type { ConductorHailRequest } from "@/lib/conductor/types";
 import type { ConductorStatus } from "./use-dashboard-state";
+import type { TripDirection } from "@/lib/shared/map/trip-direction";
 
 const ConductorMap = dynamic(() => import("@/components/conductor/conductor-map"), {
   ssr: false,
@@ -14,13 +15,14 @@ interface DashboardMapContainerProps {
   hails: ConductorHailRequest[];
   status: ConductorStatus;
   isOnBreak: boolean;
+  tripDirection: TripDirection;
   canOperate: boolean;
   hailBusyId: string | null;
   hailActionError: string | null;
   onHailAction: (hailId: string, action: "accept" | "reject") => void;
 }
 
-export function DashboardMapContainer({ unitNumber, hails, status, isOnBreak, canOperate, hailBusyId, hailActionError, onHailAction }: DashboardMapContainerProps) {
+export function DashboardMapContainer({ unitNumber, hails, status, isOnBreak, tripDirection, canOperate, hailBusyId, hailActionError, onHailAction }: DashboardMapContainerProps) {
   return (
     // xl:left-0: the sidebar no longer reserves 256px of left space at xl:+
     // (it's a floating bottom dock instead — see ConductorDock), so the map
@@ -31,6 +33,7 @@ export function DashboardMapContainer({ unitNumber, hails, status, isOnBreak, ca
         hails={hails}
         capacityStatus={status}
         isOnBreak={isOnBreak}
+        tripDirection={tripDirection}
         canOperate={canOperate}
         hailBusyId={hailBusyId}
         onHailAction={onHailAction}

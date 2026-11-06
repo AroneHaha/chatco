@@ -31,6 +31,7 @@ All paths are relative to `/api/v1`. Conventions are in [README.md](README.md).
   - [POST /conductor/location](#post-conductorlocation)
   - [POST /conductor/capacity-status](#post-conductorcapacity-status)
   - [POST /conductor/break-status](#post-conductorbreak-status)
+  - [POST /conductor/trip-direction](#post-conductortrip-direction)
 - [Recording fares](#recording-fares)
   - [How the fare is calculated](#how-the-fare-is-calculated)
   - [POST /conductor/transactions](#post-conductortransactions)
@@ -326,7 +327,7 @@ The `409` message for a mismatch is:
 
 > This shift is active on another device. Finish syncing and release that device before performing shift actions here.
 
-**Endpoints that run the check:** `/location`, `/capacity-status`, `/break-status`, `/transactions` (POST), `/payments/gcash/initiate`, `/hails/{id}/accept`, `/hails/{id}/reject` and `/remittances` (POST). Shift start sets the owner directly. SOS and every GET skip the check.
+**Endpoints that run the check:** `/location`, `/capacity-status`, `/break-status`, `/trip-direction`, `/transactions` (POST), `/payments/gcash/initiate`, `/hails/{id}/accept`, `/hails/{id}/reject` and `/remittances` (POST). Shift start sets the owner directly. SOS and every GET skip the check.
 
 **Moving a shift to another device**, in order of preference:
 
@@ -481,6 +482,21 @@ If the shift has no GPS snapshot yet, a row is created with `null` coordinates. 
 - **Starting a break** keeps any existing `break_started_at`. **Ending it** clears `break_started_at`.
 
 **200 OK:** the ShiftLog with `vehicle`, `driver` and `route`. `message` is `"Break started"` or `"Break ended"`.
+
+**Errors:** `422 "No active shift"`, `409` device mismatch, `422` validation
+
+### POST /conductor/trip-direction
+
+- **Limiter:** conductor-write (30/min)
+
+**Body (JSON):** `trip_direction` (required, `FORWARD` or `REVERSE`), plus `device_id` / `device_type`
+
+- `FORWARD` runs along the route geometry from its first point (Calumpit terminal) to its last (Meycauayan); `REVERSE` is the return trip.
+- **Every new shift starts `FORWARD`** (column default). Nothing flips it automatically; only this endpoint changes it.
+- A change broadcasts `VehicleLocationUpdated` (which now carries `trip_direction`) so maps re-point the unit. Sending the current value changes nothing and broadcasts nothing.
+- `trip_direction` is also on `GET /conductor/shift`, `GET /vehicles/locations` and `GET /admin/monitoring`.
+
+**200 OK:** the ShiftLog with `vehicle`, `driver` and `route`, `message: "Trip direction updated"`.
 
 **Errors:** `422 "No active shift"`, `409` device mismatch, `422` validation
 

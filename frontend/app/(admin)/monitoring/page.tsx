@@ -10,6 +10,7 @@ import {
   ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { useFleetPoll } from '@/lib/admin/services/monitoring.service';
+import { toTripDirection } from '@/lib/shared/map/trip-direction';
 import {
   useMonitoringData,
   useSosLocations,
@@ -375,6 +376,7 @@ export default function MonitoringPage() {
       break_duration_minutes: v.break_duration_minutes,
       is_stale: v.is_stale,
       minutes_since_update: v.minutes_since_update,
+      trip_direction: toTripDirection(v.trip_direction),
     })).filter(v => v.lat !== 0 && v.lng !== 0),
     [fleet]
   );
