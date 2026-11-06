@@ -117,7 +117,7 @@ class ConductorAccountControlTest extends TestCase
             'hire_date' => now()->toDateString(), 'status' => 'ACTIVE',
         ]);
         $vehicle = Vehicle::create([
-            'unit_number' => 'UNIT-1', 'plate_number' => 'PLT-1', 'vehicle_type' => 'Jeepney',
+            'unit_number' => 'UNIT-1', 'plate_number' => 'PLT-1',
             'status' => 'ACTIVE', 'conductor_id' => $conductor->id,
         ]);
         $shiftId = 'shift-'.uniqid();

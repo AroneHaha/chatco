@@ -47,7 +47,6 @@ interface RawVehicle {
   id: string;
   unit_number: string | null;
   plate_number: string | null;
-  vehicle_type?: string | null;
   brand?: string | null;
   model?: string | null;
   route_id?: string | null;
@@ -112,7 +111,6 @@ export interface AdminVehicle {
   id: string;
   unitNumber: string;
   plateNumber: string;
-  vehicleType: string | null;
   brand: string | null;
   model: string | null;
   /** Raw backend status enum. */
@@ -166,7 +164,6 @@ export interface VehicleMutationInput {
   /** Existing vehicles only; generated automatically on creation. */
   unitNumber?: string;
   plateNumber?: string;
-  vehicleType?: string | null;
   brand?: string | null;
   model?: string | null;
   routeId?: string | null;
@@ -248,7 +245,6 @@ function mapVehicle(raw: RawVehicle): AdminVehicle {
     id: String(raw.id),
     unitNumber: String(raw.unit_number ?? ""),
     plateNumber: String(raw.plate_number ?? ""),
-    vehicleType: raw.vehicle_type ?? null,
     brand: raw.brand ?? null,
     model: raw.model ?? null,
     status,
@@ -283,7 +279,6 @@ function buildMutationBody(input: VehicleMutationInput): Record<string, unknown>
   const body: Record<string, unknown> = {};
   if (input.unitNumber !== undefined) body.unit_number = input.unitNumber;
   if (input.plateNumber !== undefined) body.plate_number = input.plateNumber;
-  if (input.vehicleType !== undefined) body.vehicle_type = input.vehicleType;
   if (input.brand !== undefined) body.brand = input.brand;
   if (input.model !== undefined) body.model = input.model;
   if (input.routeId !== undefined) body.route_id = input.routeId;

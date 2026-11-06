@@ -298,7 +298,7 @@ Broadcasting uses Pusher (`BROADCAST_CONNECTION=pusher`). Private channels authe
 
 | Channel | Type | Event (`broadcastAs`) | Payload | Fired when |
 |---|---|---|---|---|
-| `vehicles` | public | `VehicleLocationUpdated` | `vehicle_id, plate_number, vehicle_type, lat, lng, speed, heading, capacity_status, route_name, updated_at` | A conductor GPS ping is accepted |
+| `vehicles` | public | `VehicleLocationUpdated` | `vehicle_id, plate_number, lat, lng, speed, heading, capacity_status, route_name, updated_at` | A conductor GPS ping is accepted |
 | `announcements` | public | `AnnouncementCreated` | `id, type, title, message, status, created_at` | An admin publishes a broadcast announcement (not targeted ones) |
 | `payments.{transactionId}` | public | `PaymentStatusUpdated` | `transaction_id, status, paid_at` | A webhook or reconciliation changes a payment status |
 | `private-vehicle.{vehicleId}.hails` | private | `HailCreated` | `hail_id, commuter_name, commuter_lat, commuter_lng, distance_m, expires_at` | A commuter hails this vehicle |

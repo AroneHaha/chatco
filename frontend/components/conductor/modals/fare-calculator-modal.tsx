@@ -917,11 +917,9 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
               className="w-full cursor-pointer text-left p-4 rounded-xl border border-white/10 light:border-gray-200 bg-white/5 light:bg-gray-50 hover:bg-white/10 light:hover:bg-gray-100 hover:border-white/20 light:hover:border-gray-300 transition-all duration-200 group"
             >
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-[#62A0EA]/10 light:bg-[#F0F7FF] border border-[#62A0EA]/20 light:border-[#DAEEFF] flex items-center justify-center flex-shrink-0 group-hover:bg-[#62A0EA]/15 transition-colors">
-                  <svg className="w-6 h-6 text-[#62A0EA] light:text-[#1A5FB4]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
-                  </svg>
-                </div>
+                <svg className="w-9 h-9 flex-shrink-0 text-[#62A0EA] light:text-[#1A5FB4]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
+                </svg>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-white light:text-gray-900 font-bold text-sm">Cash Payment</h3>
                   <p className="text-[11px] text-white/40 light:text-gray-500 mt-0.5 leading-relaxed">Collect physical cash from the commuter and record the transaction</p>
@@ -943,11 +941,9 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
               className={`w-full text-left p-4 rounded-xl border transition-all duration-200 group ${isOnline ? "cursor-pointer border-white/10 light:border-gray-200 bg-white/5 light:bg-gray-50 hover:bg-white/10 light:hover:bg-gray-100 hover:border-white/20 light:hover:border-gray-300" : "border-amber-500/20 light:border-amber-200 bg-amber-500/5 light:bg-amber-50 opacity-60 cursor-not-allowed"}`}
             >
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-[#62A0EA]/10 light:bg-[#F0F7FF] border border-[#62A0EA]/20 light:border-[#DAEEFF] flex items-center justify-center flex-shrink-0 group-hover:bg-[#62A0EA]/15 transition-colors">
-                  <svg className="w-6 h-6 text-[#62A0EA] light:text-[#1A5FB4]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" />
-                  </svg>
-                </div>
+                <svg className="w-9 h-9 flex-shrink-0 text-[#62A0EA] light:text-[#1A5FB4]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" />
+                </svg>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-white light:text-gray-900 font-bold text-sm">GCash Payment</h3>
                    <p className="text-[11px] text-white/40 light:text-gray-500 mt-0.5 leading-relaxed">{isOnline ? "Digital payment via GCash — commuter scans QR to pay from their account" : "Unavailable offline. Reconnect to generate a payment QR."}</p>

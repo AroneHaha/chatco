@@ -346,6 +346,7 @@ export default function AdminCommuterMap({
   sosLocations,
   focusPosition,
   focusNonce,
+  showOwnLocation = false,
 }: {
   isDesktop?: boolean;
   vehicles?: ActiveVehicle[];
@@ -357,6 +358,8 @@ export default function AdminCommuterMap({
   focusPosition?: [number, number] | null;
   /** Bump to re-focus the same coordinates again. */
   focusNonce?: number;
+  /** Track and pin the viewer's own GPS location. Off for admins, who don't ride. */
+  showOwnLocation?: boolean;
 }) {
   const routeGeometry = useRouteGeometry(ROUTE_COORDS);
   // Dark outside the admin app (the public share page renders this map too).
@@ -442,7 +445,7 @@ export default function AdminCommuterMap({
         zoomSnap={1}
       >
         <DynamicRouteViewport routeBounds={routeGeometry.routeBounds} mapBounds={routeGeometry.mapBounds} />
-        <LocationFinder userLocationRef={userLocationRef} setUserActualLocation={setUserActualLocation} setShowMapPin={setShowMapPin} setArrowPos={setArrowPos} routeBounds={routeGeometry.routeBounds} mapBounds={routeGeometry.mapBounds} />
+        {showOwnLocation && <LocationFinder userLocationRef={userLocationRef} setUserActualLocation={setUserActualLocation} setShowMapPin={setShowMapPin} setArrowPos={setArrowPos} routeBounds={routeGeometry.routeBounds} mapBounds={routeGeometry.mapBounds} />}
         <MapFocuser target={focusPosition} nonce={focusNonce} />
         <MapBasemap theme={theme} />
 

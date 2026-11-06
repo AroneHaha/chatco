@@ -72,7 +72,6 @@ Same relations as the list. `404` (shape B, `findOrFail`) if the ID doesn't exis
 | `plate_number` | Required, max 20, unique |
 | `unit_number` | Server-generated; prohibited in the create request |
 | `brand`, `model` | Required, max 50 |
-| `vehicle_type` | Nullable, one of `Jeepney, Bus, Van, UV Express` |
 | `route_id` | Nullable UUID, must exist |
 | `driver_id` | Nullable UUID, must exist in `drivers` |
 | `conductor_id` | Nullable UUID, must exist in `conductor_profiles` |
