@@ -19,6 +19,12 @@ use Illuminate\Support\Facades\DB;
 
 class LocationService
 {
+    /**
+     * No update for this long = phone offline: hidden from commuters and
+     * unhailable. Online phones report at least every 15s, even parked.
+     */
+    public const COMMUTER_FRESH_SECONDS = 300;
+
     public function __construct(
         private ShiftDeviceService $shiftDeviceService,
         private AnnouncementService $announcementService,
@@ -271,17 +277,20 @@ class LocationService
      * Get all active vehicle locations for the commuter map.
      *
      * - NO distance filter — ALL vehicles visible at ALL times
-     * - NO age filter — a parked or stuck unit stays on the map for its whole
-     *   shift. It leaves only on remittance (active shift cleared) or while on
-     *   break. A shift abandoned without remittance is closed by
-     *   shifts:auto-end-stale, which removes it too.
+     * - Offline filter — a unit with no update for COMMUTER_FRESH_SECONDS is
+     *   hidden (and unhailable) until its phone reports again. A parked unit
+     *   online keeps reporting every 15s, so it stays. Admin monitoring is
+     *   not filtered: it keeps the last position and flags it stale.
+     * - Leaves on remittance (active shift cleared) or while on break too.
      * - Joins with vehicles + active shifts + routes
      * - Fallback/initial load endpoint (real-time comes via Pusher)
      * - Ordered by most recently updated first
+     * - visible_for_seconds tells the commuter app when to drop the unit if
+     *   no newer update arrives (an offline phone sends no broadcast).
      */
     public function getAllActiveLocations(): Collection
     {
-        return DB::table('vehicle_locations')
+        $locations = DB::table('vehicle_locations')
             ->join('vehicles', 'vehicle_locations.vehicle_id', '=', 'vehicles.id')
             // Only show vehicles that have an ACTIVE shift. After remittance,
             // active_shift_id is set to null — the vehicle should disappear
@@ -298,6 +307,7 @@ class LocationService
             })
             ->where('shift_logs.is_on_break', false)
             ->whereColumn('vehicle_locations.updated_at', '>=', 'shift_logs.time_in')
+            ->where('vehicle_locations.updated_at', '>=', now()->subSeconds(self::COMMUTER_FRESH_SECONDS))
             ->leftJoin('routes', 'shift_logs.route_id', '=', 'routes.id')
             ->select([
                 'vehicle_locations.vehicle_id',
@@ -314,6 +324,16 @@ class LocationService
             ])
             ->orderBy('vehicle_locations.updated_at', 'desc')
             ->get();
+
+        return $locations->each(fn ($row) => $row->visible_for_seconds = $this->visibleForSeconds($row->updated_at));
+    }
+
+    /** Seconds left before a unit last updated at $updatedAt counts as offline. */
+    private function visibleForSeconds(string $updatedAt): int
+    {
+        $age = (int) Carbon::parse($updatedAt)->diffInSeconds(now(), false);
+
+        return max(0, self::COMMUTER_FRESH_SECONDS - $age);
     }
 
     /**
@@ -467,6 +487,8 @@ class LocationService
 
         if ($locationData) {
             $locationData->is_on_break = (bool) $locationData->is_on_break;
+            // A break-end broadcast reuses the last fix, which may already be old.
+            $locationData->visible_for_seconds = $this->visibleForSeconds($locationData->updated_at);
             broadcast(new VehicleLocationUpdated((array) $locationData))->toOthers();
         }
     }

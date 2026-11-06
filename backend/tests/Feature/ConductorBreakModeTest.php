@@ -55,7 +55,7 @@ class ConductorBreakModeTest extends TestCase
         $this->assertNull($shift->fresh()->break_started_at);
     }
 
-    public function test_parked_unit_stays_on_commuter_map_however_old_its_last_fix(): void
+    public function test_unit_leaves_commuter_map_when_offline_or_remitted(): void
     {
         $shift = ShiftLog::factory()->create(['time_in' => now()->subHours(2)]);
         Vehicle::whereKey($shift->vehicle_id)->update(['active_shift_id' => $shift->shift_id]);
@@ -63,17 +63,24 @@ class ConductorBreakModeTest extends TestCase
             'vehicle_id' => $shift->vehicle_id,
             'conductor_id' => $shift->conductor_id,
             'shift_id' => $shift->shift_id,
-            'fix_recorded_at' => now()->subMinutes(45),
+            'fix_recorded_at' => now(),
             'lat' => 14.8527,
             'lng' => 120.8160,
         ]);
-        DB::table('vehicle_locations')->where('vehicle_id', $shift->vehicle_id)
-            ->update(['updated_at' => now()->subMinutes(45)]);
-
         $locations = app(LocationService::class);
+
+        // Online (parked phones still report every 15s): visible.
         $this->assertCount(1, $locations->getAllActiveLocations());
 
-        // Remittance clears the active shift — only then does it leave the map.
+        // No update for 45 minutes = phone offline: hidden.
+        DB::table('vehicle_locations')->where('vehicle_id', $shift->vehicle_id)
+            ->update(['updated_at' => now()->subMinutes(45)]);
+        $this->assertCount(0, $locations->getAllActiveLocations());
+
+        // Back online, then remittance clears the active shift: gone again.
+        DB::table('vehicle_locations')->where('vehicle_id', $shift->vehicle_id)
+            ->update(['updated_at' => now()]);
+        $this->assertCount(1, $locations->getAllActiveLocations());
         Vehicle::whereKey($shift->vehicle_id)->update(['active_shift_id' => null]);
         $this->assertCount(0, $locations->getAllActiveLocations());
     }

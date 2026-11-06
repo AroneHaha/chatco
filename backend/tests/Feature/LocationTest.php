@@ -188,6 +188,37 @@ class LocationTest extends TestCase
         ]);
     }
 
+    public function test_offline_unit_is_hidden_from_commuters_but_kept_for_admin(): void
+    {
+        $this->travelTo(now()->startOfSecond());
+        $this->actingAs($this->conductor)->postJson('/api/v1/conductor/location', [
+            'lat' => 14.5995,
+            'lng' => 120.9842,
+        ])->assertOk();
+
+        $commuter = User::factory()->commuter()->create();
+        $this->actingAs($commuter)->getJson('/api/v1/vehicles/locations')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.visible_for_seconds', 300);
+
+        $this->travel(299)->seconds();
+        $this->getJson('/api/v1/vehicles/locations')
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.visible_for_seconds', 1);
+
+        // No update for 11 minutes: gone for commuters, stale for admin.
+        $this->travel(11)->minutes();
+        $this->getJson('/api/v1/vehicles/locations')->assertOk()->assertJsonCount(0, 'data');
+
+        $admin = User::factory()->admin()->create();
+        $this->actingAs($admin)->getJson('/api/v1/admin/monitoring')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $this->vehicle->id)
+            ->assertJsonPath('data.0.lat', 14.5995)
+            ->assertJsonPath('data.0.is_stale', true);
+    }
+
     public function test_conductor_can_update_capacity_status(): void
     {
         $response = $this->actingAs($this->conductor)
