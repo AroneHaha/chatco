@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use App\Models\Announcement;
 use App\Models\CommuterProfile;
 use App\Models\DiscountApplication;
+use App\Models\Setting;
 use App\Models\User;
 use App\Services\AnnouncementService;
 use App\Services\StudentRenewalService;
@@ -42,6 +43,12 @@ class StudentRenewalTest extends TestCase
     private function at(string $time): void
     {
         Carbon::setTestNow(Carbon::parse($time, 'Asia/Manila'));
+    }
+
+    /** Storage::disk() is typed as the Filesystem contract; the faked disks are adapters with assert helpers. */
+    private function disk(string $name): FilesystemAdapter
+    {
+        return Storage::disk($name);
     }
 
     private function commuter(string $type = 'STUDENT'): User
@@ -130,7 +137,7 @@ class StudentRenewalTest extends TestCase
         $application = $this->submit($student);
         $this->post('/api/v1/commuter/student-renewal', $this->proof('duplicate.jpg'), ['Accept' => 'application/json'])->assertConflict();
         $this->assertDatabaseCount('discount_applications', 1);
-        Storage::disk('r2_private')->assertExists($application->document_path);
+        $this->disk('r2_private')->assertExists($application->document_path);
         $this->assertCount(1, Storage::disk('r2_private')->allFiles());
         Sanctum::actingAs(User::create(['email' => 'admin@test.com', 'password' => 'Password1!', 'role' => UserRole::ADMIN]));
         $this->getJson('/api/v1/admin/discount-applications?status=PENDING')->assertOk()->assertJsonPath('data.total', 1)->assertJsonPath('data.data.0.request_type', 'RENEWAL')->assertJsonPath('data.data.0.commuter.email', $student->email);
@@ -453,7 +460,7 @@ class StudentRenewalTest extends TestCase
         $this->at('2028-09-01 12:00:00');
         $this->review($application, 'NEEDS_CORRECTION', 'Blurry photo.')->assertOk();
         $this->at('2028-09-08 11:59:59');
-        $storage = Storage::disk('r2_private');
+        $storage = $this->disk('r2_private');
         $disk = \Mockery::mock(FilesystemAdapter::class);
         $disk->shouldReceive('putFileAs')->once()->andReturnUsing(function (...$args) use ($storage) {
             $this->at('2028-09-08 12:00:00');
@@ -534,16 +541,17 @@ class StudentRenewalTest extends TestCase
         config(['filesystems.uploads.private_id_disk' => 'public']);
         $student = $this->commuter();
         $application = $this->submit($student);
-        Storage::disk('public')->assertMissing($application->document_path);
-        Storage::disk('r2_private')->assertExists($application->document_path);
+        $this->disk('public')->assertMissing($application->document_path);
+        $this->disk('r2_private')->assertExists($application->document_path);
         $expires = null;
-        Storage::disk('r2_private')->buildTemporaryUrlsUsing(function ($path, $expiration) use (&$expires) {
+        $this->disk('r2_private')->buildTemporaryUrlsUsing(function ($path, $expiration) use (&$expires) {
             $expires = $expiration;
 
             return 'https://private.test/'.$path.'?signed=temporary';
         });
         $this->review($application, 'APPROVED')->assertOk()
             ->assertJsonPath('data.document_url', 'https://private.test/'.$application->document_path.'?signed=temporary');
+        /** @var \Carbon\CarbonInterface $expires Set by the temporary-URL callback above. */
         $this->assertTrue($expires->equalTo(now()->addMinutes(10)));
         // Only the single-application fetch behind the review dialog carries a link.
         $this->getJson('/api/v1/admin/discount-applications?id='.$application->id)->assertOk()
@@ -606,5 +614,115 @@ class StudentRenewalTest extends TestCase
         $this->assertSame('Student', $filtered->items()[0]['commuter']['first_name']);
         $this->assertArrayNotHasKey('document_url', $filtered->items()[0]);
         $this->assertArrayHasKey('document_url', app(StudentRenewalService::class)->list(['id' => $application->id])->items()[0]);
+    }
+
+    private function saveRenewalMonth(int $month)
+    {
+        $admin = User::firstOrCreate(['email' => 'month-admin@test.com'], ['password' => 'Password1!', 'role' => UserRole::ADMIN]);
+
+        return $this->actingAs($admin)->putJson('/api/v1/admin/settings/student_renewal_month', ['value' => $month, 'category' => 'financial']);
+    }
+
+    public function test_renewal_month_change_puts_every_student_on_the_same_next_deadline(): void
+    {
+        $lateJoiner = $this->commuter();
+        $noDate = $this->commuter();
+        $expired = $this->commuter();
+        $lateJoiner->commuterProfile->update(['student_discount_expires_at' => '2028-10-01 00:00:00']);
+        $noDate->commuterProfile->update(['student_discount_expires_at' => null]);
+        $this->at('2027-11-10 12:00:00');
+        $expired->commuterProfile->update(['student_discount_expires_at' => '2027-10-01 00:00:00']);
+
+        // June 2027 has passed, so everyone renews in June 2028 (deadline Jul 1).
+        $this->saveRenewalMonth(6)->assertOk()->assertJsonPath('data.value', '6');
+
+        $this->assertSame('2028-07-01', $lateJoiner->fresh()->commuterProfile->student_discount_expires_at->toDateString());
+        $this->assertSame('2028-07-01', $noDate->fresh()->commuterProfile->student_discount_expires_at->toDateString());
+        $this->assertSame('2027-10-01', $expired->fresh()->commuterProfile->student_discount_expires_at->toDateString());
+        $this->assertDatabaseHas('activity_logs', ['description' => 'Changed Student renewal month from September to June']);
+
+        // Before June's period starts, moving to November: everyone renews in November 2028.
+        $this->at('2028-04-10 12:00:00');
+        $this->saveRenewalMonth(11)->assertOk();
+        $this->assertSame('2028-12-01', $lateJoiner->fresh()->commuterProfile->student_discount_expires_at->toDateString());
+        $this->assertSame('2028-12-01', $noDate->fresh()->commuterProfile->student_discount_expires_at->toDateString());
+
+        // The renewal cycle and its deadline follow November.
+        $this->at('2028-11-05 12:00:00');
+        $state = app(StudentRenewalService::class)->state($lateJoiner->fresh());
+        $this->assertSame('November 1-30, 2028', $state['renewal_period']);
+        $this->assertTrue($state['can_submit']);
+    }
+
+    public function test_students_already_renewed_for_the_cycle_get_the_following_deadline(): void
+    {
+        $renewed = $this->commuter();
+        $other = $this->commuter();
+        $this->review($this->submit($renewed), 'APPROVED')->assertOk();
+        $this->assertSame('2028-10-01', $renewed->fresh()->commuterProfile->student_discount_expires_at->toDateString());
+        $other->commuterProfile->update(['student_discount_expires_at' => '2028-10-01 00:00:00']);
+
+        // December 2027 is cycle 2027, which $renewed already renewed for in September.
+        $this->at('2027-10-10 12:00:00');
+        $this->saveRenewalMonth(12)->assertOk();
+        $this->assertSame('2029-01-01', $renewed->fresh()->commuterProfile->student_discount_expires_at->toDateString());
+        $this->assertSame('2028-01-01', $other->fresh()->commuterProfile->student_discount_expires_at->toDateString());
+
+        $this->at('2027-12-05 12:00:00');
+        $this->assertTrue(app(StudentRenewalService::class)->state($other->fresh())['can_submit']);
+        $this->assertFalse(app(StudentRenewalService::class)->isForRenewal($renewed->fresh()->commuterProfile));
+    }
+
+    public function test_renewal_month_is_locked_while_a_renewal_period_runs(): void
+    {
+        $student = $this->commuter();
+        // Sept 15, 2027 (setUp): the September period is running.
+        $this->saveRenewalMonth(6)->assertStatus(409);
+        $this->assertSame('2027-10-01', $student->fresh()->commuterProfile->student_discount_expires_at->toDateString());
+        $this->assertSame(9, Setting::studentRenewalMonth());
+
+        // Re-saving the same month (Financial Rules saves every field) still works and logs nothing.
+        $this->saveRenewalMonth(9)->assertOk();
+        $this->assertSame(0, DB::table('activity_logs')->where('description', 'like', '%renewal month%')->count());
+
+        $this->saveRenewalMonth(13)->assertStatus(422);
+    }
+
+    public function test_renewal_month_cannot_be_this_month_or_next(): void
+    {
+        $student = $this->commuter();
+        $student->commuterProfile->update(['student_discount_expires_at' => '2028-10-01 00:00:00']);
+        $this->at('2028-01-10 12:00:00');
+        $this->saveRenewalMonth(1)->assertStatus(422);
+        $this->saveRenewalMonth(2)->assertStatus(422);
+        $this->assertSame('2028-10-01', $student->fresh()->commuterProfile->student_discount_expires_at->toDateString());
+        $this->saveRenewalMonth(3)->assertOk();
+        $this->assertSame('2028-04-01', $student->fresh()->commuterProfile->student_discount_expires_at->toDateString());
+        // The saved month stays saveable even once it is "next month" (Financial Rules re-saves every field).
+        $this->at('2028-02-10 12:00:00');
+        $this->saveRenewalMonth(3)->assertOk();
+
+        // December wraps to January.
+        $this->at('2028-12-10 12:00:00');
+        $this->saveRenewalMonth(1)->assertStatus(422);
+    }
+
+    public function test_january_and_december_renewal_months_roll_over_correctly(): void
+    {
+        config(['registration.student_renewal_month' => 12]);
+        $this->at('2027-10-31 12:00:00');
+        $this->assertSame(2026, StudentRenewalService::rawCycleYear());
+        $this->at('2027-11-01 00:00:00');
+        $this->assertSame(2027, app(StudentRenewalService::class)->cycleYear());
+        $this->assertSame('2028-01-01', StudentRenewalService::cutoff(2027)->toDateString());
+        $this->assertSame('2029-01-01', CommuterProfile::initialStudentExpiry()->toDateString());
+
+        config(['registration.student_renewal_month' => 1]);
+        $this->at('2027-11-30 12:00:00');
+        $this->assertSame(2027, app(StudentRenewalService::class)->cycleYear());
+        $this->at('2027-12-01 00:00:00');
+        $this->assertSame(2028, app(StudentRenewalService::class)->cycleYear());
+        $this->assertSame('2028-02-01', StudentRenewalService::cutoff(2028)->toDateString());
+        $this->assertSame('January 1-31, 2028', app(StudentRenewalService::class)->state($this->commuter())['renewal_period']);
     }
 }

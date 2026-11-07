@@ -7,11 +7,13 @@ use App\Http\Controllers\Controller;
 use App\Models\Setting;
 use App\Services\ActivityLogService;
 use App\Services\MaintenanceStatus;
+use App\Services\StudentRenewalService;
 use App\Support\ConductorSignOut;
 use App\Support\FareRules;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -79,6 +81,7 @@ class AdminSettingController extends Controller
             FareRules::DISCOUNT_RATE_KEY => ['required', 'numeric', 'min:0', 'max:100', 'decimal:0,2'],
             FareRules::SUCCEEDING_FARE_KEY => ['required', 'numeric', 'min:0', 'max:1000', 'decimal:0,2'],
             FareRules::BASE_BARANGAY_COUNT_KEY => ['required', 'integer', 'min:0', 'max:100'],
+            Setting::STUDENT_RENEWAL_MONTH_KEY => ['required', 'integer', 'min:1', 'max:12'],
             default => ['nullable', 'string'],
         };
 
@@ -106,6 +109,7 @@ class AdminSettingController extends Controller
             'remittance_grace_minutes',
             'remittance_reminder_interval_minutes',
             FareRules::BASE_BARANGAY_COUNT_KEY,
+            Setting::STUDENT_RENEWAL_MONTH_KEY,
         ];
         $value = match (true) {
             in_array($key, $integerKeys, true) => (string) $validated['value'],
@@ -116,6 +120,10 @@ class AdminSettingController extends Controller
         // For the activity log: the settings pages save every key on each
         // Save, so only a key whose value actually changes gets an entry.
         $previous = Setting::where('key', $key)->value('value');
+        // Unsaved month = the config default in effect, so a first save of September logs nothing.
+        if ($key === Setting::STUDENT_RENEWAL_MONTH_KEY) {
+            $previous ??= (string) Setting::studentRenewalMonth();
+        }
 
         if ($key === Setting::RIDES_FOR_FREE_REWARD_KEY) {
             $setting = DB::transaction(function () use ($key, $value, $category, $request): Setting {
@@ -147,6 +155,8 @@ class AdminSettingController extends Controller
             }, 3);
         } elseif (in_array($key, FareRules::KEYS, true)) {
             $setting = $this->saveFareRule($key, $value, $category, $request);
+        } elseif ($key === Setting::STUDENT_RENEWAL_MONTH_KEY) {
+            $setting = $this->saveStudentRenewalMonth((int) $value, $category, $request);
         } else {
             $setting = Setting::updateOrCreate(
                 ['key' => $key],
@@ -228,6 +238,45 @@ class AdminSettingController extends Controller
         }, 3);
     }
 
+    /**
+     * Saves the student renewal month. A real change puts every current
+     * student on the new month's next deadline (StudentRenewalService::
+     * alignExpiries), in the same transaction so the two can't disagree. The
+     * new month can't be this month or next. Blocked while the old
+     * month's renewal period is running, so pending renewals
+     * never see their deadline move.
+     */
+    private function saveStudentRenewalMonth(int $month, string $category, Request $request): Setting
+    {
+        $setting = DB::transaction(function () use ($month, $category, $request): Setting {
+            // Locking the row serializes concurrent month saves.
+            $row = Setting::where('key', Setting::STUDENT_RENEWAL_MONTH_KEY)->lockForUpdate()->first();
+            $current = $row && (int) $row->value >= 1 && (int) $row->value <= 12
+                ? (int) $row->value : Setting::studentRenewalMonth();
+
+            if ($month !== $current) {
+                // No sudden deadlines: this month and next are off-limits. That also
+                // rules out any month whose renewal period is already running.
+                $now = now('Asia/Manila')->month;
+                abort_if(in_array($month, [$now, $now % 12 + 1], true), 422,
+                    'Pick a renewal month at least two months from now, so students have time to prepare.');
+                abort_if(StudentRenewalService::periodRunning($current), 409,
+                    'The renewal month can\'t be changed while a student renewal period is running. Try again after the deadline.');
+                StudentRenewalService::alignExpiries($month);
+            }
+
+            return Setting::updateOrCreate(['key' => Setting::STUDENT_RENEWAL_MONTH_KEY], [
+                'value' => (string) $month,
+                'category' => $category,
+                'updated_by' => $request->user()->id,
+            ]);
+        }, 3);
+        // The saved hook already forgot it, but a read during the transaction could re-cache the old month.
+        Cache::forget(Setting::STUDENT_RENEWAL_MONTH_CACHE_KEY);
+
+        return $setting;
+    }
+
     /** Readable names for the activity log; other keys fall back to a headline of the key. */
     private const SETTING_LABELS = [
         Setting::RIDES_FOR_FREE_REWARD_KEY => 'Paid rides for 1 free ride',
@@ -237,6 +286,7 @@ class AdminSettingController extends Controller
         FareRules::SUCCEEDING_FARE_KEY => 'Succeeding fare per barangay (₱)',
         FareRules::BASE_BARANGAY_COUNT_KEY => 'Barangays covered by the minimum fare',
         'regular_discount' => 'Regular discount (%)',
+        Setting::STUDENT_RENEWAL_MONTH_KEY => 'Student renewal month',
         'student_discount' => 'Student discount (%)',
         'senior_discount' => 'Senior citizen discount (%)',
         'pwd_discount' => 'PWD discount (%)',
@@ -286,6 +336,9 @@ class AdminSettingController extends Controller
     {
         if ($value === 'true' || $value === 'false') {
             return $value === 'true' ? 'On' : 'Off';
+        }
+        if ($key === Setting::STUDENT_RENEWAL_MONTH_KEY && $value !== null) {
+            return Carbon::create(2000, (int) $value, 1)->format('F');
         }
         if ($key === 'maintenance_roles' && $value !== null) {
             $roles = json_decode($value, true);
