@@ -49,6 +49,9 @@ interface FareCalcModalProps {
   conductorName?: string;
   unitNumber?: string;
   driverName?: string;
+  /** Why fares can't be collected right now (on break, another device); null when they can. */
+  blockedReason?: string | null;
+  onShowHistory?: () => void;
 }
 
 /**
@@ -79,7 +82,7 @@ function selectedPointName(point: PointArea, subPoint: string | null): string {
   return subPoint ? `${point.name} · ${subPoint}` : point.name;
 }
 
-export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, conductorName, unitNumber, driverName }: FareCalcModalProps) {
+export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, conductorName, unitNumber, driverName, blockedReason = null, onShowHistory }: FareCalcModalProps) {
   const isOnline = useConductorConnectivity();
   const [step, setStep] = useState<Step>("method");
   // Open/close timing + xl:+ popover anchoring (measures ConductorDock's
@@ -903,6 +906,11 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
 
           {/* Method Options */}
           <div className="p-5 space-y-3">
+            {blockedReason && (
+              <p role="status" className="rounded-xl border border-white/10 light:border-gray-200 bg-[#0E1628] light:bg-gray-50 px-3 py-2 text-xs text-white/70 light:text-gray-700">
+                {blockedReason}
+              </p>
+            )}
             {!isOnline && (
               <div className="rounded-xl border border-amber-500/25 light:border-amber-200 bg-amber-500/10 light:bg-amber-50 px-3 py-2 text-xs text-amber-200 light:text-amber-800">
                 Offline mode: cash fares are saved on this device and queued for synchronization. GCash is unavailable.
@@ -910,11 +918,13 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
             )}
             {/* Cash Option */}
             <button
+              disabled={!!blockedReason}
               onClick={() => {
+                if (blockedReason) return;
                 setSelectedMethod("Cash");
                 setStep("select");
               }}
-              className="w-full cursor-pointer text-left p-4 rounded-xl border border-white/10 light:border-gray-200 bg-white/5 light:bg-gray-50 hover:bg-white/10 light:hover:bg-gray-100 hover:border-white/20 light:hover:border-gray-300 transition-all duration-200 group"
+              className="w-full cursor-pointer text-left p-4 rounded-xl border border-white/10 light:border-gray-200 bg-white/5 light:bg-gray-50 hover:bg-white/10 light:hover:bg-gray-100 hover:border-white/20 light:hover:border-gray-300 transition-all duration-200 group disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white/5 light:disabled:hover:bg-gray-50"
             >
               <div className="flex items-center gap-4">
                 <svg className="w-9 h-9 flex-shrink-0 text-[#62A0EA] light:text-[#1A5FB4]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
@@ -932,13 +942,13 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
 
             {/* GCash Option */}
             <button
-              disabled={!isOnline}
+              disabled={!isOnline || !!blockedReason}
               onClick={() => {
-                if (!isOnline) return;
+                if (!isOnline || blockedReason) return;
                 setSelectedMethod("GCash");
                 setStep("select");
               }}
-              className={`w-full text-left p-4 rounded-xl border transition-all duration-200 group ${isOnline ? "cursor-pointer border-white/10 light:border-gray-200 bg-white/5 light:bg-gray-50 hover:bg-white/10 light:hover:bg-gray-100 hover:border-white/20 light:hover:border-gray-300" : "border-amber-500/20 light:border-amber-200 bg-amber-500/5 light:bg-amber-50 opacity-60 cursor-not-allowed"}`}
+              className={`w-full text-left p-4 rounded-xl border transition-all duration-200 group ${!isOnline ? "border-amber-500/20 light:border-amber-200 bg-amber-500/5 light:bg-amber-50 opacity-60 cursor-not-allowed" : blockedReason ? "border-white/10 light:border-gray-200 bg-white/5 light:bg-gray-50 opacity-40 cursor-not-allowed" : "cursor-pointer border-white/10 light:border-gray-200 bg-white/5 light:bg-gray-50 hover:bg-white/10 light:hover:bg-gray-100 hover:border-white/20 light:hover:border-gray-300"}`}
             >
               <div className="flex items-center gap-4">
                 <svg className="w-9 h-9 flex-shrink-0 text-[#62A0EA] light:text-[#1A5FB4]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
@@ -956,8 +966,20 @@ export default function FareCalcModal({ isOpen, onClose, shiftId, routeId, condu
 
           </div>
 
-          {/* Footer info */}
-          <div className="px-5 pb-5">
+          {/* Footer: history entry + info */}
+          <div className="px-5 pb-5 space-y-3">
+            {onShowHistory && (
+              <button
+                type="button"
+                onClick={onShowHistory}
+                className="w-full flex items-center justify-center gap-2 rounded-xl border border-white/10 light:border-gray-200 bg-[#0E1628] light:bg-white px-4 py-3 text-sm font-semibold text-white light:text-gray-900 hover:bg-[#131C2E] light:hover:bg-gray-100 transition-colors active:scale-[0.98]"
+              >
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+                Payment History
+              </button>
+            )}
             <p className="text-[10px] text-white/20 light:text-gray-400 leading-relaxed text-center">
               Both methods will be recorded in the shift transaction log for end-of-day remittance.
             </p>

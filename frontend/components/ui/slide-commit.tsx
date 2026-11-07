@@ -60,6 +60,8 @@ interface SlideCommitProps {
   holdMs?: number;
   commitRatio?: number;
   disabled?: boolean;
+  /** Mirror the slider: the handle rests on the right and slides left. */
+  reverse?: boolean;
   icon?: ReactNode;
   className?: string;
 }
@@ -87,6 +89,7 @@ export default function SlideCommit({
   holdMs = 1500,
   commitRatio = 1,
   disabled = false,
+  reverse = false,
   icon,
   className = ''
 }: SlideCommitProps) {
@@ -158,7 +161,8 @@ export default function SlideCommit({
   const local = (clientX: number) => {
     const rect = trackRef.current?.getBoundingClientRect();
     if (!rect) return 0;
-    return (clientX - rect.left) / (rect.width / width || 1);
+    // Reversed, the root is mirrored with CSS, so distance runs from the right edge.
+    return (reverse ? rect.right - clientX : clientX - rect.left) / (rect.width / width || 1);
   };
 
   const goHome = (velocity: number) => {
@@ -296,15 +300,17 @@ export default function SlideCommit({
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (disabled || phase === 'pending' || phase === 'done') return;
     const step = TRAVEL / 10;
+    const forward = reverse ? 'ArrowLeft' : 'ArrowRight';
+    const back = reverse ? 'ArrowRight' : 'ArrowLeft';
     if (e.key === 'End' || e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       commit(true);
-    } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+    } else if (e.key === forward || e.key === 'ArrowUp') {
       e.preventDefault();
       const next = Math.min(TRAVEL, x.get() + step);
       x.set(next);
       if (next >= TRAVEL) commit(true);
-    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+    } else if (e.key === back || e.key === 'ArrowDown') {
       e.preventDefault();
       x.set(Math.max(0, x.get() - step));
     } else if (e.key === 'Home' || e.key === 'Escape') {
@@ -324,6 +330,7 @@ export default function SlideCommit({
       data-phase={phase}
       data-held={held ? '' : undefined}
       data-disabled={disabled ? '' : undefined}
+      data-reverse={reverse ? '' : undefined}
       style={{
         width,
         height,
@@ -382,8 +389,10 @@ export default function SlideCommit({
               animate={{ opacity: done ? 1 : 0, scale: done || reduce ? 1 : 0.95 }}
               transition={{ duration: 0.2, ease: EASE_OUT }}
             >
-              <Check size={Math.round(GRIP * 0.38)} strokeWidth={2.5} />
-              {doneLabel}
+              <span className="slide-commit__upright">
+                <Check size={Math.round(GRIP * 0.38)} strokeWidth={2.5} />
+                {doneLabel}
+              </span>
             </motion.span>
           </motion.div>
         </motion.div>

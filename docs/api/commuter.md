@@ -452,7 +452,8 @@ Decimals come back as strings. Model timestamps use Laravel's default UTC format
 |---|---|---|
 | 409 | B | `Duplicate pending hail` |
 | 422 | B | `Vehicle not on duty` or `Vehicle is currently on break` |
-| 422 | B | `Vehicle position is unavailable or stale` |
+| 422 | B | `Vehicle position is unavailable` (no GPS fix yet this shift) |
+| 422 | B | `Vehicle is offline` (no update for 5 minutes; the unit is also hidden from `GET /vehicles/locations`) |
 | 422 | **custom** | `{"error": "outside_radius", "distance_m": 1534.2}`. **No envelope.** Branch on `error`. |
 | 422 | B | `Pickup point is outside the active route coverage.` |
 | 422 | A | Validation (`errors.vehicle_id`, …) |

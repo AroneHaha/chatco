@@ -68,6 +68,7 @@ export const CONDUCTOR_API = {
     `/api/conductor/hails/${encodeURIComponent(id)}/reject`,
   shiftLogs: "/api/conductor/shift-logs",
   breakStatus: "/api/conductor/break-status",
+  tripDirection: "/api/conductor/trip-direction",
   location: "/api/conductor/location",
   capacityStatus: "/api/conductor/capacity-status",
 } as const;

@@ -15,8 +15,10 @@
 import { memo, useMemo } from "react";
 import { Marker, Circle } from "react-leaflet";
 import UnitPopup, { capacityTone } from "@/components/maps/unit-popup";
+import { busMarkerIcon } from "@/components/maps/bus-marker-icon";
 import { formatDistance } from "@/lib/shared/geo/nearby-detector";
-import { getCapacityConfig, createJeepneyIcon, type VehicleCapacity } from "./commuter-map-icons";
+import { tripLabel, unitHeading, type TripDirection } from "@/lib/shared/map/trip-direction";
+import { getCapacityConfig, type VehicleCapacity } from "./commuter-map-icons";
 import { MAP_COLORS } from "@/components/maps/map-theme";
 import { useCommuterTheme } from "@/contexts/commuter-theme-context";
 
@@ -28,6 +30,9 @@ export interface VehicleMarkerProps {
   plateNumber: string;
   routeName: string | null;
   capacity: VehicleCapacity;
+  tripDirection: TripDirection;
+  /** The drawn route line; a stable reference from useRouteGeometry. */
+  routeCoords: [number, number][];
   isWithinRadius: boolean;
   distanceInMeters: number | null;
   estimatedArrivalMinutes: number | null;
@@ -39,8 +44,9 @@ function VehicleMarkerImpl({
   lat,
   lng,
   plateNumber,
-  routeName,
   capacity,
+  tripDirection,
+  routeCoords,
   isWithinRadius,
   distanceInMeters,
   estimatedArrivalMinutes,
@@ -48,6 +54,8 @@ function VehicleMarkerImpl({
   const config = getCapacityConfig(capacity);
   const mapColors = MAP_COLORS[useCommuterTheme()];
   const position: [number, number] = [lat, lng];
+  // Recomputed only when this unit moves, flips direction or the route changes.
+  const heading = useMemo(() => unitHeading(routeCoords, lat, lng, tripDirection), [routeCoords, lat, lng, tripDirection]);
   const eventHandlers = useMemo(() => ({
     click: (event: import("leaflet").LeafletEvent) => {
       if (!window.matchMedia("(min-width: 1024px)").matches) return;
@@ -72,12 +80,12 @@ function VehicleMarkerImpl({
         }}
       />
       {/* Keep vehicles above the commuter's location pin when icons overlap. */}
-      <Marker position={position} icon={createJeepneyIcon(capacity, isWithinRadius)} eventHandlers={eventHandlers} zIndexOffset={1000}>
+      <Marker position={position} icon={busMarkerIcon({ heading, statusColor: config.color, withinRadius: isWithinRadius })} eventHandlers={eventHandlers} zIndexOffset={1000}>
         <UnitPopup
           title={plateNumber}
           status={{ label: config.label, tone: capacityTone(capacity) }}
           details={[
-            { label: "Route", value: routeName ?? "—" },
+            { label: "Route", value: tripLabel(tripDirection) },
             ...(distanceInMeters !== null ? [{ label: "Distance", value: formatDistance(distanceInMeters) }] : []),
             ...(isWithinRadius && estimatedArrivalMinutes !== null ? [{ label: "ETA", value: `~${estimatedArrivalMinutes} min` }] : []),
           ]}
@@ -101,6 +109,8 @@ function propsAreEqual(prev: VehicleMarkerProps, next: VehicleMarkerProps): bool
     prev.plateNumber === next.plateNumber &&
     prev.routeName === next.routeName &&
     prev.capacity === next.capacity &&
+    prev.tripDirection === next.tripDirection &&
+    prev.routeCoords === next.routeCoords &&
     prev.isWithinRadius === next.isWithinRadius &&
     prev.distanceInMeters === next.distanceInMeters &&
     prev.estimatedArrivalMinutes === next.estimatedArrivalMinutes

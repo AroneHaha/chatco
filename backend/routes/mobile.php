@@ -85,6 +85,7 @@ Route::prefix('mobile/conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR',
     Route::post('/location', [ConductorController::class, 'updateLocation'])->middleware('throttle:conductor-gps');
     Route::post('/capacity-status', [ConductorController::class, 'updateCapacityStatus'])->middleware('throttle:conductor-write');
     Route::post('/break-status', [ConductorController::class, 'updateBreakStatus'])->middleware('throttle:conductor-write');
+    Route::post('/trip-direction', [ConductorController::class, 'updateTripDirection'])->middleware('throttle:conductor-write');
 
     Route::get('/transactions', [MobileTransactionController::class, 'index'])->middleware('throttle:conductor-read');
     Route::post('/transactions', [MobileTransactionController::class, 'store'])->middleware('throttle:conductor-write');

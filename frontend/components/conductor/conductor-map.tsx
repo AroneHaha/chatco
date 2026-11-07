@@ -4,8 +4,9 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { MapContainer, Marker, Popup, Polyline, Circle } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { mdiJeepney } from "@mdi/js";
 import { COMMUTER_PIN_SIZE, commuterPinHtml } from "@/components/maps/commuter-pin";
+import { busMarkerIcon } from "@/components/maps/bus-marker-icon";
+import { tripLabel, unitHeading, type TripDirection } from "@/lib/shared/map/trip-direction";
 import { haversineMeters } from "@/lib/utils/geo";
 import type { ConductorHailRequest } from "@/lib/conductor/types";
 import { useRouteGeometry } from "@/hooks/use-route-geometry";
@@ -63,6 +64,7 @@ interface ConductorMapProps {
   hails?: ConductorHailRequest[];
   capacityStatus?: "Available" | "Standing" | "Full";
   isOnBreak?: boolean;
+  tripDirection?: TripDirection;
   canOperate?: boolean;
   hailBusyId?: string | null;
   onHailAction?: (hailId: string, action: "accept" | "reject") => void;
@@ -77,6 +79,7 @@ export default function ConductorMap({
   hails = [],
   capacityStatus = "Available",
   isOnBreak = false,
+  tripDirection = "FORWARD",
   canOperate = false,
   hailBusyId = null,
   onHailAction,
@@ -136,32 +139,24 @@ export default function ConductorMap({
 
   const markerPresentation = useMemo(() => {
     if (isOnBreak) {
-      return { color: "#38BDF8", glow: "rgba(56,189,248,0.35)", label: "On Break" };
+      return { color: "#38BDF8", label: "On Break" };
     }
     if (capacityStatus === "Standing") {
-      return { color: "#FBBF24", glow: "rgba(251,191,36,0.35)", label: "Standing" };
+      return { color: "#FBBF24", label: "Standing" };
     }
     if (capacityStatus === "Full") {
-      return { color: "#F87171", glow: "rgba(248,113,113,0.35)", label: "Full" };
+      return { color: "#F87171", label: "Full" };
     }
-    return { color: "#34D399", glow: "rgba(52,211,153,0.35)", label: "Available" };
+    return { color: "#34D399", label: "Available" };
   }, [capacityStatus, isOnBreak]);
 
-  // Conductor's Vehicle Marker. Break state overrides capacity color because
-  // the unit is temporarily unavailable even though its saved capacity stays.
-  const vehicleIcon = useMemo(() => new L.DivIcon({
-    className: "custom-vehicle-icon",
-    html: `
-      <div style="width: 44px; height: 44px; background: #071A2E; border-radius: 50%; border: 2.5px solid ${markerPresentation.color}; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 12px rgba(0,0,0,0.5), 0 0 10px ${markerPresentation.glow}; transition: border-color 200ms ease, box-shadow 200ms ease;">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="${markerPresentation.color}" aria-hidden="true">
-          <path d="${mdiJeepney}" />
-        </svg>
-      </div>
-    `,
-    iconSize: [44, 44],
-    iconAnchor: [22, 22],
-    popupAnchor: [0, -25],
-  }), [markerPresentation]);
+  // Conductor's own unit: bus image + trip arrow along the route. Break state
+  // overrides the capacity dot because the unit is temporarily unavailable
+  // even though its saved capacity stays.
+  const vehicleIcon = useMemo(() => busMarkerIcon({
+    heading: unitHeading(routeGeometry.routeCoords, vehiclePosition[0], vehiclePosition[1], tripDirection),
+    statusColor: markerPresentation.color,
+  }), [routeGeometry.routeCoords, vehiclePosition, tripDirection, markerPresentation]);
 
   // Hailing Commuter Marker — MDI account icon on Signal Orange
   const hailingIcon = useMemo(() => new L.DivIcon({
@@ -189,7 +184,7 @@ export default function ConductorMap({
         maxBoundsViscosity={1.0}
         minZoom={11}
       >
-        <DynamicRouteViewport routeBounds={routeGeometry.routeBounds} mapBounds={routeGeometry.mapBounds} />
+        <DynamicRouteViewport routeBounds={routeGeometry.routeBounds} mapBounds={routeGeometry.mapBounds} limitZoomOutToRoute />
         <MapBasemap theme={theme} />
 
         <Polyline positions={routeGeometry.routeCoords} pathOptions={{ color: mapColors.route, weight: 8, opacity: 0.2, lineCap: 'round', lineJoin: 'round' }} />
@@ -205,7 +200,10 @@ export default function ConductorMap({
             title={unitNumber}
             subtitle="Your unit"
             status={{ label: markerPresentation.label, tone: isOnBreak ? "info" : capacityTone(capacityStatus) }}
-            details={isOnBreak ? [{ label: "Capacity", value: capacityStatus }] : []}
+            details={[
+              { label: "Route", value: tripLabel(tripDirection) },
+              ...(isOnBreak ? [{ label: "Capacity", value: capacityStatus }] : []),
+            ]}
           />
         </Marker>
 
@@ -245,7 +243,7 @@ export default function ConductorMap({
       </MapContainer>
 
       <style jsx global>{`
-        .custom-vehicle-icon, .custom-hailing-icon {
+        .custom-bus-icon, .custom-hailing-icon {
           background: transparent !important;
           border: none !important;
         }

@@ -24,6 +24,7 @@ import {
 import { useVehicleLocations } from "@/hooks/useVehicleLocations";
 import { CALC_THROTTLE_MS } from "./commuter-map-constants";
 import type { VehicleCapacity } from "./commuter-map-icons";
+import { toTripDirection, type TripDirection } from "@/lib/shared/map/trip-direction";
 
 // --- DISPLAY VEHICLE ---
 // A vehicle as the map renders it: real UUID + real coordinates + capacity.
@@ -35,6 +36,7 @@ export interface MapVehicle {
   lng: number;
   capacity: VehicleCapacity;
   routeName: string | null;
+  tripDirection: TripDirection;
 }
 
 // Backend capacity_status is uppercase (AVAILABLE | STANDING | FULL).
@@ -118,6 +120,7 @@ export function useCommuterTracking(): CommuterTrackingResult {
         lng: v.lng,
         capacity: toCapacityEnum(v.capacity_status ?? v.vehicle_capacity_status),
         routeName: v.route_name,
+        tripDirection: toTripDirection(v.trip_direction),
       })),
     [rawVehicles]
   );

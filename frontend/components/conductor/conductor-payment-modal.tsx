@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useConductorShift } from "@/app/(conductor)/hooks/use-conductor-shift";
 import { isOperatingDevice } from "@/lib/conductor/services/shift.service";
+import HistoryLogModal from "@/components/conductor/modals/history-log-modal";
 
 // Explicit type for dynamic import — prevents Vercel build type inference errors
 interface FareCalculatorModalProps {
@@ -14,6 +15,8 @@ interface FareCalculatorModalProps {
   conductorName: string;
   unitNumber: string;
   driverName: string;
+  blockedReason: string | null;
+  onShowHistory: () => void;
 }
 
 const FareCalculatorModal = dynamic<FareCalculatorModalProps>(
@@ -40,18 +43,21 @@ const FareCalculatorModal = dynamic<FareCalculatorModalProps>(
 export default function ConductorPaymentModal() {
   const { shift } = useConductorShift();
   const [showFareCalc, setShowFareCalc] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+
+  // Always opens so Payment History stays reachable; fares are blocked
+  // inside the modal instead while on break or on another device.
+  const blockedReason = shift?.isOnBreak
+    ? "You're on break. End your break to collect fares."
+    : shift && !isOperatingDevice(shift)
+      ? "This shift is active on another device. Sync and release that device before collecting a fare here."
+      : null;
 
   useEffect(() => {
-    const handler = () => {
-      if (shift && !isOperatingDevice(shift)) {
-        window.alert("This shift is active on another device. Sync and release that device before collecting a fare here.");
-        return;
-      }
-      if (!shift?.isOnBreak) setShowFareCalc(true);
-    };
+    const handler = () => setShowFareCalc(true);
     window.addEventListener("conductor:open-payment", handler);
     return () => window.removeEventListener("conductor:open-payment", handler);
-  }, [shift]);
+  }, []);
 
   // ConductorDock dispatches this on every one of its own item clicks so
   // switching to a different tab/popover doesn't require closing this one
@@ -59,7 +65,10 @@ export default function ConductorPaymentModal() {
   // Payment button while it's open closes it: the dock checks its active
   // state and only dispatches this, skipping the open event.
   useEffect(() => {
-    const handler = () => setShowFareCalc(false);
+    const handler = () => {
+      setShowFareCalc(false);
+      setShowHistory(false);
+    };
     window.addEventListener("conductor:close-popovers", handler);
     return () => window.removeEventListener("conductor:close-popovers", handler);
   }, []);
@@ -74,14 +83,22 @@ export default function ConductorPaymentModal() {
   }, [showFareCalc]);
 
   return (
-    <FareCalculatorModal
-      isOpen={showFareCalc}
-      onClose={() => setShowFareCalc(false)}
-      shiftId={shift?.shiftId || ""}
-      routeId={shift?.routeId}
-      conductorName={shift?.conductorName || "—"}
-      unitNumber={shift?.unitNumber || "—"}
-      driverName={shift?.driverName || "—"}
-    />
+    <>
+      <FareCalculatorModal
+        isOpen={showFareCalc}
+        onClose={() => setShowFareCalc(false)}
+        shiftId={shift?.shiftId || ""}
+        routeId={shift?.routeId}
+        conductorName={shift?.conductorName || "—"}
+        unitNumber={shift?.unitNumber || "—"}
+        driverName={shift?.driverName || "—"}
+        blockedReason={blockedReason}
+        onShowHistory={() => {
+          setShowFareCalc(false);
+          setShowHistory(true);
+        }}
+      />
+      <HistoryLogModal isOpen={showHistory} onClose={() => setShowHistory(false)} shiftId={shift?.shiftId || ""} />
+    </>
   );
 }

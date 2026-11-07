@@ -8,6 +8,7 @@ import { formatDistance, haversineMeters } from "@/lib/utils/geo";
 import { fetchUnitDetails, type CommuterUnitDetails, type UnitCrewDetails } from "@/lib/commuter/services/vehicle-details.service";
 import type { MapVehicle } from "./use-commuter-tracking";
 import { getCapacityConfig } from "./commuter-map-icons";
+import { tripLabel } from "@/lib/shared/map/trip-direction";
 
 interface UnitDetailsPanelProps {
   vehicleId: string;
@@ -176,7 +177,8 @@ export default function UnitDetailsPanel({ vehicleId, vehicle, commuterLocation,
 
         <section aria-labelledby="commuter-unit-route" className="rounded-2xl border border-white/10 p-4">
           <h3 id="commuter-unit-route" className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400"><MapPin size={14} className="text-[#62A0EA]" />Route &amp; vehicle</h3>
-          <p className="mt-3 break-words text-sm font-medium leading-relaxed text-white">{vehicle.routeName ?? details?.route_name ?? "Route unavailable"}</p>
+          <p className="mt-3 break-words text-sm font-medium leading-relaxed text-white">{tripLabel(vehicle.tripDirection)}</p>
+          <p className="mt-0.5 break-words text-xs text-slate-400">{vehicle.routeName ?? details?.route_name ?? "Route unavailable"}</p>
           {details && <dl className="mt-3 space-y-2 border-t border-white/[0.06] pt-3 text-xs">
             <div className="flex justify-between gap-3"><dt className="text-slate-400">Plate number</dt><dd className="text-right font-medium text-slate-200">{details.plate_number}</dd></div>
           </dl>}
