@@ -212,30 +212,7 @@ export default function ConductorMap({
           <Marker key={hail.id} position={[hail.latitude, hail.longitude]} icon={hailingIcon} zIndexOffset={1000}>
             <Popup>
               <div className="min-w-[180px]">
-                <div className="font-bold text-[#FF6D3A]">{hail.commuterName}</div>
-                <div className="text-xs text-gray-500">
-                  {hail.label || "Passenger waiting"}
-                  {hail.etaMinutes ? ` · ${hail.etaMinutes} min away` : ""}
-                </div>
-                <div className="mt-3 flex gap-2">
-                  <button
-                    type="button"
-                    disabled={!canOperate || hailBusyId !== null}
-                    onClick={() => onHailAction?.(hail.id, "accept")}
-                    className="flex-1 rounded-lg bg-[#1A5FB4] px-2 py-1.5 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    {hailBusyId === hail.id ? "Updating..." : "Accept"}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!canOperate || hailBusyId !== null}
-                    onClick={() => onHailAction?.(hail.id, "reject")}
-                    className="flex-1 rounded-lg border border-gray-300 px-2 py-1.5 text-xs font-bold text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    Reject
-                  </button>
-                </div>
-                {!canOperate ? <p className="mt-2 text-[10px] text-amber-700">Claim this shift on this device to respond.</p> : null}
+                <div className="font-bold text-[#FF6D3A]">Commuter</div>
               </div>
             </Popup>
           </Marker>
