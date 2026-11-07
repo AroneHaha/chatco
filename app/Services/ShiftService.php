@@ -193,6 +193,43 @@ class ShiftService
         }, 3);
     }
 
+    /**
+     * Set which way the unit runs along its route (ShiftLog::TRIP_FORWARD or
+     * TRIP_REVERSE). Same lock, device check and live broadcast as a break
+     * toggle, so commuter and admin maps re-point the unit at once.
+     */
+    public function setTripDirection(
+        User $conductor,
+        string $direction,
+        ?string $deviceId = null,
+        ?string $deviceType = null,
+    ): ShiftLog {
+        if (! $conductor->isConductor()) {
+            abort(403, 'Forbidden');
+        }
+
+        return DB::transaction(function () use ($conductor, $direction, $deviceId, $deviceType) {
+            $shift = ShiftLog::query()
+                ->where('conductor_id', $conductor->conductorProfile?->id)
+                ->active()
+                ->lockForUpdate()
+                ->first();
+
+            if (! $shift) {
+                abort(422, 'No active shift');
+            }
+
+            $this->shiftDeviceService->assertCanOperate($shift, $deviceId, $deviceType);
+
+            if ($shift->trip_direction !== $direction) {
+                $shift->update(['trip_direction' => $direction]);
+                DB::afterCommit(fn () => $this->locationService->broadcastLocationUpdate($shift->vehicle_id));
+            }
+
+            return $shift->fresh(['vehicle', 'driver', 'route']);
+        }, 3);
+    }
+
     public function getActiveShift(User $conductor): ?ShiftLog
     {
         return ShiftLog::query()

@@ -53,11 +53,14 @@ class HailService
                 ->where('vehicle_id', $vehicleId)
                 ->where('shift_id', $shift->shift_id)
                 ->where('updated_at', '>=', $shift->time_in)
-                ->where('updated_at', '>=', now()->subMinutes(10))
                 ->lockForUpdate()
                 ->first();
             if (! $location || $location->lat === null || $location->lng === null) {
-                abort(422, 'Vehicle position is unavailable or stale');
+                abort(422, 'Vehicle position is unavailable');
+            }
+            // Same offline rule as the commuter map, so a hidden unit can't be hailed.
+            if ($location->updated_at->lt(now()->subSeconds(LocationService::COMMUTER_FRESH_SECONDS))) {
+                abort(422, 'Vehicle is offline');
             }
 
             $distance = GeoHelper::haversineMeters(
