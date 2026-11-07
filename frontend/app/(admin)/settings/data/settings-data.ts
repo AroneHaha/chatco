@@ -32,6 +32,8 @@ export interface FinancialRulesConfig {
   succeedingFare: string;
   /** Barangays the minimum fare covers (both ends of the trip counted). */
   baseBarangayCount: string;
+  /** Month (1-12) students renew in; unrenewed discounts end on the 1st of the next month. */
+  studentRenewalMonth: string;
 }
 
 export interface OperationsRulesConfig {
@@ -235,6 +237,8 @@ export const defaultFinancialRules: FinancialRulesConfig = {
   minimumFare: '17',
   succeedingFare: '2.40',
   baseBarangayCount: '4',
+  // Keep in sync with config/registration.php student_renewal_month.
+  studentRenewalMonth: '9',
 };
 
 export const defaultOperationsRules: OperationsRulesConfig = {

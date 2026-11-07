@@ -10,6 +10,7 @@ return [
 
     // Announce the first full renewal window; existing students are not expired retroactively.
     'student_renewal_first_year' => $debugOctober ? 2026 : (int) env('STUDENT_RENEWAL_FIRST_YEAR', 2027),
+    // Default only: Settings > Financial Rules saves the live month (Setting::studentRenewalMonth()).
     'student_renewal_month' => $debugOctober ? 10 : 9,
 
     /*

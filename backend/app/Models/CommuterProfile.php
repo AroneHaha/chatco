@@ -91,11 +91,8 @@ class CommuterProfile extends Model
 
     public static function initialStudentExpiry(): \Illuminate\Support\Carbon
     {
-        $today = now('Asia/Manila');
-        $month = (int) config('registration.student_renewal_month', 9);
-        $year = max((int) config('registration.student_renewal_first_year', 2027), $today->year + ($today->month >= $month - 1 ? 1 : 0));
-
-        return \Illuminate\Support\Carbon::create($year, $month + 1, 1, 0, 0, 0, 'Asia/Manila');
+        // The next deadline whose renewal period has not started yet.
+        return \App\Services\StudentRenewalService::cutoff(max((int) config('registration.student_renewal_first_year', 2027), \App\Services\StudentRenewalService::rawCycleYear() + 1));
     }
 
     public function effectiveFareType(): string
@@ -104,7 +101,7 @@ class CommuterProfile extends Model
             return $this->commuter_type;
         }
         $expiry = $this->student_discount_expires_at
-            ?? \Illuminate\Support\Carbon::create((int) config('registration.student_renewal_first_year', 2027), (int) config('registration.student_renewal_month', 9) + 1, 1, 0, 0, 0, 'Asia/Manila');
+            ?? \App\Services\StudentRenewalService::cutoff((int) config('registration.student_renewal_first_year', 2027));
 
         return now('Asia/Manila')->lt($expiry) ? 'STUDENT' : 'REGULAR';
     }
