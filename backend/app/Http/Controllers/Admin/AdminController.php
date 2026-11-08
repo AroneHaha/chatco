@@ -21,6 +21,7 @@ use App\Models\Vehicle;
 use App\Rules\PhilippineMobileNumber;
 use App\Services\ActivityLogService;
 use App\Services\AdminService;
+use App\Services\DailyAssignmentResetService;
 use App\Services\LocationService;
 use App\Services\MediaStorageService;
 use App\Services\ShiftCloseoutService;
@@ -31,6 +32,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -85,7 +87,7 @@ class AdminController extends Controller
      * remittances, vehicles, shift_logs). Supports optional date range
      * filtering; defaults to last 30 days.
      */
-    public function analytics(Request $request): JsonResponse
+    public function analytics(Request $request, DailyAssignmentResetService $dailyReset): JsonResponse
     {
         // Malformed dates used to reach Carbon::parse and fail as a 500; a
         // reversed range produced a negative window and a nonsense comparison.
@@ -94,6 +96,18 @@ class AdminController extends Controller
             'date_from' => 'sometimes|nullable|date_format:Y-m-d',
             'date_to' => ['sometimes', 'nullable', 'date_format:Y-m-d', Rule::when($request->filled('date_from'), 'after_or_equal:date_from')],
         ]);
+
+        // The admin dashboard loads through this endpoint, so an admin who
+        // stayed signed in past midnight still triggers yesterday's clearing
+        // (once per day; see DailyAssignmentResetService). Never blocks the page.
+        try {
+            $dailyReset->runIfDue();
+        } catch (\Throwable $error) {
+            Log::error('Daily assignment reset on admin dashboard failed', [
+                'exception' => $error::class,
+                'message' => $error->getMessage(),
+            ]);
+        }
         $filters = [
             'date_from' => $request->string('date_from')->toString() ?: null,
             'date_to' => $request->string('date_to')->toString() ?: null,

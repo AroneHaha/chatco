@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class ShiftService
@@ -19,6 +20,7 @@ class ShiftService
         private ShiftDeviceService $shiftDeviceService,
         private AnnouncementService $announcementService,
         private LocationService $locationService,
+        private DailyAssignmentResetService $dailyReset,
     ) {}
 
     /** Start a shift only from the Admin-approved current-day assignment. */
@@ -37,6 +39,17 @@ class ShiftService
         $profileId = $conductor->conductorProfile?->id;
         if (! $profileId) {
             abort(422, 'Conductor profile required');
+        }
+
+        // A conductor signed in since before midnight never hits the login
+        // trigger, so clear yesterday's assignments here too (once per day).
+        try {
+            $this->dailyReset->runIfDue();
+        } catch (\Throwable $error) {
+            Log::error('Daily assignment reset before shift start failed', [
+                'exception' => $error::class,
+                'message' => $error->getMessage(),
+            ]);
         }
 
         return DB::transaction(function () use ($profileId, $vehicleId, $driverId, $routeId, $deviceId, $deviceType) {
