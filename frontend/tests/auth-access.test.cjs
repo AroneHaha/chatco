@@ -163,6 +163,27 @@ test('successful login issues the existing session and redirects every role to i
   }
 });
 
+test('conductor owing an unremitted earlier shift is sent straight to End-of-Day', async () => {
+  const cases = [
+    // [remittance rows (or a failing response), expected path]
+    [[{ shift_id: 'old', remittance_status: 'PENDING', remitted_at: null }], '/conductor-dashboard/end-of-day'],
+    [[{ shift_id: 'old', remittance_status: 'PENDING', remitted_at: '2026-11-09T14:00:00Z' }], '/unit-verification'],
+    [[{ shift_id: 'old', remittance_status: 'COMPLETE', remitted_at: null }], '/unit-verification'],
+    [null, '/unit-verification'],
+  ];
+  for (const [rows, expectedPath] of cases) {
+    const { POST } = load('app/api/auth/login/route.ts', { fetch: async url =>
+      url.endsWith('/conductor/shift') ? json({ data: null })
+        : url.endsWith('/conductor/remittances') ? (rows ? json({ data: { data: rows } }) : json({}, 500))
+        : json({ data: { id: 'user', role: 'CONDUCTOR', email: 'user@test.invalid', name: 'User', token: 'sanctum-token' } }),
+    });
+    const response = await POST(new Request('http://localhost:3000/api/auth/login', {
+      method: 'POST', body: JSON.stringify({ email: 'user@test.invalid', password: 'password123' }),
+    }));
+    assert.equal((await response.json()).redirectPath, expectedPath);
+  }
+});
+
 test('maintenance login keeps its notice and issues no session cookie', async () => {
   const { POST } = load('app/api/auth/login/route.ts', { fetch: async () => json({
     success: false, code: 'MAINTENANCE', message: 'Commuter service is being updated.', data: null,

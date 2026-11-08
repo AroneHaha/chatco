@@ -133,7 +133,7 @@ export default function HistorySection({ showHistory, setShowHistory, filteredHi
               <div className="space-y-2.5">
                 {paginatedHistory.map((record, idx) => {
                   const totalCollected = record.cashTotal + record.gcashTotal;
-                  const isAwaitingCashDeclaration = ["Pending", "For Cash Declaration", "Overdue"].includes(record.remittanceStatus);
+                  const isAwaitingCashDeclaration = ["Pending", "Not Remitted", "For Cash Declaration", "Overdue"].includes(record.remittanceStatus);
                   const StatusIcon = record.remittanceStatus === "Overage"
                     ? TrendingUp
                     : record.remittanceStatus === "Shortage"

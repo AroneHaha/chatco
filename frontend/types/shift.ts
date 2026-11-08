@@ -42,11 +42,14 @@ export interface RemittanceRecord {
   // history: cash declaration moved to Admin > Remittance Module).
   cashDeclared: number;
   // "Pending": shift still active/ongoing (no Remittance row yet).
-  // "For Cash Declaration" / "Overdue": conductor submitted, ended shift,
+  // "Not Remitted": shift ended by the daily reset; the conductor still holds
+  //   the cash (PENDING with no remitted_at) and must remit it before their
+  //   next shift. The admin can't declare it yet.
+  // "For Cash Declaration" / "Overdue": conductor remitted, ended shift,
   //   admin hasn't declared cash yet (same underlying PENDING status either
   //   way — "Overdue" is just past the grace window).
   // "Settled" / "Shortage" / "Overage": admin has declared cash.
-  remittanceStatus: "Pending" | "For Cash Declaration" | "Overdue" | "Settled" | "Shortage" | "Overage";
+  remittanceStatus: "Pending" | "Not Remitted" | "For Cash Declaration" | "Overdue" | "Settled" | "Shortage" | "Overage";
   timeIn: string;
   timeOut: string;
   cashTotal: number; // system-tracked cash from Payment module

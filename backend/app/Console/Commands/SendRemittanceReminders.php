@@ -41,6 +41,9 @@ class SendRemittanceReminders extends Command
 
         Remittance::query()
             ->where('remittance_status', Remittance::STATUS_PENDING)
+            // Only cash the conductor still holds; a remitted shift is waiting
+            // on the admin's count, not on the conductor.
+            ->whereNull('remitted_at')
             ->whereNotNull('remittance_due_at')
             ->where('remittance_due_at', '<=', now())
             ->where(function ($query) use ($reminderCutoff): void {
@@ -59,6 +62,7 @@ class SendRemittanceReminders extends Command
 
                             if (! $remittance
                                 || $remittance->remittance_status !== Remittance::STATUS_PENDING
+                                || $remittance->remitted_at !== null
                                 || ! $remittance->remittance_due_at?->isPast()) {
                                 return false;
                             }

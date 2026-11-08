@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { clearShift } from "@/lib/conductor/services/shift.service";
 import { submitRemittance, type RemittanceRecord } from "@/lib/conductor/services/remittance.service";
@@ -36,6 +37,7 @@ import { UserAvatar } from "@/components/admin/ui/user-avatar";
  * mounted — the page no longer needs its own copy of this hook.
  */
 export default function EndOfDayContent() {
+  const router = useRouter();
   const { logout } = useAuth();
   const { shift, transactions, earnings, history, status, error } = useRemittanceData();
 
@@ -51,10 +53,18 @@ export default function EndOfDayContent() {
   const [showHistory, setShowHistory] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const isLoggingOutAfterRemit = useRef(false);
-  const pendingRemittance = useMemo(
-    () => history.find((record) => record.remittanceStatus === "For Cash Declaration" || record.remittanceStatus === "Overdue") ?? null,
-    [history],
-  );
+  // Set when the shift just remitted was an earlier one (not today's), so the
+  // conductor goes on to unit verification instead of being logged out.
+  const remittedPastShift = useRef(false);
+  // An earlier shift the daily reset ended while the conductor still held the
+  // cash. Only when no shift is running (a new one can't start until these
+  // are remitted). History is newest first, so the last match is the oldest:
+  // remitted one at a time, oldest first.
+  const pendingRemittance = useMemo(() => {
+    if (shift) return null;
+    const unremitted = history.filter((record) => record.remittanceStatus === "Not Remitted");
+    return unremitted[unremitted.length - 1] ?? null;
+  }, [history, shift]);
 
   // Captured totals for the SuccessOverlay. We must store these in state
   // (not just local vars) because the overlay renders AFTER handleRemit
@@ -86,15 +96,27 @@ export default function EndOfDayContent() {
       breakdown[key] = { count: txns.length, amount: txns.reduce((s, t) => s + t.finalAmount, 0) };
     }
 
+    // An earlier shift's totals come from its remittance row: with no active
+    // shift, `earnings` is a zero placeholder and would hide the cash owed.
+    if (pendingRemittance) {
+      return {
+        breakdown,
+        totalPassengers: pendingRemittance.totalPassengers,
+        gcashTotal: pendingRemittance.gcashTotal,
+        cashTotal: pendingRemittance.cashTotal,
+        grandTotal: pendingRemittance.cashTotal + pendingRemittance.gcashTotal,
+      };
+    }
+
     // Use API-backed earnings if available; otherwise compute from transactions
-    const cashTotal = earnings?.cash_total ?? pendingRemittance?.cashTotal ?? (breakdown["Cash"]?.amount ?? 0);
-    const gcashTotal = earnings?.gcash_total ?? pendingRemittance?.gcashTotal ??
+    const cashTotal = earnings?.cash_total ?? (breakdown["Cash"]?.amount ?? 0);
+    const gcashTotal = earnings?.gcash_total ??
       ((breakdown["GCash_Scanned"]?.amount ?? 0) + (breakdown["GCash_Direct"]?.amount ?? 0));
-    const grandTotal = earnings?.total ?? (pendingRemittance ? cashTotal + gcashTotal : transactions.reduce((s, t) => s + t.finalAmount, 0));
+    const grandTotal = earnings?.total ?? transactions.reduce((s, t) => s + t.finalAmount, 0);
 
     return {
       breakdown,
-      totalPassengers: pendingRemittance?.totalPassengers ?? transactions.reduce((sum, transaction) => sum + (transaction.totalPassengers ?? 1), 0),
+      totalPassengers: transactions.reduce((sum, transaction) => sum + (transaction.totalPassengers ?? 1), 0),
       gcashTotal,
       cashTotal,
       grandTotal,
@@ -107,6 +129,14 @@ export default function EndOfDayContent() {
     if (isLoggingOutAfterRemit.current) return;
     isLoggingOutAfterRemit.current = true;
     setShowSuccess(false);
+
+    // An earlier shift is settled: pick a unit for today (unit verification
+    // sends them back here if another earlier shift is still unremitted).
+    // Today's shift is the end of the day, so sign out.
+    if (remittedPastShift.current) {
+      router.replace("/unit-verification");
+      return;
+    }
 
     await logout();
   };
@@ -219,7 +249,7 @@ export default function EndOfDayContent() {
 
       const record: RemittanceRecord = {
         shiftId: shiftInfo.shiftId,
-        date: new Date().toISOString().split("T")[0],
+        date: pendingRemittance?.date ?? new Date().toISOString().split("T")[0],
         conductorName: shiftInfo.conductorName,
         driverName: shiftInfo.driverName,
         unitNumber: shiftInfo.unitNumber,
@@ -240,8 +270,11 @@ export default function EndOfDayContent() {
         cashTotal: finalCashTotal,
         remittanceStatus: "For Cash Declaration" as const,
         timeIn: shiftInfo.timeIn,
-        timeOut: new Date().toISOString(),
+        timeOut: pendingRemittance?.timeOut || new Date().toISOString(),
       };
+      // Captured before the request: after it, history refreshes and the
+      // pending record is gone.
+      const isPastShift = pendingRemittance !== null;
       // submitRemittance posts to Laravel /conductor/remittances, which is
       // the ONE authoritative way a shift ends (endShiftViaRemittance:
       // creates the remittance row + flips shift_logs to ENDED).
@@ -270,6 +303,7 @@ export default function EndOfDayContent() {
       // Show the success overlay. Do NOT call refresh() here — it would
       // clear the shift and transactions, making the overlay show ₱0.
       setShowConfirm(false);
+      remittedPastShift.current = isPastShift;
       setShowSuccess(true);
       setHasRemittedToday(true);
       setTimeout(() => {
@@ -426,6 +460,7 @@ export default function EndOfDayContent() {
         cashTotal={capturedTotals?.cashTotal ?? summary.cashTotal}
         grandTotal={capturedTotals?.grandTotal ?? summary.grandTotal}
         unitNumber={shiftInfo.unitNumber}
+        redirectLabel={remittedPastShift.current ? "unit verification" : "login"}
       />
       <OfficialReportModal show={showOfficialReport} onClose={() => setShowOfficialReport(false)} activeReport={activeReport} route={shiftInfo.route} />
     </>
