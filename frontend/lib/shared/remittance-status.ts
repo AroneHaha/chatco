@@ -16,6 +16,7 @@ export function remittanceStatusVariant(status: RemittanceStatus): BadgeVariant 
     case "For Cash Declaration":
       return "info";
     case "Pending":
+    case "Not Remitted":
     case "Overdue":
       return "warning";
     case "Shortage":

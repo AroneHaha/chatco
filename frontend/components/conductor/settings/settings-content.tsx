@@ -76,7 +76,7 @@ export default function SettingsContent({ showHeader = true, onSignOutControl }:
     if (!shift) return false;
 
     const hasPendingRemit = history.some(
-      (record) => (record.remittanceStatus === "For Cash Declaration" || record.remittanceStatus === "Overdue") && record.cashTotal > 0
+      (record) => (record.remittanceStatus === "Not Remitted" || record.remittanceStatus === "For Cash Declaration" || record.remittanceStatus === "Overdue") && record.cashTotal > 0
     );
     if (hasPendingRemit) return true;
 

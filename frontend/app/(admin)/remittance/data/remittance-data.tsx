@@ -132,6 +132,8 @@ export async function fetchRemittances(page: number, search: string, date: strin
  * (see cash-declaration-modal.tsx), never the conductor's:
  *   SHORTAGE/OVERAGE/COMPLETE → admin already declared cash for this shift.
  *   PENDING + is_active_shift → the shift hasn't ended yet ("Pending").
+ *   PENDING + ended, no remitted_at → the daily reset closed it and the
+ *     conductor hasn't handed the cash over ("Not Remitted", no Declare).
  *   PENDING + ended, not overdue → awaiting the admin's cash count
  *     ("For Cash Declaration" — the row this endpoint's synthetic
  *     still-active rows can NEVER produce, since those are always
@@ -148,6 +150,8 @@ function mapLaravelRemittance(r: Record<string, unknown>): RemittanceRecord {
     rawStatus === "OVERAGE" ? "Overage" :
     rawStatus === "COMPLETE" || rawStatus === "Remitted" ? "Settled" :
     isActiveShift ? "Pending" :
+    // Ended by the daily reset and not handed over yet — nothing to declare.
+    !r.remitted_at ? "Not Remitted" :
     Boolean(r.is_overdue) ? "Overdue" : "For Cash Declaration";
 
   return {

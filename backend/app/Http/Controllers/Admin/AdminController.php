@@ -1442,11 +1442,17 @@ class AdminController extends Controller
                     Remittance::STATUS_OVERAGE,
                     'Remitted',
                 ]);
+            } elseif ($statusFilter === 'NOT REMITTED') {
+                // Ended by the daily reset; the conductor still holds the cash.
+                $completedQuery->where('remittance_status', Remittance::STATUS_PENDING)
+                    ->whereNull('remitted_at');
             } elseif ($statusFilter === 'OVERDUE') {
                 $completedQuery->where('remittance_status', Remittance::STATUS_PENDING)
+                    ->whereNotNull('remitted_at')
                     ->where('remittance_due_at', '<', now());
             } elseif ($statusFilter === 'FOR CASH DECLARATION') {
                 $completedQuery->where('remittance_status', Remittance::STATUS_PENDING)
+                    ->whereNotNull('remitted_at')
                     ->where(function ($query): void {
                         $query->whereNull('remittance_due_at')
                             ->orWhere('remittance_due_at', '>=', now());
@@ -1653,8 +1659,11 @@ class AdminController extends Controller
         ];
         $declared = $rows->filter(fn (array $row): bool => in_array($row['remittance_status'] ?? null, $declaredStatuses, true)
             && (! $dateFrom || (string) ($row['date'] ?? '') >= $dateFrom));
+        // Only cash the conductor has remitted can be declared; a not-remitted
+        // shift is still on the conductor.
         $awaitingDeclaration = $rows->filter(fn (array $row): bool => ($row['remittance_status'] ?? null) === Remittance::STATUS_PENDING
-            && empty($row['is_active_shift']));
+            && empty($row['is_active_shift'])
+            && ! empty($row['remitted_at']));
         $overdueCount = $awaitingDeclaration->filter(fn (array $row): bool => ! empty($row['is_overdue']))->count();
         $sum = fn (string $key): float => round((float) $declared->sum(fn (array $row): float => (float) ($row[$key] ?? 0)), 2);
 
@@ -1716,8 +1725,8 @@ class AdminController extends Controller
             ->selectRaw($whenDeclared('gcash_total').' AS gcash', $declaredStatuses)
             ->selectRaw($whenDeclared('shortage').' AS shortage', $declaredStatuses)
             ->selectRaw($whenDeclared('overage').' AS overage', $declaredStatuses)
-            ->selectRaw('COALESCE(SUM(CASE WHEN remittance_status = ? AND remittance_due_at < ? THEN 1 ELSE 0 END), 0) AS overdue', [Remittance::STATUS_PENDING, $now])
-            ->selectRaw('COALESCE(SUM(CASE WHEN remittance_status = ? AND (remittance_due_at IS NULL OR remittance_due_at >= ?) THEN 1 ELSE 0 END), 0) AS for_cash_declaration', [Remittance::STATUS_PENDING, $now])
+            ->selectRaw('COALESCE(SUM(CASE WHEN remittance_status = ? AND remitted_at IS NOT NULL AND remittance_due_at < ? THEN 1 ELSE 0 END), 0) AS overdue', [Remittance::STATUS_PENDING, $now])
+            ->selectRaw('COALESCE(SUM(CASE WHEN remittance_status = ? AND remitted_at IS NOT NULL AND (remittance_due_at IS NULL OR remittance_due_at >= ?) THEN 1 ELSE 0 END), 0) AS for_cash_declaration', [Remittance::STATUS_PENDING, $now])
             ->groupBy('date')
             ->get();
 
