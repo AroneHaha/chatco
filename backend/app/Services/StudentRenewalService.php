@@ -6,6 +6,7 @@ use App\Enums\ActivityLogCategory;
 use App\Models\Announcement;
 use App\Models\CommuterProfile;
 use App\Models\DiscountApplication;
+use App\Models\Setting;
 use App\Models\User;
 use App\Support\MessageTemplates;
 use Illuminate\Support\Carbon;
@@ -18,19 +19,56 @@ class StudentRenewalService
 
     public function cycleYear(): int
     {
-        $date = now('Asia/Manila');
-
-        return max((int) config('registration.student_renewal_first_year', 2027), $date->year - ($date->month < (int) config('registration.student_renewal_month', 9) - 1 ? 1 : 0));
+        return max((int) config('registration.student_renewal_first_year', 2027), self::rawCycleYear());
     }
 
-    public function cutoff(int $year): Carbon
+    /**
+     * The cycle rolls over on the 1st of the month before the renewal month.
+     * Month arithmetic (not month numbers) keeps January and December correct.
+     */
+    public static function rawCycleYear(?int $month = null): int
     {
-        return Carbon::create($year, (int) config('registration.student_renewal_month', 9) + 1, 1, 0, 0, 0, 'Asia/Manila');
+        return now('Asia/Manila')->startOfMonth()->subMonths(($month ?? Setting::studentRenewalMonth()) - 2)->year;
     }
 
-    private function noticeStartsAt(int $year): Carbon
+    /** The 1st of the month after the renewal month: unrenewed discounts end here. */
+    public static function cutoff(int $year, ?int $month = null): Carbon
     {
-        return $this->cutoff($year)->subMonths(2)->day(25);
+        return Carbon::create($year, $month ?? Setting::studentRenewalMonth(), 1, 0, 0, 0, 'Asia/Manila')->addMonth();
+    }
+
+    private static function noticeStartsAt(int $year, ?int $month = null): Carbon
+    {
+        return self::cutoff($year, $month)->subMonths(2)->day(25);
+    }
+
+    /** True from the reminder start (25th of the month before) until the deadline. */
+    public static function periodRunning(int $month): bool
+    {
+        $year = max((int) config('registration.student_renewal_first_year', 2027), self::rawCycleYear($month));
+
+        return now('Asia/Manila')->gte(self::noticeStartsAt($year, $month)) && now('Asia/Manila')->lt(self::cutoff($year, $month));
+    }
+
+    /**
+     * Puts every current student on the new month's next deadline, whenever
+     * they became a Student. Exception: students already approved for that
+     * cycle's renewal get the following deadline, since the cycle's approved
+     * application would otherwise block them from renewing again.
+     * Already-expired students (awaiting the expiry job) are left alone.
+     */
+    public static function alignExpiries(int $month): void
+    {
+        $year = max((int) config('registration.student_renewal_first_year', 2027), self::rawCycleYear($month));
+        if (self::cutoff($year, $month)->lte(now())) {
+            $year++;
+        }
+        $students = fn () => CommuterProfile::where('commuter_type', 'STUDENT')
+            ->where(fn ($q) => $q->whereNull('student_discount_expires_at')->orWhere('student_discount_expires_at', '>', now()));
+        $renewed = fn ($q) => $q->where('request_type', 'RENEWAL')->where('cycle_year', $year)->where('status', 'APPROVED');
+
+        $students()->whereHas('discountApplications', $renewed)->update(['student_discount_expires_at' => self::cutoff($year + 1, $month)]);
+        $students()->whereDoesntHave('discountApplications', $renewed)->update(['student_discount_expires_at' => self::cutoff($year, $month)]);
     }
 
     private function periodLabel(int $year): string

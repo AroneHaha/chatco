@@ -49,6 +49,9 @@ class Setting extends Model
             if ($setting->key === self::RIDES_FOR_FREE_REWARD_KEY) {
                 self::forgetRewardRuleCache();
             }
+            if ($setting->key === self::STUDENT_RENEWAL_MONTH_KEY) {
+                Cache::forget(self::STUDENT_RENEWAL_MONTH_CACHE_KEY);
+            }
         });
 
         static::deleted(function (Setting $setting): void {
@@ -72,6 +75,21 @@ class Setting extends Model
         $value = static::query()->where('key', self::REQUIRE_ID_UPLOAD_KEY)->value('value');
 
         return $value === null || $value === 'true';
+    }
+
+    /** Settings > Financial Rules > "Student renewal month" (1-12). */
+    public const STUDENT_RENEWAL_MONTH_KEY = 'student_renewal_month';
+
+    public const STUDENT_RENEWAL_MONTH_CACHE_KEY = 'settings.student_renewal_month';
+
+    /** The month students renew in. Falls back to config until an admin saves one. */
+    public static function studentRenewalMonth(): int
+    {
+        // Cached as an int (0 = not saved) because Cache::remember never stores null.
+        $saved = Cache::remember(self::STUDENT_RENEWAL_MONTH_CACHE_KEY, now()->addMinutes(5),
+            fn (): int => (int) static::where('key', self::STUDENT_RENEWAL_MONTH_KEY)->value('value'));
+
+        return $saved >= 1 && $saved <= 12 ? $saved : (int) config('registration.student_renewal_month', 9);
     }
 
     /** Settings > Voucher Generator > "Receipt QR free-ride promo". */
