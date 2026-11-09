@@ -19,12 +19,12 @@ const POLL_INTERVAL_MS = 30_000;
 const REMITTANCE_MODULE_TYPES = ["SHIFT_STARTED", "SHIFT_ENDED", "REMITTANCE_COMPLETED", "REMITTANCE_OVERDUE"];
 
 /**
- * Backend `type`s that count toward the Monitoring nav badge: an SOS firing
- * (SosService::notifySosToAdmins) and a new overspeeding episode starting
+ * Backend `type`s that count toward the Monitoring nav badge: a new
+ * overspeeding episode starting
  * (LocationService::recordOverspeedAtomic) — both are "new activity in
  * Monitoring" the admin hasn't looked at yet.
  */
-const MONITORING_MODULE_TYPES = ["SOS_TRIGGERED", "SOS_RESOLVED", "OVERSPEED_FLAGGED"];
+const MONITORING_MODULE_TYPES = ["OVERSPEED_FLAGGED"];
 
 interface ModuleBadge {
   /** Unread count for this module's notification types. */

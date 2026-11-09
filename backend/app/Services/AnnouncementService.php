@@ -38,6 +38,13 @@ class AnnouncementService
     private const STATUS_ACTIVE   = 'ACTIVE';
     private const STATUS_ARCHIVED = 'ARCHIVED';
 
+    /**
+     * Notification types for retired features, kept out of every feed, count
+     * and admin list. SOS was removed from all three apps, so its historical
+     * rows stay in the table but never surface again.
+     */
+    public const RETIRED_TYPES = ['SOS_TRIGGERED', 'SOS_RESOLVED'];
+
     /** How long an ARCHIVED announcement stays before pruneArchived() soft-deletes it. */
     private const ARCHIVE_RETENTION_DAYS = 30;
 
@@ -53,6 +60,7 @@ class AnnouncementService
     public function listForUser(User $user, array $filters, int $perPage = 15): LengthAwarePaginator
     {
         $query = Announcement::where('status', self::STATUS_ACTIVE)
+            ->whereNotIn('announcements.type', self::RETIRED_TYPES)
             ->where(function ($q) use ($user, $filters) {
                 if (! empty($filters['notifications_only'])) {
                     $q->where('announcements.user_id', $user->id);
@@ -128,7 +136,9 @@ class AnnouncementService
      */
     private function adminListQuery(array $filters): Builder
     {
-        $query = Announcement::query()->orderByDesc('created_at');
+        $query = Announcement::query()
+            ->whereNotIn('type', self::RETIRED_TYPES)
+            ->orderByDesc('created_at');
 
         if (! empty($filters['status'])) {
             $query->where('status', $filters['status']);
@@ -444,6 +454,7 @@ class AnnouncementService
     private function unreadQuery(User $user, array $types = []): Builder
     {
         $query = Announcement::where('status', self::STATUS_ACTIVE)
+            ->whereNotIn('type', self::RETIRED_TYPES)
             ->where(function ($q) use ($user) {
                 $q->whereNull('user_id')->orWhere('user_id', $user->id);
             })

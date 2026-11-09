@@ -54,13 +54,6 @@ export interface CommuterData {
   locationDetail: string;
 }
 
-export interface SosMapMarker {
-  id: string;
-  coords: [number, number];
-  /** Resolved address: null when unavailable, undefined while it's looked up. */
-  location?: string | null;
-}
-
 export interface DemandZone {
   id: string;
   coords: [number, number];
@@ -345,7 +338,6 @@ export default function AdminCommuterMap({
   liveVehicles = [],
   commuters = [],
   demandZones = [],
-  sosLocations,
   focusPosition,
   focusNonce,
   showOwnLocation = false,
@@ -355,7 +347,6 @@ export default function AdminCommuterMap({
   liveVehicles?: LiveVehicleMarker[];
   commuters?: CommuterData[];
   demandZones?: DemandZone[];
-  sosLocations?: SosMapMarker[];
   /** Camera target — pans here without filtering any markers out. */
   focusPosition?: [number, number] | null;
   /** Bump to re-focus the same coordinates again. */
@@ -407,14 +398,6 @@ export default function AdminCommuterMap({
     iconSize: [COMMUTER_PIN_SIZE, COMMUTER_PIN_SIZE],
     iconAnchor: [COMMUTER_PIN_SIZE / 2, COMMUTER_PIN_SIZE / 2],
     popupAnchor: [0, -(COMMUTER_PIN_SIZE / 2 + 4)],
-  }), []);
-
-  // One shared icon: a fresh DivIcon per render made Leaflet swap every SOS
-  // marker's DOM node on each 5s monitoring poll.
-  const sosIcon = useMemo(() => new L.DivIcon({
-    className: "custom-sos-icon",
-    html: `<div style="width:24px;height:24px;background:#ef4444;border:3px solid white;border-radius:50%;"></div>`,
-    iconSize: [24, 24], iconAnchor: [12, 12],
   }), []);
 
   if (!isDomReady) return <div className="w-full h-full rounded-xl" style={{ background: mapColors.surface }} />;
@@ -481,19 +464,6 @@ export default function AdminCommuterMap({
             </Circle>
           );
         })}
-
-        {/* --- SOS LOCATIONS --- */}
-        {sosLocations && sosLocations.map((sos) => (
-          <Marker key={`sos-${sos.id}`} position={sos.coords} icon={sosIcon}>
-            <Popup>
-              <div className="font-bold text-red-600 text-sm">SOS Location</div>
-              {sos.location !== null && (
-                <div className={`text-xs ${sos.location ? 'font-medium' : 'text-gray-500'}`}>{sos.location ?? 'Looking up location…'}</div>
-              )}
-              <div className="text-xs text-gray-500">Coords: {sos.coords[0].toFixed(5)}, {sos.coords[1].toFixed(5)}</div>
-            </Popup>
-          </Marker>
-        ))}
 
         {showMapPin && userActualLocation && (
           <Marker position={userActualLocation} icon={commuterIcon} zIndexOffset={1000}>
@@ -601,8 +571,7 @@ export default function AdminCommuterMap({
 
         .custom-commuter-icon,
         .custom-bus-icon,
-        .custom-hailing-icon,
-        .custom-sos-icon {
+        .custom-hailing-icon {
           background: transparent !important;
           border: none !important;
         }

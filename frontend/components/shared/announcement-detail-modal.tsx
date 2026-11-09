@@ -28,7 +28,7 @@ function formatRelativeTime(iso: string): string {
 // Type is told apart by its label and icon only (UI rule: no colour coding).
 function getStyle(type: string) {
   const t = (type ?? '').toLowerCase();
-  if (['safety', 'warning', 'maintenance', 'alert', 'sos', 'service', 'weather'].some((k) => t.includes(k))) {
+  if (['safety', 'warning', 'maintenance', 'alert', 'service', 'weather'].some((k) => t.includes(k))) {
     return { Icon: AlertTriangle, label: 'Advisory' };
   }
   if (['promo', 'success', 'holiday', 'reward'].some((k) => t.includes(k))) {
@@ -72,8 +72,6 @@ function relatedAction(announcement: Announcement): { label: string; href: strin
     case 'SHIFT_ENDED':
     case 'REMITTANCE_COMPLETED':
     case 'REMITTANCE_OVERDUE': return { label: 'View remittance', href: `/remittance?shiftId=${id}` };
-    case 'SOS_TRIGGERED': return { label: 'View SOS alert', href: `/monitoring?sosId=${id}` };
-    case 'SOS_RESOLVED': return { label: 'View resolved SOS', href: `/monitoring?resolvedSosId=${id}` };
     case 'OVERSPEED_FLAGGED': return { label: 'View overspeeding event', href: `/monitoring?overspeedId=${id}` };
     default: return null;
   }

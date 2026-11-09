@@ -45,8 +45,7 @@ function formatRelativeTime(iso: string): string {
  */
 function getNotificationStyle(type: string) {
   const t = (type ?? '').toLowerCase();
-  const label = t.includes('sos') ? 'SOS'
-    : t.includes('overspeed') ? 'Overspeeding'
+  const label = t.includes('overspeed') ? 'Overspeeding'
     : t.includes('remittance') ? 'Remittance'
     : t.startsWith('shift_') ? 'Shift'
     : t === 'vehicle_status_changed' ? 'Vehicle Status'
@@ -56,16 +55,13 @@ function getNotificationStyle(type: string) {
     : t.includes('claim') || t.startsWith('saved_item_') ? 'Lost & Found'
     : t.startsWith('voucher_') ? 'Voucher'
     : 'Announcement';
-  if (t === 'sos_triggered') {
-    return { Icon: AlertTriangle, color: 'text-red-400 admin-light:text-red-600', label };
-  }
   if (t === 'discount_application_waiting') {
     return { Icon: AlertTriangle, color: 'text-amber-400 admin-light:text-amber-700', label };
   }
   if (t === 'vehicle_status_changed') {
     return { Icon: Info, color: 'text-[#8CB9F0] admin-light:text-[#1A5FB4]', label };
   }
-  if (['sos_resolved', 'remittance_completed', 'shift_ended'].includes(t)) {
+  if (['remittance_completed', 'shift_ended'].includes(t)) {
     return { Icon: CheckCircle, color: 'text-emerald-400 admin-light:text-emerald-700', label };
   }
   if (t.startsWith('discount_application') || t.startsWith('student_renewal') || t.startsWith('registration')) {
@@ -77,7 +73,7 @@ function getNotificationStyle(type: string) {
   if (t.startsWith('claim_approved') || t.startsWith('claim_released') || t.startsWith('voucher_')) {
     return { Icon: CheckCircle, color: 'text-emerald-400 admin-light:text-emerald-700', label };
   }
-  if (['safety', 'warning', 'maintenance', 'alert', 'sos', 'overspeed', 'overdue', 'waiting', 'service', 'weather'].some((k) => t.includes(k))) {
+  if (['safety', 'warning', 'maintenance', 'alert', 'overspeed', 'overdue', 'waiting', 'service', 'weather'].some((k) => t.includes(k))) {
     return { Icon: AlertTriangle, color: 'text-amber-400 admin-light:text-amber-700', label };
   }
   if (['promo', 'success', 'holiday', 'reward'].some((k) => t.includes(k))) {

@@ -40,7 +40,7 @@ export function mapAnnouncementType(rawType: string): AnnouncementType {
   if (t.startsWith("saved_item")) {
     return "SAVED_ITEM";
   }
-  if (["safety", "alert", "sos", "warning"].some((k) => t.includes(k))) {
+  if (["safety", "alert", "warning"].some((k) => t.includes(k))) {
     return "SAFETY";
   }
   if (["promo", "holiday", "reward", "deal"].some((k) => t.includes(k))) {
