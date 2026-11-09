@@ -21,6 +21,7 @@ use App\Models\Vehicle;
 use App\Rules\PhilippineMobileNumber;
 use App\Services\ActivityLogService;
 use App\Services\AdminService;
+use App\Services\DailyAssignmentResetService;
 use App\Services\LocationService;
 use App\Services\MediaStorageService;
 use App\Services\ShiftCloseoutService;
@@ -31,6 +32,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -85,7 +87,7 @@ class AdminController extends Controller
      * remittances, vehicles, shift_logs). Supports optional date range
      * filtering; defaults to last 30 days.
      */
-    public function analytics(Request $request): JsonResponse
+    public function analytics(Request $request, DailyAssignmentResetService $dailyReset): JsonResponse
     {
         // Malformed dates used to reach Carbon::parse and fail as a 500; a
         // reversed range produced a negative window and a nonsense comparison.
@@ -94,6 +96,18 @@ class AdminController extends Controller
             'date_from' => 'sometimes|nullable|date_format:Y-m-d',
             'date_to' => ['sometimes', 'nullable', 'date_format:Y-m-d', Rule::when($request->filled('date_from'), 'after_or_equal:date_from')],
         ]);
+
+        // The admin dashboard loads through this endpoint, so an admin who
+        // stayed signed in past midnight still triggers yesterday's clearing
+        // (once per day; see DailyAssignmentResetService). Never blocks the page.
+        try {
+            $dailyReset->runIfDue();
+        } catch (\Throwable $error) {
+            Log::error('Daily assignment reset on admin dashboard failed', [
+                'exception' => $error::class,
+                'message' => $error->getMessage(),
+            ]);
+        }
         $filters = [
             'date_from' => $request->string('date_from')->toString() ?: null,
             'date_to' => $request->string('date_to')->toString() ?: null,
@@ -1428,11 +1442,17 @@ class AdminController extends Controller
                     Remittance::STATUS_OVERAGE,
                     'Remitted',
                 ]);
+            } elseif ($statusFilter === 'NOT REMITTED') {
+                // Ended by the daily reset; the conductor still holds the cash.
+                $completedQuery->where('remittance_status', Remittance::STATUS_PENDING)
+                    ->whereNull('remitted_at');
             } elseif ($statusFilter === 'OVERDUE') {
                 $completedQuery->where('remittance_status', Remittance::STATUS_PENDING)
+                    ->whereNotNull('remitted_at')
                     ->where('remittance_due_at', '<', now());
             } elseif ($statusFilter === 'FOR CASH DECLARATION') {
                 $completedQuery->where('remittance_status', Remittance::STATUS_PENDING)
+                    ->whereNotNull('remitted_at')
                     ->where(function ($query): void {
                         $query->whereNull('remittance_due_at')
                             ->orWhere('remittance_due_at', '>=', now());
@@ -1639,8 +1659,11 @@ class AdminController extends Controller
         ];
         $declared = $rows->filter(fn (array $row): bool => in_array($row['remittance_status'] ?? null, $declaredStatuses, true)
             && (! $dateFrom || (string) ($row['date'] ?? '') >= $dateFrom));
+        // Only cash the conductor has remitted can be declared; a not-remitted
+        // shift is still on the conductor.
         $awaitingDeclaration = $rows->filter(fn (array $row): bool => ($row['remittance_status'] ?? null) === Remittance::STATUS_PENDING
-            && empty($row['is_active_shift']));
+            && empty($row['is_active_shift'])
+            && ! empty($row['remitted_at']));
         $overdueCount = $awaitingDeclaration->filter(fn (array $row): bool => ! empty($row['is_overdue']))->count();
         $sum = fn (string $key): float => round((float) $declared->sum(fn (array $row): float => (float) ($row[$key] ?? 0)), 2);
 
@@ -1702,8 +1725,8 @@ class AdminController extends Controller
             ->selectRaw($whenDeclared('gcash_total').' AS gcash', $declaredStatuses)
             ->selectRaw($whenDeclared('shortage').' AS shortage', $declaredStatuses)
             ->selectRaw($whenDeclared('overage').' AS overage', $declaredStatuses)
-            ->selectRaw('COALESCE(SUM(CASE WHEN remittance_status = ? AND remittance_due_at < ? THEN 1 ELSE 0 END), 0) AS overdue', [Remittance::STATUS_PENDING, $now])
-            ->selectRaw('COALESCE(SUM(CASE WHEN remittance_status = ? AND (remittance_due_at IS NULL OR remittance_due_at >= ?) THEN 1 ELSE 0 END), 0) AS for_cash_declaration', [Remittance::STATUS_PENDING, $now])
+            ->selectRaw('COALESCE(SUM(CASE WHEN remittance_status = ? AND remitted_at IS NOT NULL AND remittance_due_at < ? THEN 1 ELSE 0 END), 0) AS overdue', [Remittance::STATUS_PENDING, $now])
+            ->selectRaw('COALESCE(SUM(CASE WHEN remittance_status = ? AND remitted_at IS NOT NULL AND (remittance_due_at IS NULL OR remittance_due_at >= ?) THEN 1 ELSE 0 END), 0) AS for_cash_declaration', [Remittance::STATUS_PENDING, $now])
             ->groupBy('date')
             ->get();
 

@@ -716,6 +716,7 @@ class ComposerStaticInit1554d9a7755277c7b64a5a5f7daac88e
         'App\\Services\\CommuterEmailChangeService' => __DIR__ . '/../..' . '/app/Services/CommuterEmailChangeService.php',
         'App\\Services\\CommuterService' => __DIR__ . '/../..' . '/app/Services/CommuterService.php',
         'App\\Services\\ConductorService' => __DIR__ . '/../..' . '/app/Services/ConductorService.php',
+        'App\\Services\\DailyAssignmentResetService' => __DIR__ . '/../..' . '/app/Services/DailyAssignmentResetService.php',
         'App\\Services\\DiscountApplicationService' => __DIR__ . '/../..' . '/app/Services/DiscountApplicationService.php',
         'App\\Services\\EmailVerificationService' => __DIR__ . '/../..' . '/app/Services/EmailVerificationService.php',
         'App\\Services\\FareCalculationService' => __DIR__ . '/../..' . '/app/Services/FareCalculationService.php',

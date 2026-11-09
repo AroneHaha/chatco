@@ -212,6 +212,7 @@ return array(
     'App\\Services\\CommuterEmailChangeService' => $baseDir . '/app/Services/CommuterEmailChangeService.php',
     'App\\Services\\CommuterService' => $baseDir . '/app/Services/CommuterService.php',
     'App\\Services\\ConductorService' => $baseDir . '/app/Services/ConductorService.php',
+    'App\\Services\\DailyAssignmentResetService' => $baseDir . '/app/Services/DailyAssignmentResetService.php',
     'App\\Services\\DiscountApplicationService' => $baseDir . '/app/Services/DiscountApplicationService.php',
     'App\\Services\\EmailVerificationService' => $baseDir . '/app/Services/EmailVerificationService.php',
     'App\\Services\\FareCalculationService' => $baseDir . '/app/Services/FareCalculationService.php',

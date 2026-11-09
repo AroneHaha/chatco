@@ -38,6 +38,7 @@ class AuthService
         private EmailVerificationService $emailVerification,
         private AnnouncementService $announcementService,
         private ActivityLogService $activityLog,
+        private DailyAssignmentResetService $dailyReset,
     ) {}
 
     /**
@@ -149,6 +150,21 @@ class AuthService
         $maintenanceMessage = app(MaintenanceStatus::class)->messageFor($user->role);
         if ($maintenanceMessage !== null) {
             throw new MaintenanceException($maintenanceMessage);
+        }
+
+        // Clear yesterday's shifts and unit assignments before the conductor's
+        // active-shift lookup below, so a shift left open from an earlier day
+        // is ended (its remittance stays not-remitted) instead of resumed.
+        // Once per day; a failure here must never block signing in.
+        if ($user->isAdmin() || $user->isConductor()) {
+            try {
+                $this->dailyReset->runIfDue();
+            } catch (\Throwable $error) {
+                Log::error('Daily assignment reset on login failed', [
+                    'exception' => $error::class,
+                    'message' => $error->getMessage(),
+                ]);
+            }
         }
 
         $loginResult = DB::transaction(function () use ($user, $deviceId, $deviceType) {
