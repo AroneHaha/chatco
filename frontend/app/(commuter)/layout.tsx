@@ -93,7 +93,7 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
       <aside className="hidden lg:flex xl:hidden flex-col w-64 xl:w-72 bg-[#071A2E] border-r border-white/10 light:bg-white light:border-gray-200 z-50 flex-shrink-0">
         <div className="h-20 flex items-center px-6 border-b border-white/10 light:border-gray-200">
           <img src="/logo-transparent.png" alt="CHATCO" className="w-10 h-10 rounded-xl object-contain" />
-          <span className="ml-3 text-white light:text-gray-900 font-extrabold text-lg tracking-tight">CHATCO</span>
+          <span className="ml-3 text-white light:text-gray-900 font-extrabold text-lg tracking-tight">E-CHATCO</span>
         </div>
 
         <nav className="flex-1 py-6 px-4 space-y-1">

@@ -209,7 +209,7 @@ export default function FAQChatBubble() {
       <div
         id="faq-chat-panel"
         role="dialog"
-        aria-label="CHATCO FAQ"
+        aria-label="E-CHATCO FAQ"
         inert={!isOpen}
         className={`fixed bottom-24 right-6 z-50 transition-all duration-300 ease-out origin-bottom-right ${
           isOpen ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-4 scale-95 pointer-events-none"
@@ -225,7 +225,7 @@ export default function FAQChatBubble() {
             <div className="flex items-center gap-3 min-w-0">
               <Image src={logo} alt="" width={40} height={40} className="rounded-lg shrink-0" />
               <div className="min-w-0">
-                <p className="font-sans font-bold text-lg leading-tight text-white">Ask CHATCO</p>
+                <p className="font-sans font-bold text-lg leading-tight text-white">Ask E-CHATCO</p>
                 <p className="text-xs text-white/55">Ready-made answers. Not a live agent.</p>
               </div>
             </div>

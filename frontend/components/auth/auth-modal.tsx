@@ -73,8 +73,8 @@ export default function AuthModal({ children, footer, busy, headingId, descripti
       <div>
         <div className={`${styles.modalHeader} ${headerClassName}`}>
           <div className={styles.modalBrand}>
-            <Image src={logo} alt="" width={32} height={32} />
-            <span>CHATCO</span>
+            <Image src={logo} alt="" width={43} height={32} className={styles.modalBrandLogo} />
+            <span>E-CHATCO</span>
           </div>
           <button type="button" className={styles.close} aria-label={closeLabel} onClick={dismiss} disabled={busy}>
             <X size={20} aria-hidden="true" />

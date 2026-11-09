@@ -17,7 +17,7 @@ export default function FinalCTA() {
               Jeepney Ride?
             </h2>
             <p className="mt-5 text-white/50 max-w-md leading-relaxed">
-              Find your ride, pay your fare, and follow your trip — all from your CHATCO account.
+              Find your ride, pay your fare, and follow your trip — all from your E-CHATCO account.
             </p>
           </div>
 
@@ -27,7 +27,7 @@ export default function FinalCTA() {
             <div className="w-full max-w-sm sm:max-w-3xl rounded-2xl bg-white shadow-2xl shadow-black/30 overflow-hidden sm:flex">
               <div className="flex-1 min-w-0 p-6 sm:p-8">
                 <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-                  <span>CHATCO Pass</span>
+                  <span>E-CHATCO Pass</span>
                   <span>Bulacan</span>
                 </div>
 
@@ -82,7 +82,7 @@ export default function FinalCTA() {
                   scroll={false}
                   className="w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-full text-sm font-bold whitespace-nowrap bg-[#1A5FB4] text-white hover:bg-[#164A8F] active:scale-[0.98] transition-[background-color,transform]"
                 >
-                  Login to CHATCO
+                  Login to E-CHATCO
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
                   </svg>

@@ -163,7 +163,7 @@ export default function ConductorDock({ pathname }: { pathname: string }) {
         {/* Logo */}
         <div className="flex items-center px-4">
           <span className="text-white light:text-gray-900 font-bold text-sm tracking-tight whitespace-nowrap">
-            CHATCO<span className="text-[#62A0EA] light:text-[#1A5FB4]">.</span>
+            E-CHATCO<span className="text-[#62A0EA] light:text-[#1A5FB4]">.</span>
           </span>
         </div>
 

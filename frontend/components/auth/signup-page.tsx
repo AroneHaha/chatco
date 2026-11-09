@@ -27,7 +27,7 @@ export default async function SignupPage({ standalone = false }: { standalone?: 
     ) {
       initialMaintenanceMessage =
         status.data.maintenance_message?.trim() ||
-        "CHATCO is currently undergoing scheduled maintenance. Please try signing up again later.";
+        "E-CHATCO is currently undergoing scheduled maintenance. Please try signing up again later.";
     }
   } catch {
     // Keep sign-up available if the status service can't be reached.
