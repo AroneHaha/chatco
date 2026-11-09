@@ -7,7 +7,6 @@ use App\Http\Controllers\Commuter\EmailChangeController;
 use App\Http\Controllers\Commuter\FeedbackController;
 use App\Http\Controllers\Commuter\HailController;
 use App\Http\Controllers\Commuter\ShareRideController;
-use App\Http\Controllers\Commuter\SosController;
 use App\Http\Controllers\Commuter\VehicleLocationController;
 use App\Http\Controllers\Conductor\ConductorController;
 use App\Http\Controllers\Conductor\ConductorHailController;
@@ -77,10 +76,6 @@ Route::prefix('mobile/conductor')->middleware(['auth:sanctum', 'role:CONDUCTOR',
     Route::post('/shifts/device/release', [ConductorController::class, 'releaseShiftDevice'])->middleware('throttle:conductor-mutation');
     Route::post('/remittances', [ConductorController::class, 'remittances'])->middleware('throttle:conductor-mutation');
     Route::get('/remittances', [ConductorController::class, 'remittancesIndex'])->middleware('throttle:conductor-read');
-
-    Route::post('/sos', [App\Http\Controllers\Conductor\SosController::class, 'trigger'])->middleware('throttle:conductor-mutation');
-    Route::get('/sos/{id}', [App\Http\Controllers\Conductor\SosController::class, 'show'])->middleware('throttle:conductor-read');
-    Route::patch('/sos/{id}/stop', [App\Http\Controllers\Conductor\SosController::class, 'stop'])->middleware('throttle:conductor-write');
 
     Route::post('/location', [ConductorController::class, 'updateLocation'])->middleware('throttle:conductor-gps');
     Route::post('/capacity-status', [ConductorController::class, 'updateCapacityStatus'])->middleware('throttle:conductor-write');
@@ -152,9 +147,6 @@ Route::prefix('mobile/commuter')->middleware(['auth:sanctum', 'role:COMMUTER', '
     Route::post('/feedback', [FeedbackController::class, 'store'])->middleware('throttle:commuter-feedback');
     Route::get('/feedback', [FeedbackController::class, 'index'])->middleware('throttle:conductor-read');
 
-    Route::post('/sos', [SosController::class, 'trigger'])->middleware('throttle:sos');
-    Route::get('/sos/{id}', [SosController::class, 'show'])->middleware('throttle:conductor-read');
-    Route::patch('/sos/{id}/stop', [SosController::class, 'stop'])->middleware('throttle:conductor-write');
 
     Route::get('/watchlist', [LostItemController::class, 'myWatchlist'])->middleware('throttle:conductor-read');
     Route::get('/claims', [LostItemController::class, 'myClaims'])->middleware('throttle:conductor-read');

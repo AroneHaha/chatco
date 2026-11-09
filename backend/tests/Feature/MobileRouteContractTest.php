@@ -53,6 +53,33 @@ class MobileRouteContractTest extends TestCase
         }
     }
 
+    public function test_sos_is_removed_from_mobile_routes_and_preserved_for_web(): void
+    {
+        foreach ([
+            ['POST', 'mobile/commuter/sos'],
+            ['GET', 'mobile/commuter/sos/alert'],
+            ['PATCH', 'mobile/commuter/sos/alert/stop'],
+            ['POST', 'mobile/conductor/sos'],
+            ['GET', 'mobile/conductor/sos/alert'],
+            ['PATCH', 'mobile/conductor/sos/alert/stop'],
+        ] as [$method, $path]) {
+            try {
+                app('router')->getRoutes()->match(Request::create('/api/v1/'.$path, $method));
+                $this->fail('Removed mobile SOS route is still registered: '.$path);
+            } catch (\Symfony\Component\HttpKernel\Exception\NotFoundHttpException $exception) {
+                $this->assertSame(404, $exception->getStatusCode());
+            }
+        }
+
+        foreach (['conductor', 'commuter'] as $prefix) {
+            foreach ([['POST', 'sos', 'trigger'], ['GET', 'sos/alert', 'show'], ['PATCH', 'sos/alert/stop', 'stop']] as [$method, $suffix, $action]) {
+                $route = app('router')->getRoutes()->match(Request::create('/api/v1/'.$prefix.'/'.$suffix, $method));
+                $this->assertSame($action, $route->getActionMethod());
+                $this->assertContains('auth:sanctum', $route->gatherMiddleware());
+            }
+        }
+    }
+
     public function test_mobile_sensitive_routes_retain_authentication_and_role_checks(): void
     {
         foreach ([
