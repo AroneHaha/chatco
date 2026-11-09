@@ -5,11 +5,14 @@ namespace App\Services;
 use App\Enums\ShiftStatus;
 use App\Models\ConductorProfile;
 use App\Models\Driver;
+use App\Models\Remittance;
 use App\Models\ShiftLog;
 use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class ShiftService
@@ -19,6 +22,7 @@ class ShiftService
         private ShiftDeviceService $shiftDeviceService,
         private AnnouncementService $announcementService,
         private LocationService $locationService,
+        private DailyAssignmentResetService $dailyReset,
     ) {}
 
     /** Start a shift only from the Admin-approved current-day assignment. */
@@ -39,6 +43,17 @@ class ShiftService
             abort(422, 'Conductor profile required');
         }
 
+        // A conductor signed in since before midnight never hits the login
+        // trigger, so clear yesterday's assignments here too (once per day).
+        try {
+            $this->dailyReset->runIfDue();
+        } catch (\Throwable $error) {
+            Log::error('Daily assignment reset before shift start failed', [
+                'exception' => $error::class,
+                'message' => $error->getMessage(),
+            ]);
+        }
+
         return DB::transaction(function () use ($profileId, $vehicleId, $driverId, $routeId, $deviceId, $deviceType) {
             // Locking the profile serializes simultaneous starts by one conductor.
             $profile = ConductorProfile::query()->whereKey($profileId)->lockForUpdate()->firstOrFail();
@@ -47,6 +62,31 @@ class ShiftService
 
             if (ShiftLog::query()->where('conductor_id', $profileId)->active()->exists()) {
                 abort(409, 'Already on active shift');
+            }
+
+            // Cash from an earlier shift that the conductor never handed over
+            // (the daily reset ended it) must be remitted first, oldest first.
+            $unremitted = Remittance::query()
+                ->where('conductor_id', $profileId)
+                ->where('remittance_status', Remittance::STATUS_PENDING)
+                ->whereNull('remitted_at')
+                ->orderBy('date')
+                ->first(['shift_id', 'date']);
+            if ($unremitted) {
+                abort(409, 'Remit your shift from '.Carbon::parse($unremitted->date)->format('M j, Y').' before starting a new one.');
+            }
+
+            // A remitted shift must also be settled: the admin declares the
+            // counted cash before the conductor takes another shift.
+            $undeclared = Remittance::query()
+                ->where('conductor_id', $profileId)
+                ->where('remittance_status', Remittance::STATUS_PENDING)
+                ->whereNotNull('remitted_at')
+                ->orderBy('date')
+                ->first(['shift_id', 'date']);
+            if ($undeclared) {
+                abort(409, 'Your remittance for the '.Carbon::parse($undeclared->date)->format('M j, Y')
+                    ." shift is awaiting the admin's cash declaration. Please coordinate with the admin to have it settled before starting a new shift.");
             }
             if ($driver->active_shift_id || ShiftLog::query()->where('driver_id', $driverId)->active()->exists()) {
                 abort(409, 'Driver already on active shift');

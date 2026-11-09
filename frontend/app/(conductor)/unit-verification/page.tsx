@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { ChevronLeft, LogOut } from "lucide-react";
+import { ChevronLeft, Clock, LogOut } from "lucide-react";
 import { mdiJeepney } from "@mdi/js";
 import { startShift } from "@/lib/conductor/services/shift.service";
+import { fetchRemittanceHistory, type RemittanceRecord } from "@/lib/conductor/services/remittance.service";
 import type { ConductorDriver, ConductorUnit } from "@/lib/conductor/types";
 import { useUnitVerification } from "@/app/(conductor)/hooks/use-unit-verification";
 import { useConductorShift } from "@/app/(conductor)/hooks/use-conductor-shift";
@@ -37,6 +38,39 @@ export default function ConductorLoginPage() {
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const [isCheckingShift, setIsCheckingShift] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  // Remitted shift the admin hasn't declared yet: no new shift until settled.
+  const [awaitingDeclaration, setAwaitingDeclaration] = useState<RemittanceRecord | null>(null);
+  const [isRechecking, setIsRechecking] = useState(false);
+
+  // Read fresh from the server, not the local history cache. Not Remitted
+  // goes to End-of-Day to be remitted (oldest first there); a remitted but
+  // undeclared shift shows the notice below. If the check itself fails, let
+  // them through: starting a shift is refused server-side anyway, with the
+  // same reason.
+  const checkRemittances = useCallback(async (isCancelled: () => boolean = () => false) => {
+    try {
+      const history = await fetchRemittanceHistory();
+      if (isCancelled()) return;
+      if (history.some((record) => record.remittanceStatus === "Not Remitted")) {
+        router.replace("/conductor-dashboard/end-of-day");
+        return;
+      }
+      // History is newest first; name the oldest one still waiting.
+      const waiting = history.filter(
+        (record) => record.remittanceStatus === "For Cash Declaration" || record.remittanceStatus === "Overdue",
+      );
+      setAwaitingDeclaration(waiting[waiting.length - 1] ?? null);
+    } catch {
+      // Fall through to unit selection (see above).
+    }
+  }, [router]);
+
+  const recheckDeclaration = async () => {
+    if (isRechecking) return;
+    setIsRechecking(true);
+    await checkRemittances();
+    setIsRechecking(false);
+  };
 
   // Reuse the shift already fetched by ConductorShiftProvider (wraps the
   // whole (conductor) route group) instead of calling fetchActiveShift()
@@ -49,8 +83,15 @@ export default function ConductorLoginPage() {
       return;
     }
 
-    setIsCheckingShift(false);
-  }, [shift, shiftStatus, router]);
+    let cancelled = false;
+    void checkRemittances(() => cancelled).finally(() => {
+      if (!cancelled) setIsCheckingShift(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [shift, shiftStatus, router, checkRemittances]);
 
   if (isCheckingShift || status === "loading") {
     return <UnitVerificationSkeleton />;
@@ -168,7 +209,29 @@ export default function ConductorLoginPage() {
           </div>
         )}
 
-        {status === "empty" && (
+        {awaitingDeclaration && (
+          <div role="status" className="animate-fade-in border-y border-[#1C3350] light:border-gray-200 py-6">
+            <Clock size={32} strokeWidth={1.75} aria-hidden="true" className="text-[#62A0EA] light:text-[#1A5FB4]" />
+            <h1 className="mt-4 text-xl font-bold text-white light:text-gray-900">Remittance awaiting declaration</h1>
+            <p className="mt-2 text-sm leading-relaxed text-slate-400 light:text-gray-600">
+              Your remittance for the{" "}
+              <span className="font-semibold text-white light:text-gray-900">
+                {new Date(`${String(awaitingDeclaration.date).slice(0, 10)}T00:00:00`).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}
+              </span>{" "}
+              shift is awaiting the admin&apos;s cash declaration. Please coordinate with the admin to have it settled before starting a new shift.
+            </p>
+            <button
+              type="button"
+              onClick={() => void recheckDeclaration()}
+              disabled={isRechecking}
+              className="mt-6 inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-xl bg-[#1A5FB4] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#164A8F] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isRechecking ? "Checking" : "Check again"}
+            </button>
+          </div>
+        )}
+
+        {!awaitingDeclaration && status === "empty" && (
           <div className="rounded-xl border border-[#1C3350] light:border-gray-200 bg-[#0B1E33] light:bg-white px-6 py-10 text-center">
             <p className="text-sm font-semibold text-slate-200 light:text-gray-800">No units available</p>
             <p className="text-xs text-slate-400 light:text-gray-600 mt-2 leading-relaxed">
@@ -177,7 +240,7 @@ export default function ConductorLoginPage() {
           </div>
         )}
 
-        {step === "select-unit" && units.length > 0 && (
+        {!awaitingDeclaration && step === "select-unit" && units.length > 0 && (
           <div className="flex min-h-0 flex-1 flex-col animate-fade-in">
             <div className="mb-4 shrink-0">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 light:text-gray-500">Step 1 of 2</p>
@@ -195,7 +258,7 @@ export default function ConductorLoginPage() {
           </div>
         )}
 
-        {step === "select-driver" && (
+        {!awaitingDeclaration && step === "select-driver" && (
           <div className="flex min-h-0 flex-1 flex-col animate-fade-in">
             <div className="mb-4 flex shrink-0 items-start gap-3">
               <button

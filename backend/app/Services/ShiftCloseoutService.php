@@ -42,9 +42,12 @@ final class ShiftCloseoutService
     /**
      * End a shift and create its one authoritative remittance snapshot.
      *
-     * A null remitted amount means nobody physically handed over cash. Such a
-     * closeout creates a PENDING obligation when cash is owed. A numeric amount
-     * represents an actual conductor remittance and produces a terminal result.
+     * A null remitted amount means the cash hasn't been counted. Owed cash then
+     * leaves a PENDING remittance: remitted (remitted_at set) when the
+     * conductor ended the shift themselves, not remitted when it was closed
+     * automatically. A MANUAL call with a null amount on an already-ended
+     * shift is the conductor remitting it late. A numeric amount represents
+     * an actual counted remittance and produces a terminal result.
      */
     public function close(
         string $shiftId,
@@ -64,7 +67,14 @@ final class ShiftCloseoutService
                 abort(403, 'Forbidden');
             }
 
-            if ($reason === self::REASON_MANUAL) {
+            // A conductor remitting a shift that already ended (closed by the
+            // daily reset) isn't operating it any more, so the device that
+            // ran it doesn't matter; ownership was checked above.
+            $isLateRemit = $reason === self::REASON_MANUAL
+                && $shift->status !== ShiftStatus::ACTIVE
+                && $remittedAmount === null;
+
+            if ($reason === self::REASON_MANUAL && ! $isLateRemit) {
                 $this->shiftDeviceService->assertCanOperate($shift, $deviceId, $deviceType);
             }
 
@@ -74,6 +84,17 @@ final class ShiftCloseoutService
                 ->first();
 
             if ($shift->status !== ShiftStatus::ACTIVE) {
+                if ($isLateRemit
+                    && $remittance
+                    && $remittance->remittance_status === Remittance::STATUS_PENDING) {
+                    // Record the hand-over only. Amounts stay untouched until the
+                    // admin declares the count: treating null as ₱0 here used to
+                    // settle the shift as a full shortage and lock out Declare.
+                    $this->markConductorRemitted($remittance);
+
+                    return $shift->fresh(['remittance']);
+                }
+
                 if ($reason === self::REASON_MANUAL
                     && $remittance
                     && $remittance->remittance_status === Remittance::STATUS_PENDING) {
@@ -137,7 +158,13 @@ final class ShiftCloseoutService
                 'remittance_due_at' => $status === Remittance::STATUS_PENDING
                     ? $timeOut->copy()->addMinutes($this->remittanceGraceMinutes())
                     : null,
-                'remitted_at' => $status === Remittance::STATUS_PENDING ? null : $timeOut,
+                // remitted_at = when the conductor handed the cash over. A
+                // conductor ending their own shift is that hand-over even while
+                // the admin's count is still PENDING; an automatic closeout
+                // isn't, so the conductor still owes the remittance.
+                'remitted_at' => $status === Remittance::STATUS_PENDING && $reason !== self::REASON_MANUAL
+                    ? null
+                    : $timeOut,
             ]);
             $remittance->save();
 
@@ -340,6 +367,12 @@ SQL;
                 throw new HttpException(409, 'Cash has already been declared for this remittance.');
             }
 
+            // Declaring counts cash the conductor handed over; a shift the
+            // daily reset closed has nothing in hand until they remit it.
+            if ($remittance->remitted_at === null) {
+                throw new HttpException(409, 'The conductor has not remitted this shift yet.');
+            }
+
             $this->completePendingRemittance($remittance, $declaredAmount);
             $this->notifyRemittanceCompletedAfterCommit($remittance);
 
@@ -362,12 +395,37 @@ SQL;
             'remittance_status' => $shortage > 0
                 ? Remittance::STATUS_SHORTAGE
                 : ($overage > 0 ? Remittance::STATUS_OVERAGE : Remittance::STATUS_COMPLETE),
-            'remitted_at' => now(),
+            // Keep the conductor's hand-over time when there was one.
+            'remitted_at' => $remittance->remitted_at ?? now(),
         ]);
 
         // Reminders already sent for this shift are now answered; without
         // this the conductor's reminder popup could still show "Remittance
         // pending" right after the cash was declared.
+        $this->announcementService->markReadForReference(
+            $remittance->conductor_id,
+            'REMITTANCE_REMINDER',
+            $remittance->shift_id,
+        );
+    }
+
+    /**
+     * The conductor handed over the cash for an already-ended shift. The
+     * remittance stays PENDING (amounts untouched) until the admin declares
+     * the count; the declaration deadline restarts from the hand-over.
+     */
+    private function markConductorRemitted(Remittance $remittance): void
+    {
+        if ($remittance->remitted_at !== null) {
+            return; // Double tap / retry: already recorded.
+        }
+
+        $remittance->update([
+            'remitted_at' => now(),
+            'remittance_due_at' => now()->addMinutes($this->remittanceGraceMinutes()),
+        ]);
+
+        // "Remittance pending" reminders for this shift are now answered.
         $this->announcementService->markReadForReference(
             $remittance->conductor_id,
             'REMITTANCE_REMINDER',

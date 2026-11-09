@@ -235,6 +235,9 @@ export function mapRemittance(r: unknown): RemittanceRecord {
     status === "SHORTAGE" ? "Shortage" :
     status === "OVERAGE" ? "Overage" :
     status === "COMPLETE" || status === "Remitted" ? "Settled" :
+    // PENDING without a hand-over time: the daily reset ended the shift and
+    // the conductor hasn't remitted it yet.
+    !row.remitted_at ? "Not Remitted" :
     Boolean(row.is_overdue) ? "Overdue" : "For Cash Declaration";
 
   return {

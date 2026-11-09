@@ -38,7 +38,6 @@ export const ACTIVITY_LOG_CATEGORIES = [
   { value: "REMITTANCE", label: "Cash Remittance Declarations", group: "Shifts & Money" },
   { value: "REMITTANCE_OPTION", label: "Remittance Options", group: "Shifts & Money" },
   { value: "VOUCHER", label: "Voucher Distribution", group: "Shifts & Money" },
-  { value: "SOS", label: "Emergency SOS Alerts", group: "Safety" },
   { value: "LOST_FOUND", label: "Lost & Found", group: "Safety" },
   { value: "ANNOUNCEMENT", label: "Announcements", group: "Content & System" },
   { value: "FAQ", label: "FAQs", group: "Content & System" },

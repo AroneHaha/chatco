@@ -40,6 +40,7 @@ export async function POST(request: Request) {
     if (res.ok && data?.data?.token) {
       const { id, email: userEmail, role, name, token, must_change_password, profile_picture_url } = data.data;
       let activeShift: ConductorShift | null = null;
+      let hasUnremittedShift = false;
 
       if (role === "CONDUCTOR") {
         try {
@@ -58,9 +59,13 @@ export async function POST(request: Request) {
             { status: 502 }
           );
         }
+
+        if (!activeShift) {
+          hasUnremittedShift = await checkUnremittedShift(token);
+        }
       }
 
-      return issueSession({ id, email: userEmail, role, name, token, profile_picture_url }, activeShift, Boolean(must_change_password));
+      return issueSession({ id, email: userEmail, role, name, token, profile_picture_url }, activeShift, Boolean(must_change_password), hasUnremittedShift);
     }
 
     if (res.status === 503 && data?.code === "MAINTENANCE") {
@@ -91,20 +96,45 @@ export async function POST(request: Request) {
   }
 }
 
+/**
+ * Whether the conductor owes an earlier shift the daily reset ended while
+ * they still held the cash ("Not Remitted"). Unremitted shifts are always the
+ * newest records (a new shift can't start while one exists), so the first
+ * page is enough. A failed check returns false: unit verification repeats it,
+ * and starting a shift is refused server-side regardless.
+ */
+async function checkUnremittedShift(token: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_URL}/api/v1/conductor/remittances`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      cache: "no-store",
+    });
+    if (!response.ok) return false;
+    const payload = await response.json();
+    const rows: unknown = payload?.data?.data;
+    // Same rule as mapRemittance's "Not Remitted": PENDING with no hand-over time.
+    return Array.isArray(rows) && rows.some((row) => row?.remittance_status === "PENDING" && !row?.remitted_at);
+  } catch {
+    return false;
+  }
+}
+
 function issueSession(
   user: { id: string; email: string; role: string; name: string; token: string; profile_picture_url?: string | null },
   activeShift: ConductorShift | null,
-  mustChangePassword: boolean
+  mustChangePassword: boolean,
+  hasUnremittedShift = false
 ) {
   // A default-password account gets the session cookie (the setup page needs
   // it) but is sent to Set New Password instead of its dashboard. A conductor
   // with no active shift goes straight to unit verification — the shift was
   // already checked above, so the dashboard isn't shown first only to
-  // redirect once its own shift check comes back empty.
+  // redirect once its own shift check comes back empty — unless an earlier
+  // shift is still unremitted, which must be remitted first (End-of-Day).
   const redirectPath = mustChangePassword
     ? "/set-new-password"
     : user.role === "CONDUCTOR" && !activeShift
-      ? "/unit-verification"
+      ? (hasUnremittedShift ? "/conductor-dashboard/end-of-day" : "/unit-verification")
       : getRoleDashboard(user.role);
   if (!redirectPath) {
     return NextResponse.json({ message: "Unable to sign in." }, { status: 403 });

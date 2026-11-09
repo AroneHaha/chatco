@@ -748,9 +748,195 @@ class OperationalLifecycleTest extends TestCase
             ->assertJsonPath('data.data.0.type', 'REMITTANCE_REMINDER')
             ->assertJsonPath('data.data.0.reference_id', $shift->shift_id);
 
-        // Declaring the cash answers the reminder, so the popup has nothing to show.
-        app(ShiftCloseoutService::class)->recordCashDeclaration($shift->shift_id, 50);
+        // Remitting the shift answers the reminder, so the popup has nothing to show.
+        app(ShiftCloseoutService::class)->close($shift->shift_id, null, ShiftCloseoutService::REASON_MANUAL, $conductor->id);
         $feed()->assertJsonCount(0, 'data.data');
+    }
+
+    public function test_conductor_ending_their_own_shift_records_the_cash_as_remitted(): void
+    {
+        [$conductor, , , , $shift] = $this->activeShift();
+        $this->fare($shift, PaymentMethod::CASH, PaymentStatus::PAID, 100);
+
+        app(ShiftCloseoutService::class)->close($shift->shift_id, null, ShiftCloseoutService::REASON_MANUAL, $conductor->id);
+
+        $remittance = Remittance::findOrFail($shift->shift_id);
+        $this->assertSame(Remittance::STATUS_PENDING, $remittance->remittance_status);
+        $this->assertNotNull($remittance->remitted_at);
+    }
+
+    public function test_late_remit_of_an_auto_closed_shift_records_hand_over_without_settling_it(): void
+    {
+        $admin = User::factory()->admin()->create();
+        [$conductor, , , , $shift] = $this->activeShift(now('Asia/Manila')->subDay());
+        $this->fare($shift, PaymentMethod::CASH, PaymentStatus::PAID, 90);
+        app(ShiftCloseoutService::class)->close($shift->shift_id, null, ShiftCloseoutService::REASON_MIDNIGHT);
+
+        // Not remitted yet: the admin has nothing to count.
+        $this->actingAs($admin)
+            ->postJson("/api/v1/admin/remittances/{$shift->shift_id}/cash-declaration", ['cash_declared' => 90])
+            ->assertStatus(409);
+
+        // The conductor remits it later (any device: the shift is over).
+        $this->actingAs($conductor)
+            ->postJson('/api/v1/conductor/remittances', [
+                'shift_id' => $shift->shift_id,
+                'total_collected' => 90,
+                'device_id' => 'another-device-0000001',
+                'device_type' => 'WEB',
+            ])
+            ->assertOk();
+        // A double tap is a no-op, not a second remittance or an error.
+        $this->actingAs($conductor)
+            ->postJson('/api/v1/conductor/remittances', ['shift_id' => $shift->shift_id, 'total_collected' => 90])
+            ->assertOk();
+
+        $remittance = Remittance::findOrFail($shift->shift_id);
+        $this->assertSame(Remittance::STATUS_PENDING, $remittance->remittance_status);
+        $this->assertNotNull($remittance->remitted_at);
+        $this->assertSame('0.00', $remittance->remitted_amount);
+        $this->assertSame('90.00', $remittance->cash_total);
+
+        $this->actingAs($admin)
+            ->postJson("/api/v1/admin/remittances/{$shift->shift_id}/cash-declaration", ['cash_declared' => 90])
+            ->assertOk()
+            ->assertJsonPath('data.remittance_status', Remittance::STATUS_COMPLETE);
+    }
+
+    public function test_conductor_cannot_start_a_shift_until_an_earlier_unremitted_shift_is_remitted(): void
+    {
+        [$conductor, , , , $oldShift] = $this->activeShift(now('Asia/Manila')->subDay());
+        $this->fare($oldShift, PaymentMethod::CASH, PaymentStatus::PAID, 40);
+        app(ShiftCloseoutService::class)->close($oldShift->shift_id, null, ShiftCloseoutService::REASON_MIDNIGHT);
+        $driver = Driver::factory()->create();
+        $route = Route::factory()->create();
+        $vehicle = Vehicle::factory()->create(['route_id' => $route->id]);
+        $start = fn () => $this->actingAs($conductor)->postJson('/api/v1/conductor/shifts/start', [
+            'vehicle_id' => $vehicle->id,
+            'driver_id' => $driver->id,
+            'route_id' => $route->id,
+        ]);
+
+        $date = $oldShift->time_in->format('M j, Y');
+        $start()->assertStatus(409)->assertJsonFragment(['message' => "Remit your shift from {$date} before starting a new one."]);
+
+        // Remitted, but the admin hasn't declared the cash yet: still blocked.
+        app(ShiftCloseoutService::class)->close($oldShift->shift_id, null, ShiftCloseoutService::REASON_MANUAL, $conductor->id);
+        $start()->assertStatus(409)->assertJsonFragment([
+            'message' => "Your remittance for the {$date} shift is awaiting the admin's cash declaration. Please coordinate with the admin to have it settled before starting a new shift.",
+        ]);
+
+        app(ShiftCloseoutService::class)->recordCashDeclaration($oldShift->shift_id, 40);
+        $start()->assertCreated();
+    }
+
+    public function test_conductor_cannot_start_a_shift_while_their_own_remitted_shift_awaits_declaration(): void
+    {
+        [$conductor, , , , $shift] = $this->activeShift();
+        $this->fare($shift, PaymentMethod::CASH, PaymentStatus::PAID, 25);
+        app(ShiftCloseoutService::class)->close($shift->shift_id, null, ShiftCloseoutService::REASON_MANUAL, $conductor->id);
+        $driver = Driver::factory()->create();
+        $route = Route::factory()->create();
+        $vehicle = Vehicle::factory()->create(['route_id' => $route->id]);
+        $start = fn () => $this->actingAs($conductor)->postJson('/api/v1/conductor/shifts/start', [
+            'vehicle_id' => $vehicle->id,
+            'driver_id' => $driver->id,
+            'route_id' => $route->id,
+        ]);
+
+        $start()->assertStatus(409);
+
+        app(ShiftCloseoutService::class)->recordCashDeclaration($shift->shift_id, 20);
+        $start()->assertCreated();
+    }
+
+    public function test_auto_closed_shift_with_no_cash_does_not_block_the_next_shift(): void
+    {
+        [$conductor, , , , $oldShift] = $this->activeShift(now('Asia/Manila')->subDay());
+        app(ShiftCloseoutService::class)->close($oldShift->shift_id, null, ShiftCloseoutService::REASON_MIDNIGHT);
+        $driver = Driver::factory()->create();
+        $route = Route::factory()->create();
+        $vehicle = Vehicle::factory()->create(['route_id' => $route->id]);
+
+        $this->actingAs($conductor)->postJson('/api/v1/conductor/shifts/start', [
+            'vehicle_id' => $vehicle->id,
+            'driver_id' => $driver->id,
+            'route_id' => $route->id,
+        ])->assertCreated();
+    }
+
+    public function test_reminders_skip_shifts_the_conductor_already_remitted(): void
+    {
+        [$conductor, , , , $shift] = $this->activeShift();
+        $this->fare($shift, PaymentMethod::CASH, PaymentStatus::PAID, 50);
+        app(ShiftCloseoutService::class)->close($shift->shift_id, null, ShiftCloseoutService::REASON_MANUAL, $conductor->id);
+        Remittance::where('shift_id', $shift->shift_id)->update(['remittance_due_at' => now()->subMinute()]);
+
+        $this->artisan('remittances:send-reminders')->assertSuccessful();
+
+        $this->assertSame(0, Announcement::where('type', 'REMITTANCE_REMINDER')->count());
+    }
+
+    public function test_admin_login_runs_the_daily_reset_once_and_keeps_todays_assignments(): void
+    {
+        [, , $oldVehicle, , $oldShift] = $this->activeShift(now('Asia/Manila')->subDay());
+        $this->fare($oldShift, PaymentMethod::CASH, PaymentStatus::PAID, 60);
+        [, , $leftoverVehicle] = $this->crew(now('Asia/Manila')->subDay()->toDateString());
+        [, , $todayVehicle] = $this->crew(now('Asia/Manila')->toDateString());
+        [, , , , $todayShift] = $this->activeShift(now('Asia/Manila')->startOfDay()->addMinutes(5));
+        $admin = User::factory()->admin()->create();
+        $otherAdmin = User::factory()->admin()->create();
+
+        $this->postJson('/api/v1/auth/login', ['login' => $admin->email, 'password' => 'password'])->assertOk();
+
+        $this->assertSame(ShiftStatus::ENDED, $oldShift->fresh()->status);
+        $remittance = Remittance::findOrFail($oldShift->shift_id);
+        $this->assertSame(Remittance::STATUS_PENDING, $remittance->remittance_status);
+        $this->assertNull($remittance->remitted_at);
+        $this->assertNull($oldVehicle->fresh()->conductor_id);
+        $this->assertNull($leftoverVehicle->fresh()->conductor_id);
+        $this->assertNull($leftoverVehicle->fresh()->driver_id);
+        $this->assertNotNull($todayVehicle->fresh()->conductor_id);
+        $this->assertSame(ShiftStatus::ACTIVE, $todayShift->fresh()->status);
+        $this->assertDatabaseHas('settings', ['key' => 'daily_assignment_reset_date', 'value' => now('Asia/Manila')->toDateString()]);
+
+        // A later sign-in the same day sees the date and does nothing.
+        [, , , , $lateOldShift] = $this->activeShift(now('Asia/Manila')->subDay());
+        $this->postJson('/api/v1/auth/login', ['login' => $otherAdmin->email, 'password' => 'password'])->assertOk();
+        $this->assertSame(ShiftStatus::ACTIVE, $lateOldShift->fresh()->status);
+    }
+
+    public function test_conductor_login_ends_their_own_previous_day_shift_before_resuming_anything(): void
+    {
+        [$conductor, , $vehicle, , $oldShift] = $this->activeShift(now('Asia/Manila')->subDay());
+        $this->fare($oldShift, PaymentMethod::CASH, PaymentStatus::PAID, 30);
+
+        $token = $this->postJson('/api/v1/auth/login', ['login' => $conductor->email, 'password' => 'password'])
+            ->assertOk()
+            ->json('data.token');
+
+        $this->assertSame(ShiftStatus::ENDED, $oldShift->fresh()->status);
+        $this->assertNull($vehicle->fresh()->active_shift_id);
+        $this->assertNull(Remittance::findOrFail($oldShift->shift_id)->remitted_at);
+        $this->withToken($token)->getJson('/api/v1/conductor/shift')->assertOk()->assertJsonPath('data', null);
+    }
+
+    public function test_admin_remittance_list_separates_not_remitted_from_awaiting_declaration(): void
+    {
+        $admin = User::factory()->admin()->create();
+        [, , , , $autoClosed] = $this->activeShift();
+        $this->fare($autoClosed, PaymentMethod::CASH, PaymentStatus::PAID, 20);
+        app(ShiftCloseoutService::class)->close($autoClosed->shift_id, null, ShiftCloseoutService::REASON_STALE);
+        [$conductor, , , , $remitted] = $this->activeShift();
+        $this->fare($remitted, PaymentMethod::CASH, PaymentStatus::PAID, 30);
+        app(ShiftCloseoutService::class)->close($remitted->shift_id, null, ShiftCloseoutService::REASON_MANUAL, $conductor->id);
+
+        $this->actingAs($admin)->getJson('/api/v1/admin/remittances?status=NOT%20REMITTED')
+            ->assertOk()->assertJsonPath('data.total', 1)->assertJsonPath('data.data.0.shift_id', $autoClosed->shift_id);
+        $this->actingAs($admin)->getJson('/api/v1/admin/remittances?status=FOR%20CASH%20DECLARATION')
+            ->assertOk()->assertJsonPath('data.total', 1)->assertJsonPath('data.data.0.shift_id', $remitted->shift_id);
+        $this->actingAs($admin)->getJson('/api/v1/admin/remittances?summary=1')
+            ->assertOk()->assertJsonPath('data.summary.for_cash_declaration_count', 1);
     }
 
     public function test_midnight_reset_closes_old_shift_preserves_pending_cash_and_does_not_clear_today_assignment(): void

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useId, useRef } from "react";
+import { useState, useMemo, useEffect, useId } from "react";
 import { createPortal } from "react-dom";
 import { LockKeyhole, UserRound } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
@@ -19,7 +19,7 @@ export const LOGOUT_LOCKED_HINT = "Remit all pending collections before signing 
  * The actual Settings body — everything except page chrome (the outer
  * sidebar-clearance wrapper, which only makes sense for the full page, not
  * the xl:+ popover — see ConductorSettingsModal). Extracted so the business
- * logic (profile fetch, active assignment, SOS, the
+ * logic (profile fetch, active assignment, the
  * remittance-gated logout flow) has exactly one implementation shared by
  * both:
  *   - the full page (app/(conductor)/conductor-dashboard/conductor-settings/page.tsx),
@@ -49,19 +49,7 @@ export default function SettingsContent({ showHeader = true, onSignOutControl }:
   // shell's avatars so it's fetched once.
   const conductorProfile = useConductorProfile();
 
-  const lastSosClickRef = useRef<number | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-
-  const handleSosClick = () => {
-    const clickedAt = performance.now();
-    const previousClickAt = lastSosClickRef.current;
-    if (previousClickAt !== null && clickedAt - previousClickAt <= 600) {
-      lastSosClickRef.current = null;
-      window.dispatchEvent(new Event("conductor:open-sos"));
-      return;
-    }
-    lastSosClickRef.current = clickedAt;
-  };
 
   // ── DEBUG ONLY ──────────────────────────────────────────────────
   // Conductors normally cannot self-logout: remittance is what closes out an
@@ -76,7 +64,7 @@ export default function SettingsContent({ showHeader = true, onSignOutControl }:
     if (!shift) return false;
 
     const hasPendingRemit = history.some(
-      (record) => (record.remittanceStatus === "For Cash Declaration" || record.remittanceStatus === "Overdue") && record.cashTotal > 0
+      (record) => (record.remittanceStatus === "Not Remitted" || record.remittanceStatus === "For Cash Declaration" || record.remittanceStatus === "Overdue") && record.cashTotal > 0
     );
     if (hasPendingRemit) return true;
 
@@ -144,21 +132,20 @@ export default function SettingsContent({ showHeader = true, onSignOutControl }:
 
       {/* ===== Profile Section ===== */}
       <section aria-labelledby={profileHeadingId} className="relative isolate flex items-center gap-4 overflow-hidden rounded-2xl border border-[#62A0EA]/20 light:border-blue-200 bg-gradient-to-br from-[#102E50] to-[#071A2E] light:from-blue-50 light:to-white p-5 xl:gap-5 xl:from-[#153C66] xl:via-[#0C2743] light:xl:from-blue-50 light:xl:via-blue-50 light:xl:to-white xl:p-6">
-        <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-16 -z-10 hidden h-56 w-56 rounded-full border border-[#99C1F1]/10 bg-[#62A0EA]/5 xl:block">
-          <div className="absolute inset-6 rounded-full border border-[#99C1F1]/10" />
-          <div className="absolute inset-12 rounded-full border border-[#99C1F1]/10" />
+        <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-16 -z-10 h-56 w-56 rounded-full border border-[#99C1F1]/10 light:border-[#1A5FB4]/10 bg-[#62A0EA]/5">
+          <div className="absolute inset-6 rounded-full border border-[#99C1F1]/10 light:border-[#1A5FB4]/10" />
+          <div className="absolute inset-12 rounded-full border border-[#99C1F1]/10 light:border-[#1A5FB4]/10" />
         </div>
         {/* The default avatar remains until the conductor uploads a photo. */}
         <ProfilePhoto
           profileImageUrl={conductorProfile?.photoUrl}
           onPhotoUploaded={(photoUrl) => patchConductorProfile({ photoUrl })}
           uploadPhoto={uploadConductorProfilePhoto}
-          className="group relative h-16 w-16 xl:h-20 xl:w-20 rounded-2xl border border-[#62A0EA]/30 bg-[#1A5FB4] text-white xl:border-[#99C1F1]/30 xl:bg-gradient-to-br xl:from-[#337DD2] xl:to-[#1A5FB4] xl:shadow-lg xl:shadow-[#050F1A]/30 xl:ring-4 xl:ring-white/5 transition-colors hover:border-[#99C1F1] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#99C1F1]"
-          iconClassName="h-8 w-8 xl:h-10 xl:w-10"
-          sizes="(min-width: 1280px) 80px, 64px"
+          className="group relative h-20 w-20 xl:h-24 xl:w-24 rounded-2xl border border-[#62A0EA]/30 bg-[#1A5FB4] text-white xl:border-[#99C1F1]/30 xl:bg-gradient-to-br xl:from-[#337DD2] xl:to-[#1A5FB4] xl:shadow-lg xl:shadow-[#050F1A]/30 xl:ring-4 xl:ring-white/5 transition-colors hover:border-[#99C1F1] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#99C1F1]"
+          iconClassName="h-10 w-10 xl:h-12 xl:w-12"
+          sizes="(min-width: 1280px) 96px, 80px"
         />
         <div className="min-w-0 flex-1">
-          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#99C1F1]/80 light:text-blue-700">Conductor account</p>
           <h2 id={profileHeadingId} className="break-words text-xl font-bold leading-snug tracking-tight text-white light:text-gray-900 xl:text-2xl">
             {conductorName}
           </h2>
@@ -248,44 +235,6 @@ export default function SettingsContent({ showHeader = true, onSignOutControl }:
         )}
       </section>
 
-      {/* ===== Emergency SOS ===== */}
-      <section className="bg-[#0B223A] light:bg-white border border-white/[0.06] light:border-gray-200 rounded-2xl p-4 lg:p-6">
-        <h2 className="text-[10px] uppercase tracking-wider font-semibold text-white/40 light:text-gray-500 mb-4">
-          Emergency
-        </h2>
-
-        <button
-          type="button"
-          onClick={handleSosClick}
-          onBlur={() => { lastSosClickRef.current = null; }}
-          className="w-full flex cursor-pointer touch-manipulation items-center gap-4 rounded-2xl border border-red-500 bg-red-700 px-5 py-5 text-left transition-colors hover:border-red-400 hover:bg-red-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400 active:scale-[0.98] light:border-red-600 light:bg-red-700 light:hover:border-red-500 light:hover:bg-red-800"
-        >
-          <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl border border-red-400 bg-red-900">
-            <svg
-              className="h-7 w-7 text-white"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
-              />
-            </svg>
-          </div>
-          <div className="text-left">
-            <p className="text-base font-bold text-white">
-              Emergency SOS
-            </p>
-            <p className="mt-0.5 text-xs text-white/85">
-              Double-click or double-tap to open SOS confirmation
-            </p>
-          </div>
-        </button>
-      </section>
-
       {/* ===== Logout (Bottom of scroll for both Mobile & Desktop) ===== */}
       <div className={`pt-6 border-t border-white/[0.06] light:border-gray-200 ${onSignOutControl ? "lg:hidden" : ""}`}>
         {logoutLocked && (
@@ -311,10 +260,10 @@ export default function SettingsContent({ showHeader = true, onSignOutControl }:
         <button
           onClick={handleLogout}
           disabled={logoutLocked}
-          className="w-full flex items-center justify-center gap-2 bg-white/[0.04] light:bg-gray-50 border border-white/10 light:border-gray-200 hover:bg-white/[0.08] light:hover:bg-gray-100 hover:border-white/15 light:hover:border-gray-300 rounded-xl px-4 py-3 transition-all disabled:opacity-25 disabled:cursor-not-allowed active:scale-[0.98]"
+          className="w-full flex min-h-12 items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/5 px-4 text-red-400 light:text-red-600 hover:bg-red-500/10 transition-colors disabled:opacity-25 disabled:cursor-not-allowed active:scale-[0.98]"
         >
           <svg
-            className="w-4 h-4 text-white/50 light:text-gray-500"
+            className="w-[17px] h-[17px]"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -326,7 +275,7 @@ export default function SettingsContent({ showHeader = true, onSignOutControl }:
               d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9"
             />
           </svg>
-          <span className="text-sm font-semibold text-white/50 light:text-gray-600">
+          <span className="text-sm font-medium">
             Sign out
           </span>
         </button>

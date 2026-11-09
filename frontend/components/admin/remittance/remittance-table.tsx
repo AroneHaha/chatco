@@ -156,11 +156,13 @@ export function RemittanceTable({ searchQuery, selectedDate, dateFrom, dateTo = 
       // Exact date wins when set; otherwise fall back to the range preset's lower bound.
       // Shifts awaiting cash declaration (canDeclareCash) remain visible under range
       // presets (such as "Today") so midnight closeouts from the previous day are
-      // immediately accessible for declaration.
+      // immediately accessible for declaration. Not Remitted carry-overs stay
+      // visible too, so the admin can see who still holds yesterday's cash.
       // A two-date range also caps the end (inclusive).
+      const isCarryOver = canDeclareCash(item.remittanceStatus) || item.remittanceStatus === 'Not Remitted';
       const matchesDate = selectedDate
         ? item.date === selectedDate
-        : (!dateFrom || item.date >= dateFrom || canDeclareCash(item.remittanceStatus)) && (!dateTo || item.date <= dateTo);
+        : (!dateFrom || item.date >= dateFrom || isCarryOver) && (!dateTo || item.date <= dateTo);
       const matchesConductor = !conductorFilter || item.conductorName === conductorFilter;
       const matchesDriver = !driverFilter || item.driverName === driverFilter;
 

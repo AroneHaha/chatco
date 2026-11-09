@@ -11,7 +11,7 @@ import logo from "../../assets/logo-transparent.png";
 const LINKS = [
   { label: "How It Works", id: "how-it-works" },
   { label: "Features", id: "features" },
-  { label: "Why CHATCO", id: "platform" },
+  { label: "Why E-CHATCO", id: "platform" },
   { label: "Download", id: "download" },
   { label: "Contact", id: "contact" },
 ];
@@ -158,9 +158,9 @@ export default function Navbar({ onHomePage = true }: { onHomePage?: boolean }) 
       }`}
     >
       <div className="max-w-7xl mx-auto px-5 md:px-8 flex items-center justify-between lg:grid lg:grid-cols-[auto_1fr_auto] xl:grid-cols-[1fr_auto_1fr] h-16">
-        <a href={onHomePage ? "#" : "/"} className={`flex items-center gap-3 shrink-0 rounded-md ${focus}`} aria-label={onHomePage ? "CHATCO, back to top" : "CHATCO home"}>
+        <a href={onHomePage ? "#" : "/"} className={`flex items-center gap-3 shrink-0 rounded-md ${focus}`} aria-label={onHomePage ? "E-CHATCO, back to top" : "E-CHATCO home"}>
           <Image src={logo} alt="" width={40} height={40} className="rounded-lg" priority />
-          <span className="text-lg font-bold tracking-tight text-white">CHATCO</span>
+          <span className="text-lg font-bold tracking-tight text-white">E-CHATCO</span>
         </a>
 
         <div className="hidden lg:flex items-center gap-1 lg:justify-self-center">

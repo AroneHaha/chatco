@@ -149,7 +149,7 @@ export default function RemittancePage() {
   // One date: that day. Both dates: the inclusive range between them.
   const isRange = Boolean(selectedDate && endDate);
 
-  const quickFilters: (RemittanceStatus | 'All')[] = ['All', 'Pending', 'For Cash Declaration', 'Overdue', 'Settled', 'Shortage', 'Overage'];
+  const quickFilters: (RemittanceStatus | 'All')[] = ['All', 'Pending', 'Not Remitted', 'For Cash Declaration', 'Overdue', 'Settled', 'Shortage', 'Overage'];
 
   return (
     // touch-action: manipulation prevents mobile double-tap ghost clicks

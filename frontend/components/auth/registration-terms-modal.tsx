@@ -29,9 +29,9 @@ export default function RegistrationTermsModal({ busy, error, onBack, onConfirm 
       headerClassName={styles.modalHeader}
       contentClassName={styles.termsContent}
     >
-      <h2 id="registration-terms-heading" tabIndex={-1} className={styles.title}>CHATCO Terms and Conditions</h2>
+      <h2 id="registration-terms-heading" tabIndex={-1} className={styles.title}>E-CHATCO Terms and Conditions</h2>
       <p id="registration-terms-description" className={styles.subtitle}>
-        Please review these terms before submitting your commuter registration. They explain your responsibilities and how CHATCO handles registration, rides, payments, rewards, and safety features.
+        Please review these terms before submitting your commuter registration. They explain your responsibilities and how E-CHATCO handles registration, rides, payments, rewards, and safety features.
       </p>
       <p className={styles.termsDate}>Effective date: {POLICY_EFFECTIVE_DATE}</p>
       <div className={styles.policyLinks}>
@@ -65,11 +65,11 @@ export default function RegistrationTermsModal({ busy, error, onBack, onConfirm 
           <legend>Confirm your agreements</legend>
           <label>
             <input type="checkbox" required checked={termsAccepted} onChange={event => setTermsAccepted(event.target.checked)} />
-            <span>I have read and agree to CHATCO’s <a href="/terms-of-service" target="_blank" rel="noopener noreferrer">Terms of Service</a>.</span>
+            <span>I have read and agree to E-CHATCO’s <a href="/terms-of-service" target="_blank" rel="noopener noreferrer">Terms of Service</a>.</span>
           </label>
           <label>
             <input type="checkbox" required checked={privacyAcknowledged} onChange={event => setPrivacyAcknowledged(event.target.checked)} />
-            <span>I acknowledge CHATCO’s <a href="/privacy-policy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>, which explains how my information is used.</span>
+            <span>I acknowledge E-CHATCO’s <a href="/privacy-policy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>, which explains how my information is used.</span>
           </label>
           <label>
             <input type="checkbox" required checked={detailsConfirmed} onChange={event => setDetailsConfirmed(event.target.checked)} />

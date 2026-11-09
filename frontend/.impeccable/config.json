@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "gray-on-color",
+        "value": "*",
+        "files": [
+          "components/conductor/modals/fare-calculator-modal.tsx"
+        ],
+        "createdAt": "2026-11-06T17:04:37.029Z",
+        "reason": "Claude triage: flagged lines are the pickup/drop-off clear (X) buttons; gray icon rests on neutral gray-50/white-5 and switches to white/red-600 on the red hover tint, so no washed-out gray-on-color"
+      }
+    ]
+  }
+}

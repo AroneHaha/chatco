@@ -17,7 +17,8 @@ interface MetricPairTileProps {
   main: Metric;
   /** Rendered before the main metric's note, e.g. a period-over-period delta. */
   mainDelta?: ReactNode;
-  second: Metric;
+  /** Optional companion row; omitted, the tile shows the main metric alone. */
+  second?: Metric;
 }
 
 export function MetricPairTile({ title, main, mainDelta, second }: MetricPairTileProps) {
@@ -34,13 +35,15 @@ export function MetricPairTile({ title, main, mainDelta, second }: MetricPairTil
         </div>
       </div>
 
-      <div className="flex items-baseline justify-between gap-3 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] pt-3.5">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-slate-300 admin-light:text-slate-700">{second.label}</p>
-          <p className="mt-0.5 text-xs text-slate-400 admin-light:text-slate-500">{second.note}</p>
+      {second && (
+        <div className="flex items-baseline justify-between gap-3 border-t border-[#1E2D45] admin-light:border-[#E2E8F0] pt-3.5">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-slate-300 admin-light:text-slate-700">{second.label}</p>
+            <p className="mt-0.5 text-xs text-slate-400 admin-light:text-slate-500">{second.note}</p>
+          </div>
+          <p className="shrink-0 text-xl font-bold tabular-nums text-white admin-light:text-slate-900">{second.value}</p>
         </div>
-        <p className="shrink-0 text-xl font-bold tabular-nums text-white admin-light:text-slate-900">{second.value}</p>
-      </div>
+      )}
     </section>
   );
 }

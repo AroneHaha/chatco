@@ -25,7 +25,7 @@ type ModalTab = 'remittance' | 'transactions';
 
 // Statuses still waiting on the conductor's cash — the same set the header's
 // pending total counts, so the "Pending" filter and that figure always agree.
-const PENDING_STATUSES: RemittanceStatus[] = ['Pending', 'For Cash Declaration', 'Overdue'];
+const PENDING_STATUSES: RemittanceStatus[] = ['Pending', 'Not Remitted', 'For Cash Declaration', 'Overdue'];
 // Shifts whose cash was handed over, including those with a discrepancy.
 const REMITTED_STATUSES: RemittanceStatus[] = ['Settled', 'Shortage', 'Overage'];
 

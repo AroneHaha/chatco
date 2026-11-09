@@ -143,6 +143,8 @@
 .modal .suspended { border-color: #fde68a; }
 .modalHeader { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px 0 32px; }
 .modalBrand { display: inline-flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 700; letter-spacing: -.02em; }
+/* The seal sits on a 279x206 canvas: fix the height, keep its ratio, never let the flex row squeeze it into an oval. */
+.modalBrandLogo { flex-shrink: 0; width: auto; height: 32px; object-fit: contain; }
 .close { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 8px; color: var(--login-muted); cursor: pointer; }
 .close:hover { background: #f0f7ff; color: var(--login-blue); }
 .close:disabled { opacity: .5; cursor: wait; }

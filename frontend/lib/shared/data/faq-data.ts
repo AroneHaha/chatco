@@ -39,135 +39,127 @@ export interface ApiFaqItem {
   display_order: number;
 }
 
-export const faqCategories: FAQCategory[] = [
-  {
-    id: "getting-started",
-    label: "Getting Started",
-    emoji: "🚀",
-    items: [
-      {
-        question: "How do I create a CHATCO account?",
-        answer:
-          "Super easy! Sign up with your email or phone, pick \"Commuter,\" and you're in. You'll get your QR code right away — no ID needed. Welcome aboard!",
-      },
-      {
-        question: "What is my CHATCO QR code for?",
-        answer:
-          "It's your digital boarding pass! Show it to the conductor, they scan it, and your fare is processed through GCash. No cash, no card — just your phone!",
-      },
-      {
-        question: "Is CHATCO free to use?",
-        answer:
-          "Yep, totally free! You only pay when you ride — fares go directly through GCash. No subscriptions, no hidden fees, no wallet to maintain!",
-      },
-      {
-        question: "What time is the first trip and last trip?",
-        answer:
-          "The first trip starts at 4:10 AM on weekdays and 5:00 AM on weekends. Trips run until 9:00 PM every day.",
-      },
-    ],
-  },
-  {
-    id: "payments",
-    label: "Payments & GCash",
-    emoji: "💰",
-    items: [
-      {
-        question: "How do I pay for my ride?",
-        answer:
-          "When you ride, show your QR code to the conductor. They scan it, select your fare based on your pickup and drop-off points, and you pay directly through GCash. No need to load a wallet beforehand!",
-      },
-      {
-        question: "How is my fare calculated?",
-        answer:
-          "Fares are based on official CHATCO point areas, not GPS distance. The route has 34 predefined stops, each with a set fare. Your fare depends on which point area you board from and where you get off. The conductor selects the nearest official point for computation.",
-      },
-      {
-        question: "Do I need a GCash account?",
-        answer:
-          "Yes, for cashless payments you'll need a GCash account. When the conductor scans your QR, you'll receive a GCash payment prompt to confirm. You can also pay with cash directly to the conductor.",
-      },
-      {
-        question: "What happens if my ride is interrupted?",
-        answer:
-          "If your trip is interrupted (e.g., engine breakdown), report the issue directly to the conductor or contact our support team. We'll work with you to resolve the situation as quickly as possible.",
-      },
-    ],
-  },
-  {
-    id: "riding",
-    label: "Riding & Tracking",
-    emoji: "🚐",
-    items: [
-      {
-        question: "How do I hail a jeepney?",
-        answer:
-          "Open the map, tap Hail, and your location goes out to nearby conductors. When a CHATCO jeep is within 1km of your location, it appears on your map and you'll get a sound notification!",
-      },
-      {
-        question: "Why can't I see all jeeps on the map?",
-        answer:
-          "We only show CHATCO jeeps within 1km of your location to reduce map clutter, save bandwidth, and keep the app running smoothly. When a jeep approaches, you'll see it appear and hear a notification sound.",
-      },
-      {
-        question: "How do I pay when I ride?",
-        answer:
-          "Two options! Show your QR code to the conductor — they scan it and fare is paid via GCash. Or pay with cash directly. Either way, the fare is the same based on the official point area rates.",
-      },
-      {
-        question: "Can I share my ride with someone?",
-        answer:
-          "Yep! Tap Share My Ride to send a live tracking link to family or friends. They'll see your location even without the app.",
-      },
-    ],
-  },
-  {
-    id: "safety",
-    label: "Safety & Support",
-    emoji: "🛡️",
-    items: [
-      {
-        question: "What is the SOS button?",
-        answer:
-          "It's your emergency alert! Press it and your live location + ride details go straight to our admin team and your emergency contacts. Only use for real emergencies though!",
-      },
-      {
-        question: "I left something on the jeepney. What do I do?",
-        answer:
-          "Don't panic! Go to Lost & Found and report the item with date, time, and route. Conductors and admins can match it with found items on their end.",
-      },
-      {
-        question: "Is my personal data safe?",
-        answer:
-          "Absolutely! We use encrypted connections and secure storage through PayMongo for payments. Your QR code only has a unique ID — no personal info or payment details are exposed when scanned.",
-      },
-      {
-        question: "How do I report a concern?",
-        answer:
-          "Head to Feedback in the app! Rate your ride, report issues, or suggest improvements. Every report is reviewed by our team — your voice counts!",
-      },
-    ],
-  },
-  {
-    id: "rewards",
-    label: "Rewards & Loyalty",
-    emoji: "🎁",
-    items: [
-      {
-        question: "How does the loyalty program work?",
-        answer:
-          "Complete 10 paid rides to earn a free ride voucher. GCash payments through your CHATCO account count automatically. For cash payments, sign in to your account and scan the QR on your physical receipt to count the ride.",
-      },
-      {
-        question: "How do I check my rewards?",
-        answer:
-          "Open Rewards in your CHATCO account to see your counted rides and available free ride vouchers. You can also scan a cash receipt QR there.",
-      },
-      {
-        question: "How do cash rides count toward rewards?",
-        answer:
-          "Keep the physical receipt from your cash payment. Sign in to your CHATCO account, open Rewards, and scan its QR. GCash rides count automatically without a receipt scan.",
-      },
-    ],
-  },
-];
+/**
+ * Offline fallback for the landing FAQ chat, shown only until /api/faqs
+ * responds. Mirrors backend FaqSeeder (and migration
+ * 2026_11_09_000001_refresh_landing_faqs) word for word.
+ */
+const FALLBACK_ITEMS: Record<string, FAQItem[]> = {
+  "getting-started": [
+    {
+      question: "How do I create an E-CHATCO account?",
+      answer:
+        "Tap Sign up and complete four short steps: your personal details and commuter type (Regular, Student, Senior Citizen, or PWD), your contact number and a photo of your valid ID, the 6-digit code we email you, and your username and password. An admin then reviews your ID before your account is activated.",
+    },
+    {
+      question: "Why is my account still pending?",
+      answer:
+        "Every new account waits for an admin to check your valid ID and commuter type. You can sign in once it is approved. If it is not approved, you can register again with the correct details and ID.",
+    },
+    {
+      question: "Is E-CHATCO free to use?",
+      answer: "Yes. Creating an account and using the app cost nothing. You only pay your regular fare, by GCash or in cash.",
+    },
+    {
+      question: "What time is the first trip and last trip?",
+      answer: "The first trip starts at 4:10 AM on weekdays and 5:00 AM on weekends. Trips run until 9:00 PM every day.",
+    },
+  ],
+  payments: [
+    {
+      question: "How do I pay with GCash?",
+      answer:
+        "Tell the conductor where you are getting off and they will show a payment QR on their device. Tap Pay with GCash on your Home screen, scan that QR, check the amount, and confirm to finish on GCash's secure page.",
+    },
+    {
+      question: "How is my fare calculated?",
+      answer:
+        "Fares follow the 34 official CHATCO stop points, not GPS distance. Your fare depends on where you board and where you get off, and it is the same whether you pay by GCash or in cash. Open the fare calculator in the app to check a fare before you ride.",
+    },
+    {
+      question: "Do I need a GCash account?",
+      answer: "Only to pay cashless. You can always pay the conductor in cash at the same fare.",
+    },
+    {
+      question: "What if my GCash payment doesn't go through?",
+      answer:
+        "Nothing is charged until you confirm on GCash. If the payment fails or the QR expires, tap Try again and ask the conductor for a new QR, or pay in cash instead. Payment History shows the final status of each payment.",
+    },
+    {
+      question: "How do I get a Student, Senior Citizen, or PWD discount?",
+      answer:
+        "Choose your commuter type when you sign up and upload the matching ID. Already registered as Regular? Apply from your Profile. Once an admin approves it, the discount is applied to your fare automatically. Students renew their discount once a year.",
+    },
+  ],
+  riding: [
+    {
+      question: "How do I hail a jeepney?",
+      answer:
+        "Press and hold Hold to Hail on the map. Your pickup point is sent to the nearest on-duty CHATCO jeep within 1 km of you, and the hail stays active for 3 minutes. You need to be near the route, and the jeep cannot be on break.",
+    },
+    {
+      question: "Why can't I see all jeeps on the map?",
+      answer:
+        "The map only shows CHATCO jeeps within 1 km of you, so it stays clear and shows the units you can actually catch, along with about how long each one will take to reach you.",
+    },
+    {
+      question: "Can I pay for my companions?",
+      answer:
+        "Yes. Tell the conductor how many are riding with you. They add your companions to one payment QR, and you pay the group total in a single GCash payment. Each passenger's Student, Senior Citizen, or PWD discount still applies.",
+    },
+    {
+      question: "Can I share my ride with someone?",
+      answer:
+        "Yes. Tap Share Ride on your Home screen to create a live location link for family or friends. They can follow your trip in any browser without the app. The link stays live for 30 minutes, and you can stop sharing anytime.",
+    },
+    {
+      question: "How do I know which way a jeep is going?",
+      answer:
+        "Each jeep on the map points in its direction of travel, toward Calumpit or Meycauayan, so you can tell whether it is coming your way before you hail.",
+    },
+  ],
+  safety: [
+    {
+      question: "Is the jeepney's speed monitored?",
+      answer:
+        "Yes. Every unit's speed is tracked live, and any trip over the speed limit is recorded for the operator's admins to review.",
+    },
+    {
+      question: "I left something on the jeepney. What do I do?",
+      answer:
+        "Open Lost & Found to browse items conductors have turned in, with photos, the jeep's plate number, and when it was found. If one is yours, claim it and add proof of ownership. You can bookmark items and follow your claim's status. Unclaimed items stay listed for 30 days.",
+    },
+    {
+      question: "Is my personal data safe?",
+      answer:
+        "Yes. GCash payments are completed on GCash's own secure page through PayMongo, so E-CHATCO never sees your GCash PIN. Your ID photo is only used to review your registration and discount.",
+    },
+    {
+      question: "How do I give feedback about my ride?",
+      answer:
+        "Tap Feedback and scan the QR code inside the jeepney to rate the driver and conductor for that trip and leave a comment. For anything else, reach us through the Contact section on this page.",
+    },
+  ],
+  rewards: [
+    {
+      question: "How does the loyalty program work?",
+      answer:
+        "Every 10 paid rides earns you a free-ride voucher, and the count starts over so you can keep earning. GCash rides count automatically. For cash rides, open Rewards and scan the QR on your paper receipt.",
+    },
+    {
+      question: "How do I check my rewards?",
+      answer:
+        "Open Rewards to see how many rides you have counted toward your next voucher and the vouchers you can use. You will also get a notification when a new voucher is ready.",
+    },
+    {
+      question: "Do vouchers expire?",
+      answer:
+        "Yes. A free-ride voucher is valid for 3 days after you earn it, and each voucher shows its expiry date. When you pay, the app offers your voucher automatically.",
+    },
+  ],
+};
+
+export const faqCategories: FAQCategory[] = FAQ_CATEGORIES.map((category) => ({
+  ...category,
+  items: FALLBACK_ITEMS[category.id] ?? [],
+}));

@@ -93,7 +93,7 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
       <aside className="hidden lg:flex xl:hidden flex-col w-64 xl:w-72 bg-[#071A2E] border-r border-white/10 light:bg-white light:border-gray-200 z-50 flex-shrink-0">
         <div className="h-20 flex items-center px-6 border-b border-white/10 light:border-gray-200">
           <img src="/logo-transparent.png" alt="CHATCO" className="w-10 h-10 rounded-xl object-contain" />
-          <span className="ml-3 text-white light:text-gray-900 font-extrabold text-lg tracking-tight">CHATCO</span>
+          <span className="ml-3 text-white light:text-gray-900 font-extrabold text-lg tracking-tight">E-CHATCO</span>
         </div>
 
         <nav className="flex-1 py-6 px-4 space-y-1">
@@ -172,10 +172,11 @@ function CommuterLayoutInner({ children }: { children: React.ReactNode }) {
             circular highlight and slide animation. */}
         <nav className="absolute bottom-0 inset-x-0 z-50 lg:hidden pb-safe">
           <div className="bg-[#0B1E33]/90 backdrop-blur-2xl shadow-[0_-4px_30px_rgba(0,0,0,0.3)] border-t border-white/[0.06] light:bg-white/90 light:shadow-[0_-4px_24px_rgba(15,23,42,0.08)] light:border-gray-200">
-            <div ref={navRowRef} className="relative grid grid-cols-6 max-w-lg mx-auto pt-1 pb-1 md:pt-1.5 md:pb-1.5">
+            <div ref={navRowRef} className="relative grid grid-cols-5 max-w-lg mx-auto pt-1 pb-1 md:pt-1.5 md:pb-1.5">
               <MobileNavHighlight highlightRef={highlightRef} />
 
-              {navItemsWithBadges.map((item) => {
+              {/* Fare is reached from the dashboard's "Fare Matrix" action below lg:, not a tab. */}
+              {navItemsWithBadges.filter((item) => item.href !== "/fare").map((item) => {
                 const isActive = mobileActiveHref === item.href;
                 const isFeedback = item.href === "/feedback";
                 const label = item.badge > 0 ? `${item.label} — ${item.badgeLabel}` : undefined;

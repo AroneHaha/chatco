@@ -7,7 +7,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react';
 interface AdminDatePickerProps {
   value: string; // 'YYYY-MM-DD', or '' for no filter
   onChange: (value: string) => void;
-  /** Matches the accent color already used per section (SOS = blue, Overspeeding = red). */
+  /** Selection accent; defaults to CHATCO blue. */
   accent?: 'blue' | 'red';
   /** Which edge of the trigger the popover hangs from — 'right' for triggers near the right edge of the viewport. */
   align?: 'left' | 'right';

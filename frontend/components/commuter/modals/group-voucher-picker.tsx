@@ -71,11 +71,11 @@ export function GroupVoucherPicker({ claim, onUse, onPayInstead }: GroupVoucherP
 
   return (
     <div className="p-5 sm:p-6">
-      <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-white/40">
+      <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-white/40 light:text-gray-500">
         {claim.availableVouchers.length} voucher{claim.availableVouchers.length === 1 ? "" : "s"} available
       </p>
-      <h2 className="mb-1 text-lg font-bold text-white">Use vouchers for this group?</h2>
-      <p className="mb-4 text-sm leading-relaxed text-white/60">
+      <h2 className="mb-1 text-lg font-bold text-white light:text-gray-900">Use vouchers for this group?</h2>
+      <p className="mb-4 text-sm leading-relaxed text-white/60 light:text-gray-600">
         You&apos;re paying for {seats.length} passengers. Use up to one voucher per passenger; GCash charges whatever is left.
       </p>
 
@@ -91,48 +91,48 @@ export function GroupVoucherPicker({ claim, onUse, onPayInstead }: GroupVoucherP
                 disabled={disabled}
                 onClick={() => toggle(voucher)}
                 className={`flex w-full items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45 ${
-                  isSelected ? "border-[#1A5FB4] bg-[#0F2747]" : "border-[#1C3350] bg-[#0B1E33] hover:bg-[#10273F]"
+                  isSelected ? "border-[#1A5FB4] bg-[#0F2747] light:bg-[#F0F7FF]" : "border-[#1C3350] light:border-gray-200 bg-[#0B1E33] light:bg-gray-50 hover:bg-[#10273F] light:hover:bg-gray-100"
                 }`}
               >
                 <span
                   aria-hidden="true"
                   className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
-                    isSelected ? "border-[#1A5FB4] bg-[#1A5FB4] text-white" : "border-[#2A4566] bg-[#071A2E]"
+                    isSelected ? "border-[#1A5FB4] bg-[#1A5FB4] text-white" : "border-[#2A4566] light:border-gray-300 bg-[#071A2E] light:bg-white"
                   }`}
                 >
                   {isSelected && <Check size={14} strokeWidth={3} />}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-white">{voucherLabel(voucher)}</span>
-                  <span className="block text-xs text-white/45">{expiryLabel(voucher.expiresAt)}</span>
+                  <span className="block text-sm font-semibold text-white light:text-gray-900">{voucherLabel(voucher)}</span>
+                  <span className="block text-xs text-white/45 light:text-gray-500">{expiryLabel(voucher.expiresAt)}</span>
                 </span>
-                {disabled && <span className="shrink-0 text-xs text-white/40">{full ? "All seats used" : "Not needed"}</span>}
+                {disabled && <span className="shrink-0 text-xs text-white/40 light:text-gray-500">{full ? "All seats used" : "Not needed"}</span>}
               </button>
             </li>
           );
         })}
       </ul>
 
-      <dl className="mb-5 space-y-2 rounded-xl border border-[#1C3350] bg-[#0B1E33] p-4 text-sm">
+      <dl className="mb-5 space-y-2 rounded-xl border border-[#1C3350] light:border-gray-200 bg-[#0B1E33] light:bg-gray-50 p-4 text-sm">
         <div className="flex justify-between gap-3">
-          <dt className="text-white/40">Group fare · {seats.length} passengers</dt>
-          <dd className="font-medium tabular-nums text-white">{formatCurrency(groupFare)}</dd>
+          <dt className="text-white/40 light:text-gray-500">Group fare · {seats.length} passengers</dt>
+          <dd className="font-medium tabular-nums text-white light:text-gray-900">{formatCurrency(groupFare)}</dd>
         </div>
         {freeCount > 0 && (
           <div className="flex justify-between gap-3">
-            <dt className="text-white/40">{freeCount} free ride{freeCount === 1 ? "" : "s"} · {freeBreakdown}</dt>
-            <dd className="tabular-nums text-white">−{formatCurrency(freeValue)}</dd>
+            <dt className="text-white/40 light:text-gray-500">{freeCount} free ride{freeCount === 1 ? "" : "s"} · {freeBreakdown}</dt>
+            <dd className="tabular-nums text-white light:text-gray-900">−{formatCurrency(freeValue)}</dd>
           </div>
         )}
         {plan.discountTotal > 0 && (
           <div className="flex justify-between gap-3">
-            <dt className="text-white/40">Discount</dt>
-            <dd className="tabular-nums text-white">−{formatCurrency(plan.discountTotal)}</dd>
+            <dt className="text-white/40 light:text-gray-500">Discount</dt>
+            <dd className="tabular-nums text-white light:text-gray-900">−{formatCurrency(plan.discountTotal)}</dd>
           </div>
         )}
-        <div className="flex justify-between gap-3 border-t border-[#1C3350] pt-2">
-          <dt className="font-semibold text-white">{plan.remaining > 0 ? "You pay via GCash" : "Nothing to pay"}</dt>
-          <dd className="font-bold tabular-nums text-white">{formatCurrency(plan.remaining)}</dd>
+        <div className="flex justify-between gap-3 border-t border-[#1C3350] light:border-gray-200 pt-2">
+          <dt className="font-semibold text-white light:text-gray-900">{plan.remaining > 0 ? "You pay via GCash" : "Nothing to pay"}</dt>
+          <dd className="font-bold tabular-nums text-white light:text-gray-900">{formatCurrency(plan.remaining)}</dd>
         </div>
       </dl>
 
@@ -150,7 +150,7 @@ export function GroupVoucherPicker({ claim, onUse, onPayInstead }: GroupVoucherP
         <button
           type="button"
           onClick={onPayInstead}
-          className="w-full rounded-xl border border-[#1C3350] bg-[#0B1E33] py-3 text-sm font-semibold text-white/80 transition-colors hover:bg-[#10273F] active:scale-[0.98]"
+          className="w-full rounded-xl border border-[#1C3350] light:border-gray-200 bg-[#0B1E33] light:bg-gray-50 py-3 text-sm font-semibold text-white/80 light:text-gray-700 transition-colors hover:bg-[#10273F] light:hover:bg-gray-100 active:scale-[0.98]"
         >
           Pay {formatCurrency(claim.amount)} with GCash instead
         </button>

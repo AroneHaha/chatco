@@ -10,9 +10,11 @@ interface SuccessOverlayProps {
   cashTotal: number;
   grandTotal: number;
   unitNumber: string;
+  /** Where the conductor goes next: history after today's shift, unit verification after an earlier one. */
+  redirectLabel?: string;
 }
 
-export default function SuccessOverlay({ show, onClose, gcashTotal, cashTotal, grandTotal, unitNumber }: SuccessOverlayProps) {
+export default function SuccessOverlay({ show, onClose, gcashTotal, cashTotal, grandTotal, unitNumber, redirectLabel = "remittance history" }: SuccessOverlayProps) {
   // Guard: ensure numeric values even if undefined slips through
   const safeGcash = gcashTotal ?? 0;
   const safeCash = cashTotal ?? 0;
@@ -54,7 +56,7 @@ export default function SuccessOverlay({ show, onClose, gcashTotal, cashTotal, g
         </dl>
 
         <p id="eod-success-body" className={`mt-4 text-xs leading-relaxed ${D.muted}`}>
-          Hand the cash to the admin. They count it and record the cash declaration. Redirecting to login…
+          Hand the cash to the admin. They count it and record the cash declaration. Redirecting to {redirectLabel}…
         </p>
         <button type="button" onClick={onClose} autoFocus className={`${D.button} ${D.primary} mt-5 w-full`}>Done</button>
       </div>
