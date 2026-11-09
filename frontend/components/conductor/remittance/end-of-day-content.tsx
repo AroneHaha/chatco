@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/auth-context";
 import { clearShift } from "@/lib/conductor/services/shift.service";
 import { submitRemittance, type RemittanceRecord } from "@/lib/conductor/services/remittance.service";
 import {
@@ -37,7 +38,8 @@ import { UserAvatar } from "@/components/admin/ui/user-avatar";
  */
 export default function EndOfDayContent() {
   const router = useRouter();
-  const { shift, transactions, earnings, history, status, error, refresh } = useRemittanceData();
+  const { logout } = useAuth();
+  const { shift, transactions, earnings, history, status, error } = useRemittanceData();
 
   const [showConfirm, setShowConfirm] = useState(false);
   const [isRemitting, setIsRemitting] = useState(false);
@@ -50,8 +52,9 @@ export default function EndOfDayContent() {
   const [reportForRecord, setReportForRecord] = useState<RemittanceRecord | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const isLoggingOutAfterRemit = useRef(false);
   // Set when the shift just remitted was an earlier one (not today's), so the
-  // conductor goes on to unit verification instead of the history view.
+  // conductor goes on to unit verification instead of being logged out.
   const remittedPastShift = useRef(false);
   // An earlier shift the daily reset ended while the conductor still held the
   // cash. Only when no shift is running (a new one can't start until these
@@ -62,23 +65,6 @@ export default function EndOfDayContent() {
     const unremitted = history.filter((record) => record.remittanceStatus === "Not Remitted");
     return unremitted[unremitted.length - 1] ?? null;
   }, [history, shift]);
-
-  // Keep the conductor signed in after closeout and refresh the server-backed history.
-  useEffect(() => {
-    if (!showSuccess) return;
-
-    const timer = window.setTimeout(() => {
-      setShowSuccess(false);
-      if (remittedPastShift.current) {
-        router.replace("/unit-verification");
-        return;
-      }
-      setShowHistory(true);
-      void refresh();
-    }, 3000);
-
-    return () => window.clearTimeout(timer);
-  }, [showSuccess, refresh, router]);
 
   // Captured totals for the SuccessOverlay. We must store these in state
   // (not just local vars) because the overlay renders AFTER handleRemit
@@ -138,6 +124,22 @@ export default function EndOfDayContent() {
   }, [transactions, earnings, pendingRemittance]);
 
   const canRemit = (transactions.length > 0 || pendingRemittance !== null) && !hasRemittedToday;
+
+  const logoutAfterRemittance = async () => {
+    if (isLoggingOutAfterRemit.current) return;
+    isLoggingOutAfterRemit.current = true;
+    setShowSuccess(false);
+
+    // An earlier shift is settled: pick a unit for today (unit verification
+    // sends them back here if another earlier shift is still unremitted).
+    // Today's shift is the end of the day, so sign out.
+    if (remittedPastShift.current) {
+      router.replace("/unit-verification");
+      return;
+    }
+
+    await logout();
+  };
 
   const filteredHistory = useMemo(() => {
     const today = new Date();
@@ -304,6 +306,9 @@ export default function EndOfDayContent() {
       remittedPastShift.current = isPastShift;
       setShowSuccess(true);
       setHasRemittedToday(true);
+      setTimeout(() => {
+        void logoutAfterRemittance();
+      }, 3000);
     } catch (err) {
       setSubmitError(
         err instanceof Error ? err.message : "Unable to submit remittance."
@@ -450,20 +455,12 @@ export default function EndOfDayContent() {
           after endShift() clears the live shift data. */}
       <SuccessOverlay
         show={showSuccess}
-        onClose={() => {
-          setShowSuccess(false);
-          if (remittedPastShift.current) {
-            router.replace("/unit-verification");
-            return;
-          }
-          setShowHistory(true);
-          void refresh();
-        }}
+        onClose={() => { void logoutAfterRemittance(); }}
         gcashTotal={capturedTotals?.gcashTotal ?? summary.gcashTotal}
         cashTotal={capturedTotals?.cashTotal ?? summary.cashTotal}
         grandTotal={capturedTotals?.grandTotal ?? summary.grandTotal}
         unitNumber={shiftInfo.unitNumber}
-        redirectLabel={remittedPastShift.current ? "unit verification" : "remittance history"}
+        redirectLabel={remittedPastShift.current ? "unit verification" : "login"}
       />
       <OfficialReportModal show={showOfficialReport} onClose={() => setShowOfficialReport(false)} activeReport={activeReport} route={shiftInfo.route} />
     </>

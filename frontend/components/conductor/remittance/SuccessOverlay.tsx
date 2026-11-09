@@ -10,11 +10,11 @@ interface SuccessOverlayProps {
   cashTotal: number;
   grandTotal: number;
   unitNumber: string;
-  /** Where the conductor goes next: history after today's shift, unit verification after an earlier one. */
+  /** Where the conductor goes next: login after today's shift, unit verification after an earlier one. */
   redirectLabel?: string;
 }
 
-export default function SuccessOverlay({ show, onClose, gcashTotal, cashTotal, grandTotal, unitNumber, redirectLabel = "remittance history" }: SuccessOverlayProps) {
+export default function SuccessOverlay({ show, onClose, gcashTotal, cashTotal, grandTotal, unitNumber, redirectLabel = "login" }: SuccessOverlayProps) {
   // Guard: ensure numeric values even if undefined slips through
   const safeGcash = gcashTotal ?? 0;
   const safeCash = cashTotal ?? 0;
