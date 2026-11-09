@@ -69,8 +69,8 @@ class FareMatrixController extends Controller
         });
 
         // The Financial Rules every trip is priced with (App\Support\FareRules).
-        // Clients compute: minimum + max(0, |stop gap| - baseBarangayCount) ×
-        // succeeding, less discountRate for discounted fares, each rounded to
+        // Clients compute: minimum + max(0, |stop gap| + 1 - baseBarangayCount) ×
+        // succeeding, less discountRate before rounding discounted fares, each rounded to
         // the nearest ₱0.25 (see FareRules::fare).
         $rules = FareRules::current();
         $config = [

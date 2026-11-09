@@ -244,6 +244,7 @@ class MobileCommuterIsolationTest extends TestCase
 
     public function test_mobile_commuter_routes_require_authentication(): void
     {
+        $this->getJson('/api/v1/mobile/commuter/vouchers?status=available')->assertUnauthorized();
         $this->getJson('/api/v1/mobile/commuter/profile')->assertUnauthorized();
         $this->getJson('/api/v1/mobile/commuter/trips')->assertUnauthorized();
         $this->getJson('/api/v1/mobile/commuter/rewards')->assertUnauthorized();
@@ -253,6 +254,7 @@ class MobileCommuterIsolationTest extends TestCase
     {
         Sanctum::actingAs($this->conductor);
 
+        $this->getJson('/api/v1/mobile/commuter/vouchers?status=available')->assertForbidden();
         $this->getJson('/api/v1/mobile/commuter/profile')->assertForbidden();
         $this->getJson('/api/v1/mobile/commuter/trips')->assertForbidden();
         $this->getJson('/api/v1/mobile/commuter/rewards')->assertForbidden();

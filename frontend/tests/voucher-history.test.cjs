@@ -63,6 +63,12 @@ function history(service) {
       if (name === 'react') return { ...React, ...react };
       if (name === '@/components/admin/ui/settings-section') return { SettingsSection: props => props.children };
       if (name === '@/components/admin/ui/modal') return { Modal: props => props.children };
+      if (name === '@/lib/admin/services/setting.service') return {
+        getSettings: async () => ({ receipt_scan_reward_enabled: 'true' }),
+        updateSetting: async () => {},
+      };
+      if (name === '@/components/admin/ui/inline-error') return { InlineError: 'InlineError' };
+      if (name === '@/components/admin/ui/success-modal') return { SuccessModal: 'SuccessModal' };
       return require(name);
     },
   });

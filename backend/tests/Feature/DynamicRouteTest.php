@@ -12,6 +12,45 @@ class DynamicRouteTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_route_upgrade_copies_only_the_effective_live_line(): void
+    {
+        $route = Route::factory()->create(['geometry' => null]);
+        $migration = require database_path('migrations/2026_11_04_000001_move_route_geometry_to_routes_and_drop_route_versions.php');
+        $migration->down();
+        $line = [[14.90, 120.70], [14.80, 120.80]];
+        foreach ([
+            [1, 'PUBLISHED', now()->subDay(), $line],
+            [2, 'PUBLISHED', now()->addDay(), [[15, 121], [15.1, 121.1]]],
+            [3, 'DRAFT', null, [[16, 122], [16.1, 122.1]]],
+        ] as [$version, $status, $effective, $geometry]) {
+            \Illuminate\Support\Facades\DB::table('route_versions')->insert([
+                'id' => (string) \Illuminate\Support\Str::uuid(), 'route_id' => $route->id,
+                'version' => $version, 'status' => $status, 'geometry' => json_encode($geometry),
+                'effective_from' => $effective, 'published_at' => now()->subHour(),
+            ]);
+        }
+        $migration->up();
+        $this->assertSame($line, $route->fresh()->geometry);
+        $this->assertFalse(Schema::hasTable('route_versions'));
+    }
+
+    public function test_fare_upgrade_keeps_stop_identity_and_reprices_from_rules(): void
+    {
+        $route = Route::factory()->create();
+        foreach ([5, 10] as $number) {
+            \App\Models\FarePoint::create(['route_id' => $route->id, 'point_number' => $number,
+                'code' => 'P'.$number, 'name' => 'Point '.$number, 'regular_fare' => 99, 'discounted_fare' => 88]);
+        }
+        $ids = \App\Models\FarePoint::where('route_id', $route->id)->orderBy('point_number')->pluck('id')->all();
+        $migration = require database_path('migrations/2026_11_04_000002_derive_fare_point_fares_from_financial_rules.php');
+        $migration->up();
+        $points = \App\Models\FarePoint::where('route_id', $route->id)->orderBy('point_number')->get();
+        $this->assertSame($ids, $points->pluck('id')->all());
+        $this->assertSame([1, 2], $points->pluck('point_number')->all());
+        $this->assertEquals([17, 17], $points->pluck('regular_fare')->all());
+        $this->assertEquals([13.6, 13.6], $points->pluck('discounted_fare')->all());
+    }
+
     public function test_public_endpoint_returns_the_saved_route_line(): void
     {
         $route = Route::factory()->create([
