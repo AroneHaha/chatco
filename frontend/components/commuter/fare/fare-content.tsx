@@ -14,6 +14,8 @@ import { formatCurrency,getCommuterTypeLabel,type CommuterType } from "@/lib/sha
 
 interface FareContentProps {
   variant?: "page"|"modal";
+  /** Shows a close (X) button at the header's top right. */
+  onClose?: () => void;
 }
 
 function subDropoffPoints(point: PointArea): string[] {
@@ -24,7 +26,7 @@ function subDropoffPoints(point: PointArea): string[] {
   ));
 }
 
-export default function FareContent({ variant="page" }: FareContentProps) {
+export default function FareContent({ variant="page",onClose }: FareContentProps) {
   const [pointAreas,setPointAreas]=useState<PointArea[]>([]);
   const [pickupPoint,setPickupPoint]=useState<PointArea|null>(null);
   const [dropoffPoint,setDropoffPoint]=useState<PointArea|null>(null);
@@ -186,6 +188,18 @@ export default function FareContent({ variant="page" }: FareContentProps) {
             <h2 id="commuter-fare-title" className="text-base sm:text-lg font-bold text-white light:text-gray-900 truncate">Fare Calculator</h2>
           ):(
             <h1 className="text-base sm:text-lg font-bold text-white light:text-gray-900 truncate">Fare Calculator</h1>
+          )}
+          {onClose&&(
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close fare calculator"
+              className="-mr-1.5 w-9 h-9 flex items-center justify-center flex-shrink-0 text-white/60 hover:text-white light:text-gray-500 light:hover:text-gray-900 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
           )}
         </div>
         {/* Same 0fr -> 1fr row slide as the conductor dashboard card. Closed
