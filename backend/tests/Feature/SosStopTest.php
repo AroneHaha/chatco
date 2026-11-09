@@ -130,12 +130,13 @@ class SosStopTest extends TestCase
     }
 
     #[DataProvider('senderRoles')]
-    public function test_mobile_sender_can_stop_alert(string $role): void
+    public function test_mobile_stop_is_unavailable_for_both_roles(string $role): void
     {
         $sender = User::factory()->{$role}()->create();
         $alert = $this->alert($sender);
         Sanctum::actingAs($sender);
-        $this->patchJson("/api/v1/mobile/{$role}/sos/{$alert->id}/stop")->assertOk()->assertJsonPath('data.status', 'RESOLVED');
+        $this->patchJson("/api/v1/mobile/{$role}/sos/{$alert->id}/stop")->assertNotFound();
+        $this->assertSame('ACTIVE', $alert->fresh()->status);
     }
 
     #[DataProvider('senderRoles')]

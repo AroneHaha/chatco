@@ -20,17 +20,11 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('routes', function (Blueprint $table) {
-            $table->json('geometry')->nullable()->after('waypoints');
-            $table->text('waypoints')->nullable()->change();
-        });
-
-        if (! Schema::hasTable('route_versions')) {
-            return;
-        }
-
+        // Capture the live line before changing the parent table. SQLite may
+        // rebuild routes for change(), cascading away its version rows.
+        $liveLines = [];
         $now = now();
-        foreach (DB::table('routes')->pluck('id') as $routeId) {
+        foreach (Schema::hasTable('route_versions') ? DB::table('routes')->pluck('id') : [] as $routeId) {
             $live = DB::table('route_versions')
                 ->where('route_id', $routeId)
                 ->where('status', 'PUBLISHED')
@@ -42,14 +36,21 @@ return new class extends Migration
                 ->first(['geometry', 'waypoints']);
 
             if ($live) {
-                DB::table('routes')->where('id', $routeId)->update(array_filter([
+                $liveLines[$routeId] = array_filter([
                     'geometry' => $live->geometry,
                     'waypoints' => $live->waypoints,
-                ], fn ($value) => $value !== null));
+                ], fn ($value) => $value !== null);
             }
         }
 
-        Schema::drop('route_versions');
+        Schema::table('routes', function (Blueprint $table) {
+            $table->json('geometry')->nullable()->after('waypoints');
+            $table->text('waypoints')->nullable()->change();
+        });
+        foreach ($liveLines as $routeId => $line) {
+            DB::table('routes')->where('id', $routeId)->update($line);
+        }
+        Schema::dropIfExists('route_versions');
     }
 
     public function down(): void
