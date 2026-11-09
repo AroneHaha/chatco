@@ -111,7 +111,7 @@ export default function CommuterDock({
         {/* Logo */}
         <div className="flex items-center gap-2 px-4">
           <img src="/logo-transparent.png" alt="" className="w-7 h-7 rounded-lg object-contain" />
-          <span className="text-white light:text-gray-900 font-extrabold text-sm tracking-tight whitespace-nowrap">CHATCO</span>
+          <span className="text-white light:text-gray-900 font-extrabold text-sm tracking-tight whitespace-nowrap">E-CHATCO</span>
         </div>
 
         {/* Nav */}

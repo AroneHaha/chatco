@@ -1,24 +1,19 @@
 // app/(admin)/monitoring/page.tsx
 'use client';
 
-import { useEffect, useState, useMemo, useRef, useId, type ReactNode } from 'react';
+import { useEffect, useState, useMemo, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import {
-  Gauge, Clock, MapPin, AlertTriangle, Archive, Phone, Building2, ShieldAlert,
-  AlertCircle, RefreshCw, Coffee, CheckCircle2, Search, X, LocateFixed,
+  Gauge, MapPin, AlertCircle, Coffee, Search, X, LocateFixed,
   ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { useFleetPoll } from '@/lib/admin/services/monitoring.service';
 import { toTripDirection } from '@/lib/shared/map/trip-direction';
 import {
   useMonitoringData,
-  useSosLocations,
-  SOS_HISTORY_PER_PAGE,
   type DemandZone,
   type SafetyHistorySort,
-  type SosHistoryOutcome,
-  type SosAlert,
 } from './data/data-monitoring';
 import { SkeletonMetric, SkeletonTable, SkeletonMap } from '@/components/admin/ui/skeleton';
 import { StickyPageHeader } from '@/components/admin/layout/sticky-page-header';
@@ -30,7 +25,6 @@ import { useAdminNotifications } from '@/contexts/admin-notifications-context';
 const AdminCommuterMap = dynamic<{
   liveVehicles?: import('@/components/admin/admin-commuter-map').LiveVehicleMarker[];
   demandZones?: DemandZone[];
-  sosLocations?: import('@/components/admin/admin-commuter-map').SosMapMarker[];
   focusPosition?: [number, number] | null;
   focusNonce?: number;
 }>(() => import('@/components/admin/admin-commuter-map'), {
@@ -64,166 +58,12 @@ function HistoryPagination({ page, pages, start, end, count, onChange }: {
   );
 }
 
-function SosResolutionDialog({ alert, location, onCancel, onConfirm }: {
-  alert: SosAlert;
-  /** From useSosLocations: null when unavailable, undefined while looking up. */
-  location: string | null | undefined;
-  onCancel: () => void;
-  onConfirm: () => Promise<void>;
-}) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const resolvingRef = useRef(false);
-  const titleId = useId();
-  const [hotline, setHotline] = useState<string | null>(null);
-  const [attribution, setAttribution] = useState<string | null>(null);
-  const [isLoadingDetails, setIsLoadingDetails] = useState(true);
-  const [detailsError, setDetailsError] = useState(false);
-  const [isResolving, setIsResolving] = useState(false);
-  const [resolveError, setResolveError] = useState<string | null>(null);
-  const [lat, lon] = alert.coordinates;
-  // Shown when reverse geocoding is unconfigured or fails, so staff can
-  // still relay an exact position.
-  const coordinateText = Number.isFinite(lat) && Number.isFinite(lon) ? `${lat.toFixed(5)}, ${lon.toFixed(5)}` : null;
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    const previousFocus = document.activeElement;
-    dialog?.showModal();
-    let active = true;
-
-    // Only the hotline is fetched here (fresh on every open); the address
-    // comes from the page's shared lookup.
-    void fetch('/api/admin/monitoring/sos-location', {
-      headers: { Accept: 'application/json' },
-    })
-      .then(async response => {
-        const body = await response.json().catch(() => null);
-        if (!response.ok) throw new Error(body?.message ?? 'Unable to load SOS response details.');
-        return body?.data;
-      })
-      .then(details => {
-        if (!active) return;
-        setHotline(typeof details?.emergency_hotline === 'string' ? details.emergency_hotline : null);
-        setAttribution(typeof details?.attribution === 'string' ? details.attribution : null);
-      })
-      .catch(() => {
-        if (active) setDetailsError(true);
-      })
-      .finally(() => {
-        if (active) setIsLoadingDetails(false);
-      });
-
-    return () => {
-      active = false;
-      dialog?.close();
-      if (previousFocus instanceof HTMLElement) previousFocus.focus();
-    };
-  }, []);
-
-  const resolve = async () => {
-    if (resolvingRef.current) return;
-    resolvingRef.current = true;
-    setIsResolving(true);
-    setResolveError(null);
-    try {
-      await onConfirm();
-      onCancel();
-    } catch (error) {
-      setResolveError(error instanceof Error ? error.message : 'Unable to resolve this SOS. Please try again.');
-    } finally {
-      resolvingRef.current = false;
-      setIsResolving(false);
-    }
-  };
-
-  const steps = [
-    {
-      title: 'Call the landing page emergency contact',
-      description: 'Notify the listed emergency contact that an SOS was triggered.',
-      icon: Phone,
-      content: isLoadingDetails
-        ? 'Loading contact number…'
-        : detailsError
-          ? 'Unable to load contact number.'
-          : hotline || 'No contact number is configured.',
-    },
-    {
-      title: 'Alert office staff',
-      description: `Announce the SOS to office staff so they can take action. Share ${alert.sender}’s alert and location.`,
-      icon: Building2,
-      content: location === undefined
-        ? 'Looking up the alert location…'
-        : location || coordinateText || 'Location unavailable.',
-    },
-    {
-      title: 'Contact the emergency response team',
-      description: 'Use the emergency team number when one is assigned.',
-      icon: ShieldAlert,
-      content: 'Placeholder — number not configured yet',
-    },
-  ];
-
-  return (
-    <dialog
-      ref={dialogRef}
-      aria-labelledby={titleId}
-      aria-busy={isResolving}
-      onCancel={event => { event.preventDefault(); if (!isResolving) onCancel(); }}
-      onClick={event => { if (event.target === event.currentTarget && !isResolving) onCancel(); }}
-      className="fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-2xl border border-[#2A3A52] admin-light:border-[#CBD5E1] bg-[#131C2E] p-5 text-white shadow-2xl backdrop:bg-black/70 sm:p-6 admin-light:bg-white admin-light:text-slate-900"
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex min-w-0 items-start gap-3">
-          <ShieldAlert size={30} aria-hidden="true" className="shrink-0 text-red-400 admin-light:text-red-600" />
-          <div className="min-w-0">
-            <h2 id={titleId} className="text-lg font-bold">Confirm SOS resolution</h2>
-            <p className="mt-1 text-sm leading-relaxed text-slate-400 admin-light:text-slate-500">Follow these response steps before closing the alert.</p>
-          </div>
-        </div>
-        <button type="button" autoFocus disabled={isResolving} onClick={onCancel} aria-label="Close confirmation" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-[#1E2D45] hover:text-white admin-light:hover:bg-slate-100 admin-light:hover:text-slate-900 disabled:opacity-50">
-          <X size={19} aria-hidden="true" />
-        </button>
-      </div>
-
-      <div className="mt-5 rounded-xl border border-[#2A3A52] bg-[#0E1628] p-3 admin-light:border-[#E2E8F0] admin-light:bg-[#F8FAFC]">
-        <p className="text-xs font-semibold text-slate-200 admin-light:text-slate-800">{alert.note}</p>
-        <p className="mt-1 text-xs text-slate-400 admin-light:text-slate-500">{alert.sender} · {alert.senderRole === 'CONDUCTOR' ? 'Conductor' : 'Commuter'}</p>
-      </div>
-
-      <ol className="mt-4 list-none space-y-3 p-0">
-        {steps.map((step) => {
-          const StepIcon = step.icon;
-          return (
-            <li key={step.title} className="rounded-xl border border-[#2A3A52] bg-[#0E1628] p-3 admin-light:border-[#E2E8F0] admin-light:bg-[#F8FAFC]">
-              <div className="min-w-0">
-                <p className="flex items-center gap-2 text-sm font-semibold text-slate-100 admin-light:text-slate-900"><StepIcon size={15} aria-hidden="true" className="shrink-0 text-[#99C1F1] admin-light:text-[#1A5FB4]" />{step.title}</p>
-                <p className="mt-1 text-xs leading-relaxed text-slate-400 admin-light:text-slate-600">{step.description}</p>
-                <p className="mt-2 text-xs font-semibold text-slate-200 admin-light:text-slate-800">{step.content}</p>
-              </div>
-            </li>
-          );
-        })}
-      </ol>
-      {location && attribution && <p className="mt-3 text-[10px] text-slate-500 admin-light:text-slate-500">Location data: {attribution}</p>}
-
-      {resolveError && <p role="alert" className="mt-4 rounded-lg border border-red-500 bg-[#35131B] p-3 text-sm text-red-200 admin-light:border-red-300 admin-light:bg-red-50 admin-light:text-red-700">{resolveError}</p>}
-
-      <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <button type="button" disabled={isResolving} onClick={onCancel} className="min-h-11 rounded-lg border border-[#2A3A52] bg-[#0E1628] px-4 text-sm font-semibold text-slate-200 transition-colors hover:bg-[#1A263B] admin-light:border-[#CBD5E1] admin-light:bg-white admin-light:text-slate-700 admin-light:hover:bg-slate-50 disabled:cursor-wait disabled:opacity-50">Keep alert open</button>
-        <button type="button" disabled={isResolving} onClick={() => { void resolve(); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-red-600 bg-red-700 px-4 text-sm font-semibold text-white transition-colors hover:bg-red-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400 disabled:cursor-wait disabled:opacity-50">
-          {isResolving ? 'Resolving…' : 'Confirm & resolve'}
-        </button>
-      </div>
-    </dialog>
-  );
-}
-
 export default function MonitoringPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { markRead: markMonitoringNotificationsRead } = useAdminNotifications().monitoring;
-  // Opening the Monitoring module clears the nav badge (new SOS alerts +
-  // new overspeeding episodes) — mirrors Remittance's markRead-on-open.
+  // Opening the Monitoring module clears the nav badge — mirrors
+  // Remittance's markRead-on-open.
   useEffect(() => {
     markMonitoringNotificationsRead();
   }, [markMonitoringNotificationsRead]);
@@ -231,98 +71,39 @@ export default function MonitoringPage() {
   const [overspeedPage, setOverspeedPage] = useState(1);
   const [filterOverspeedDate, setFilterOverspeedDate] = useState('');
   const [historySort, setHistorySort] = useState<SafetyHistorySort>('recent');
-
-  // Pagination States
-  const [sosPage, setSosPage] = useState(1);
   const ROWS_PER_PAGE = 10;
-
-  // Filter States — SOS history date/status are sent to the server, which
-  // filters and paginates in SQL.
-  const [filterSosDate, setFilterSosDate] = useState('');
-  const [filterSosStatus, setFilterSosStatus] = useState<SosHistoryOutcome>('ALL');
   const [filterBreakOnly, setFilterBreakOnly] = useState(false);
 
   // Live fleet data (real API, 5s poll)
   const { fleet, isLoading, lastFetchedAt, error, refetch } = useFleetPoll(5000);
-  // Real SOS alerts (polls /api/admin/sos every 5s) + real overspeed feed.
-  // The hook exposes its own error/loading state — we surface it as a banner
-  // so SOS feed failures don't silently render as an empty active-alerts list.
-  const { data, error: sosError, refetch: refetchSos, resolveSos } = useMonitoringData(
-    overspeedPage,
-    filterOverspeedDate,
-    historySort,
-    { page: sosPage, date: filterSosDate, outcome: filterSosStatus },
-  );
-
-  const sosAlerts = data.sosAlerts;
-  const sosHistory = data.sosHistory;
-  const { locations: sosLocations, attribution: sosAttribution } = useSosLocations(sosAlerts);
-  const sosMapMarkers = useMemo(
-    () => sosAlerts.map(alert => ({ id: alert.id, coords: alert.coordinates, location: sosLocations[alert.id] })),
-    [sosAlerts, sosLocations],
-  );
-  const [sosToResolve, setSosToResolve] = useState<SosAlert | null>(null);
+  // Real overspeed feed + demand zones.
+  const { data } = useMonitoringData(overspeedPage, filterOverspeedDate, historySort);
   const [fleetSearch, setFleetSearch] = useState('');
 
-  // The two history logs share one panel and switch by tab — each keeps its
-  // own date filter and page, so flipping tabs never loses your place.
-  const [historyTab, setHistoryTab] = useState<'sos' | 'overspeed'>('sos');
-
   // ─── Deep-link from the notification bell ──────────────────────
-  // SOS_TRIGGERED links here as ?sosId={id}; OVERSPEED_FLAGGED as
-  // ?overspeedId={id}. Neither has a per-item modal — both render inline
-  // (SOS as cards with status/Resolve actions, overspeed as history
-  // table rows) — so each deep-link scrolls to and highlights the matching
-  // element instead, same idea as handleFocusVehicle's scroll-into-view for
-  // a fleet row.
-  const [highlightedSosId, setHighlightedSosId] = useState<string | null>(null);
-  const [highlightedResolvedSosId, setHighlightedResolvedSosId] = useState<string | null>(null);
-  const focusedResolvedSosRef = useRef<string | null>(null);
+  // OVERSPEED_FLAGGED links here as ?overspeedId={id}. It has no per-item
+  // modal — it renders inline as a history table row — so the deep-link
+  // scrolls to and highlights the matching row instead, same idea as
+  // handleFocusVehicle's scroll-into-view for a fleet row.
   const [highlightedOverspeedId, setHighlightedOverspeedId] = useState<string | null>(null);
   useEffect(() => {
-    const sosId = searchParams.get('sosId');
-    const resolvedSosId = searchParams.get('resolvedSosId');
     const overspeedId = searchParams.get('overspeedId');
-    if (!sosId && !overspeedId && !resolvedSosId) return;
-    if (sosId) setHighlightedSosId(sosId);
-    if (resolvedSosId) {
-      setHighlightedResolvedSosId(resolvedSosId);
-      setHistoryTab('sos');
-      // A just-closed alert is among the newest, so it lands on the first
-      // unfiltered "Recent first" page of the server-paginated history.
-      setFilterSosDate('');
-      setFilterSosStatus('ALL');
-      setSosPage(1);
-      setHistorySort('recent');
-    }
     if (overspeedId) {
       setHighlightedOverspeedId(overspeedId);
-      setHistoryTab('overspeed');
       // A freshly-flagged episode is always "today" — clear any leftover
       // date filter/page so it's guaranteed to be on the page it lands on.
       setFilterOverspeedDate('');
       setOverspeedPage(1);
       setHistorySort('recent');
     }
-    router.replace('/monitoring');
+    // Strip any notification params (overspeed, or legacy SOS links).
+    if (searchParams.size > 0) router.replace('/monitoring');
     // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately mount-only: reacting to `router`/`searchParams` would re-fire after router.replace() strips the params.
   }, []);
   useEffect(() => {
-    if (!highlightedSosId) return;
-    document.getElementById(`sos-alert-${highlightedSosId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, [highlightedSosId]);
-  useEffect(() => {
     if (!highlightedOverspeedId) return;
     document.getElementById(`overspeed-log-${highlightedOverspeedId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, [highlightedOverspeedId, data.overspeedHistory, historyTab]);
-  // The SOS highlight only makes sense while the alert is still active —
-  // once it's resolved it drops out of `sosAlerts` and there's nothing left
-  // on screen to point at.
-  useEffect(() => {
-    if (highlightedSosId && !data.sosAlerts.some((a) => a.id === highlightedSosId)) {
-      setHighlightedSosId(null);
-    }
-  }, [highlightedSosId, data.sosAlerts]);
+  }, [highlightedOverspeedId, data.overspeedHistory]);
 
   // Map focus — clicking a row flies the camera to that unit. This only moves
   // the viewport; the full marker set stays rendered so the rest of the fleet
@@ -344,12 +125,10 @@ export default function MonitoringPage() {
   const breakCount = breakUnits.length;
   const activeCount = fleet.length;
 
-  // `alert` escalates a card's styling only while its count is actually
-  // non-zero. A scheduled break is ordinary shift activity.
+  // A scheduled break is ordinary shift activity, so neither count escalates.
   const metrics = [
-    { title: 'Active Vehicles', hint: 'On shift today', value: activeCount.toString(), icon: MapPin, color: 'text-[#62A0EA] admin-light:text-[#1A5FB4]', alert: false },
-    { title: 'On break', hint: 'Active units with a scheduled break', value: breakCount.toString(), icon: Coffee, color: 'text-sky-400 admin-light:text-sky-700', alert: false },
-    { title: 'Active SOS', hint: 'Awaiting resolution', value: sosAlerts.length.toString(), icon: AlertTriangle, color: 'text-red-400 admin-light:text-red-600', alert: sosAlerts.length > 0 },
+    { title: 'Active Vehicles', hint: 'On shift today', value: activeCount.toString(), icon: MapPin },
+    { title: 'On break', hint: 'Active units with a scheduled break', value: breakCount.toString(), icon: Coffee },
   ];
 
   const filteredFleet = useMemo(() => {
@@ -381,51 +160,26 @@ export default function MonitoringPage() {
     [fleet]
   );
 
-  // The active SOS card opens a response checklist before backend resolution.
-  const handleConfirmSos = (alert: SosAlert) => setSosToResolve(alert);
-
   const filteredOverspeedHistory = data.overspeedHistory;
 
-  // Both history feeds re-poll every 5s and can shrink under the viewer (a
+  // The history feed re-polls every 5s and can shrink under the viewer (a
   // filter narrows). The page number is therefore clamped to the valid range
   // on every render rather than trusted as-is — otherwise the "Next" guard
   // (page === totalPages) never matches an out-of-range page and you can walk
   // forward through empty tables indefinitely.
-  const totalSosPages = Math.max(1, data.sosHistoryLastPage);
-  const safeSosPage = Math.min(Math.max(sosPage, 1), totalSosPages);
-  const goToSosPage = (page: number) => setSosPage(Math.min(Math.max(page, 1), totalSosPages));
-  const currentSosData = sosHistory;
-  // SOS history is paginated on the server: when the result set shrinks
-  // below the requested page, request the last page that still has rows.
-  useEffect(() => {
-    if (sosPage > data.sosHistoryLastPage) setSosPage(Math.max(1, data.sosHistoryLastPage));
-  }, [sosPage, data.sosHistoryLastPage]);
-
-  useEffect(() => {
-    if (!highlightedResolvedSosId || focusedResolvedSosRef.current === highlightedResolvedSosId || historyTab !== 'sos') return;
-    const row = document.getElementById(`sos-history-${highlightedResolvedSosId}`);
-    if (row) {
-      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      focusedResolvedSosRef.current = highlightedResolvedSosId;
-    }
-  }, [highlightedResolvedSosId, sosHistory, historyTab, isLoading]);
-
   const totalOverspeedPages = Math.max(1, data.overspeedLastPage);
   const safeOverspeedPage = Math.min(Math.max(overspeedPage, 1), totalOverspeedPages);
   const goToOverspeedPage = (page: number) => setOverspeedPage(Math.min(Math.max(page, 1), totalOverspeedPages));
   const currentOverspeedData = filteredOverspeedHistory;
 
   // ── Loading State ──
-  // Mirrors the loaded layout: status strip → map + shift overview → fleet table.
+  // Mirrors the loaded layout: status strip → map → fleet table.
   if (isLoading) {
     return (
       <div className="space-y-6">
         <div className="h-8 w-48 rounded bg-gray-700 admin-light:bg-slate-200 animate-pulse" />
-        <SkeletonMetric count={3} />
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] 2xl:grid-cols-[minmax(0,1fr)_340px] gap-5">
-          <SkeletonMap height="440px" label="Loading Monitoring Map…" />
-          <div className="hidden lg:block rounded-xl border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white animate-pulse" />
-        </div>
+        <SkeletonMetric count={2} />
+        <SkeletonMap height="440px" label="Loading Monitoring Map…" />
         <SkeletonTable rows={5} columns={6} title="Active Vehicle Tracking" />
       </div>
     );
@@ -445,21 +199,18 @@ export default function MonitoringPage() {
 
   // Keep fleet counts together above the map, with room for labels on desktop.
   const statusStrip = (
-    <div className="mb-5 grid grid-cols-3 overflow-hidden rounded-xl border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#101A2B] admin-light:bg-[#F8FAFC] divide-x divide-[#1E2D45] admin-light:divide-[#E2E8F0]">
+    <div className="mb-5 grid grid-cols-2 overflow-hidden rounded-xl border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#101A2B] admin-light:bg-[#F8FAFC] divide-x divide-[#1E2D45] admin-light:divide-[#E2E8F0]">
       {metrics.map((item) => {
         const Icon = item.icon;
-        const isRed = item.color === 'text-red-400 admin-light:text-red-600';
         return (
           <div
             key={item.title}
             title={item.hint}
-            className={`flex items-center gap-3 px-3 py-3 md:px-5 lg:gap-4 lg:py-4 transition-colors ${
-              item.alert ? (isRed ? 'bg-red-400/10 admin-light:bg-red-50' : 'bg-amber-400/10') : ''
-            }`}
+            className="flex items-center gap-3 px-3 py-3 md:px-5 lg:gap-4 lg:py-4 transition-colors"
           >
-            <Icon size={18} className={`hidden sm:block flex-shrink-0 ${item.alert ? item.color : 'text-slate-500'}`} />
+            <Icon size={18} className="hidden sm:block flex-shrink-0 text-slate-500" />
             <div className="min-w-0">
-              <p className={`text-xl font-semibold leading-tight tabular-nums lg:text-2xl ${item.alert ? item.color : 'text-white admin-light:text-slate-900'}`}>{item.value}</p>
+              <p className="text-xl font-semibold leading-tight tabular-nums lg:text-2xl text-white admin-light:text-slate-900">{item.value}</p>
               <p className="mt-1 text-[11px] font-medium text-slate-400 admin-light:text-slate-500 truncate lg:text-xs">{item.title}</p>
             </div>
           </div>
@@ -468,17 +219,15 @@ export default function MonitoringPage() {
     </div>
   );
 
-  const isSosTab = historyTab === 'sos';
-
   return (
     <>
       {/* Must stay the FIRST child: StickyPageHeader carries a negative top
           margin to reclaim <main>'s padding, so anything above it would lose
-          16px underneath. The SOS banner therefore sits below it now. */}
+          16px underneath. */}
       <StickyPageHeader className="mb-4 md:mb-5 md:flex md:items-center md:justify-between md:gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white admin-light:text-slate-900">Live Monitoring</h1>
-          <p className="mt-1.5 hidden text-sm text-slate-400 admin-light:text-slate-500 md:block">Fleet locations, emergency alerts, and safety records.</p>
+          <p className="mt-1.5 hidden text-sm text-slate-400 admin-light:text-slate-500 md:block">Fleet locations and overspeeding records.</p>
         </div>
         <div className="hidden shrink-0 items-center gap-3 md:flex">
           <div className="text-right text-xs text-slate-400 admin-light:text-slate-500">
@@ -490,30 +239,10 @@ export default function MonitoringPage() {
 
       {statusStrip}
 
-      {/* SOS feed error banner — shown when the SOS polling loop fails.
-          Fleet errors are already handled by the error state above; this
-          banner is specifically for the SOS hook, which previously failed
-          silently and rendered zero alerts with no indication. */}
-      {sosError && (
-        <div className="mb-4 bg-red-500/10 border border-red-500/30 rounded-md p-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <AlertTriangle size={16} className="text-red-400 admin-light:text-red-600 flex-shrink-0" />
-            <p className="text-sm text-red-400 admin-light:text-red-600 truncate">
-              SOS feed unavailable: {sosError}
-            </p>
-          </div>
-          <button
-            onClick={() => refetchSos()}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-300 admin-light:text-red-700 rounded-md text-xs font-medium transition-colors flex-shrink-0"
-          >
-            <RefreshCw size={12} /> Retry SOS
-          </button>
-        </div>
-      )}
-
-      {/* Map and shift overview share a row on large screens. */}
-      <section aria-label="Live fleet and shift overview" className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] 2xl:grid-cols-[minmax(0,1fr)_340px] gap-4 lg:gap-5">
-        <div id="monitoring-map" className="order-2 flex h-[340px] min-w-0 flex-col overflow-hidden rounded-xl border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white sm:h-[400px] lg:order-1 lg:h-[440px] 2xl:h-[480px]">
+      {/* Map and overspeeding history share a row from xl; below that they stack. */}
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+      <section aria-label="Live fleet map" className="min-w-0">
+        <div id="monitoring-map" className="flex h-[340px] min-w-0 flex-col overflow-hidden rounded-xl border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white sm:h-[400px] lg:h-[440px] 2xl:h-[480px]">
           <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#1E2D45] admin-light:border-[#E2E8F0] px-4 py-3.5">
             <h2 className="text-sm font-semibold text-white admin-light:text-slate-900">Fleet map</h2>
             <p className="text-xs text-slate-400 admin-light:text-slate-500 tabular-nums">{liveMapVehicles.length} units with GPS</p>
@@ -522,98 +251,71 @@ export default function MonitoringPage() {
             <AdminCommuterMap
               liveVehicles={liveMapVehicles}
               demandZones={data.demandZones}
-              sosLocations={sosMapMarkers}
               focusPosition={focusPosition}
               focusNonce={focusNonce}
             />
           </div>
         </div>
-
-        <aside
-          aria-label="Shift overview"
-          className={`order-1 lg:order-2 flex flex-col rounded-xl border lg:h-[440px] 2xl:h-[480px] min-h-0 ${
-            sosAlerts.length > 0 ? 'bg-[#131C2E] admin-light:bg-white border-red-400/30' : 'bg-[#131C2E] admin-light:bg-white border-[#1E2D45] admin-light:border-[#E2E8F0]'
-          }`}
-        >
-          <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-[#1E2D45] admin-light:border-[#E2E8F0]">
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-white admin-light:text-slate-900">Shift overview</h2>
-              {sosAlerts.length > 0 && (
-                <span className="relative flex h-2.5 w-2.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span></span>
-              )}
-            </div>
-            <span className={`text-sm font-semibold tabular-nums ${
-              sosAlerts.length > 0 ? 'text-red-400 admin-light:text-red-600' : 'text-slate-500'
-            }`}>{sosAlerts.length}</span>
-          </div>
-
-          {sosAlerts.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-center px-6 py-6">
-              <CheckCircle2 size={28} className="text-emerald-400/70 admin-light:text-emerald-700 mb-2" />
-              <p className="text-sm font-semibold text-slate-300 admin-light:text-slate-700">All clear</p>
-              <p className="text-xs text-slate-500 mt-1">No ongoing SOS alerts.</p>
-            </div>
-          ) : (
-            <div className="flex-1 min-h-0 max-h-[420px] lg:max-h-none overflow-y-auto scrollbar-themed p-3 space-y-3">
-              {sosAlerts.map((alert) => {
-                const isAcknowledged = alert.status === "ACKNOWLEDGED";
-                const roleLabel = alert.senderRole === "CONDUCTOR" ? "Conductor" : "Commuter";
-                const location = sosLocations[alert.id];
-                return (
-                  <div
-                    key={alert.id}
-                    id={`sos-alert-${alert.id}`}
-                    className={`rounded-lg border bg-[#35131B] p-3 transition-shadow admin-light:bg-[#FFF1F2] ${
-                      highlightedSosId === alert.id
-                        ? 'border-[#62A0EA] admin-light:border-[#1A5FB4] ring-2 ring-[#62A0EA]/50 admin-light:ring-[#1A5FB4]/50'
-                        : 'border-red-500 admin-light:border-red-300'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-red-400 admin-light:text-red-600">
-                        <AlertTriangle size={13} /> SOS
-                      </span>
-                      <span className="flex items-center text-[11px] text-slate-500"><Clock size={11} className="mr-1" />{alert.time}</span>
-                    </div>
-                    <p className="text-sm font-semibold text-white admin-light:text-slate-900 mt-1.5 break-words">{alert.note}</p>
-                    <p className="text-xs text-slate-300 admin-light:text-slate-700 mt-1 flex flex-wrap items-center gap-1.5">
-                      <span className="font-medium text-white admin-light:text-slate-900">{alert.sender}</span>
-                      <span className="text-slate-500">· {roleLabel}</span>
-                    </p>
-                    {location !== null && (
-                      <p className={`mt-1.5 flex items-start gap-1.5 text-xs break-words ${location ? 'text-slate-200 admin-light:text-slate-800' : 'text-slate-500'}`}>
-                        <MapPin size={12} aria-hidden="true" className="mt-0.5 shrink-0" />
-                        {location ?? 'Looking up location…'}
-                      </p>
-                    )}
-                    <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 mt-1.5">
-                      <p className="text-[11px] text-slate-500 font-mono">{alert.coordinates[0].toFixed(5)}, {alert.coordinates[1].toFixed(5)}</p>
-                      {isAcknowledged ? (
-                        <span className="flex items-center gap-1 text-[11px] text-amber-400 admin-light:text-amber-700 font-medium flex-shrink-0">
-                          <CheckCircle2 size={12} /> Acknowledged
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1 text-[11px] text-red-400 admin-light:text-red-600 font-medium flex-shrink-0">
-                          <span aria-hidden="true" className="inline-flex h-2 w-2 rounded-full bg-red-500"></span>
-                          Awaiting response
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex gap-2 mt-3">
-                      <button onClick={() => handleConfirmSos(alert)} className="flex-1 px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md text-xs font-semibold transition-colors">Confirm &amp; Resolve</button>
-                    </div>
-                  </div>
-                );
-              })}
-              {sosAttribution && sosAlerts.some(alert => sosLocations[alert.id]) && (
-                <p className="px-1 text-[10px] text-slate-500">Location data: {sosAttribution}</p>
-              )}
-            </div>
-          )}
-        </aside>
       </section>
 
-      <section aria-labelledby="fleet-heading" className="mt-5 min-w-0 overflow-hidden rounded-xl border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white">
+      <section aria-labelledby="history-heading" className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white xl:h-[440px] 2xl:h-[480px]">
+        <div className="flex shrink-0 flex-wrap items-end justify-between gap-3 border-b border-[#1E2D45] admin-light:border-[#E2E8F0] px-5 py-4">
+          <div>
+            <h2 id="history-heading" className="flex items-center gap-2 text-base font-semibold text-white admin-light:text-slate-900"><Gauge size={16} aria-hidden="true" className="text-slate-500" />Overspeeding history</h2>
+            <p className="mt-1 text-xs text-slate-400 admin-light:text-slate-500">Recorded overspeeding incidents.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <AdminDatePicker popover yearNavigation triggerClassName="w-40 min-h-9 py-2" align="right" ariaLabel="Filter overspeeding history by date" value={filterOverspeedDate} onChange={(next) => { setFilterOverspeedDate(next); setOverspeedPage(1); }} />
+            <select
+              aria-label="Sort overspeeding history"
+              value={historySort}
+              onChange={(event) => {
+                setHistorySort(event.target.value as SafetyHistorySort);
+                setOverspeedPage(1);
+              }}
+              className="min-h-9 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 py-2 text-xs text-slate-300 admin-light:text-slate-700 outline-none focus-visible:border-[#62A0EA] admin-light:focus-visible:border-[#1A5FB4] focus-visible:ring-2 focus-visible:ring-[#62A0EA]/30 admin-light:focus-visible:ring-[#1A5FB4]/30 [color-scheme:dark] admin-light:[color-scheme:light]"
+            >
+              <option value="recent">Recent first</option>
+              <option value="oldest">Oldest first</option>
+            </select>
+          </div>
+        </div>
+
+        {filteredOverspeedHistory.length === 0 ? (
+          <div className="flex flex-1 flex-col items-center justify-center px-5 py-12 text-center"><Gauge size={24} aria-hidden="true" className="mx-auto mb-3 text-slate-500" /><p className="text-sm font-medium text-slate-300 admin-light:text-slate-700">No overspeeding incidents{filterOverspeedDate ? ' for this date' : ' recorded'}</p><p className="mt-1 text-xs text-slate-500">Speed violations will appear here when detected.</p></div>
+        ) : (
+          <>
+            {/* Beside the map (xl+) the panel matches its height: the table
+                scrolls inside it and drops its min-width, with tighter cells. */}
+            <div className="max-h-[440px] overflow-auto scrollbar-themed xl:max-h-none xl:min-h-0 xl:flex-1">
+              <table aria-label="Overspeeding history" className="w-full min-w-[760px] table-fixed text-left xl:min-w-0">
+                <thead><tr>
+                  <TableHeading className="w-[16%] xl:w-[19%] xl:px-3">Unit / plate</TableHeading>
+                  <TableHeading className="w-[23%] xl:w-[21%] xl:px-3">Driver</TableHeading>
+                  <TableHeading className="w-[23%] xl:w-[21%] xl:px-3">Conductor</TableHeading>
+                  <TableHeading className="w-[17%] text-right xl:px-3">Top speed</TableHeading>
+                  <TableHeading className="w-[21%] xl:w-[22%] xl:px-3">Recorded</TableHeading>
+                </tr></thead>
+                <tbody className="divide-y divide-[#1E2D45] admin-light:divide-[#E2E8F0]">
+                  {currentOverspeedData.map((log) => (
+                    <tr key={log.id} id={`overspeed-log-${log.id}`} className={`transition-colors ${highlightedOverspeedId === log.id ? 'bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 ring-1 ring-inset ring-[#62A0EA]/40 admin-light:ring-[#1A5FB4]/40' : 'hover:bg-white/3 admin-light:hover:bg-[#F8FAFC]'}`}>
+                      <td className="px-5 py-4 xl:px-3"><span className="block truncate font-mono text-sm font-semibold text-slate-200 admin-light:text-slate-700" title={log.unit}>{log.unit}</span></td>
+                      <td className="px-5 py-4 xl:px-3"><span className="block truncate text-sm text-slate-300 admin-light:text-slate-700" title={log.driver}>{log.driver}</span></td>
+                      <td className="px-5 py-4 xl:px-3"><span className="block truncate text-sm text-slate-300 admin-light:text-slate-700" title={log.conductor}>{log.conductor}</span></td>
+                      <td className="px-5 py-4 text-right whitespace-nowrap xl:px-3"><span className="text-sm font-semibold text-red-300 admin-light:text-red-700 tabular-nums">{log.speed}</span><span className="ml-1 text-[10px] text-slate-500">km/h</span></td>
+                      <td className="px-5 py-4 xl:px-3"><p className="truncate text-xs text-slate-300 admin-light:text-slate-700 tabular-nums">{log.loggedDate}</p><p className="mt-1 truncate text-xs text-slate-400 admin-light:text-slate-500">{log.loggedAt}</p></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <HistoryPagination page={safeOverspeedPage} pages={totalOverspeedPages} start={(safeOverspeedPage - 1) * ROWS_PER_PAGE + 1} end={(safeOverspeedPage - 1) * ROWS_PER_PAGE + currentOverspeedData.length} count={data.overspeedTotal} onChange={goToOverspeedPage} />
+          </>
+        )}
+      </section>
+      </div>
+
+      <section aria-labelledby="fleet-heading" className="mb-8 mt-5 min-w-0 overflow-hidden rounded-xl border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white">
         <div className="border-b border-[#1E2D45] admin-light:border-[#E2E8F0] px-5 py-4">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -672,121 +374,6 @@ export default function MonitoringPage() {
           </table>
         </div>
       </section>
-
-      <section aria-labelledby="history-heading" className="mb-8 mt-5 min-w-0 overflow-hidden rounded-xl border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#131C2E] admin-light:bg-white">
-        <div className="px-5 pb-3 pt-5">
-          <h2 id="history-heading" className="text-base font-semibold text-white admin-light:text-slate-900">Safety history</h2>
-          <p className="mt-1 text-xs text-slate-400 admin-light:text-slate-500">Closed emergency alerts and recorded overspeeding incidents.</p>
-        </div>
-        {/* Filters sit in the tab row because they filter the active tab.
-            Below xl they drop to a toolbar under the tabs, keeping the tab
-            underline on the row's border. */}
-        <div className="border-[#1E2D45] admin-light:border-[#E2E8F0] xl:flex xl:items-center xl:justify-between xl:gap-4 xl:border-b xl:px-5">
-          <div role="tablist" aria-label="History logs" className="flex gap-5 self-stretch border-b border-[#1E2D45] admin-light:border-[#E2E8F0] px-5 xl:items-end xl:border-b-0 xl:px-0" onKeyDown={(event) => {
-            const next = event.key === 'Home' ? 'sos' : event.key === 'End' ? 'overspeed' : event.key === 'ArrowRight' || event.key === 'ArrowLeft' ? (isSosTab ? 'overspeed' : 'sos') : null;
-            if (!next) return;
-            event.preventDefault();
-            setHistoryTab(next);
-            event.currentTarget.querySelector<HTMLButtonElement>(`[id="history-tab-${next}"]`)?.focus();
-          }}>
-            <button type="button" role="tab" id="history-tab-sos" aria-controls="history-panel-sos" aria-selected={isSosTab} tabIndex={isSosTab ? 0 : -1} onClick={() => setHistoryTab('sos')} className={`flex items-center gap-2 border-b-2 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4] ${isSosTab ? 'border-[#62A0EA] admin-light:border-[#1A5FB4] text-white admin-light:text-slate-900' : 'border-transparent text-slate-400 admin-light:text-slate-500 hover:text-slate-200 admin-light:hover:text-slate-700'}`}><Archive size={15} />SOS History<span className="ml-1 text-xs text-slate-500 tabular-nums">{data.sosHistoryTotal}</span></button>
-            <button type="button" role="tab" id="history-tab-overspeed" aria-controls="history-panel-overspeed" aria-selected={!isSosTab} tabIndex={!isSosTab ? 0 : -1} onClick={() => setHistoryTab('overspeed')} className={`flex items-center gap-2 border-b-2 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#62A0EA] admin-light:focus-visible:ring-[#1A5FB4] ${!isSosTab ? 'border-red-400 text-white admin-light:text-slate-900' : 'border-transparent text-slate-400 admin-light:text-slate-500 hover:text-slate-200 admin-light:hover:text-slate-700'}`}><Gauge size={15} />Overspeeding<span className="ml-1 text-xs text-slate-500 tabular-nums">{data.overspeedTotal}</span></button>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 border-b border-[#1E2D45] admin-light:border-[#E2E8F0] px-5 py-3 xl:border-b-0 xl:px-0 xl:py-1.5">
-            {isSosTab && (
-              <select aria-label="Filter SOS history by status" value={filterSosStatus} onChange={(event) => { setFilterSosStatus(event.target.value as SosHistoryOutcome); setSosPage(1); }} className="min-h-9 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 py-2 text-xs text-slate-300 admin-light:text-slate-700 outline-none focus-visible:border-[#62A0EA] admin-light:focus-visible:border-[#1A5FB4] focus-visible:ring-2 focus-visible:ring-[#62A0EA]/30 admin-light:focus-visible:ring-[#1A5FB4]/30 [color-scheme:dark] admin-light:[color-scheme:light]">
-                <option value="ALL">All statuses</option>
-                <option value="CANCELLED">Cancelled</option>
-                <option value="RESOLVED">Resolved</option>
-              </select>
-            )}
-            <AdminDatePicker key={isSosTab ? 'sos-date' : 'overspeed-date'} popover yearNavigation triggerClassName="w-40 min-h-9 py-2" accent={isSosTab ? 'blue' : 'red'} align="right" ariaLabel={isSosTab ? 'Filter SOS history by date' : 'Filter overspeeding history by date'} value={isSosTab ? filterSosDate : filterOverspeedDate} onChange={(next) => { if (isSosTab) { setFilterSosDate(next); setSosPage(1); } else { setFilterOverspeedDate(next); setOverspeedPage(1); } }} />
-            <select
-              aria-label="Sort safety history"
-              value={historySort}
-              onChange={(event) => {
-                setHistorySort(event.target.value as SafetyHistorySort);
-                setSosPage(1);
-                setOverspeedPage(1);
-              }}
-              className="min-h-9 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 py-2 text-xs text-slate-300 admin-light:text-slate-700 outline-none focus-visible:border-[#62A0EA] admin-light:focus-visible:border-[#1A5FB4] focus-visible:ring-2 focus-visible:ring-[#62A0EA]/30 admin-light:focus-visible:ring-[#1A5FB4]/30 [color-scheme:dark] admin-light:[color-scheme:light]"
-            >
-              <option value="recent">Recent first</option>
-              <option value="oldest">Oldest first</option>
-            </select>
-          </div>
-        </div>
-
-        <div role="tabpanel" id={`history-panel-${historyTab}`} aria-labelledby={`history-tab-${historyTab}`}>
-          {isSosTab ? currentSosData.length === 0 ? (
-            <div className="px-5 py-12 text-center"><Archive size={24} aria-hidden="true" className="mx-auto mb-3 text-slate-500" /><p className="text-sm font-medium text-slate-300 admin-light:text-slate-700">{filterSosDate || filterSosStatus !== 'ALL' ? 'No SOS alerts match these filters' : 'No SOS history yet'}</p><p className="mt-1 text-xs text-slate-500">Resolved and cancelled alerts are recorded here.</p></div>
-          ) : (
-            <>
-              <div className="max-h-[440px] overflow-auto scrollbar-themed">
-                <table aria-label="SOS history" className="w-full min-w-[840px] table-fixed text-left xl:min-w-[1020px]">
-                  <thead><tr>
-                    <TableHeading className="w-[24%] xl:w-[18%]">Sender</TableHeading>
-                    <TableHeading className="hidden xl:table-cell xl:w-[18%]">Alert details</TableHeading>
-                    <TableHeading className="w-[21%] xl:w-[18%]">Triggered</TableHeading>
-                    <TableHeading className="w-[14%] xl:w-[10%]">Status</TableHeading>
-                    <TableHeading className="w-[20%] xl:w-[18%]">Resolved by</TableHeading>
-                    <TableHeading className="w-[21%] xl:w-[18%]">Closed</TableHeading>
-                  </tr></thead>
-                  <tbody className="divide-y divide-[#1E2D45] admin-light:divide-[#E2E8F0]">
-                    {currentSosData.map((log) => (
-                      <tr key={log.id} id={`sos-history-${log.id}`} className={`transition-colors ${highlightedResolvedSosId === log.id ? 'bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 ring-1 ring-inset ring-[#62A0EA]/40 admin-light:ring-[#1A5FB4]/40' : 'hover:bg-white/3 admin-light:hover:bg-[#F8FAFC]'}`}>
-                        <td className="px-5 py-4"><p className="truncate text-sm font-medium text-slate-200 admin-light:text-slate-700" title={log.sender}>{log.sender}</p><p className="mt-1 text-xs text-slate-400 admin-light:text-slate-500">{log.senderRole === 'CONDUCTOR' ? 'Conductor' : 'Commuter'}</p><p className="mt-1 truncate text-xs text-slate-500 xl:hidden" title={log.note}>{log.note}</p></td>
-                        <td className="hidden px-5 py-4 xl:table-cell"><p className="line-clamp-2 break-words text-xs leading-relaxed text-slate-300 admin-light:text-slate-700" title={log.note}>{log.note}</p></td>
-                        <td className="px-5 py-4 text-xs leading-relaxed text-slate-300 admin-light:text-slate-700 tabular-nums">{log.triggeredAt}</td>
-                        <td className="px-5 py-4"><span className={`text-xs font-medium ${log.status === 'CANCELLED' ? 'text-slate-400 admin-light:text-slate-500' : 'text-sky-300 admin-light:text-sky-700'}`}>{log.status === 'CANCELLED' ? 'Cancelled' : 'Resolved'}</span></td>
-                        <td className="px-5 py-4"><span className="block truncate text-sm text-slate-300 admin-light:text-slate-700" title={log.status === 'CANCELLED' ? 'Cancelled by sender' : log.resolvedBy ?? 'Resolving admin was not recorded'}>{log.status === 'CANCELLED' ? '—' : log.resolvedBy ?? 'Not recorded'}</span></td>
-                        <td className="px-5 py-4 text-xs leading-relaxed text-slate-300 admin-light:text-slate-700 tabular-nums">{log.resolvedAt}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <HistoryPagination page={safeSosPage} pages={totalSosPages} start={(safeSosPage - 1) * SOS_HISTORY_PER_PAGE + 1} end={(safeSosPage - 1) * SOS_HISTORY_PER_PAGE + currentSosData.length} count={data.sosHistoryTotal} onChange={goToSosPage} />
-            </>
-          ) : filteredOverspeedHistory.length === 0 ? (
-            <div className="px-5 py-12 text-center"><Gauge size={24} aria-hidden="true" className="mx-auto mb-3 text-slate-500" /><p className="text-sm font-medium text-slate-300 admin-light:text-slate-700">No overspeeding incidents{filterOverspeedDate ? ' for this date' : ' recorded'}</p><p className="mt-1 text-xs text-slate-500">Speed violations will appear here when detected.</p></div>
-          ) : (
-            <>
-              <div className="max-h-[440px] overflow-auto scrollbar-themed">
-                <table aria-label="Overspeeding history" className="w-full min-w-[760px] table-fixed text-left">
-                  <thead><tr>
-                    <TableHeading className="w-[16%]">Unit / plate</TableHeading>
-                    <TableHeading className="w-[23%]">Driver</TableHeading>
-                    <TableHeading className="w-[23%]">Conductor</TableHeading>
-                    <TableHeading className="w-[17%] text-right">Top speed</TableHeading>
-                    <TableHeading className="w-[21%]">Recorded</TableHeading>
-                  </tr></thead>
-                  <tbody className="divide-y divide-[#1E2D45] admin-light:divide-[#E2E8F0]">
-                    {currentOverspeedData.map((log) => (
-                      <tr key={log.id} id={`overspeed-log-${log.id}`} className={`transition-colors ${highlightedOverspeedId === log.id ? 'bg-[#62A0EA]/10 admin-light:bg-[#1A5FB4]/10 ring-1 ring-inset ring-[#62A0EA]/40 admin-light:ring-[#1A5FB4]/40' : 'hover:bg-white/3 admin-light:hover:bg-[#F8FAFC]'}`}>
-                        <td className="px-5 py-4"><span className="block truncate font-mono text-sm font-semibold text-slate-200 admin-light:text-slate-700" title={log.unit}>{log.unit}</span></td>
-                        <td className="px-5 py-4"><span className="block truncate text-sm text-slate-300 admin-light:text-slate-700" title={log.driver}>{log.driver}</span></td>
-                        <td className="px-5 py-4"><span className="block truncate text-sm text-slate-300 admin-light:text-slate-700" title={log.conductor}>{log.conductor}</span></td>
-                        <td className="px-5 py-4 text-right whitespace-nowrap"><span className="text-sm font-semibold text-red-300 admin-light:text-red-700 tabular-nums">{log.speed}</span><span className="ml-1 text-[10px] text-slate-500">km/h</span></td>
-                        <td className="px-5 py-4"><p className="text-xs text-slate-300 admin-light:text-slate-700 tabular-nums">{log.loggedDate}</p><p className="mt-1 text-xs text-slate-400 admin-light:text-slate-500">{log.loggedAt}</p></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <HistoryPagination page={safeOverspeedPage} pages={totalOverspeedPages} start={(safeOverspeedPage - 1) * ROWS_PER_PAGE + 1} end={(safeOverspeedPage - 1) * ROWS_PER_PAGE + currentOverspeedData.length} count={data.overspeedTotal} onChange={goToOverspeedPage} />
-            </>
-          )}
-        </div>
-      </section>
-      {sosToResolve && (
-        <SosResolutionDialog
-          alert={sosToResolve}
-          location={sosLocations[sosToResolve.id]}
-          onCancel={() => setSosToResolve(null)}
-          onConfirm={() => resolveSos(sosToResolve.id)}
-        />
-      )}
     </>
   );
 }

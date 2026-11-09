@@ -62,6 +62,19 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
   // Transient success toast ("Feedback submitted").
   const [toast, setToast] = useState<string | null>(null);
 
+  // Below lg the panel slides up on mount and back down before unmounting.
+  // Two frames so the off-screen start position paints before the slide.
+  const [isShown, setIsShown] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => requestAnimationFrame(() => setIsShown(true)));
+    return () => cancelAnimationFrame(id);
+  }, []);
+  // lg+ (and reduced motion) closes instantly, as ShareRideModal does; no transitionend would fire.
+  const requestClose = useCallback(() => {
+    if (window.matchMedia("(min-width: 1024px), (prefers-reduced-motion: reduce)").matches) onClose();
+    else setIsShown(false);
+  }, [onClose]);
+
   // Auto-dismiss the toast after 2.5s.
   useEffect(() => {
     if (!toast) return;
@@ -168,14 +181,17 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
 
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className={`absolute inset-0 bg-black/60 backdrop-blur-sm max-lg:transition-opacity max-lg:duration-300 ${isShown ? "" : "max-lg:opacity-0"}`} onClick={requestClose} />
 
       {/* Fixed height, not max-height: the panel used to grow and shrink with
           the row count, so it jumped as you switched time filters or expanded a
           row. A constant frame keeps the header, stats and tabs anchored and
           lets the list scroll inside it. Capped at 85vh so short viewports
-          still fit. */}
-      <div className="relative bg-[#071A2E] light:bg-white sm:rounded-3xl rounded-t-3xl shadow-2xl w-full sm:max-w-md overflow-hidden flex flex-col pb-safe h-[85vh] sm:h-[620px] sm:max-h-[85vh]">
+          still fit. Below lg it slides up/down; lg+ uses ShareRideModal's fade-in. */}
+      <div
+        onTransitionEnd={(e) => { if (e.target === e.currentTarget && !isShown) onClose(); }}
+        className={`relative bg-[#071A2E] light:bg-white sm:rounded-3xl rounded-t-3xl shadow-2xl w-full sm:max-w-md overflow-hidden flex flex-col pb-safe h-[85vh] sm:h-[620px] sm:max-h-[85vh] lg:animate-fade-in max-lg:transition-transform max-lg:duration-300 max-lg:ease-out motion-reduce:transition-none ${isShown ? "" : "max-lg:translate-y-[100dvh]"}`}
+      >
         {/* Header */}
         <div className="flex-shrink-0 flex items-center justify-between p-5 border-b border-white/10 light:border-gray-100">
           <div>
@@ -183,7 +199,7 @@ export default function PaymentHistoryModal({ onClose }: PaymentHistoryModalProp
             <p className="text-xs text-white/60 light:text-gray-500 mt-0.5">Your ride payments</p>
           </div>
           <button
-            onClick={onClose}
+            onClick={requestClose}
             className="w-8 h-8 rounded-full bg-white/10 light:bg-gray-100 hover:bg-white/15 light:hover:bg-gray-200 flex items-center justify-center transition-colors"
           >
             <svg className="w-4 h-4 text-white/60 light:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

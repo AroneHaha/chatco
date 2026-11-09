@@ -27,7 +27,7 @@ export default function Footer({ compact = false }: { compact?: boolean }) {
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {/* Brand */}
           <div className="sm:col-span-2 lg:col-span-1">
-            <Link href="/" aria-label="CHATCO home" className={`mb-4 inline-flex items-center gap-2 ${linkClass}`}>
+            <Link href="/" aria-label="E-CHATCO home" className={`mb-4 inline-flex items-center gap-2 ${linkClass}`}>
               <Image
                 src={logo}
                 alt=""
@@ -35,7 +35,7 @@ export default function Footer({ compact = false }: { compact?: boolean }) {
                 height={57}
                 className="rounded-lg"
               />
-              <span className="text-lg font-bold text-white">CHATCO</span>
+              <span className="text-lg font-bold text-white">E-CHATCO</span>
             </Link>
             <p className="text-sm leading-relaxed">
               Cashless payments, live jeepney tracking, and ride safety for your everyday commute.
@@ -48,7 +48,7 @@ export default function Footer({ compact = false }: { compact?: boolean }) {
             <ul className="space-y-2 text-sm">
               <li><Link href="/#how-it-works" className={linkClass}>How It Works</Link></li>
               <li><Link href="/#features" className={linkClass}>Commuter Features</Link></li>
-              <li><Link href="/#platform" className={linkClass}>Why CHATCO</Link></li>
+              <li><Link href="/#platform" className={linkClass}>Why E-CHATCO</Link></li>
             </ul>
           </nav>
 

@@ -1,10 +1,7 @@
 // app/(admin)/monitoring/data/data-monitoring.ts
 //
-// Sprint 6 (S6-T10) — admin monitoring data.
-//
-// SOS alerts + history are now REAL (polling /api/admin/sos → Laravel
-// GET /api/v1/admin/sos). The rest (overspeed history, demand zones) remains
-// mock — those endpoints don't exist yet and are out of scope for the SOS fix.
+// Sprint 6 (S6-T10) — admin monitoring data: overspeed history and demand
+// zones.
 //
 // The live fleet (vehicles with active shifts) is fetched separately by
 // useFleetPoll() in lib/admin/services/monitoring.service.ts — that hook
@@ -13,35 +10,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
 /* ─── INTERFACES (API contracts) ─── */
-
-export type SosSenderRole = "COMMUTER" | "CONDUCTOR";
-
-export interface SosAlert {
-  id: string;
-  /** Display name of whoever raised the alert (commuter OR conductor). */
-  sender: string;
-  senderRole: SosSenderRole;
-  note: string;
-  time: string;
-  triggeredDate: string;
-  coordinates: [number, number];
-  status: "ACTIVE" | "ACKNOWLEDGED" | "RESOLVED";
-  acknowledgedAt: string | null;
-  createdAt: string;
-}
-
-export interface SosHistoryLog {
-  id: string;
-  sender: string;
-  senderRole: SosSenderRole;
-  note: string;
-  triggeredAt: string;
-  resolvedAt: string;
-  resolvedBy: string | null;
-  status: "RESOLVED" | "CANCELLED";
-  triggeredDate: string;
-  coordinates: [number, number];
-}
 
 export interface OverspeedLog {
   id: string;
@@ -62,10 +30,6 @@ export interface DemandZone {
 }
 
 export interface MonitoringData {
-  sosAlerts: SosAlert[];
-  sosHistory: SosHistoryLog[];
-  sosHistoryTotal: number;
-  sosHistoryLastPage: number;
   overspeedHistory: OverspeedLog[];
   overspeedTotal: number;
   overspeedLastPage: number;
@@ -73,21 +37,6 @@ export interface MonitoringData {
 }
 
 export type SafetyHistorySort = "recent" | "oldest";
-export type SosHistoryOutcome = "ALL" | "RESOLVED" | "CANCELLED";
-
-/** One server-side page of SOS History; filtered and paginated in SQL. */
-export interface SosHistoryQuery {
-  page: number;
-  date: string;
-  outcome: SosHistoryOutcome;
-}
-
-export const SOS_HISTORY_PER_PAGE = 10;
-const DEFAULT_SOS_HISTORY_QUERY: SosHistoryQuery = { page: 1, date: "", outcome: "ALL" };
-
-/* ─── MOCK DATA removed — overspeed now fetched from real API ─── */
-/* Demand zones require commuter location tracking which doesn't exist yet —
-   returns empty array until that feature is built. */
 
 /* ─── HELPERS ─── */
 
@@ -103,118 +52,6 @@ function formatRelativeTime(iso: string): string {
   return `${days}d ago`;
 }
 
-function formatAbsoluteTime(iso: string): string {
-  return new Date(iso).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  });
-}
-
-function dateKey(iso: string): string {
-  // Use the same local calendar day as the date picker and displayed timestamps.
-  const date = new Date(iso);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
-/* ─── BACKEND → FRONTEND MAPPERS ─── */
-
-interface BackendCommuter {
-  first_name: string | null;
-  middle_name: string | null;
-  surname: string | null;
-}
-
-interface BackendConductor {
-  first_name: string | null;
-  middle_name: string | null;
-  last_name: string | null;
-}
-
-interface BackendAlert {
-  id: string;
-  sender_role?: "COMMUTER" | "CONDUCTOR" | null;
-  commuter_id: string | null;
-  conductor_id?: string | null;
-  lat: string | number;
-  lng: string | number;
-  note: string | null;
-  status: "ACTIVE" | "ACKNOWLEDGED" | "RESOLVED";
-  acknowledged_by: string | null;
-  acknowledged_at: string | null;
-  resolved_by: string | null;
-  resolved_at: string | null;
-  resolver?: {
-    email: string;
-    admin_profile: { first_name: string | null; last_name: string | null } | null;
-  } | null;
-  created_at: string;
-  updated_at: string;
-  commuter: BackendCommuter | null;
-  conductor?: BackendConductor | null;
-}
-
-/** Resolve the sender's role, defaulting to COMMUTER for legacy rows. */
-function senderRole(raw: BackendAlert): SosSenderRole {
-  return raw.sender_role === "CONDUCTOR" ? "CONDUCTOR" : "COMMUTER";
-}
-
-/** Resolve the sender's display name (commuter uses surname, conductor last_name). */
-function senderName(raw: BackendAlert): string {
-  if (senderRole(raw) === "CONDUCTOR") {
-    const c = raw.conductor;
-    const parts = c ? [c.first_name, c.last_name].filter(Boolean) : [];
-    return parts.length > 0 ? parts.join(" ").trim() : "Unknown Conductor";
-  }
-  const c = raw.commuter;
-  const parts = c ? [c.first_name, c.surname].filter(Boolean) : [];
-  return parts.length > 0 ? parts.join(" ").trim() : "Unknown Commuter";
-}
-
-function defaultNote(raw: BackendAlert): string {
-  return senderRole(raw) === "CONDUCTOR"
-    ? "Emergency SOS triggered by conductor."
-    : "Emergency SOS triggered by commuter.";
-}
-
-function mapAlert(raw: BackendAlert): SosAlert {
-  return {
-    id: raw.id,
-    sender: senderName(raw),
-    senderRole: senderRole(raw),
-    note: raw.note ?? defaultNote(raw),
-    time: formatRelativeTime(raw.created_at),
-    triggeredDate: dateKey(raw.created_at),
-    coordinates: [parseFloat(String(raw.lat)), parseFloat(String(raw.lng))],
-    status: raw.status,
-    acknowledgedAt: raw.acknowledged_at,
-    createdAt: raw.created_at,
-  };
-}
-
-function mapHistory(raw: BackendAlert): SosHistoryLog {
-  const senderId = senderRole(raw) === "CONDUCTOR" ? raw.conductor_id : raw.commuter_id;
-  const isCancelled = raw.resolved_by != null && raw.resolved_by === senderId;
-  const adminName = raw.resolver?.admin_profile
-    ? [raw.resolver.admin_profile.first_name, raw.resolver.admin_profile.last_name].filter(Boolean).join(" ").trim()
-    : "";
-  return {
-    id: raw.id,
-    sender: senderName(raw),
-    senderRole: senderRole(raw),
-    note: raw.note ?? defaultNote(raw),
-    triggeredAt: formatAbsoluteTime(raw.created_at),
-    resolvedAt: raw.resolved_at ? formatAbsoluteTime(raw.resolved_at) : "—",
-    resolvedBy: isCancelled ? null : adminName || raw.resolver?.email || null,
-    status: isCancelled ? "CANCELLED" : "RESOLVED",
-    triggeredDate: dateKey(raw.created_at),
-    coordinates: [parseFloat(String(raw.lat)), parseFloat(String(raw.lng))],
-  };
-}
-
 /* ─── DATA HOOK ─── */
 
 const POLL_INTERVAL_MS = 5000;
@@ -223,26 +60,12 @@ export function useMonitoringData(
   overspeedPage = 1,
   overspeedDate = "",
   historySort: SafetyHistorySort = "recent",
-  sosHistoryQuery: SosHistoryQuery = DEFAULT_SOS_HISTORY_QUERY,
 ) {
-  const { page: sosHistoryPage, date: sosHistoryDate, outcome: sosHistoryOutcome } = sosHistoryQuery;
-  const [sosAlerts, setSosAlerts] = useState<SosAlert[]>([]);
-  const [sosHistory, setSosHistory] = useState<SosHistoryLog[]>([]);
-  const [sosHistoryTotal, setSosHistoryTotal] = useState(0);
-  const [sosHistoryLastPage, setSosHistoryLastPage] = useState(1);
   const [overspeedHistory, setOverspeedHistory] = useState<OverspeedLog[]>([]);
   const [overspeedTotal, setOverspeedTotal] = useState(0);
   const [overspeedLastPage, setOverspeedLastPage] = useState(1);
   const [demandZones, setDemandZones] = useState<DemandZone[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  // Track in-flight resolves so the poll doesn't clobber an optimistic update
-  // with stale server data before the PATCH lands.
-  const resolvingIds = useRef<Set<string>>(new Set());
-  const closedIds = useRef<Set<string>>(new Set());
-  const activeRequestId = useRef(0);
-  const historyRequestId = useRef(0);
   const overspeedRequestId = useRef(0);
   const retryAtRef = useRef(0);
 
@@ -255,60 +78,6 @@ export function useMonitoringData(
     }
     return res;
   }, []);
-
-  const fetchActive = useCallback(async () => {
-    const requestId = ++activeRequestId.current;
-    try {
-      const res = await requestMonitoring("/api/admin/sos?status=ACTIVE&per_page=100");
-      if (!res) return;
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      if (requestId !== activeRequestId.current) return;
-      const rawAlerts = (data.data ?? []) as BackendAlert[];
-      const mapped = rawAlerts
-        .filter((a) => (a.status === "ACTIVE" || a.status === "ACKNOWLEDGED")
-          && !resolvingIds.current.has(a.id) && !closedIds.current.has(a.id))
-        .map(mapAlert);
-      setSosAlerts(mapped);
-      setError(null);
-    } catch (err) {
-      if (requestId !== activeRequestId.current) return;
-      setError(err instanceof Error ? err.message : "Failed to load SOS alerts.");
-    } finally {
-      if (requestId === activeRequestId.current) setIsLoading(false);
-    }
-  }, [requestMonitoring]);
-
-  const fetchHistory = useCallback(async () => {
-    const requestId = ++historyRequestId.current;
-    try {
-      // Date, outcome and sort are applied in SQL across all history, not
-      // within one fetched batch, so an older day, a narrow filter or
-      // "Oldest first" still finds every match and the totals are exact.
-      const params = new URLSearchParams({
-        status: "RESOLVED",
-        page: String(sosHistoryPage),
-        per_page: String(SOS_HISTORY_PER_PAGE),
-        sort: historySort,
-      });
-      if (sosHistoryDate) params.set("date", sosHistoryDate);
-      if (sosHistoryOutcome !== "ALL") params.set("outcome", sosHistoryOutcome);
-      const res = await requestMonitoring(`/api/admin/sos?${params}`);
-      if (!res) return;
-      if (!res.ok) return;
-      const data = await res.json();
-      if (requestId !== historyRequestId.current) return;
-      const rawAlerts = ((data.data ?? []) as BackendAlert[]).filter((a) => a.status === "RESOLVED");
-      // A closed alert stays out of attention even if an older live response lands later.
-      rawAlerts.forEach((a) => closedIds.current.add(a.id));
-      setSosAlerts((prev) => prev.filter((a) => !closedIds.current.has(a.id)));
-      setSosHistory(rawAlerts.map(mapHistory));
-      setSosHistoryTotal(Number(data.meta?.total ?? rawAlerts.length));
-      setSosHistoryLastPage(Math.max(1, Number(data.meta?.last_page ?? 1)));
-    } catch {
-      // History is best-effort on poll; don't surface as a hard error.
-    }
-  }, [historySort, requestMonitoring, sosHistoryDate, sosHistoryOutcome, sosHistoryPage]);
 
   const fetchOverspeed = useCallback(async () => {
     const requestId = ++overspeedRequestId.current;
@@ -370,34 +139,30 @@ export function useMonitoringData(
     }
   }, [requestMonitoring]);
 
-  // Pagination/date changes fetch only the affected feed, without restarting
-  // the SOS/demand polling loop or refetching its unrelated endpoints.
+  // Pagination/date changes fetch only the overspeed feed, without restarting
+  // the demand polling loop.
   const fetchOverspeedRef = useRef(fetchOverspeed);
   useEffect(() => {
     fetchOverspeedRef.current = fetchOverspeed;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetchOverspeed only sets state after its await (async response), never synchronously.
     void fetchOverspeed();
   }, [fetchOverspeed]);
-  const fetchHistoryRef = useRef(fetchHistory);
-  useEffect(() => {
-    fetchHistoryRef.current = fetchHistory;
-    void fetchHistory();
-  }, [fetchHistory]);
 
   // Initial fetch + polling. Coalesce focus/online/visibility events and let
   // slow refreshes finish before issuing the next batch.
   useEffect(() => {
     let inFlight = false;
     let lastRefreshAt = 0;
-    // The filtered history feeds already fetched on mount via their own
-    // effects, so the first pass skips them.
-    const refreshAll = (includeHistoryFeeds = true) => {
+    // The overspeed feed already fetched on mount via its own effect, so the
+    // first pass skips it.
+    const refreshAll = (includeOverspeed = true) => {
       if (document.visibilityState !== "visible") return;
       if (inFlight || Date.now() - lastRefreshAt < 1000) return;
       inFlight = true;
       lastRefreshAt = Date.now();
       void Promise.all([
-        fetchActive(), fetchDemandZones(),
-        ...(includeHistoryFeeds ? [fetchHistoryRef.current(), fetchOverspeedRef.current()] : []),
+        fetchDemandZones(),
+        ...(includeOverspeed ? [fetchOverspeedRef.current()] : []),
       ]).finally(() => { inFlight = false; });
     };
 
@@ -414,169 +179,14 @@ export function useMonitoringData(
       window.removeEventListener("online", onRefresh);
       document.removeEventListener("visibilitychange", onRefresh);
     };
-  }, [fetchActive, fetchDemandZones]);
-
-  // ── Actions ──
-
-  const acknowledgeSos = useCallback(
-    async (alertId: string) => {
-      // Optimistic: flip status locally so the UI reacts instantly.
-      setSosAlerts((prev) =>
-        prev.map((a) =>
-          a.id === alertId
-            ? { ...a, status: "ACKNOWLEDGED" as const, acknowledgedAt: new Date().toISOString() }
-            : a
-        )
-      );
-      try {
-        const res = await fetch(`/api/admin/sos/${alertId}/acknowledge`, {
-          method: "PATCH",
-          credentials: "include",
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.message ?? "Failed to acknowledge SOS.");
-        }
-        // Re-sync from server.
-        void fetchActive();
-      } catch (err) {
-        // Rollback: refetch authoritative state.
-        void fetchActive();
-        setError(err instanceof Error ? err.message : "Failed to acknowledge SOS.");
-      }
-    },
-    [fetchActive]
-  );
-
-  const resolveSos = useCallback(
-    async (alertId: string) => {
-      // Mark as resolving so the next poll doesn't resurrect it before the
-      // server has processed the PATCH.
-      resolvingIds.current.add(alertId);
-      // Optimistic: remove from active list immediately.
-      setSosAlerts((prev) => prev.filter((a) => a.id !== alertId));
-      try {
-        const res = await fetch(`/api/admin/sos/${alertId}/resolve`, {
-          method: "PATCH",
-          credentials: "include",
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.message ?? "Failed to resolve SOS.");
-        }
-        closedIds.current.add(alertId);
-        // Pull the resolved alert into history.
-        void fetchHistory();
-        void fetchActive();
-      } catch (err) {
-        // Rollback: refetch both lists.
-        resolvingIds.current.delete(alertId);
-        void fetchActive();
-        void fetchHistory();
-        throw err;
-      } finally {
-        resolvingIds.current.delete(alertId);
-      }
-    },
-    [fetchActive, fetchHistory]
-  );
+  }, [fetchDemandZones]);
 
   const data: MonitoringData = {
-    sosAlerts,
-    sosHistory,
-    sosHistoryTotal,
-    sosHistoryLastPage,
     overspeedHistory,
     overspeedTotal,
     overspeedLastPage,
     demandZones,
   };
 
-  return {
-    data,
-    isLoading,
-    error,
-    refetch: () => {
-      void fetchActive();
-      void fetchHistory();
-      void fetchOverspeed();
-      void fetchDemandZones();
-    },
-    acknowledgeSos,
-    resolveSos,
-  };
-}
-
-/* ─── SOS LOCATION LOOKUP ─── */
-
-// Retry an alert whose address couldn't be resolved (geocoder down, timeout,
-// rate limit). The server doesn't cache misses, so a later try can succeed.
-const LOCATION_RETRY_MS = 60_000;
-
-export interface SosLocations {
-  /** Address per alert id: a string when found, null when unavailable, absent while loading. */
-  locations: Record<string, string | null>;
-  attribution: string | null;
-}
-
-/**
- * Reverse-geocodes each active SOS once. An alert keeps the coordinates it
- * was raised with, so the 5s poll handing back the same alerts doesn't
- * request them again, and the alert card, map popup and resolution modal
- * share one result.
- */
-export function useSosLocations(alerts: SosAlert[]): SosLocations {
-  const [locations, setLocations] = useState<Record<string, string | null>>({});
-  const [attribution, setAttribution] = useState<string | null>(null);
-  const resolvedIds = useRef<Set<string>>(new Set());
-  const pendingIds = useRef<Set<string>>(new Set());
-  const retryAt = useRef<Map<string, number>>(new Map());
-  const controllers = useRef<Set<AbortController>>(new Set());
-
-  useEffect(() => {
-    const active = controllers.current;
-    return () => {
-      active.forEach((controller) => controller.abort());
-      active.clear();
-    };
-  }, []);
-
-  useEffect(() => {
-    for (const alert of alerts) {
-      const { id } = alert;
-      const [lat, lon] = alert.coordinates;
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-      if (resolvedIds.current.has(id) || pendingIds.current.has(id)) continue;
-      if (Date.now() < (retryAt.current.get(id) ?? 0)) continue;
-
-      pendingIds.current.add(id);
-      const controller = new AbortController();
-      controllers.current.add(controller);
-      const params = new URLSearchParams({ lat: String(lat), lon: String(lon) });
-
-      void fetch(`/api/admin/monitoring/sos-location?${params}`, {
-        headers: { Accept: "application/json" },
-        signal: controller.signal,
-      })
-        .then(async (res) => {
-          if (!res.ok) return null;
-          const body = await res.json().catch(() => null);
-          if (typeof body?.data?.attribution === "string") setAttribution(body.data.attribution);
-          return typeof body?.data?.location === "string" ? body.data.location as string : null;
-        })
-        .catch(() => null)
-        .then((location) => {
-          if (controller.signal.aborted) return;
-          if (location) resolvedIds.current.add(id);
-          else retryAt.current.set(id, Date.now() + LOCATION_RETRY_MS);
-          setLocations((prev) => (prev[id] === location ? prev : { ...prev, [id]: location }));
-        })
-        .finally(() => {
-          pendingIds.current.delete(id);
-          controllers.current.delete(controller);
-        });
-    }
-  }, [alerts]);
-
-  return { locations, attribution };
+  return { data };
 }

@@ -36,7 +36,7 @@ export function AdminSidebar({ onSignOut }: AdminSidebarProps) {
         <div className="flex items-center gap-3 min-w-0">
           <Image src="/logo-transparent.png" alt="CHATCO" width={36} height={36} className="flex-shrink-0" />
           <div className="min-w-0">
-            <h2 className="text-base font-bold text-white admin-light:text-white leading-tight">CHATCO</h2>
+            <h2 className="text-base font-bold text-white admin-light:text-white leading-tight">E-CHATCO</h2>
             <p className="text-[10px] text-white/50 admin-light:text-white/60 uppercase tracking-wider">Admin Panel</p>
           </div>
         </div>

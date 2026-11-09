@@ -44,7 +44,7 @@ export default function Manifesto() {
               <CountUp end={100} suffix="%" grouped={false} className="text-white" /> cashless-ready fares
             </span>
           </p>
-          <p className="mt-3 text-sm text-white/50">Ride with CHATCO on the web or on Android.</p>
+          <p className="mt-3 text-sm text-white/50">Ride with E-CHATCO on the web or on Android.</p>
         </Reveal>
       </div>
     </section>

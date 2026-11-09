@@ -11,7 +11,6 @@ import { UserAvatar } from "@/components/admin/ui/user-avatar";
 const TrackingMap = dynamic<{
   commuters?: import("@/components/admin/admin-commuter-map").CommuterData[];
   liveVehicles?: import("@/components/admin/admin-commuter-map").LiveVehicleMarker[];
-  sosLocations?: import("@/components/admin/admin-commuter-map").SosMapMarker[];
   focusPosition?: [number, number] | null;
   showOwnLocation?: boolean;
 }>(() => import("@/components/admin/admin-commuter-map"), {
@@ -274,7 +273,7 @@ export default function ShareTrackingPage({ params }: { params: Promise<{ token:
           // flex parent has no explicit height (only min-h) — the map would
           // render blank between the header and footer.
           <div className="absolute inset-0">
-            <TrackingMap commuters={commuterMarkers} liveVehicles={[]} sosLocations={[]} focusPosition={focusTarget} showOwnLocation />
+            <TrackingMap commuters={commuterMarkers} liveVehicles={[]} focusPosition={focusTarget} showOwnLocation />
           </div>
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">

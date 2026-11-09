@@ -16,7 +16,7 @@ const CHAPTERS = [
     step: "lg:mt-12",
   },
   {
-    title: "What CHATCO adds",
+    title: "What E-CHATCO adds",
     body: "Pay your fare by QR or GCash. See the units on the map and how soon one reaches you. Share your ride with someone who worries, and reach help in one tap. The people who run the route get clearer fare records and less paperwork, too.",
     step: "lg:mt-24",
   },
@@ -25,7 +25,7 @@ const CHAPTERS = [
 export default function About() {
   return (
     <Section id="about">
-      <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#1A5FB4]">About CHATCO</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#1A5FB4]">About E-CHATCO</p>
       <h2 className="mt-5 max-w-4xl font-sans font-bold text-3xl sm:text-4xl md:text-5xl tracking-tight leading-[1.1]">
         The jeepney you know,
         <br />

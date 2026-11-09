@@ -500,11 +500,6 @@ function OverviewTab({
           <MetricPairTile
             title="Safety"
             main={{
-              label: 'SOS alerts',
-              value: formatNumber(data.safety.sos_alerts),
-              note: data.safety.sos_alerts === 0 ? 'none raised' : data.safety.sos_open > 0 ? `${formatNumber(data.safety.sos_open)} still open` : 'all resolved',
-            }}
-            second={{
               label: 'Overspeeding',
               value: formatNumber(data.safety.overspeed_episodes),
               note: data.safety.overspeed_top_speed === null ? 'none recorded' : `top speed ${data.safety.overspeed_top_speed} km/h`,

@@ -24,9 +24,9 @@ export default function LegalPage({ kind, description, sections }: {
     <div className="min-h-screen bg-[#F0F7FF] font-sans text-gray-900">
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[#071A2E]/95 backdrop-blur-xl">
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-4 px-5 md:px-8">
-          <Link href="/" aria-label="CHATCO home" className={`flex items-center gap-3 rounded-md ${focus}`}>
+          <Link href="/" aria-label="E-CHATCO home" className={`flex items-center gap-3 rounded-md ${focus}`}>
             <Image src={logo} alt="" width={40} height={40} />
-            <span className="text-lg font-bold tracking-tight text-white">CHATCO</span>
+            <span className="text-lg font-bold tracking-tight text-white">E-CHATCO</span>
           </Link>
           <Link href="/" className={`inline-flex items-center gap-2 rounded-md text-sm font-medium text-white/70 transition-colors hover:text-white ${focus}`}>
             <ArrowLeft size={16} aria-hidden="true" /> Back to home
@@ -40,7 +40,7 @@ export default function LegalPage({ kind, description, sections }: {
             <span className="mb-6 grid h-16 w-16 place-items-center rounded-full border border-[#1C3350] bg-[#0E2440] text-white">
               <Icon size={32} strokeWidth={1.75} aria-hidden="true" />
             </span>
-            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#62A0EA]">Riding with CHATCO</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#62A0EA]">Riding with E-CHATCO</p>
             <h1 className="mt-4 text-3xl font-bold leading-tight tracking-tight sm:text-4xl md:text-5xl">{title}</h1>
             <p className="mt-5 max-w-2xl text-base leading-relaxed text-white/60 md:text-lg">{description}</p>
             <p className="mt-4 text-sm text-white/60">Effective date: {POLICY_EFFECTIVE_DATE}</p>
