@@ -248,7 +248,14 @@ class DiscountApplicationService
             ->when($filters['requested_type'] ?? null, fn ($q, $type) => $q->where('requested_type', $type))
             ->when($filters['id'] ?? null, fn ($q, $id) => $q->whereKey($id))
             ->when($filters['search'] ?? null, function ($q, $search) {
-                $q->whereHas('commuter', fn ($profile) => $profile->where(fn ($p) => $p->where('first_name', 'like', "%{$search}%")->orWhere('surname', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%")));
+                // A full name spans separate columns, so every word must match one of
+                // them ("juan dela" → first_name AND surname), in any order.
+                foreach (preg_split('/\s+/', trim($search), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $word) {
+                    $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $word).'%';
+                    $q->whereHas('commuter', fn ($profile) => $profile->where(fn ($p) => $p->where('first_name', 'like', $term)
+                        ->orWhere('middle_name', 'like', $term)->orWhere('surname', 'like', $term)
+                        ->orWhere('suffix', 'like', $term)->orWhere('email', 'like', $term)));
+                }
             })
             ->orderBy('submitted_at')->orderBy('id')->paginate($filters['per_page'] ?? 10)
             ->through(fn ($application) => $this->present($application, true, $withDocument));
