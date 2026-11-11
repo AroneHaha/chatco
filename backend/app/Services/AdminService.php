@@ -42,7 +42,7 @@ class AdminService
      * Supported filters:
      *   - status   (exact match, e.g. ACTIVE / MAINTENANCE / INACTIVE)
      *   - route_id (exact match, UUID)
-     *   - search   (LIKE on plate_number OR unit_number)
+     *   - search   (each word LIKE plate_number, unit_number, or driver/conductor name)
      *
      * Always eager-loads driver + route (+ conductor) to avoid N+1 in lists.
      *
@@ -91,11 +91,20 @@ class AdminService
                 $q->where('route_id', $routeId);
             })
             ->when($filters['search'] ?? null, function (Builder $q, string $search) {
-                $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], trim($search)).'%';
-                $q->where(function (Builder $sub) use ($term) {
-                    $sub->where('plate_number', 'like', $term)
-                        ->orWhere('unit_number', 'like', $term);
-                });
+                // Every word must match the unit, plate, or a crew name, so a
+                // full name ("mark arone") finds the unit it is assigned to.
+                foreach ($this->searchWords($search) as $word) {
+                    $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $word).'%';
+                    $crewName = fn (Builder $person) => $person->where('first_name', 'like', $term)
+                        ->orWhere('middle_name', 'like', $term)
+                        ->orWhere('last_name', 'like', $term);
+                    $q->where(function (Builder $sub) use ($term, $crewName) {
+                        $sub->where('plate_number', 'like', $term)
+                            ->orWhere('unit_number', 'like', $term)
+                            ->orWhereHas('driver', $crewName)
+                            ->orWhereHas('conductor', $crewName);
+                    });
+                }
             });
     }
 
@@ -962,19 +971,20 @@ class AdminService
             ->whereNull('deleted_at');
 
         if ($search !== null && trim($search) !== '') {
-            $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], trim($search)).'%';
-            $drivers->where(function ($query) use ($term): void {
-                $query->where('first_name', 'like', $term)
-                    ->orWhere('last_name', 'like', $term)
-                    ->orWhere('contact', 'like', $term)
-                    ->orWhereRaw("'Driver' like ?", [$term]);
-            });
-            $conductors->where(function ($query) use ($term): void {
-                $query->where('first_name', 'like', $term)
-                    ->orWhere('last_name', 'like', $term)
-                    ->orWhere('contact', 'like', $term)
-                    ->orWhereRaw("'Conductor' like ?", [$term]);
-            });
+            // Names span separate columns, so each word must match one of them
+            // ("mark a" → "Mark" in first_name AND "A" in last_name).
+            foreach ($this->searchWords($search) as $word) {
+                $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $word).'%';
+                foreach ([[$drivers, 'Driver'], [$conductors, 'Conductor']] as [$table, $roleLabel]) {
+                    $table->where(function ($query) use ($term, $roleLabel): void {
+                        $query->where('first_name', 'like', $term)
+                            ->orWhere('middle_name', 'like', $term)
+                            ->orWhere('last_name', 'like', $term)
+                            ->orWhere('contact', 'like', $term)
+                            ->orWhereRaw('? like ?', [$roleLabel, $term]);
+                    });
+                }
+            }
         }
 
         $personnel = $drivers->unionAll($conductors);
