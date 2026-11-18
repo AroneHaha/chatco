@@ -794,7 +794,7 @@ class TransactionFlowTest extends TestCase
         $this->assertSame(1, Transaction::where('voucher_id', $voucher->id)->count());
     }
 
-    public function test_group_cash_creates_one_paid_receipt_per_passenger_and_one_reward_slot(): void
+    public function test_group_cash_creates_one_claimable_receipt_per_passenger(): void
     {
         $group = app(TransactionService::class)->recordGroupedCashFare($this->conductor, [
             'pickup_name' => 'Calumpit',
@@ -818,9 +818,17 @@ class TransactionFlowTest extends TestCase
         $this->assertTrue($group->transactions->every(fn ($transaction) => $transaction->pickup_name === 'Calumpit' && $transaction->dropoff_name === 'Bustos'));
         $this->assertSame('STUDENT', $group->transactions->first()->passenger_role);
         $this->assertSame(13.5, (float) $group->transactions->first()->final_amount);
-        $this->assertSame(1, $group->transactions->where('reward_eligible', true)->count());
-        $this->assertSame(1, $group->transactions->whereNotNull('qr_token')->count());
+        $this->assertSame(3, $group->transactions->where('reward_eligible', true)->count());
+        $this->assertSame(3, $group->transactions->whereNotNull('qr_token')->count());
+        $this->assertSame(3, $group->transactions->pluck('qr_token')->unique()->count());
         $this->assertTrue($group->transactions->every(fn ($transaction) => $transaction->status === PaymentStatus::PAID));
+
+        $receipts = $group->transactions->sortBy('group_position')->values();
+        $service = app(TransactionService::class);
+        $service->claimCashReceipt($this->commuter1, $receipts[0]->qr_token);
+        $service->claimCashReceipt($this->commuter2, $receipts[1]->qr_token);
+        $this->assertSame($this->commuter1->commuterProfile->id, $group->fresh()->payer_id);
+        $this->assertSame($this->commuter2->commuterProfile->id, $receipts[1]->fresh()->passenger_id);
     }
 
     public function test_group_cash_endpoint_is_immediately_visible_in_receipts(): void

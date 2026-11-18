@@ -118,6 +118,8 @@ class MobileTransactionController extends Controller
             'transactions.*.final_amount' => ['nullable', 'numeric', 'min:0'],
             'transactions.*.pickup_name' => ['required', 'string', 'max:100'],
             'transactions.*.dropoff_name' => ['required', 'string', 'max:100'],
+            'transactions.*.pickup_stop_id' => ['nullable', 'uuid', 'exists:fare_points,id'],
+            'transactions.*.dropoff_stop_id' => ['nullable', 'uuid', 'exists:fare_points,id'],
             'transactions.*.idempotency_key' => ['required', 'string', 'max:100'],
             'transactions.*.device_id' => ['nullable', 'string', 'min:16', 'max:100'],
             'transactions.*.device_type' => ['nullable', 'string', 'in:WEB,MOBILE'],
