@@ -866,7 +866,9 @@ class TransactionService
     ): void {
         $totalPassengers = count($passengers);
         foreach ($passengers as $position => $passenger) {
-            $isRewardReceipt = $position === 0;
+            // Every cash passenger has an individually claimable ride receipt.
+            // GCash still has one payer reward row for the shared checkout.
+            $isRewardReceipt = $method === PaymentMethod::CASH || $position === 0;
             Transaction::create([
                 'transaction_id' => $this->generateTransactionId(),
                 'shift_id' => $shift->shift_id,
@@ -1339,7 +1341,7 @@ class TransactionService
                 'payer_id' => $commuterProfile->id,
                 'payer_name_snapshot' => trim($commuterProfile->first_name.' '.$commuterProfile->surname),
             ]);
-            if ($transaction->group_id && $transaction->reward_eligible) {
+            if ($transaction->group_id && (int) $transaction->group_position === 1) {
                 $payerName = trim($commuterProfile->first_name.' '.$commuterProfile->surname);
                 $transaction->paymentGroup()->update([
                     'payer_id' => $commuterProfile->id,
