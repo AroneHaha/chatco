@@ -184,6 +184,8 @@
 }
 @media (max-width: 480px) {
   .modal.modal { width: calc(100% - 16px); max-height: calc(100dvh - 16px); border-radius: 16px; }
+  /* Long terms text would stretch the dialog to the full screen; cap it so the page shows around it and the text scrolls inside. */
+  .termsModal.termsModal { width: calc(100% - 32px); max-height: min(78dvh, 640px); }
   .termsContent.termsContent { padding: 8px 20px 20px; }
   .modalHeader.modalHeader { min-height: 58px; padding: 6px 10px 4px 20px; }
   .title { font-size: 21px; }
