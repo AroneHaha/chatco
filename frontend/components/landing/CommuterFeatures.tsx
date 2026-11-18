@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image, { type StaticImageData } from "next/image";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import gcashShot from "../../assets/landing-features/gcash.png";
 import trackingShot from "../../assets/landing-features/tracking.png";
 import fareShot from "../../assets/landing-features/fare.png";
@@ -64,6 +65,24 @@ function Phone({ children, className = "" }: { children: React.ReactNode; classN
   );
 }
 
+/* Screens sit side by side and slide left as the active feature advances, like swiping through the app. */
+function Screens({ active, sizes }: { active: number; sizes: string }) {
+  return (
+    <div
+      className="flex h-full transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+      style={{ transform: `translateX(-${active * 100}%)` }}
+    >
+      {FEATURES.map((f, i) => (
+        <div key={f.title} className="relative h-full w-full shrink-0" aria-hidden={active !== i}>
+          <Image src={f.shot} alt={f.alt} fill sizes={sizes} placeholder="blur" className="object-cover object-top" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const pad = (n: number) => String(n).padStart(2, "0");
+
 export default function CommuterFeatures() {
   const [active, setActive] = useState(0);
   const stepRefs = useRef<(HTMLElement | null)[]>([]);
@@ -110,17 +129,7 @@ export default function CommuterFeatures() {
             <div className="relative">
               <div aria-hidden className="pointer-events-none absolute left-1/2 top-1/2 -z-10 w-[200%] aspect-square -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(26,95,180,0.18),transparent)]" />
               <Phone className="h-[min(76dvh,680px)]">
-                {/* Screens sit side by side and slide left as the steps advance, like swiping through the app */}
-                <div
-                  className="flex h-full transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
-                  style={{ transform: `translateX(-${active * 100}%)` }}
-                >
-                  {FEATURES.map((f, i) => (
-                    <div key={f.title} className="relative h-full w-full shrink-0" aria-hidden={active !== i}>
-                      <Image src={f.shot} alt={f.alt} fill sizes="300px" placeholder="blur" className="object-cover object-top" />
-                    </div>
-                  ))}
-                </div>
+                <Screens active={active} sizes="300px" />
               </Phone>
             </div>
             <p className="text-xs text-gray-400" aria-live="polite">
@@ -159,19 +168,47 @@ export default function CommuterFeatures() {
           </ol>
         </div>
 
-        {/* Mobile: each feature with its own screen */}
-        <ol className="lg:hidden mt-12 space-y-16">
-          {FEATURES.map((f, i) => (
-            <li key={f.title}>
-              <span className="text-sm font-semibold tabular-nums text-[#1A5FB4]">{String(i + 1).padStart(2, "0")}</span>
-              <h3 className="mt-2 font-sans font-bold text-2xl tracking-tight text-gray-900">{f.title}</h3>
-              <p className="mt-2 text-sm text-gray-500 leading-relaxed">{f.desc}</p>
-              <Phone className="mt-6 mx-auto w-full max-w-65">
-                <Image src={f.shot} alt={f.alt} fill sizes="260px" placeholder="blur" className="object-cover object-top" />
-              </Phone>
-            </li>
-          ))}
-        </ol>
+        {/* Mobile: one feature at a time, stepped with the buttons. Shares `active` with
+            desktop: the desktop steps are display:none here, so their observer never fires. */}
+        <div className="lg:hidden mt-12">
+          {/* Every feature's copy shares one grid cell, so the cell is as tall as the
+              longest and the screen and buttons never shift when the text changes. */}
+          <div className="grid" aria-live="polite">
+            {FEATURES.map((f, i) => (
+              <div key={f.title} className={`[grid-area:1/1] ${active === i ? "" : "invisible"}`} aria-hidden={active !== i}>
+                <span className="text-sm font-semibold tabular-nums text-[#1A5FB4]">{pad(i + 1)}</span>
+                <h3 className="mt-2 font-sans font-bold text-2xl tracking-tight text-gray-900">{f.title}</h3>
+                <p className="mt-2 text-sm text-gray-500 leading-relaxed">{f.desc}</p>
+              </div>
+            ))}
+          </div>
+          <Phone className="mt-6 mx-auto w-full max-w-65">
+            <Screens active={active} sizes="260px" />
+          </Phone>
+          <div className="mt-6 mx-auto flex max-w-65 items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setActive((a) => Math.max(0, a - 1))}
+              disabled={active === 0}
+              aria-label="Previous feature"
+              className="grid h-11 w-11 place-items-center rounded-xl border border-gray-200 bg-white text-gray-700 transition hover:bg-gray-50 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1A5FB4]"
+            >
+              <ChevronLeft size={20} aria-hidden />
+            </button>
+            <p className="text-xs text-gray-400">
+              <span className="font-semibold text-gray-600 tabular-nums">{pad(active + 1)}</span> / {pad(FEATURES.length)}
+            </p>
+            <button
+              type="button"
+              onClick={() => setActive((a) => Math.min(FEATURES.length - 1, a + 1))}
+              disabled={active === FEATURES.length - 1}
+              aria-label="Next feature"
+              className="grid h-11 w-11 place-items-center rounded-xl bg-[#1A5FB4] text-white transition hover:bg-[#164A8F] active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1A5FB4]"
+            >
+              <ChevronRight size={20} aria-hidden />
+            </button>
+          </div>
+        </div>
       </div>
     </section>
   );
