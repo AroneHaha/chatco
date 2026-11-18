@@ -33,7 +33,7 @@ export interface DiscountApplication {
   school_year: string | null; enrollment_term: string | null;
   submitted_at: string; first_submitted_at: string; reviewed_at: string | null; reason: string | null;
   correction_due_at: string | null; document_url?: string; document_mime?: string | null;
-  commuter?: { id: string; first_name: string; middle_name: string | null; surname: string; email: string;
+  commuter?: { id: string; first_name: string; middle_name: string | null; suffix?: string | null; surname: string; email: string;
     birthdate: string; gender: string; contact_number: string; username: string; commuter_type: string };
 }
 

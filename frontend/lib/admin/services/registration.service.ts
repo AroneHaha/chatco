@@ -20,6 +20,7 @@ export interface RawRegistration {
   first_name: string;
   middle_name: string | null;
   surname: string;
+  suffix?: string | null;
   birthdate: string;
   gender: string;
   contact_number: string;
@@ -60,6 +61,7 @@ export interface PendingRegistration {
   firstName: string;
   middleName: string | null;
   surname: string;
+  suffix?: string | null;
   email: string;
   phoneNumber: string;
   commuterType: string;
@@ -161,10 +163,11 @@ const TYPE_LABELS: Record<string, string> = {
 function mapToViewModel(r: RawRegistration): PendingRegistration {
   return {
     id: r.id,
-    name: `${r.first_name} ${r.middle_name ? r.middle_name + " " : ""}${r.surname}`.trim(),
+    name: [r.first_name, r.middle_name, r.surname, r.suffix].filter(Boolean).join(" "),
     firstName: r.first_name,
     middleName: r.middle_name,
     surname: r.surname,
+    suffix: r.suffix ?? null,
     email: r.email,
     phoneNumber: r.contact_number,
     commuterType: TYPE_LABELS[r.applied_type] ?? "Regular",

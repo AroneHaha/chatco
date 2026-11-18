@@ -1652,7 +1652,7 @@ class AdminService
                 $this->applySearch($query, trim($search));
             })
             ->with([
-                'commuterProfile:id,first_name,middle_name,surname,birthdate,gender,email,contact_number,commuter_type,applied_type,account_status,id_image_url,profile_image_url,verified_at,rejection_reason,username,language_preference',
+                'commuterProfile:id,first_name,middle_name,suffix,surname,birthdate,gender,email,contact_number,commuter_type,applied_type,account_status,id_image_url,profile_image_url,verified_at,rejection_reason,username,language_preference',
                 // School details a Student filed at sign-up, reviewed here with the ID.
                 'commuterProfile.discountApplications' => fn ($query) => $query
                     ->where('request_type', 'APPLICATION')
@@ -1693,6 +1693,7 @@ class AdminService
                 'first_name' => $c?->first_name,
                 'middle_name' => $c?->middle_name,
                 'surname' => $c?->surname,
+                'suffix' => $c?->suffix,
                 'birthdate' => $c?->birthdate?->toDateString(),
                 'gender' => $c?->gender,
                 'contact_number' => $c?->contact_number,
@@ -1750,7 +1751,7 @@ class AdminService
                         ->orWhere('rejection_reason', 'like', $term));
                 }
             })
-            ->with(['commuterProfile:id,first_name,middle_name,surname,birthdate,gender,email,contact_number,commuter_type,applied_type,account_status,id_image_url,profile_image_url,verified_at,rejection_reason,username,language_preference'])
+            ->with(['commuterProfile:id,first_name,middle_name,suffix,surname,birthdate,gender,email,contact_number,commuter_type,applied_type,account_status,id_image_url,profile_image_url,verified_at,rejection_reason,username,language_preference'])
             ->orderBy('updated_at', 'desc') // most recently rejected first
             ->paginate($perPage);
 
@@ -1794,6 +1795,7 @@ class AdminService
                 'first_name' => $c?->first_name,
                 'middle_name' => $c?->middle_name,
                 'surname' => $c?->surname,
+                'suffix' => $c?->suffix,
                 'birthdate' => $c?->birthdate?->toDateString(),
                 'gender' => $c?->gender,
                 'contact_number' => $c?->contact_number,

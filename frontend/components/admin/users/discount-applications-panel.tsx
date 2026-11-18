@@ -20,8 +20,8 @@ function reviewRequest(application: DiscountApplication): PendingRequest | null 
   const profile = application.commuter;
   if (!profile) return null;
   return {
-    id: application.id, name: `${profile.first_name} ${profile.middle_name ?? ''} ${profile.surname}`.replace(/\s+/g, ' ').trim(),
-    firstName: profile.first_name, middleName: profile.middle_name, surname: profile.surname, email: profile.email,
+    id: application.id, name: [profile.first_name, profile.middle_name, profile.surname, profile.suffix].filter(Boolean).join(' '),
+    firstName: profile.first_name, middleName: profile.middle_name, surname: profile.surname, suffix: profile.suffix ?? null, email: profile.email,
     phoneNumber: profile.contact_number, commuterType: DISCOUNT_CATEGORIES[application.requested_type], languagePreference: 'English',
     idImageUrl: application.document_url ?? '', profileImageUrl: null, status: 'Pending Verification', birthdate: profile.birthdate,
     gender: profile.gender, username: profile.username, appliedType: application.requested_type, rejectionCount: 0,

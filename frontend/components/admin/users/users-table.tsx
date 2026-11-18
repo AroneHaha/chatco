@@ -135,7 +135,7 @@ export function UsersTable({ users, searchQuery, onDeactivate, onPersonnelChange
         const profile = 'role' in item && item.role === 'COMMUTER' ? item._raw : undefined;
         const middleInitials = profile?.middleName?.trim().split(/\s+/).map((name) => name.charAt(0)).join('').toUpperCase();
         const displayName = profile?.firstName && profile.lastName
-          ? [profile.firstName, middleInitials || null, profile.lastName].filter(Boolean).join(' ')
+          ? [profile.firstName, middleInitials || null, profile.lastName, profile.suffix].filter(Boolean).join(' ')
           : value;
         return (
           <div className="min-w-0">
@@ -277,6 +277,8 @@ export function UsersTable({ users, searchQuery, onDeactivate, onPersonnelChange
           const verifiedAt = 'verifiedAt' in selectedUser ? selectedUser.verifiedAt : null;
           const createdAt = 'createdAt' in selectedUser ? selectedUser.createdAt : null;
           const profile = isCommuter && '_raw' in selectedUser ? selectedUser._raw : undefined;
+          // `name` from the API is first + surname only; the details header shows the whole registered name.
+          const fullName = [profile?.firstName, profile?.middleName, profile?.lastName, profile?.suffix].filter(Boolean).join(' ') || selectedUser.name;
           const registrationDetails = [
             { label: 'First name', value: profile?.firstName },
             { label: 'Middle name', value: profile?.middleName },
@@ -300,7 +302,7 @@ export function UsersTable({ users, searchQuery, onDeactivate, onPersonnelChange
                     </span>
                     <div className={styles.railIdentityText}>
                       <h2 className={styles.kicker}>Commuter Details</h2>
-                      <p className={styles.personName}>{selectedUser.name}</p>
+                      <p className={styles.personName}>{fullName}</p>
                       <p className={styles.personMeta}>
                         <span>
                           {status}

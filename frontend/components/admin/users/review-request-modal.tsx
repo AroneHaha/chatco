@@ -167,6 +167,10 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
           <p className={fieldValueClasses} title={request.surname}>{request.surname}</p>
         </div>
         <div className="min-w-0">
+          <p className={fieldLabelClasses}>Suffix</p>
+          <p className={fieldValueClasses}>{request.suffix || '—'}</p>
+        </div>
+        <div className="min-w-0">
           <p className={fieldLabelClasses}>Birthdate</p>
           <p className={fieldValueClasses}>{formatDate(request.birthdate)}</p>
         </div>
@@ -260,6 +264,7 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
       { label: 'First name', value: request.firstName },
       { label: 'Middle name', value: request.middleName },
       { label: 'Last name', value: request.surname },
+      { label: 'Suffix', value: request.suffix },
       { label: 'Birthdate', value: request.birthdate ? formatDate(request.birthdate) : null },
       { label: 'Gender', value: request.gender },
     ];
