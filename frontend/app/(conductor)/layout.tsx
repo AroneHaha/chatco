@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { usePathname } from "next/navigation";
+import { HideConductorNavContext } from "@/components/conductor/conductor-nav-visibility";
 import { RequireRole } from "@/contexts/auth-context";
 import ConductorSidebar from "@/components/conductor/conductor-sidebar";
 import ConductorDock from "@/components/conductor/conductor-dock";
@@ -24,6 +26,10 @@ export default function ConductorLayout({ children }: { children: React.ReactNod
 
   // Hide navigation on unit-verification page (pre-shift unit selection)
   const isUnitVerification = pathname === "/unit-verification";
+  // Also hidden while End-of-Day settles an earlier day's shift: no tab is
+  // usable until it's remitted (see EndOfDayContent's settlingPastShift).
+  const [navHiddenByPage, setNavHiddenByPage] = useState(false);
+  const hideNav = isUnitVerification || navHiddenByPage;
 
   // The dashboard home is a full-bleed fixed map with a floating card on top
   // (like the commuter home screen), not a scrolling document. Letting <main>
@@ -45,7 +51,7 @@ export default function ConductorLayout({ children }: { children: React.ReactNod
       {/* Desktop Sidebar — the 768–1279px range only. At xl:+ (1280px),
           ConductorDock takes over as a floating bottom dock instead of a
           space-reserving rail (hidden entirely there, not just visually). */}
-      {!isUnitVerification && (
+      {!hideNav && (
         <div className="hidden md:flex xl:hidden md:flex-shrink-0">
           <ConductorSidebar pathname={pathname} />
         </div>
@@ -55,24 +61,26 @@ export default function ConductorLayout({ children }: { children: React.ReactNod
           scrolling pages (metrics/settings/end-of-day) so its last content
           isn't hidden behind the dock; the dashboard home doesn't scroll
           here (see isDashboardHome above) so the padding is inert there. */}
-      <main className={`flex-1 relative xl:pb-28 ${isSettingsPage ? "flex min-h-0 flex-col overflow-hidden" : isDashboardHome ? "overflow-hidden" : "overflow-y-auto"}`}>
+      <main className={`flex-1 relative ${hideNav ? "" : "xl:pb-28"} ${isSettingsPage ? "flex min-h-0 flex-col overflow-hidden" : isDashboardHome ? "overflow-hidden" : "overflow-y-auto"}`}>
           {/* The dashboard home renders these itself, floated above its fixed
               full-bleed map — as normal flow content here they'd push its
               h-full box taller than main and get clipped by overflow-hidden. */}
           {!isUnitVerification && !isDashboardHome && <ConductorConnectivityBanner />}
           {!isUnitVerification && !isDashboardHome && <ConductorDeviceGuard />}
-          {children}
+          <HideConductorNavContext.Provider value={setNavHiddenByPage}>
+            {children}
+          </HideConductorNavContext.Provider>
       </main>
 
       {/* Mobile Bottom Navigation (Hidden on Desktop & Unit Verification) */}
-      {!isUnitVerification && (
+      {!hideNav && (
         <div className="md:hidden">
           <ConductorBottomNav pathname={pathname} />
         </div>
       )}
 
       {/* Large-screen floating dock (xl:+ only — see ConductorDock) */}
-      {!isUnitVerification && <ConductorDock pathname={pathname} />}
+      {!hideNav && <ConductorDock pathname={pathname} />}
 
       {/* Global Payment Modal — accessible from ALL tabs */}
       {!isUnitVerification && <ConductorPaymentModal />}

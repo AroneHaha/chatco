@@ -58,10 +58,7 @@ export default function Footer({ compact = false }: { compact?: boolean }) {
               <li><Link href="/signup" scroll={false} className={linkClass}>Create Account</Link></li>
               <li><Link href="/login" scroll={false} className={linkClass}>Log in</Link></li>
               <li>
-                <Link href="/#download" className={`inline-flex flex-wrap items-center gap-x-2 gap-y-1 ${linkClass}`}>
-                  Android App{" "}
-                  <span className="rounded-full border border-[#62A0EA]/20 bg-[#1A5FB4]/15 px-2 py-0.5 text-[10px] font-medium text-[#62A0EA]">Coming soon</span>
-                </Link>
+                <Link href="/#download" className={linkClass}>Android App</Link>
               </li>
             </ul>
           </nav>

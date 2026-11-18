@@ -21,13 +21,13 @@ export function SkeletonDashboardCarousel() {
         {Array.from({ length: 4 }).map((_, i) => (
           <div
             key={i}
-            className="shrink-0 w-70 h-35 rounded-lg p-5 flex flex-col justify-between border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F1F5F9]"
+            className="shrink-0 w-70 rounded-lg p-5 border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F1F5F9]"
           >
-            <div className="w-10 h-10 rounded-lg bg-[#1A2540] admin-light:bg-[#EEF2F7]" />
-            <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-[#1A2540] admin-light:bg-[#EEF2F7]" />
               <div className="w-24 h-3.5 rounded bg-[#1A2540] admin-light:bg-[#EEF2F7]" />
-              <div className="w-full h-2.5 rounded bg-[#1A2540] admin-light:bg-[#EEF2F7]" />
             </div>
+            <div className="mt-4 w-full h-2.5 rounded bg-[#1A2540] admin-light:bg-[#EEF2F7]" />
           </div>
         ))}
       </div>

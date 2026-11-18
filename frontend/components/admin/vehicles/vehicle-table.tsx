@@ -122,10 +122,11 @@ export function VehicleTable({
             height="100%"
             stickyHeader
             onRowDoubleClick={onRowDoubleClick}
+            mobileCards
           />
         )}
       </div>
-      <div className="shrink-0">
+      <div className="shrink-0 [&_button]:min-h-11 [&_button]:min-w-11 md:[&_button]:min-h-0 md:[&_button]:min-w-0">
         <TablePagination
           currentPage={page.currentPage}
           totalPages={page.totalPages}

@@ -9,18 +9,9 @@ import EndOfDayContent from "@/components/conductor/remittance/end-of-day-conten
  * opens the same report as a popover instead (ConductorEndOfDayModal) so the
  * conductor doesn't navigate away from whatever tab they were on; both
  * shells render the exact same EndOfDayContent, which owns all of the actual
- * report/remit logic.
+ * report/remit logic. The page chrome lives in EndOfDayContent (fullPage),
+ * because settling an earlier day's shift swaps it for the no-nav portal shell.
  */
 export default function EndOfDayPage() {
-  return (
-    <div className="min-h-screen bg-[#050F1A] light:bg-gray-50 pb-28">
-      <div className="sticky top-0 z-20 bg-[#050F1A]/90 light:bg-gray-50 backdrop-blur-xl border-b border-white/5 light:border-gray-200">
-        <div className="flex items-center gap-3 px-4 py-3.5">
-          <h1 className="text-white light:text-gray-900 font-bold text-lg">End of Day Report</h1>
-        </div>
-      </div>
-
-      <EndOfDayContent />
-    </div>
-  );
+  return <EndOfDayContent fullPage />;
 }

@@ -174,11 +174,13 @@ export function PersonnelTable({
               onChange={onSearchChange}
               className="min-w-0 w-full sm:w-56"
             />
+            {/* Side by side on phones instead of two full-width rows. */}
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
             <select
               value={roleFilter}
               onChange={(event) => onRoleFilterChange(event.target.value as PersonnelRoleFilter)}
               aria-label="Filter personnel by role"
-              className="h-10 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 text-sm text-slate-200 admin-light:text-slate-700 outline-none transition-colors focus:border-[#62A0EA]/50 admin-light:focus:border-[#1A5FB4]/50 focus:ring-1 focus:ring-[#62A0EA]/30 admin-light:focus:ring-[#1A5FB4]/30"
+              className="h-10 min-w-0 rounded-lg border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 text-sm text-slate-200 admin-light:text-slate-700 outline-none transition-colors focus:border-[#62A0EA]/50 admin-light:focus:border-[#1A5FB4]/50 focus:ring-1 focus:ring-[#62A0EA]/30 admin-light:focus:ring-[#1A5FB4]/30"
             >
               <option value="all">All personnel</option>
               <option value="driver">Drivers</option>
@@ -188,13 +190,14 @@ export function PersonnelTable({
               value={statusFilter}
               onChange={(event) => onStatusFilterChange(event.target.value as PersonnelStatusFilter)}
               aria-label="Filter personnel by status"
-              className="h-10 rounded-lg border border-[#1E2D45] bg-[#0E1628] px-3 text-sm text-slate-200 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]/50 focus:ring-1 focus:ring-[#62A0EA]/30 admin-light:border-[#E2E8F0] admin-light:bg-white admin-light:text-slate-700 admin-light:[color-scheme:light] admin-light:focus:border-[#1A5FB4]/50 admin-light:focus:ring-[#1A5FB4]/30"
+              className="h-10 min-w-0 rounded-lg border border-[#1E2D45] bg-[#0E1628] px-3 text-sm text-slate-200 outline-none transition-colors [color-scheme:dark] focus:border-[#62A0EA]/50 focus:ring-1 focus:ring-[#62A0EA]/30 admin-light:border-[#E2E8F0] admin-light:bg-white admin-light:text-slate-700 admin-light:[color-scheme:light] admin-light:focus:border-[#1A5FB4]/50 admin-light:focus:ring-[#1A5FB4]/30"
             >
               <option value="all">All statuses</option>
               <option value="ACTIVE">Active</option>
               <option value="TERMINATED">Terminated</option>
               <option value="RESIGNED">Resigned</option>
             </select>
+            </div>
           </div>
           {/* One "Add Personnel" menu instead of a button per role, same
               pattern as User Management's "Register". Each item opens the
@@ -235,11 +238,12 @@ export function PersonnelTable({
               allowHorizontalScroll={false}
               tableClassName="table-fixed"
               onRowDoubleClick={(item) => openDetails(item as Personnel)}
+              mobileCards
             />
           )}
         </div>
 
-        <div className="shrink-0">
+        <div className="shrink-0 [&_button]:min-h-11 [&_button]:min-w-11 md:[&_button]:min-h-0 md:[&_button]:min-w-0">
           <TablePagination
             currentPage={page.currentPage}
             totalPages={page.totalPages}

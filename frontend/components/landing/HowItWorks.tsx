@@ -114,17 +114,26 @@ export default function HowItWorks() {
           </h2>
         </motion.div>
 
-        <ol className="mt-12 grid gap-12 md:mt-16 md:grid-cols-3 md:gap-6 lg:gap-8">
+        {/* Below md the steps are a swipeable row with the next card peeking in.
+            The reveal is triggered by the list, not each step: off-screen cards in
+            the row never intersect the viewport, so per-step triggers would leave them hidden. */}
+        <motion.ol
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, amount: 0.2 }}
+          className="-mx-5 mt-12 flex snap-x snap-mandatory scroll-px-5 gap-5 overflow-x-auto px-5 pb-2 scrollbar-hide md:mx-0 md:mt-16 md:grid md:grid-cols-3 md:gap-6 md:overflow-visible md:px-0 md:pb-0 lg:gap-8"
+        >
           {STEPS.map((s, i) => {
             const Icon = s.icon;
             return (
               <motion.li
                 key={s.step}
-                initial={{ opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.2 }}
-                transition={{ duration: reduce ? 0 : 0.5, delay: reduce ? 0 : i * 0.12 }}
-                className="min-w-0 motion-reduce:opacity-100! motion-reduce:transform-none!"
+                custom={i}
+                variants={{
+                  hidden: { opacity: 0, y: 24 },
+                  show: (n: number) => ({ opacity: 1, y: 0, transition: { duration: reduce ? 0 : 0.5, delay: reduce ? 0 : n * 0.12 } }),
+                }}
+                className="w-[85%] max-w-sm shrink-0 snap-start md:w-auto md:max-w-none md:shrink min-w-0 motion-reduce:opacity-100! motion-reduce:transform-none!"
               >
                 <div data-step>
                   <div aria-hidden="true">
@@ -162,7 +171,7 @@ export default function HowItWorks() {
               </motion.li>
             );
           })}
-        </ol>
+        </motion.ol>
       </div>
     </section>
   );
