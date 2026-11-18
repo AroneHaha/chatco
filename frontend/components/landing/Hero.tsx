@@ -91,7 +91,7 @@ export default function Hero() {
   );
 
   return (
-    <header ref={heroRef} className="relative z-10 overflow-hidden bg-[#071A2E] font-sans pt-24 pb-10 sm:pt-32 sm:pb-20 lg:pt-0 lg:pb-0 lg:min-h-screen lg:flex lg:items-center">
+    <header ref={heroRef} className="relative z-10 overflow-hidden bg-[#071A2E] font-sans pt-24 pb-10 sm:pt-32 sm:pb-20 min-h-dvh flex flex-col justify-center lg:pt-0 lg:pb-0 lg:min-h-screen lg:flex-row lg:items-center">
       {/* The real CHATCO fleet, full bleed. A navy scrim keeps the copy on solid
           navy: flat over the whole photo below lg, fading out to the right on lg+
           so the units show beside the headline. The scrim runs under the docked
