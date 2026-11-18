@@ -4,6 +4,8 @@ import Link from "next/link";
 export default function FinalCTA() {
   return (
     <section className="hero-bg relative overflow-hidden">
+      {/* .hero-bg's animated navy gradient is shared with the maintenance screen, so light mode covers it here instead of overriding the class. */}
+      <div aria-hidden className="absolute inset-0 hidden bg-white light:block" />
       <div className="absolute inset-0">
         <div className="absolute top-1/2 left-1/4 -translate-x-1/2 -translate-y-1/2 w-150 h-150 bg-[#1A5FB4]/15 rounded-full blur-[150px]" />
       </div>
@@ -11,12 +13,12 @@ export default function FinalCTA() {
       <div className="relative max-w-7xl mx-auto px-5 md:px-8 py-24">
         <div className="grid xl:grid-cols-[minmax(0,4fr)_minmax(0,7fr)] gap-12 items-center">
           <div>
-            <h2 className="font-sans font-bold text-3xl md:text-4xl text-white tracking-tight leading-tight">
+            <h2 className="font-sans font-bold text-3xl md:text-4xl text-white light:text-gray-900 tracking-tight leading-tight">
               Ready for an Easier
               <br />
               Jeepney Ride?
             </h2>
-            <p className="mt-5 text-white/50 max-w-md leading-relaxed">
+            <p className="mt-5 text-white/50 light:text-gray-600 max-w-md leading-relaxed">
               Find your ride, pay your fare, and follow your trip — all from your E-CHATCO account.
             </p>
           </div>
@@ -24,7 +26,7 @@ export default function FinalCTA() {
           {/* Boarding pass — echoes the Hero's Calumpit–Meycauayan dateline */}
           <div className="flex xl:justify-end">
             {/* Wide ticket from sm up: route on the main body, actions on a tear-off stub */}
-            <div className="w-full max-w-sm sm:max-w-3xl rounded-2xl bg-white shadow-2xl shadow-black/30 overflow-hidden sm:flex">
+            <div className="w-full max-w-sm sm:max-w-3xl rounded-2xl bg-white shadow-2xl shadow-black/30 light:border light:border-gray-200 light:shadow-black/10 overflow-hidden sm:flex">
               <div className="flex-1 min-w-0 p-6 sm:p-8">
                 <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-gray-400">
                   <span>E-CHATCO Pass</span>
@@ -68,8 +70,8 @@ export default function FinalCTA() {
 
               {/* Perforation: horizontal on mobile, vertical beside the stub from sm up */}
               <div aria-hidden className="relative border-t border-dashed border-gray-200 sm:border-t-0 sm:border-l">
-                <span className="absolute -left-3 -top-3 size-6 rounded-full bg-[#071A2E]" />
-                <span className="absolute -right-3 -top-3 size-6 rounded-full bg-[#071A2E] sm:right-auto sm:top-auto sm:-left-3 sm:-bottom-3" />
+                <span className="absolute -left-3 -top-3 size-6 rounded-full bg-[#071A2E] light:bg-white light:border light:border-gray-200" />
+                <span className="absolute -right-3 -top-3 size-6 rounded-full bg-[#071A2E] light:bg-white light:border light:border-gray-200 sm:right-auto sm:top-auto sm:-left-3 sm:-bottom-3" />
               </div>
 
               <div className="p-6 sm:w-64 shrink-0 flex flex-col justify-center gap-3">

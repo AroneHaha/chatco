@@ -1067,7 +1067,7 @@ export default function SignupForm({ onBusyChange, initialMaintenanceMessage = n
                 <input id="username" name="username" type="text" value={formData.username} onChange={handleChange} maxLength={USERNAME_MAX} aria-describedby="username-hint" className={`${inputClasses} ${errorRing("username")}`} placeholder="juandelacruz_01" />
                 {getFieldError("username")
                   ? <p className={errorClasses}>{getFieldError("username")}</p>
-                  : <p id="username-hint" className="mt-1.5 text-xs text-[#8093aa]">Up to {USERNAME_MAX} characters ({formData.username.length}/{USERNAME_MAX}).</p>}
+                  : <p id="username-hint" className="mt-1.5 text-xs text-[#8093aa] light:text-gray-500">Up to {USERNAME_MAX} characters ({formData.username.length}/{USERNAME_MAX}).</p>}
               </div>
               <div>
                 <label htmlFor="password" className={labelClasses}>

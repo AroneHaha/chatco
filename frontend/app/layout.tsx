@@ -32,7 +32,8 @@ export default function RootLayout({
   auth: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="scroll-smooth">
+    // suppressHydrationWarning: LandingTheme sets data-theme on <html> before hydration.
+    <html lang="en" className="scroll-smooth" suppressHydrationWarning>
       <body
         className={`${poppins.variable} font-sans antialiased bg-white text-gray-900`}
       >

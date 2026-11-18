@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useLayoutEffect, useMemo, useSyncExternalStore, useState, type ReactNode } from "react";
 import { createThemeStore, type AppTheme, type ThemeStore } from "@/lib/theme/theme-store";
+import { LANDING_THEME_KEY } from "@/lib/theme/landing-theme-key";
 
 export type CommuterTheme = AppTheme;
 
@@ -64,6 +65,13 @@ export function AppThemeProvider({
 
 export function CommuterThemeProvider({ children }: { children: ReactNode }) {
   return <AppThemeProvider store={store}>{children}</AppThemeProvider>;
+}
+
+const landingStore = createThemeStore(LANDING_THEME_KEY);
+
+/** The landing page's own preference, separate from the commuter app's. */
+export function LandingThemeProvider({ children }: { children: ReactNode }) {
+  return <AppThemeProvider store={landingStore}>{children}</AppThemeProvider>;
 }
 
 /**

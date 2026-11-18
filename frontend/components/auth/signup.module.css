@@ -208,3 +208,66 @@
   .personalGrid, .schoolGrid { grid-template-columns: minmax(0, 1fr); }
   .passwordRules { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Light mode (landing appearance toggle, data-theme on <html>): colour swaps
+   only. The `.form [class*=...]` rules above re-tint the form's Tailwind
+   classes for the dark panel; `revert-layer` hands those back to Tailwind. */
+:global([data-theme="light"]) .modal.modal {
+  --signup-line: #e2e8f0;
+  --signup-muted: #64748b;
+  background: white;
+  color: #0f172a;
+  border-color: #e2e8f0;
+  box-shadow: 0 24px 64px rgb(7 26 46 / .14);
+  scrollbar-color: #cbd5e1 white;
+}
+:global([data-theme="light"]) .modalHeader.modalHeader { background: white; }
+:global([data-theme="light"]) .title,
+:global([data-theme="light"]) .termsSections h3 { color: #0f172a; }
+:global([data-theme="light"]) .schoolHeading { color: #1e293b; }
+:global([data-theme="light"]) .schoolNote,
+:global([data-theme="light"]) .optional { color: #64748b; }
+:global([data-theme="light"]) .label,
+:global([data-theme="light"]) .agreements label { color: #334155; }
+:global([data-theme="light"]) .termsSections p { color: #475569; }
+:global([data-theme="light"]) .input {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: #0f172a;
+  color-scheme: light;
+}
+:global([data-theme="light"]) .input::placeholder { color: #94a3b8; }
+:global([data-theme="light"]) .input:hover { border-color: #94a3b8; }
+:global([data-theme="light"]) .input:focus { background: white; border-color: #64748b; box-shadow: 0 0 0 1px rgb(100 116 139 / .18); }
+:global([data-theme="light"]) .input option { background: white; color: #0f172a; }
+:global([data-theme="light"]) .input:-webkit-autofill { -webkit-text-fill-color: #0f172a; box-shadow: 0 0 0 1000px #f0f7ff inset; }
+:global([data-theme="light"]) .input:-webkit-autofill:focus { box-shadow: 0 0 0 1000px #f0f7ff inset, 0 0 0 1px rgb(100 116 139 / .18); }
+:global([data-theme="light"]) .fieldError { color: #dc2626; }
+:global([data-theme="light"]) .invalid { border-color: #dc2626; }
+:global([data-theme="light"]) .primaryButton { background: #1a5fb4; color: white; }
+:global([data-theme="light"]) .primaryButton:hover { background: #164a8f; }
+:global([data-theme="light"]) .backButton { background: white; color: #334155; border-color: #cbd5e1; }
+:global([data-theme="light"]) .backButton:hover { background: #f8fafc; border-color: #94a3b8; }
+:global([data-theme="light"]) .accountPrompt a,
+:global([data-theme="light"]) .policyLinks a,
+:global([data-theme="light"]) .agreements a,
+:global([data-theme="light"]) .emailNotice > svg { color: #1a5fb4; }
+:global([data-theme="light"]) .accountPrompt a:hover { color: #164a8f; }
+:global([data-theme="light"]) .agreements input { accent-color: #1a5fb4; }
+:global([data-theme="light"]) .agreements input:focus-visible { outline-color: #1a5fb4; }
+:global([data-theme="light"]) .form [class*="text-"],
+:global([data-theme="light"]) .success [class*="text-"],
+:global([data-theme="light"]) .success h2 { color: revert-layer; }
+:global([data-theme="light"]) .form [class*="bg-red-"] { background: revert-layer; border-color: revert-layer; }
+:global([data-theme="light"]) .uploadArea { border-color: rgb(26 95 180 / .35); background: #f8fafc; }
+:global([data-theme="light"]) .uploadArea:hover { border-color: #1a5fb4; background: #f0f7ff; }
+:global([data-theme="light"]) .uploadArea > div,
+:global([data-theme="light"]) .uploadArea button { background: revert-layer; color: revert-layer; border-color: revert-layer; box-shadow: revert-layer; }
+:global([data-theme="light"]) .uploadArea[class*="border-green-"] { border-color: #86efac; }
+:global([data-theme="light"]) .uploadArea[class*="border-red-"] { border-color: #dc2626; }
+:global([data-theme="light"]) .form [role="group"] input { background: #f8fafc; color: #0f172a; border-color: #cbd5e1; }
+:global([data-theme="light"]) .form [role="group"] input:focus { border-color: #64748b; }
+:global([data-theme="light"]) .form :global(.react-bits-stepper.outer-container) { --step-accent: #1a5fb4; --step-inactive: #e2e8f0; --step-muted: #64748b; }
+:global([data-theme="light"]) .form :global(.react-bits-stepper .step-connector) { background: #e2e8f0; }
+:global([data-theme="light"]) .form :global(.react-bits-stepper .active-dot) { background: white; }
+:global([data-theme="light"]) .form :global(.react-bits-stepper .check-icon) { color: white; }

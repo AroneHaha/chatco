@@ -4,8 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
-import { Bus, Menu, X } from "lucide-react";
+import { Bus, Menu, Moon, Sun, X } from "lucide-react";
 import logo from "../../assets/logo-transparent.png";
+import { useLightModeToggle } from "@/contexts/commuter-theme-context";
+import { ThemeToggleIcons } from "@/components/commuter/profile/profile-theme-toggle";
 
 // In page order, so the active marker slides left to right as you read down.
 const LINKS = [
@@ -18,12 +20,46 @@ const LINKS = [
 
 const MARKER = 18; // px, the jeepney marker's width
 
+const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#62A0EA] light:focus-visible:outline-[#1A5FB4]";
+
+/** Appearance row: label on the left, a slim moon/sun switch on the right. */
+function AppearanceRow({ isLight, setIsLight, className = "" }: { isLight: boolean; setIsLight: (light: boolean) => void; className?: string }) {
+  return (
+    <div className={`flex items-center justify-between gap-3 ${className}`}>
+      <span className="text-sm text-white/70 light:text-gray-600">Appearance</span>
+      <div role="group" aria-label="Appearance" className="inline-flex rounded-md bg-[#050F1A] p-0.5 light:bg-gray-100">
+        {([
+          { light: false, label: "Dark", Icon: Moon },
+          { light: true, label: "Light", Icon: Sun },
+        ] as const).map(({ light, label, Icon }) => {
+          const active = isLight === light;
+          return (
+            <button
+              key={label}
+              type="button"
+              aria-pressed={active}
+              aria-label={`${label} mode`}
+              title={`${label} mode`}
+              onClick={() => setIsLight(light)}
+              className={`grid h-7 w-8 cursor-pointer place-items-center rounded transition-colors ${FOCUS} ${active ? "bg-[#1A5FB4] text-white" : "text-white/45 hover:text-white light:text-gray-500 light:hover:text-gray-900"}`}
+            >
+              <Icon size={14} aria-hidden="true" />
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function Navbar({ onHomePage = true }: { onHomePage?: boolean }) {
   const navRef = useRef<HTMLElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [active, setActive] = useState<string | null>(null);
   const reduce = useReducedMotion();
+  // The landing page has no light styles yet, so outside the commuter/conductor apps this only drives the switch itself.
+  const [isLight, setIsLight] = useLightModeToggle();
 
   // The ride line along the nav's bottom edge: the jeepney travels the page
   // the way it travels the route, so it doubles as the scroll-progress bar.
@@ -144,7 +180,7 @@ export default function Navbar({ onHomePage = true }: { onHomePage?: boolean }) 
     };
   }, [menuOpen]);
 
-  const focus = "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#62A0EA]";
+  const focus = FOCUS;
 
   return (
     <motion.nav
@@ -153,14 +189,14 @@ export default function Navbar({ onHomePage = true }: { onHomePage?: boolean }) 
       aria-label="Main"
       className={`fixed top-0 inset-x-0 z-50 pt-safe lg:pt-0 border-b transition-[background-color,border-color,box-shadow] duration-300 ease-out ${
         scrolled || menuOpen
-          ? "bg-[#071A2E] border-white/10 shadow-lg shadow-black/20"
-          : "bg-[#071A2E]/75 backdrop-blur-md border-transparent"
+          ? "bg-[#071A2E] border-white/10 shadow-lg shadow-black/20 light:bg-white light:border-gray-200 light:shadow-black/5"
+          : "bg-[#071A2E]/75 backdrop-blur-md border-transparent light:bg-white/80"
       }`}
     >
       <div className="max-w-7xl mx-auto px-5 md:px-8 flex items-center justify-between lg:grid lg:grid-cols-[auto_1fr_auto] xl:grid-cols-[1fr_auto_1fr] h-16">
         <a href={onHomePage ? "#" : "/"} className={`flex items-center gap-3 shrink-0 rounded-md ${focus}`} aria-label={onHomePage ? "E-CHATCO, back to top" : "E-CHATCO home"}>
           <Image src={logo} alt="" width={40} height={40} className="rounded-lg" priority />
-          <span className="text-lg font-bold tracking-tight text-white">E-CHATCO</span>
+          <span className="text-lg font-bold tracking-tight text-white light:text-gray-900">E-CHATCO</span>
         </a>
 
         <div className="hidden lg:flex items-center gap-1 lg:justify-self-center">
@@ -172,7 +208,7 @@ export default function Navbar({ onHomePage = true }: { onHomePage?: boolean }) 
                 href={`${onHomePage ? "" : "/"}#${l.id}`}
                 aria-current={on ? "location" : undefined}
                 className={`relative px-2 xl:px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors rounded-md ${focus} ${
-                  on ? "text-white" : "text-white/60 hover:text-white"
+                  on ? "text-white light:text-gray-900" : "text-white/60 hover:text-white light:text-gray-600 light:hover:text-gray-900"
                 }`}
               >
                 {l.label}
@@ -182,7 +218,7 @@ export default function Navbar({ onHomePage = true }: { onHomePage?: boolean }) 
                     aria-hidden
                     initial={reduce ? false : { opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="absolute inset-x-2 xl:inset-x-4 -bottom-0.5 h-0.5 rounded-full bg-[#62A0EA]"
+                    className="absolute inset-x-2 xl:inset-x-4 -bottom-0.5 h-0.5 rounded-full bg-[#62A0EA] light:bg-[#1A5FB4]"
                     transition={reduce ? { duration: 0 } : {
                       layout: { type: "spring", stiffness: 420, damping: 34 },
                       opacity: { duration: 0.2, ease: "easeOut" },
@@ -198,20 +234,31 @@ export default function Navbar({ onHomePage = true }: { onHomePage?: boolean }) 
           <Link
             href="/login"
             scroll={false}
-            className={`hidden sm:inline-flex items-center whitespace-nowrap px-3 py-2 rounded-md text-sm font-medium text-white/70 hover:text-white hover:bg-white/5 transition-colors ${focus}`}
+            className={`hidden sm:inline-flex items-center whitespace-nowrap px-2.5 py-2 rounded-md text-sm font-medium text-white/70 hover:text-white light:text-gray-600 light:hover:text-gray-900 transition-colors ${focus}`}
           >
             Log in
           </Link>
           <Link
-            href="/signup" scroll={false}
-            className={`hidden sm:inline-flex items-center whitespace-nowrap px-4 py-2 rounded-full text-sm font-semibold bg-[#1A5FB4] text-white hover:bg-[#164A8F] transition-colors ${focus}`}
+            href="/signup"
+            scroll={false}
+            className={`hidden sm:inline-flex items-center whitespace-nowrap h-9 px-4 rounded-lg text-sm font-semibold bg-[#1A5FB4] text-white hover:bg-[#164A8F] active:scale-[0.98] transition-[background-color,transform] ${focus}`}
           >
-            Create Account
+            Create account
           </Link>
           <button
             type="button"
+            onClick={() => setIsLight(!isLight)}
+            aria-pressed={isLight}
+            aria-label={isLight ? "Switch to dark mode" : "Switch to light mode"}
+            title={isLight ? "Switch to dark mode" : "Switch to light mode"}
+            className={`relative hidden sm:grid h-9 w-9 cursor-pointer place-items-center rounded-full text-white/70 transition-colors hover:bg-[#0B223A] hover:text-white light:text-gray-600 light:hover:bg-gray-100 light:hover:text-gray-900 ${focus}`}
+          >
+            <ThemeToggleIcons isLight={isLight} size={18} />
+          </button>
+          <button
+            type="button"
             onClick={() => setMenuOpen((o) => !o)}
-            className={`lg:hidden grid place-items-center w-10 h-10 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors ${focus}`}
+            className={`lg:hidden grid place-items-center w-10 h-10 rounded-lg text-white/80 hover:text-white hover:bg-white/10 light:text-gray-700 light:hover:text-gray-900 light:hover:bg-gray-100 transition-colors ${focus}`}
             aria-label={menuOpen ? "Close menu" : "Open menu"}
             aria-expanded={menuOpen}
             aria-controls="mobile-nav"
@@ -226,9 +273,9 @@ export default function Navbar({ onHomePage = true }: { onHomePage?: boolean }) 
         aria-hidden
         className={`absolute inset-x-0 bottom-0 h-px transition-opacity duration-300 ${scrolled ? "opacity-100" : "opacity-0"}`}
       >
-        <motion.div className="absolute left-0 top-0 h-px bg-[#62A0EA]" style={{ width: fillWidth }} />
+        <motion.div className="absolute left-0 top-0 h-px bg-[#62A0EA] light:bg-[#1A5FB4]" style={{ width: fillWidth }} />
         <motion.span
-          className="absolute -top-2 grid place-items-center rounded-md bg-[#62A0EA] text-[#071A2E] shadow-md shadow-black/30"
+          className="absolute -top-2 grid place-items-center rounded-md bg-[#62A0EA] text-[#071A2E] shadow-md shadow-black/30 light:bg-[#1A5FB4] light:text-white light:shadow-black/10"
           style={{ left: markerLeft, width: MARKER, height: MARKER }}
         >
           <Bus size={11} strokeWidth={2.6} />
@@ -240,7 +287,7 @@ export default function Navbar({ onHomePage = true }: { onHomePage?: boolean }) 
         {menuOpen && (
           <motion.div
             id="mobile-nav"
-            className="lg:hidden absolute inset-x-0 top-full overflow-hidden bg-[#071A2E] border-b border-white/10 shadow-2xl shadow-black/40"
+            className="lg:hidden absolute inset-x-0 top-full overflow-hidden bg-[#071A2E] border-b border-white/10 shadow-2xl shadow-black/40 light:bg-white light:border-gray-200 light:shadow-black/10"
             initial={reduce ? false : { height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={reduce ? { opacity: 0 } : { height: 0, opacity: 0 }}
@@ -251,17 +298,17 @@ export default function Navbar({ onHomePage = true }: { onHomePage?: boolean }) 
                 {LINKS.map((l) => {
                   const on = active === l.id;
                   return (
-                    <li key={l.id} className="border-b border-white/10 last:border-0">
+                    <li key={l.id} className="border-b border-white/10 light:border-gray-200 last:border-0">
                       <a
                         href={`${onHomePage ? "" : "/"}#${l.id}`}
                         onClick={() => setMenuOpen(false)}
                         aria-current={on ? "location" : undefined}
                         className={`flex items-center justify-between py-4 font-sans text-base sm:text-lg font-semibold tracking-tight transition-colors ${focus} ${
-                          on ? "text-[#62A0EA]" : "text-white"
+                          on ? "text-[#62A0EA] light:text-[#1A5FB4]" : "text-white light:text-gray-900"
                         }`}
                       >
                         {l.label}
-                        {on && <span className="text-xs font-sans font-medium text-white/50">You are here</span>}
+                        {on && <span className="text-xs font-sans font-medium text-white/50 light:text-gray-500">You are here</span>}
                       </a>
                     </li>
                   );
@@ -272,7 +319,7 @@ export default function Navbar({ onHomePage = true }: { onHomePage?: boolean }) 
                   href="/login"
                   scroll={false}
                   onClick={() => setMenuOpen(false)}
-                  className={`text-center py-3.5 rounded-full border border-white/20 text-sm sm:text-base font-semibold text-white hover:bg-white/5 transition-colors ${focus}`}
+                  className={`text-center py-3.5 rounded-full border border-white/20 text-sm sm:text-base font-semibold text-white hover:bg-white/5 light:border-gray-300 light:bg-white light:text-gray-900 light:hover:bg-gray-50 transition-colors ${focus}`}
                 >
                   Log in
                 </Link>
@@ -284,6 +331,7 @@ export default function Navbar({ onHomePage = true }: { onHomePage?: boolean }) 
                   Create Account
                 </Link>
               </div>
+              <AppearanceRow isLight={isLight} setIsLight={setIsLight} className="mt-5 border-t border-white/10 pt-5 light:border-gray-200" />
             </div>
           </motion.div>
         )}

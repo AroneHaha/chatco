@@ -8,6 +8,7 @@ import { useEffect, useMemo } from "react";
 import L from "leaflet";
 import { AttributionControl, MapContainer, Marker, TileLayer, ZoomControl, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
+import { useCommuterTheme } from "@/contexts/commuter-theme-context";
 
 type LatLng = [number, number];
 
@@ -42,6 +43,8 @@ interface ContactMapProps {
 
 export default function ContactMap({ position, label }: ContactMapProps) {
   const icon = useMemo(() => pinIcon(label), [label]);
+  // Landing appearance (dark outside a theme provider): CARTO light tiles in light mode.
+  const light = useCommuterTheme() === "light";
 
   return (
     <div className="contact-map absolute inset-0 z-0">
@@ -53,12 +56,12 @@ export default function ContactMap({ position, label }: ContactMapProps) {
         scrollWheelZoom={false}
         // One-finger drag on touch screens would trap page scroll; pinch still zooms.
         dragging={!L.Browser.mobile}
-        style={{ width: "100%", height: "100%", background: "#050F1A" }}
+        style={{ width: "100%", height: "100%", background: light ? "#F3F4F6" : "#050F1A" }}
       >
         <Frame position={position} />
         <TileLayer
           className="map-tiles-mono"
-          url={`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${process.env.NEXT_PUBLIC_CARTO_API_KEY}`}
+          url={`https://{s}.basemaps.cartocdn.com/${light ? "light_all" : "dark_all"}/{z}/{x}/{y}{r}.png?key=${process.env.NEXT_PUBLIC_CARTO_API_KEY}`}
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
         />
         <ZoomControl position="bottomright" />

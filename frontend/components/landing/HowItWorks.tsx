@@ -55,7 +55,7 @@ const STEPS: Step[] = [
 
 function StepFrame({ image, focus }: { image: StaticImageData; focus: string }) {
   return (
-    <div className="relative w-full aspect-4/3 min-h-60 overflow-hidden rounded-2xl border border-[#1E3F6E] bg-[#08203F]">
+    <div className="relative w-full aspect-4/3 min-h-60 overflow-hidden rounded-2xl border border-[#1E3F6E] bg-[#08203F] light:border-[#DAEEFF] light:bg-white">
       {/* Decorative: the step title below carries the meaning. */}
       <Image src={image} alt="" fill sizes="(min-width: 1280px) 384px, (min-width: 768px) 33vw, 85vw" placeholder="blur" className={`object-cover ${focus}`} />
     </div>
@@ -111,7 +111,7 @@ export default function HowItWorks() {
       ref={sectionRef}
       id="how-it-works"
       aria-labelledby="how-it-works-heading"
-      className="overflow-x-clip bg-[#0C2A52] py-20 text-white md:py-28"
+      className="overflow-x-clip bg-[#0C2A52] py-20 text-white md:py-28 light:bg-[#F0F7FF] light:text-gray-900"
     >
       <div className="mx-auto max-w-7xl px-5 md:px-8">
         <motion.div
@@ -121,7 +121,7 @@ export default function HowItWorks() {
           transition={{ duration: reduce ? 0 : 0.5 }}
           className="mx-auto max-w-2xl text-center lg:mt-16 motion-reduce:opacity-100! motion-reduce:transform-none!"
         >
-          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#62A0EA]">
+          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#62A0EA] light:text-[#1A5FB4]">
             How It Works
           </p>
           <h2
@@ -160,29 +160,29 @@ export default function HowItWorks() {
                   <div className="relative mt-7 flex h-11 items-center justify-center">
                     {i < STEPS.length - 1 && (
                       <div aria-hidden="true" className="absolute inset-y-0 left-1/2 hidden w-[calc(100%+1.5rem)] items-center md:flex lg:w-[calc(100%+2rem)]">
-                        <div data-rail className="relative h-px w-full bg-white/15">
+                        <div data-rail className="relative h-px w-full bg-white/15 light:bg-gray-300">
                           <motion.div
                             initial={{ scaleX: 0 }}
                             whileInView={{ scaleX: 1 }}
                             viewport={{ once: true, amount: 0.5 }}
                             transition={{ duration: reduce ? 0 : 0.8, delay: reduce ? 0 : 0.3 + i * 0.2, ease: "easeOut" }}
-                            className="absolute inset-0 origin-left bg-[#62A0EA] motion-reduce:transform-none!"
+                            className="absolute inset-0 origin-left bg-[#62A0EA] light:bg-[#1A5FB4] motion-reduce:transform-none!"
                           />
                         </div>
                       </div>
                     )}
                     <span
                       aria-hidden="true"
-                      className="relative z-10 grid h-11 w-11 place-items-center rounded-full border border-[#2A5185] bg-[#0C2A52] text-sm font-bold tabular-nums text-white"
+                      className="relative z-10 grid h-11 w-11 place-items-center rounded-full border border-[#2A5185] bg-[#0C2A52] text-sm font-bold tabular-nums text-white light:border-[#B9D3F0] light:bg-[#F0F7FF] light:text-gray-900"
                     >
                       {s.step}
                     </span>
                   </div>
                   <h3 className="mt-5 flex items-center justify-center gap-2.5 text-center font-sans text-2xl font-bold tracking-tight">
-                    <Icon aria-hidden="true" size={20} className="shrink-0 text-white/50" />
+                    <Icon aria-hidden="true" size={20} className="shrink-0 text-white/50 light:text-gray-400" />
                     {s.title}
                   </h3>
-                  <p className="mx-auto mt-3 max-w-sm text-center text-sm leading-relaxed text-white/60 lg:text-base">
+                  <p className="mx-auto mt-3 max-w-sm text-center text-sm leading-relaxed text-white/60 light:text-gray-600 lg:text-base">
                     {s.desc}
                   </p>
                 </div>
