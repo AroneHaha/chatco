@@ -128,7 +128,7 @@ const SETTINGS_MODULES: SettingsModule[] = [
   { title: "Fare Matrix", desc: "Set base fares and distance rates.", icon: Calculator, href: "/settings/fare-matrix" },
   { title: "Financial Rules", desc: "Configure fare deductions and splits.", icon: Receipt, href: "/settings/financial-rules" },
   { title: "Voucher Generator", desc: "Create promo codes and free ride passes.", icon: Ticket, href: "/settings/voucher-generator" },
-  { title: "Safety Notifications", desc: "Manage alert triggers and templates.", icon: Bell, href: "/settings/safety-notifications" },
+  { title: "Notifications", desc: "Manage alert triggers and templates.", icon: Bell, href: "/settings/safety-notifications" },
   { title: "App Configuration", desc: "General system preferences and UI.", icon: SlidersHorizontal, href: "/settings/app-configuration" },
   { title: "Updates Center", desc: "View notifications and manage announcements.", icon: Megaphone, href: "/announcements" },
   { title: "Activity Logs", desc: "Audit trail of admin and system actions.", icon: History, href: "/activity-logs" },

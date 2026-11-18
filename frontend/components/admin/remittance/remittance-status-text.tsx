@@ -23,6 +23,12 @@ const STATUS_ICONS: Partial<Record<BadgeVariant, LucideIcon>> = {
   danger: AlertTriangle,
 };
 
+/** Icon tint so the column skims by colour; the label text stays neutral. */
+const STATUS_ICON_CLASSES: Partial<Record<BadgeVariant, string>> = {
+  success: 'text-green-500 admin-light:text-green-600',
+  warning: 'text-amber-500 admin-light:text-amber-600',
+};
+
 /**
  * Remittance status as text with a leading icon, not a pill — the same
  * treatment as vehicle status in Fleet Management.
@@ -32,7 +38,7 @@ export function RemittanceStatusText({ status }: { status: RemittanceStatus }) {
   const Icon = STATUS_ICONS[variant];
   return (
     <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${STATUS_TEXT_CLASSES[variant]}`}>
-      {Icon && <Icon size={14} aria-hidden="true" className={`shrink-0 ${variant === 'danger' ? '' : 'text-slate-400 admin-light:text-slate-500'}`} />}
+      {Icon && <Icon size={14} aria-hidden="true" className={`shrink-0 ${variant === 'danger' ? '' : STATUS_ICON_CLASSES[variant] ?? 'text-slate-400 admin-light:text-slate-500'}`} />}
       {status}
     </span>
   );

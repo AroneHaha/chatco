@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { ChartColumn, ChevronLeft, ChevronRight, Clock, LogOut, Settings, X } from "lucide-react";
+import { ChartColumn, ChevronLeft, ChevronRight, Clock, Settings, X } from "lucide-react";
 import minibusFront from "@/assets/minibus-front.svg";
 import { startShift } from "@/lib/conductor/services/shift.service";
 import { fetchRemittanceHistory, type RemittanceRecord } from "@/lib/conductor/services/remittance.service";
@@ -15,8 +15,7 @@ import DriverList from "@/components/conductor/unit-verification/DriverList";
 import StartShiftModal from "@/components/conductor/unit-verification/StartShiftModal";
 import { UnitVerificationSkeleton } from "@/components/conductor/ui/skeleton";
 import { useAuth } from "@/contexts/auth-context";
-import { useLightModeToggle } from "@/contexts/commuter-theme-context";
-import { ThemeToggleIcons } from "@/components/commuter/profile/profile-theme-toggle";
+import ConductorPortalHeader from "@/components/conductor/conductor-portal-header";
 import MetricsContent from "@/components/conductor/metrics/metrics-content";
 import SettingsContent from "@/components/conductor/settings/settings-content";
 import { APP_DIALOG as D } from "@/components/shared/app-dialog-styles";
@@ -37,7 +36,6 @@ export default function ConductorLoginPage() {
   const { logout } = useAuth();
   const { profile, units, drivers, status, error, refresh } = useUnitVerification();
   const { shift, status: shiftStatus, refresh: refreshShift } = useConductorShift();
-  const [isLight, setIsLight] = useLightModeToggle();
 
   const [step, setStep] = useState<Step>("select-unit");
   const [selectedUnit, setSelectedUnit] = useState<ConductorUnit | null>(null);
@@ -192,42 +190,7 @@ export default function ConductorLoginPage() {
   return (
     <div className="h-[100dvh] overflow-hidden bg-[#050F1A] light:bg-gray-50 flex flex-col">
       <div className="relative flex min-h-0 flex-1 flex-col px-4 py-4 sm:py-6 max-w-md lg:max-w-lg mx-auto w-full">
-        <div className="mb-6 flex shrink-0 items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <Image src="/logo-transparent.png" alt="" width={40} height={40} className="shrink-0" priority />
-            <div className="min-w-0">
-              <p className="text-2xl font-extrabold text-white light:text-gray-900 tracking-tight">
-                CHATCO<span className="text-[#62A0EA] light:text-[#1A5FB4]">.</span>
-              </p>
-              <p className="text-[10px] text-slate-500 light:text-gray-500 uppercase tracking-[0.2em] font-semibold mt-1">
-                Conductor Portal
-              </p>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {/* Same light/dark preference and Moon/Sun swap as the profile
-                toggle, on every screen size, in this page's solid button style. */}
-            <button
-              type="button"
-              onClick={() => setIsLight(!isLight)}
-              aria-label="Toggle dark and light mode"
-              aria-pressed={isLight}
-              title={isLight ? "Light mode · Switch to dark mode" : "Dark mode · Switch to light mode"}
-              className="relative flex h-10 w-10 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-[#1C3350] light:border-gray-200 bg-[#0B1E33] light:bg-white text-slate-300 light:text-gray-700 transition-colors hover:bg-[#10273F] light:hover:bg-gray-100 hover:text-white light:hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1A5FB4]"
-            >
-              <ThemeToggleIcons isLight={isLight} size={18} />
-            </button>
-            <button
-              type="button"
-              onClick={handleLogout}
-              disabled={isLoggingOut}
-              className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl border border-[#1C3350] light:border-gray-200 bg-[#0B1E33] light:bg-white px-3 text-xs font-semibold text-slate-300 light:text-gray-700 transition-colors hover:bg-[#10273F] light:hover:bg-gray-100 hover:text-white light:hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <LogOut size={15} />
-              {isLoggingOut ? "Signing out" : "Sign out"}
-            </button>
-          </div>
-        </div>
+        <ConductorPortalHeader onSignOut={handleLogout} isSigningOut={isLoggingOut} />
 
         {status === "error" && error && (
           <div className="mb-4 rounded-xl border border-[#5C1F27] light:border-red-200 bg-[#2B1116] light:bg-red-50 px-4 py-3 text-center">

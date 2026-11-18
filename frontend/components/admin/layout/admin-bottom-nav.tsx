@@ -57,6 +57,7 @@ export function AdminBottomNav({ isMoreOpen, setIsMoreOpen, onSignOut }: AdminBo
   }, [pathname]);
 
   return (
+    <>
     <nav data-admin-theme={theme} className="fixed bottom-0 left-0 right-0 bg-[#0D1424]/95 admin-light:bg-white/95 backdrop-blur-sm border-t border-[#1E2D45] admin-light:border-[#E2E8F0] z-50 md:hidden">
       <div className="relative flex justify-around items-center h-16 max-w-screen-xl mx-auto">
         {/* Thin top-line indicator */}
@@ -118,15 +119,20 @@ export function AdminBottomNav({ isMoreOpen, setIsMoreOpen, onSignOut }: AdminBo
           {moreBadgeCount > 0 && <span className="sr-only">, {moreBadgeCount} items need attention</span>}
         </button>
       </div>
+    </nav>
 
-      {/* "More" Menu Popup */}
+      {/* "More" Menu Popup — a sibling of the nav, not a child: the nav's
+          backdrop-blur makes it the containing block for fixed children, so a
+          click-away layer inside it only covered (and darkened) the bar itself
+          and taps on the page never closed the menu. */}
       {isMoreOpen && (
-        <>
+        <div data-admin-theme={theme} className="contents md:hidden">
           <div
-            className="fixed inset-0 bg-black/20 z-40"
+            aria-hidden="true"
+            className="fixed inset-0 z-40 md:hidden"
             onClick={() => setIsMoreOpen(false)}
           />
-          <div className="absolute bottom-20 right-4 left-4 bg-[#1A2540] admin-light:bg-white border border-[#2A3A55] admin-light:border-[#E2E8F0] rounded-lg p-4 shadow-2xl z-50">
+          <div className="fixed bottom-20 right-4 left-4 bg-[#1A2540] admin-light:bg-white border border-[#2A3A55] admin-light:border-[#E2E8F0] rounded-lg p-4 shadow-2xl z-50 md:hidden">
             <div className="-mx-1 mb-3 pb-3 border-b border-[#2A3A55] admin-light:border-[#E2E8F0]">
               <div className="pr-1">
                 <AdminIdentity />
@@ -191,8 +197,8 @@ export function AdminBottomNav({ isMoreOpen, setIsMoreOpen, onSignOut }: AdminBo
               </button>
             </div>
           </div>
-        </>
+        </div>
       )}
-    </nav>
+    </>
   );
 }

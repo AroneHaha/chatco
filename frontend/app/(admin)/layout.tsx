@@ -118,8 +118,9 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
         <NotificationBell />
       </div>
       {/* min-h-0 is required: a flex item defaults to min-height:auto, which
-          refuses to shrink below its content and would re-break the scroll. */}
-      <main data-admin-theme={pageTheme} className={`flex-1 min-h-0 p-4 md:p-6 lg:p-8 pb-24 overflow-y-auto ${MAIN_LIGHT}`}>
+          refuses to shrink below its content and would re-break the scroll.
+          pb-20 = the fixed 64px (h-16) AdminBottomNav plus the same 16px gap as the sides. */}
+      <main data-admin-theme={pageTheme} className={`flex-1 min-h-0 p-4 md:p-6 lg:p-8 pb-20 overflow-y-auto ${MAIN_LIGHT}`}>
         {children}
       </main>
       <AdminBottomNav

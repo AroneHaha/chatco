@@ -68,15 +68,15 @@ export function DashboardSettingsCarousel({ modules }: DashboardSettingsCarousel
             key={mod.title}
             href={mod.href}
             onClick={(e) => handleModuleClick(e, mod.href)}
-            className="shrink-0 w-70 h-35 rounded-lg p-5 flex flex-col justify-between group snap-start border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white hover:border-[#2A3A55] admin-light:hover:border-[#CBD5E1] hover:bg-[#131C2E] admin-light:hover:bg-[#F8FAFC] transition-colors"
+            className="shrink-0 w-70 rounded-lg p-5 group snap-start border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white hover:border-[#2A3A55] admin-light:hover:border-[#CBD5E1] hover:bg-[#131C2E] admin-light:hover:bg-[#F8FAFC] transition-colors"
           >
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 bg-[#1A2540] admin-light:bg-[#F1F5F9] text-slate-400 admin-light:text-slate-500">
-              <mod.icon className="w-5 h-5" />
-            </div>
-            <div>
+            <div className="flex items-center gap-3">
+              <span className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 border border-[#2A3A55] admin-light:border-[#CBD5E1] text-slate-400 admin-light:text-slate-500">
+                <mod.icon className="w-4 h-4" />
+              </span>
               <h3 className="text-sm font-semibold text-white admin-light:text-slate-900">{mod.title}</h3>
-              <p className="text-xs text-slate-400 admin-light:text-slate-500 mt-1 leading-relaxed">{mod.desc}</p>
             </div>
+            <p className="text-xs text-slate-400 admin-light:text-slate-500 mt-3 leading-relaxed">{mod.desc}</p>
           </Link>
         ))}
       </div>
