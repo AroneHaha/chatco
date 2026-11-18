@@ -5,7 +5,11 @@ import { motion, useReducedMotion } from "framer-motion";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
+import Image, { type StaticImageData } from "next/image";
 import { Hand, MapPin, Wallet, type LucideIcon } from "lucide-react";
+import trackingImg from "../../assets/tracking.png";
+import hailingImg from "../../assets/hailing.png";
+import paymentImg from "../../assets/payment.webp";
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
@@ -16,6 +20,9 @@ type Step = {
   title: string;
   desc: string;
   icon: LucideIcon;
+  image: StaticImageData;
+  /** object-position for the 4:3 crop */
+  focus: string;
 };
 
 const STEPS: Step[] = [
@@ -24,24 +31,35 @@ const STEPS: Step[] = [
     title: "Track nearby units",
     desc: "See CHATCO jeeps on the live map before you head out. No more blind waiting by the road: you know how far the next unit is and when to start walking.",
     icon: MapPin,
+    image: trackingImg,
+    // Portrait shot: keep the phone in frame when cropped to 4:3.
+    focus: "object-[50%_45%]",
   },
   {
     step: "02",
     title: "Hail your ride",
     desc: "Press and hold the hail button and conductors of units within 1 km see your location on their map, so the jeep knows to stop for you.",
     icon: Hand,
+    image: hailingImg,
+    focus: "object-center",
   },
   {
     step: "03",
     title: "Pay cash or GCash",
     desc: "Pay the conductor in cash, or scan the conductor's QR to pay with GCash. GCash rides count toward free-ride rewards automatically.",
     icon: Wallet,
+    image: paymentImg,
+    focus: "object-center",
   },
 ];
 
-/* Empty step frame, kept at the cards' size until the step images are ready. */
-function StepFrame() {
-  return <div className="w-full aspect-4/3 min-h-60 overflow-hidden rounded-2xl border border-[#1E3F6E] bg-[#08203F]" />;
+function StepFrame({ image, focus }: { image: StaticImageData; focus: string }) {
+  return (
+    <div className="relative w-full aspect-4/3 min-h-60 overflow-hidden rounded-2xl border border-[#1E3F6E] bg-[#08203F]">
+      {/* Decorative: the step title below carries the meaning. */}
+      <Image src={image} alt="" fill sizes="(min-width: 1280px) 384px, (min-width: 768px) 33vw, 85vw" placeholder="blur" className={`object-cover ${focus}`} />
+    </div>
+  );
 }
 
 export default function HowItWorks() {
@@ -137,7 +155,7 @@ export default function HowItWorks() {
               >
                 <div data-step>
                   <div aria-hidden="true">
-                    <StepFrame />
+                    <StepFrame image={s.image} focus={s.focus} />
                   </div>
                   <div className="relative mt-7 flex h-11 items-center justify-center">
                     {i < STEPS.length - 1 && (
