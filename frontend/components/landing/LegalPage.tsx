@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft, ArrowUpRight, FileText, ShieldCheck } from "lucide-react";
 import logo from "../../assets/logo-transparent.png";
 import Footer from "./Footer";
+import LandingTheme from "./LandingTheme";
 import { POLICY_EFFECTIVE_DATE } from "@/lib/legal/registration-policies";
 
 export interface LegalSection {
@@ -18,32 +19,33 @@ export default function LegalPage({ kind, description, sections }: {
 }) {
   const title = kind === "privacy" ? "Privacy Policy" : "Terms of Service";
   const Icon = kind === "privacy" ? ShieldCheck : FileText;
-  const focus = "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#62A0EA]";
+  const focus = "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#62A0EA] light:focus-visible:outline-[#1A5FB4]";
 
   return (
+    <LandingTheme>
     <div className="min-h-screen bg-[#F0F7FF] font-sans text-gray-900">
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-[#071A2E]/95 backdrop-blur-xl">
+      <header className="sticky top-0 z-40 border-b border-white/10 bg-[#071A2E]/95 backdrop-blur-xl light:border-gray-200 light:bg-white/95">
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-4 px-5 md:px-8">
           <Link href="/" aria-label="E-CHATCO home" className={`flex items-center gap-3 rounded-md ${focus}`}>
             <Image src={logo} alt="" width={40} height={40} />
-            <span className="text-lg font-bold tracking-tight text-white">E-CHATCO</span>
+            <span className="text-lg font-bold tracking-tight text-white light:text-gray-900">E-CHATCO</span>
           </Link>
-          <Link href="/" className={`inline-flex items-center gap-2 rounded-md text-sm font-medium text-white/70 transition-colors hover:text-white ${focus}`}>
+          <Link href="/" className={`inline-flex items-center gap-2 rounded-md text-sm font-medium text-white/70 transition-colors hover:text-white light:text-gray-600 light:hover:text-gray-900 ${focus}`}>
             <ArrowLeft size={16} aria-hidden="true" /> Back to home
           </Link>
         </div>
       </header>
 
       <main>
-        <div className="bg-[#071A2E] text-white">
+        <div className="bg-[#071A2E] text-white light:bg-white light:text-gray-900 light:border-b light:border-[#DAEEFF]">
           <div className="mx-auto max-w-7xl px-5 pb-14 pt-14 md:px-8 md:pb-20 md:pt-20">
-            <span className="mb-6 grid h-16 w-16 place-items-center rounded-full border border-[#1C3350] bg-[#0E2440] text-white">
+            <span className="mb-6 grid h-16 w-16 place-items-center rounded-full border border-[#1C3350] bg-[#0E2440] text-white light:border-[#DAEEFF] light:bg-[#F0F7FF] light:text-[#1A5FB4]">
               <Icon size={32} strokeWidth={1.75} aria-hidden="true" />
             </span>
-            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#62A0EA]">Riding with E-CHATCO</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#62A0EA] light:text-[#1A5FB4]">Riding with E-CHATCO</p>
             <h1 className="mt-4 text-3xl font-bold leading-tight tracking-tight sm:text-4xl md:text-5xl">{title}</h1>
-            <p className="mt-5 max-w-2xl text-base leading-relaxed text-white/60 md:text-lg">{description}</p>
-            <p className="mt-4 text-sm text-white/60">Effective date: {POLICY_EFFECTIVE_DATE}</p>
+            <p className="mt-5 max-w-2xl text-base leading-relaxed text-white/60 light:text-gray-600 md:text-lg">{description}</p>
+            <p className="mt-4 text-sm text-white/60 light:text-gray-500">Effective date: {POLICY_EFFECTIVE_DATE}</p>
             <nav aria-label="Policies" className="mt-8 flex flex-wrap gap-3">
               {[
                 { label: "Privacy Policy", href: "/privacy-policy", active: kind === "privacy" },
@@ -52,7 +54,7 @@ export default function LegalPage({ kind, description, sections }: {
                 <Link key={policy.href} href={policy.href} aria-current={policy.active ? "page" : undefined}
                   className={`rounded-full border px-4 py-2.5 text-sm font-semibold transition-colors ${focus} ${policy.active
                     ? "border-[#1A5FB4] bg-[#1A5FB4] text-white"
-                    : "border-white/15 text-white/70 hover:border-white/30 hover:text-white"}`}>
+                    : "border-white/15 text-white/70 hover:border-white/30 hover:text-white light:border-gray-300 light:bg-white light:text-gray-700 light:hover:border-gray-400 light:hover:text-gray-900"}`}>
                   {policy.label}
                 </Link>
               ))}
@@ -102,5 +104,6 @@ export default function LegalPage({ kind, description, sections }: {
 
       <Footer />
     </div>
+    </LandingTheme>
   );
 }

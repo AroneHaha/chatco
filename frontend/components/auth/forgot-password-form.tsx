@@ -210,7 +210,7 @@ export default function ForgotPasswordForm({ onBusyChange, onReturnToLogin }: { 
                 </div>
                 <div>
                   <PasswordField id="confirm-new-password" label="Confirm new password" value={confirmation} onChange={setConfirmation} disabled={loading} invalid={!!error || confirmationMismatch} placeholder="Repeat your password" describedBy={confirmationMismatch ? "reset-confirm-error" : error ? "reset-error" : undefined} />
-                  {confirmationMismatch && <p id="reset-confirm-error" className="mt-2 text-xs text-[#fca5a5]">Passwords don&apos;t match. Re-enter the same password as above.</p>}
+                  {confirmationMismatch && <p id="reset-confirm-error" className="mt-2 text-xs text-[#fca5a5] light:text-red-600">Passwords don&apos;t match. Re-enter the same password as above.</p>}
                 </div>
               </form>
             </StepperStep>

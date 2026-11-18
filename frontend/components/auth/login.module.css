@@ -349,3 +349,62 @@
 @media (prefers-reduced-motion: reduce) {
   .recoveryStepLabel { transition: none; }
 }
+
+/* Light mode (landing appearance toggle, data-theme on <html>). The rules above
+   are dark at every breakpoint; the attribute selector outranks them, so this
+   block only swaps colours and leaves layout untouched. */
+:global([data-theme="light"]) .shell {
+  background: #f8fafc;
+  color: var(--login-navy);
+  scrollbar-color: #cbd5e1 #f8fafc;
+}
+:global([data-theme="light"]) .shell ::selection { background: #dbeafe; color: var(--login-navy); }
+:global([data-theme="light"]) .shell a:focus-visible,
+:global([data-theme="light"]) .shell button:focus-visible,
+:global([data-theme="light"]) .modal a:focus-visible,
+:global([data-theme="light"]) .modal button:focus-visible { outline-color: var(--login-blue); }
+:global([data-theme="light"]) .modal {
+  border: 1px solid #e2e8f0;
+  background: white;
+  color: var(--login-navy);
+  box-shadow: 0 24px 64px rgb(7 26 46 / .14);
+  scrollbar-color: #cbd5e1 white;
+}
+:global([data-theme="light"]) .modal::backdrop { background: rgb(7 26 46 / .45); }
+:global([data-theme="light"]) .modal .formHeading { color: var(--login-navy); }
+:global([data-theme="light"]) .modal .formIntro,
+:global([data-theme="light"]) .modal .recoveryHelp,
+:global([data-theme="light"]) .modal .close,
+:global([data-theme="light"]) .modal .passwordToggle { color: var(--login-muted); }
+:global([data-theme="light"]) .modal .close:hover,
+:global([data-theme="light"]) .modal .passwordToggle:hover { background: #f0f7ff; color: var(--login-blue); }
+:global([data-theme="light"]) .modal .label,
+:global([data-theme="light"]) .modal .fieldLabel { color: #334155; }
+:global([data-theme="light"]) .modal .input {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: var(--login-navy);
+  caret-color: var(--login-blue);
+}
+:global([data-theme="light"]) .modal .input::placeholder { color: #64748b; }
+:global([data-theme="light"]) .modal .input:hover { border-color: #94a3b8; }
+:global([data-theme="light"]) .modal .input:focus { border-color: #64748b; background: white; box-shadow: 0 0 0 1px rgb(100 116 139 / .18); }
+:global([data-theme="light"]) .modal .input[aria-invalid="true"] { border-color: #b91c1c; }
+:global([data-theme="light"]) .modal .input:-webkit-autofill { -webkit-text-fill-color: var(--login-navy); box-shadow: 0 0 0 1000px #f0f7ff inset; }
+:global([data-theme="light"]) .modal .input:-webkit-autofill:focus { box-shadow: 0 0 0 1000px #f0f7ff inset, 0 0 0 1px rgb(100 116 139 / .18); }
+:global([data-theme="light"]) .modal .textLink,
+:global([data-theme="light"]) .modal .recovery,
+:global([data-theme="light"]) .modal .recoveryNote,
+:global([data-theme="light"]) .modal .recoverySuccess { color: var(--login-blue); }
+:global([data-theme="light"]) .modal .textLink:hover { color: var(--login-blue-hover); }
+:global([data-theme="light"]) .modal .submit { background: var(--login-blue); color: white; }
+:global([data-theme="light"]) .modal .submit:hover { background: var(--login-blue-hover); }
+:global([data-theme="light"]) .modal .submit:active { background: var(--login-navy); }
+:global([data-theme="light"]) .modal .registration { border-color: #e2e8f0; color: var(--login-muted); }
+:global([data-theme="light"]) .modal .error { border-color: #fecaca; background: #fef2f2; color: #991b1b; }
+:global([data-theme="light"]) .modal .suspended { border-color: #fde68a; background: #fffbeb; color: #78350f; }
+:global([data-theme="light"]) .recoveryStepLabel { border-color: #e2e8f0; background: #f8fafc; color: #64748b; }
+:global([data-theme="light"]) .recoveryStepLabel[data-complete="true"] { color: var(--login-blue); border-color: rgb(26 95 180 / .35); }
+:global([data-theme="light"]) .recoveryStepLabel[aria-current="step"] { color: var(--login-blue); background: #f0f7ff; border-color: rgb(26 95 180 / .55); }
+:global([data-theme="light"]) .recoveryFlow :global(.react-bits-stepper.outer-container) { --step-accent: var(--login-blue); }
+:global([data-theme="light"]) .recoveryFlow :global(.react-bits-stepper .step-connector) { background: #e2e8f0; }

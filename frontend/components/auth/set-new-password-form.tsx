@@ -169,10 +169,10 @@ export function PasswordRules({ id, password }: { id: string; password: string }
       {PASSWORD_RULES.map((rule) => {
         const met = rule.test(password);
         return (
-          <li key={rule.id} className={`flex items-center gap-2 ${met ? "text-[#62A0EA]" : "text-white/60"}`}>
+          <li key={rule.id} className={`flex items-center gap-2 ${met ? "text-[#62A0EA] light:text-[#1A5FB4]" : "text-white/60 light:text-gray-500"}`}>
             {/* Fixed-width slot (dot until met, then a check) so labels don't shift. */}
             <span className="inline-flex w-[14px] justify-center" aria-hidden="true">
-              {met ? <Check size={14} strokeWidth={2.2} /> : <span className="h-1 w-1 rounded-full bg-white/40" />}
+              {met ? <Check size={14} strokeWidth={2.2} /> : <span className="h-1 w-1 rounded-full bg-white/40 light:bg-gray-400" />}
             </span>
             <span>
               {rule.label}

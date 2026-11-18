@@ -48,6 +48,7 @@ export function RejectedAccountDetailsModal({ isOpen, onClose, request }: Reject
     { label: 'First name', value: request.firstName },
     { label: 'Middle name', value: request.middleName },
     { label: 'Last name', value: request.surname },
+    { label: 'Suffix', value: request.suffix },
     { label: 'Birthdate', value: request.birthdate ? formatDate(request.birthdate) : null },
     { label: 'Gender', value: request.gender },
   ];

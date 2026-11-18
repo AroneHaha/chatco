@@ -74,7 +74,7 @@ export default function GsapWords({
               className={
                 "inline-block will-change-transform" +
                 (isAccent
-                  ? " bg-gradient-to-r from-[#62A0EA] to-[#99C1F1] bg-clip-text text-transparent"
+                  ? " bg-gradient-to-r from-[#62A0EA] to-[#99C1F1] bg-clip-text text-transparent light:bg-none light:text-[#1A5FB4]"
                   : "")
               }
             >

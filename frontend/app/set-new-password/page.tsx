@@ -3,6 +3,7 @@ import Footer from "@/components/landing/Footer";
 import SetNewPasswordForm from "@/components/auth/set-new-password-form";
 import SetPasswordHeader from "@/components/auth/set-password-header";
 import styles from "@/components/auth/login.module.css";
+import LandingTheme from "@/components/landing/LandingTheme";
 
 export const metadata: Metadata = {
   title: "Set your password",
@@ -16,6 +17,7 @@ export const metadata: Metadata = {
  */
 export default function SetNewPasswordPage() {
   return (
+    <LandingTheme>
     <div className={`${styles.shell} flex flex-col font-sans`}>
       <SetPasswordHeader />
 
@@ -35,5 +37,6 @@ export default function SetNewPasswordPage() {
 
       <Footer compact />
     </div>
+    </LandingTheme>
   );
 }

@@ -138,22 +138,22 @@ export default function IdCaptureModal({ onCapture, onClose }: IdCaptureModalPro
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#071A2E]/80 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#071A2E]/80 backdrop-blur-sm p-4 light:bg-[#071A2E]/45"
       onClick={handleClose}
     >
       <div
-        className="w-full max-w-md max-h-[calc(100dvh-32px)] overflow-y-auto bg-[#071A2E] text-[#F5F8FC] border border-[#62A0EA]/25 rounded-[20px] shadow-2xl"
+        className="w-full max-w-md max-h-[calc(100dvh-32px)] overflow-y-auto bg-[#071A2E] text-[#F5F8FC] border border-[#62A0EA]/25 rounded-[20px] shadow-2xl light:bg-white light:text-gray-900 light:border-gray-200"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-white/10">
-          <h3 className="text-sm font-semibold text-[#F5F8FC] leading-6">
+        <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-white/10 light:border-gray-200">
+          <h3 className="text-sm font-semibold text-[#F5F8FC] light:text-gray-900 leading-6">
             {capturedUrl ? "Review Your Photo" : "Take a Picture of Your ID"}
           </h3>
           <button
             type="button"
             onClick={handleClose}
             aria-label="Close"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/5 transition-colors -mr-2"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/5 light:text-gray-500 light:hover:text-gray-900 light:hover:bg-gray-100 transition-colors -mr-2"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -187,13 +187,13 @@ export default function IdCaptureModal({ onCapture, onClose }: IdCaptureModalPro
           <canvas ref={canvasRef} className="hidden" />
 
           {cameraError && (
-            <div className="mt-3 p-3 rounded-lg bg-amber-400/10 border border-amber-300/20">
-              <p className="text-xs text-amber-200 leading-relaxed">{cameraError}</p>
+            <div className="mt-3 p-3 rounded-lg bg-amber-400/10 border border-amber-300/20 light:bg-amber-50 light:border-amber-200">
+              <p className="text-xs text-amber-200 light:text-amber-800 leading-relaxed">{cameraError}</p>
             </div>
           )}
 
           {!cameraError && (
-            <p className="mt-3 text-xs text-[#93A5BA] text-center leading-relaxed">
+            <p className="mt-3 text-xs text-[#93A5BA] light:text-gray-500 text-center leading-relaxed">
               Make sure your ID is well-lit and every detail is readable.
             </p>
           )}
@@ -205,14 +205,14 @@ export default function IdCaptureModal({ onCapture, onClose }: IdCaptureModalPro
               <button
                 type="button"
                 onClick={handleRetake}
-                className="flex-1 min-h-11.5 py-3 px-3 rounded-[10px] text-[13px] font-semibold bg-transparent border border-white/12 text-[#BCCBDD] hover:bg-white/6 hover:border-white/25 transition-colors"
+                className="flex-1 min-h-11.5 py-3 px-3 rounded-[10px] text-[13px] font-semibold bg-transparent border border-white/12 text-[#BCCBDD] hover:bg-white/6 hover:border-white/25 light:bg-white light:border-gray-300 light:text-gray-700 light:hover:bg-gray-50 light:hover:border-gray-400 transition-colors"
               >
                 Retake
               </button>
               <button
                 type="button"
                 onClick={handleUsePhoto}
-                className="flex-1 min-h-11.5 py-3 px-3 rounded-[10px] text-[13px] font-semibold bg-[#62A0EA] text-[#071a2e] hover:bg-[#88B6EF] transition-colors"
+                className="flex-1 min-h-11.5 py-3 px-3 rounded-[10px] text-[13px] font-semibold bg-[#62A0EA] text-[#071a2e] hover:bg-[#88B6EF] light:bg-[#1A5FB4] light:text-white light:hover:bg-[#164A8F] transition-colors"
               >
                 Use This Photo
               </button>
@@ -222,7 +222,7 @@ export default function IdCaptureModal({ onCapture, onClose }: IdCaptureModalPro
               type="button"
               onClick={handleCapture}
               disabled={isStarting || !!cameraError}
-              className="flex-1 min-h-11.5 py-3 px-3 rounded-[10px] text-[13px] font-semibold bg-[#62A0EA] text-[#071a2e] hover:bg-[#88B6EF] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 min-h-11.5 py-3 px-3 rounded-[10px] text-[13px] font-semibold bg-[#62A0EA] text-[#071a2e] hover:bg-[#88B6EF] light:bg-[#1A5FB4] light:text-white light:hover:bg-[#164A8F] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Capture Photo
             </button>

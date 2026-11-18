@@ -91,7 +91,7 @@ export default function Hero() {
   );
 
   return (
-    <header ref={heroRef} className="relative z-10 overflow-hidden bg-[#071A2E] font-sans pt-24 pb-10 sm:pt-32 sm:pb-20 min-h-dvh flex flex-col justify-center lg:pt-0 lg:pb-0 lg:min-h-screen lg:flex-row lg:items-center">
+    <header ref={heroRef} className="relative z-10 overflow-hidden bg-[#071A2E] light:bg-white [--scrim:7_26_46] light:[--scrim:255_255_255] [--grid-line:255_255_255] light:[--grid-line:7_26_46] font-sans pt-24 pb-10 sm:pt-32 sm:pb-20 min-h-dvh flex flex-col justify-center lg:pt-0 lg:pb-0 lg:min-h-screen lg:flex-row lg:items-center">
       {/* The real CHATCO fleet, full bleed. A navy scrim keeps the copy on solid
           navy: flat over the whole photo below lg, fading out to the right on lg+
           so the units show beside the headline. The scrim runs under the docked
@@ -106,7 +106,7 @@ export default function Hero() {
         sizes="100vw"
         className="object-cover object-center"
       />
-      <div aria-hidden className="absolute inset-0 bg-[#071A2E]/85 lg:hidden" />
+      <div aria-hidden className="absolute inset-0 bg-[#071A2E]/85 light:bg-white/85 lg:hidden" />
       {/* lg+ scrim: a panel wider than the hero by the fade length, parked so its
           solid part ends at SOLID. The scroll scene slides it right to cover the photo. */}
       <div
@@ -116,7 +116,8 @@ export default function Hero() {
         style={{
           width: `calc(100% + ${FADE}px)`,
           transform: `translateX(calc(-100% + ${SOLID + FADE}px))`,
-          background: `linear-gradient(to right, #071A2E 0, #071A2E calc(100% - ${FADE}px), rgba(7,26,46,0.92) calc(100% - 720px), rgba(7,26,46,0.7) calc(100% - 540px), rgba(7,26,46,0.35) calc(100% - 300px), rgba(7,26,46,0) 100%)`,
+          // --scrim is the field colour (navy, or white in light mode) as an RGB triple.
+          background: `linear-gradient(to right, rgb(var(--scrim)) 0, rgb(var(--scrim)) calc(100% - ${FADE}px), rgb(var(--scrim) / 0.92) calc(100% - 720px), rgb(var(--scrim) / 0.7) calc(100% - 540px), rgb(var(--scrim) / 0.35) calc(100% - 300px), rgb(var(--scrim) / 0) 100%)`,
         }}
       />
       {/* Faint structural grid on the navy side only; on lg+ it fades out at --grid-edge, which follows the sweep. */}
@@ -124,10 +125,10 @@ export default function Hero() {
         aria-hidden
         data-hero-grid
         className="absolute inset-0 opacity-[0.03] pointer-events-none lg:mask-[linear-gradient(to_right,black_0,black_var(--grid-edge),transparent_calc(var(--grid-edge)+450px))]"
-        style={{ "--grid-edge": `${SOLID}px`, backgroundImage: "linear-gradient(rgba(255,255,255,.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.6) 1px, transparent 1px)", backgroundSize: "64px 64px" } as CSSProperties}
+        style={{ "--grid-edge": `${SOLID}px`, backgroundImage: "linear-gradient(rgb(var(--grid-line) / .6) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--grid-line) / .6) 1px, transparent 1px)", backgroundSize: "64px 64px" } as CSSProperties}
       />
       {/* How It Works' field colour, faded in at the end of the scroll scene. */}
-      <div aria-hidden data-hero-tint className="hidden lg:block absolute inset-0 bg-[#0C2A52] opacity-0 pointer-events-none" />
+      <div aria-hidden data-hero-tint className="hidden lg:block absolute inset-0 bg-[#0C2A52] light:bg-[#F0F7FF] opacity-0 pointer-events-none" />
 
       {/* Below lg, the Navbar's container; on lg+ the copy pins to a fixed left gutter instead of the centered container. */}
       <div className="relative z-10 w-full max-w-7xl mx-auto px-5 md:px-8 lg:max-w-none lg:px-28 xl:px-52 lg:pt-20">
@@ -138,31 +139,31 @@ export default function Hero() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: "easeOut" }}
           >
-            <p className="mb-5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#62A0EA] lg:hidden">
+            <p className="mb-5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#62A0EA] light:text-[#1A5FB4] lg:hidden">
               Built for your daily commute
             </p>
-            <h1 data-hero-title className="font-sans font-bold text-white leading-[1.1] lg:leading-[1.02] tracking-[-0.035em] text-[clamp(2rem,9vw,3rem)] sm:text-6xl lg:text-5xl xl:text-[64px]">
+            <h1 data-hero-title className="font-sans font-bold text-white light:text-gray-900 leading-[1.1] lg:leading-[1.02] tracking-[-0.035em] text-[clamp(2rem,9vw,3rem)] sm:text-6xl lg:text-5xl xl:text-[64px]">
               Know where <br />
               your jeep is. <br />
-              <span className="text-[#62A0EA]">Pay cashless.</span>
+              <span className="text-[#62A0EA] light:text-[#1A5FB4]">Pay cashless.</span>
             </h1>
 
-            <div data-hero-block className="hidden lg:block mt-11 h-px w-24 bg-white/15" />
+            <div data-hero-block className="hidden lg:block mt-11 h-px w-24 bg-white/15 light:bg-gray-300" />
 
-            <p data-hero-lead className="mt-5 mx-auto max-w-md text-sm sm:text-base lg:mx-0 lg:mt-8 lg:text-lg text-white/60 leading-[1.7]">
+            <p data-hero-lead className="mt-5 mx-auto max-w-md text-sm sm:text-base lg:mx-0 lg:mt-8 lg:text-lg text-white/60 light:text-gray-600 leading-[1.7]">
               Experience seamless commuting with real-time tracking, cashless QR payments, and smart safety features—all in your pocket.
             </p>
 
             <div data-hero-block className="mt-7 grid grid-cols-1 gap-3 sm:flex sm:items-center sm:justify-center lg:w-fit lg:justify-start lg:mt-9 lg:gap-8 shrink-0">
               <Link
                 href="/signup" scroll={false}
-                className="inline-flex items-center justify-center min-h-12 px-6 py-3 rounded-xl text-sm font-semibold whitespace-nowrap sm:px-8 lg:min-h-0 lg:py-4 lg:rounded-full lg:text-base bg-[#1A5FB4] text-white hover:bg-[#164A8F] transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#62A0EA]"
+                className="inline-flex items-center justify-center min-h-12 px-6 py-3 rounded-xl text-sm font-semibold whitespace-nowrap sm:px-8 lg:min-h-0 lg:py-4 lg:rounded-full lg:text-base bg-[#1A5FB4] text-white hover:bg-[#164A8F] transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#62A0EA] light:focus-visible:outline-[#1A5FB4]"
               >
                 Create Account
               </Link>
               <a
                 href="#features"
-                className="group inline-flex items-center justify-center gap-2 min-h-12 px-6 py-3 rounded-xl border border-[#1E2D45] bg-[#0B1120] text-sm font-medium whitespace-nowrap lg:min-h-0 lg:p-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:text-base text-white/70 hover:text-white transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#62A0EA]"
+                className="group inline-flex items-center justify-center gap-2 min-h-12 px-6 py-3 rounded-xl border border-[#1E2D45] bg-[#0B1120] text-sm font-medium whitespace-nowrap lg:min-h-0 lg:p-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:text-base text-white/70 hover:text-white max-lg:light:border-gray-200 max-lg:light:bg-white light:text-gray-600 light:hover:text-gray-900 transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#62A0EA] light:focus-visible:outline-[#1A5FB4]"
               >
                 Learn more
                 <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
@@ -170,11 +171,11 @@ export default function Hero() {
             </div>
 
             {/* The real, confirmed pilot corridor (PRODUCT.md). */}
-            <div data-hero-block className="mt-7 pt-6 border-t border-white/10 flex flex-wrap items-center justify-center gap-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/40 lg:w-fit lg:mt-16 lg:pt-0 lg:border-0 lg:justify-start lg:text-xs lg:tracking-[0.2em]">
+            <div data-hero-block className="mt-7 pt-6 border-t border-white/10 light:border-gray-200 flex flex-wrap items-center justify-center gap-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/40 light:text-gray-500 lg:w-fit lg:mt-16 lg:pt-0 lg:border-0 lg:justify-start lg:text-xs lg:tracking-[0.2em]">
               <span>Calumpit</span>
-              <span className="w-8 h-px bg-white/20" />
+              <span className="w-8 h-px bg-white/20 light:bg-gray-300" />
               <span>Meycauayan</span>
-              <span className="hidden sm:inline text-white/25">— Bulacan, Philippines</span>
+              <span className="hidden sm:inline text-white/25 light:text-gray-400">— Bulacan, Philippines</span>
             </div>
           </motion.div>
         </div>
