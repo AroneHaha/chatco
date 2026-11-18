@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { clearShift } from "@/lib/conductor/services/shift.service";
@@ -12,7 +12,11 @@ import {
 } from "@/lib/conductor/services/transactions.service";
 import { getPendingCashTransactions } from "@/lib/conductor/persistence/transactions.store";
 import { useRemittanceData } from "@/app/(conductor)/hooks/use-remittance-data";
-import { fmt } from "@/app/(conductor)/conductor-dashboard/end-of-day/helpers";
+import { fmt, fmtDate } from "@/app/(conductor)/conductor-dashboard/end-of-day/helpers";
+import Image from "next/image";
+import minibusFront from "@/assets/minibus-front.svg";
+import ConductorPortalHeader from "@/components/conductor/conductor-portal-header";
+import { useHideConductorNav } from "@/components/conductor/conductor-nav-visibility";
 
 import HistorySection, { filterRemittanceHistory, type RemittanceHistoryFilter } from "@/components/conductor/remittance/HistorySection";
 import ConfirmModal from "@/components/conductor/remittance/ConfirmModal";
@@ -36,10 +40,11 @@ import { UserAvatar } from "@/components/admin/ui/user-avatar";
  * so there is exactly one fetch/poll cycle regardless of which shell is
  * mounted — the page no longer needs its own copy of this hook.
  */
-export default function EndOfDayContent() {
+export default function EndOfDayContent({ fullPage = false }: { fullPage?: boolean }) {
   const router = useRouter();
   const { logout } = useAuth();
   const { shift, transactions, earnings, history, status, error } = useRemittanceData();
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const [showConfirm, setShowConfirm] = useState(false);
   const [isRemitting, setIsRemitting] = useState(false);
@@ -65,6 +70,16 @@ export default function EndOfDayContent() {
     const unremitted = history.filter((record) => record.remittanceStatus === "Not Remitted");
     return unremitted[unremitted.length - 1] ?? null;
   }, [history, shift]);
+
+  // The full page is settling an earlier day's shift (login and unit
+  // verification send the conductor here for it): no nav, since no tab is
+  // usable until it's remitted, and the unit-verification shell instead of the
+  // report chrome. Also while loading without a shift, so the nav doesn't flash
+  // in first. Held after remitting so it doesn't swap back while the success
+  // overlay is up and history refreshes the pending record away.
+  const settlingPastShift =
+    fullPage && !shift && (status === "loading" || pendingRemittance !== null || remittedPastShift.current);
+  useHideConductorNav(settlingPastShift);
 
   // Captured totals for the SuccessOverlay. We must store these in state
   // (not just local vars) because the overlay renders AFTER handleRemit
@@ -300,9 +315,35 @@ export default function EndOfDayContent() {
 
   const printReport = (record: RemittanceRecord) => printRemittanceReport(record, shiftInfo.route);
 
+  const handleSignOut = async () => {
+    if (isSigningOut) return;
+    setIsSigningOut(true);
+    await logout();
+  };
+
+  const modals = (
+    <>
+      <ConfirmModal show={showConfirm} onClose={() => setShowConfirm(false)} onConfirm={handleRemit} isRemitting={isRemitting} shiftInfo={shiftInfo} gcashTotal={summary.gcashTotal} cashTotal={summary.cashTotal} grandTotal={summary.grandTotal} totalPassengers={summary.totalPassengers} />
+
+      {/* SuccessOverlay uses captured totals so the values persist even
+          after endShift() clears the live shift data. */}
+      <SuccessOverlay
+        show={showSuccess}
+        onClose={() => { void logoutAfterRemittance(); }}
+        gcashTotal={capturedTotals?.gcashTotal ?? summary.gcashTotal}
+        cashTotal={capturedTotals?.cashTotal ?? summary.cashTotal}
+        grandTotal={capturedTotals?.grandTotal ?? summary.grandTotal}
+        unitNumber={shiftInfo.unitNumber}
+        redirectLabel={remittedPastShift.current ? "unit verification" : "login"}
+      />
+      <OfficialReportModal show={showOfficialReport} onClose={() => setShowOfficialReport(false)} activeReport={activeReport} route={shiftInfo.route} />
+    </>
+  );
+
+  let body: ReactNode;
   if (status === "loading") {
-    return (
-      <div className="px-4 pt-5 space-y-5 animate-pulse">
+    body = (
+      <div className={`space-y-5 animate-pulse ${settlingPastShift ? "" : "px-4 pt-5"}`}>
         <div className="h-20 bg-white/[0.04] light:bg-gray-200 rounded-2xl" />
         <div className="h-28 bg-white/[0.04] light:bg-gray-200 rounded-2xl" />
         <div className="h-48 bg-white/[0.04] light:bg-gray-200 rounded-2xl" />
@@ -310,16 +351,69 @@ export default function EndOfDayContent() {
         <div className="h-14 bg-white/[0.04] light:bg-gray-200 rounded-2xl" />
       </div>
     );
-  }
-
-  if (status === "error") {
-    return (
+  } else if (status === "error") {
+    body = (
       <div className="px-4 py-10 text-center">
         <p className="text-red-300 light:text-red-700 text-sm">{error}</p>
       </div>
     );
+  } else if (settlingPastShift) {
+    body = (
+      <PastShiftRemittance
+        date={pendingRemittance?.date ?? shiftInfo.timeIn}
+        unitNumber={shiftInfo.unitNumber}
+        driverName={shiftInfo.driverName}
+        timeIn={pendingRemittance?.timeIn}
+        timeOut={pendingRemittance?.timeOut}
+        totalPassengers={summary.totalPassengers}
+        cashTotal={summary.cashTotal}
+        gcashTotal={summary.gcashTotal}
+        grandTotal={summary.grandTotal}
+        canRemit={canRemit}
+        onRemit={() => setShowConfirm(true)}
+        submitError={submitError}
+      />
+    );
+  } else {
+    body = report();
   }
 
+  // Settling an earlier day's shift: unit verification's shell (no nav, narrow
+  // column, brand row with theme toggle and sign out) instead of report chrome.
+  if (settlingPastShift) {
+    return (
+      <div className="min-h-dvh bg-[#050F1A] light:bg-gray-50">
+        <div className="mx-auto w-full max-w-md px-4 py-4 sm:py-6 lg:max-w-lg">
+          <ConductorPortalHeader onSignOut={() => void handleSignOut()} isSigningOut={isSigningOut} />
+          {body}
+        </div>
+        {modals}
+      </div>
+    );
+  }
+
+  if (fullPage) {
+    return (
+      <div className="min-h-screen bg-[#050F1A] light:bg-gray-50 pb-28">
+        <div className="sticky top-0 z-20 bg-[#050F1A]/90 light:bg-gray-50 backdrop-blur-xl border-b border-white/5 light:border-gray-200">
+          <div className="flex items-center gap-3 px-4 py-3.5">
+            <h1 className="text-white light:text-gray-900 font-bold text-lg">End of Day Report</h1>
+          </div>
+        </div>
+        {body}
+        {modals}
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {body}
+      {modals}
+    </>
+  );
+
+  function report() {
   return (
     <>
       <div className="px-4 pt-5 space-y-5">
@@ -407,21 +501,94 @@ export default function EndOfDayContent() {
           <p className="text-center text-xs text-red-300 light:text-red-700">{submitError}</p>
         </div>
       )}
-
-      <ConfirmModal show={showConfirm} onClose={() => setShowConfirm(false)} onConfirm={handleRemit} isRemitting={isRemitting} shiftInfo={shiftInfo} gcashTotal={summary.gcashTotal} cashTotal={summary.cashTotal} grandTotal={summary.grandTotal} totalPassengers={summary.totalPassengers} />
-
-      {/* SuccessOverlay uses captured totals so the values persist even
-          after endShift() clears the live shift data. */}
-      <SuccessOverlay
-        show={showSuccess}
-        onClose={() => { void logoutAfterRemittance(); }}
-        gcashTotal={capturedTotals?.gcashTotal ?? summary.gcashTotal}
-        cashTotal={capturedTotals?.cashTotal ?? summary.cashTotal}
-        grandTotal={capturedTotals?.grandTotal ?? summary.grandTotal}
-        unitNumber={shiftInfo.unitNumber}
-        redirectLabel={remittedPastShift.current ? "unit verification" : "login"}
-      />
-      <OfficialReportModal show={showOfficialReport} onClose={() => setShowOfficialReport(false)} activeReport={activeReport} route={shiftInfo.route} />
     </>
+  );
+  }
+}
+
+const shortTime = (iso?: string) =>
+  iso ? new Date(iso).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" }) : null;
+
+/**
+ * Body of the "settle an earlier day's shift" screen, in unit verification's
+ * flat language: a step heading, a hairline-ruled unit row, one panel of
+ * totals, one full-width action.
+ */
+function PastShiftRemittance({
+  date, unitNumber, driverName, timeIn, timeOut, totalPassengers, cashTotal, gcashTotal, grandTotal, canRemit, onRemit, submitError,
+}: {
+  date: string;
+  unitNumber: string;
+  driverName: string;
+  timeIn?: string;
+  timeOut?: string;
+  totalPassengers: number;
+  cashTotal: number;
+  gcashTotal: number;
+  grandTotal: number;
+  canRemit: boolean;
+  onRemit: () => void;
+  submitError: string | null;
+}) {
+  const start = shortTime(timeIn);
+  const end = shortTime(timeOut);
+
+  return (
+    <div>
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 light:text-gray-500">Before your next shift</p>
+      <h1 className="mt-1 text-xl font-bold text-white light:text-gray-900">Remit your {fmtDate(String(date).slice(0, 10))} shift</h1>
+      <p className="mt-1 text-sm leading-relaxed text-slate-400 light:text-gray-600">
+        This shift was closed automatically while its collections were still with you. Remit it to the admin before you select a unit for today.
+      </p>
+
+      <div className="mt-5 flex items-center gap-3 border-y border-[#1C3350] light:border-gray-200 py-3">
+        <Image src={minibusFront} alt="" width={32} height={32} className="h-8 w-8 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 light:text-gray-500">Your unit</p>
+          <p className="truncate text-sm font-semibold text-white light:text-gray-900">
+            {unitNumber}
+            <span className="ml-2 font-medium text-slate-400 light:text-gray-600">{driverName}</span>
+          </p>
+        </div>
+        {start && end && (
+          <p className="shrink-0 text-xs font-medium tabular-nums text-slate-400 light:text-gray-600">{start} – {end}</p>
+        )}
+      </div>
+
+      <div className="mt-5 rounded-xl border border-[#1C3350] light:border-gray-200 bg-[#0B1E33] light:bg-white">
+        <div className="px-4 py-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 light:text-gray-500">Amount to remit</p>
+          <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-white light:text-gray-900">{fmt(grandTotal)}</p>
+          <p className="mt-1 text-xs text-slate-400 light:text-gray-600">
+            {totalPassengers} passenger{totalPassengers !== 1 ? "s" : ""}
+          </p>
+        </div>
+        <dl className="divide-y divide-[#1C3350] light:divide-gray-200 border-t border-[#1C3350] light:border-gray-200 text-sm">
+          <div className="flex items-center justify-between px-4 py-3">
+            <dt className="text-slate-400 light:text-gray-600">Cash</dt>
+            <dd className="font-semibold tabular-nums text-white light:text-gray-900">{fmt(cashTotal)}</dd>
+          </div>
+          <div className="flex items-center justify-between px-4 py-3">
+            <dt className="text-slate-400 light:text-gray-600">GCash</dt>
+            <dd className="font-semibold tabular-nums text-white light:text-gray-900">{fmt(gcashTotal)}</dd>
+          </div>
+        </dl>
+      </div>
+
+      <button
+        type="button"
+        onClick={onRemit}
+        disabled={!canRemit}
+        className="mt-6 inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-xl bg-[#1A5FB4] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#164A8F] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        Complete Pending Remittance
+      </button>
+
+      {submitError && (
+        <p role="alert" className="mt-3 rounded-xl border border-[#5C1F27] light:border-red-200 bg-[#2B1116] light:bg-red-50 px-4 py-2.5 text-xs font-medium text-red-300 light:text-red-700">
+          {submitError}
+        </p>
+      )}
+    </div>
   );
 }
