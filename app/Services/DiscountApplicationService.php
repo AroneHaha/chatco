@@ -241,7 +241,7 @@ class DiscountApplicationService
         $columns = DiscountApplication::SUMMARY_COLUMNS;
 
         return DiscountApplication::select($withDocument ? [...$columns, 'document_path'] : $columns)
-            ->with(['commuter:id,first_name,middle_name,surname,birthdate,gender,contact_number,username,commuter_type', 'commuter.user:id,email'])
+            ->with(['commuter:id,first_name,middle_name,suffix,surname,birthdate,gender,contact_number,username,commuter_type', 'commuter.user:id,email'])
             ->whereHas('commuter.user')
             // A sign-up's school details are reviewed with the pending
             // registration, not here, so nothing is reviewed twice.
@@ -353,7 +353,7 @@ class DiscountApplicationService
         }
         if ($admin) {
             $profile = $application->commuter;
-            $result['commuter'] = $profile->only(['id', 'first_name', 'middle_name', 'surname', 'birthdate', 'gender', 'contact_number', 'username', 'commuter_type']);
+            $result['commuter'] = $profile->only(['id', 'first_name', 'middle_name', 'suffix', 'surname', 'birthdate', 'gender', 'contact_number', 'username', 'commuter_type']);
             $result['commuter']['email'] = $profile->user->email;
             if ($withDocument && $application->document_path) {
                 $result['document_url'] = Storage::disk($this->documentDisk($application->document_path))->temporaryUrl($application->document_path, now()->addMinutes(10));
