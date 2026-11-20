@@ -11,6 +11,8 @@ interface UseConductorHailsResult {
   status: "loading" | "success" | "error" | "empty";
   error: string | null;
   refresh: () => Promise<void>;
+  /** Update one hail in place (optimistic accept); the next refresh reconciles. */
+  patchHail: (id: string, patch: Partial<ConductorHailRequest>) => void;
 }
 
 export function useConductorHails(
@@ -129,5 +131,9 @@ export function useConductorHails(
     };
   }, [pollMs, refresh, vehicleId]);
 
-  return { hails, status, error, refresh };
+  const patchHail = useCallback((id: string, patch: Partial<ConductorHailRequest>) => {
+    setHails((current) => current.map((hail) => (hail.id === id ? { ...hail, ...patch } : hail)));
+  }, []);
+
+  return { hails, status, error, refresh, patchHail };
 }

@@ -290,6 +290,60 @@ class RewardSettingsTest extends TestCase
         );
     }
 
+    public function test_gcash_ride_does_not_count_while_gcash_promo_is_off_and_cash_still_does(): void
+    {
+        $commuter = User::factory()->commuter()->create();
+        Setting::create(['key' => Setting::RIDES_FOR_FREE_REWARD_KEY, 'value' => '1', 'category' => 'financial']);
+        Setting::create(['key' => Setting::GCASH_PAYMENT_REWARD_KEY, 'value' => 'false', 'category' => 'financial']);
+        $shift = $this->createShift();
+        $ride = fn (string $id, PaymentMethod $method) => Transaction::forceCreate([
+            'transaction_id' => $id,
+            'shift_id' => $shift->shift_id,
+            'payment_method' => $method->value,
+            'status' => PaymentStatus::PAID->value,
+            'final_amount' => 15,
+            'passenger_id' => $commuter->commuterProfile->id,
+            'paid_at' => now(),
+            'reward_eligible' => true,
+        ]);
+        $service = app(RewardService::class);
+
+        $gcash = $ride('TXN-GCASH-OFF', PaymentMethod::GCASH);
+        $service->issueForRewardableRide($gcash, now());
+        $this->assertNull($gcash->fresh()->reward_earned_at);
+        $this->assertDatabaseCount('vouchers', 0);
+
+        // Only GCash is affected: a claimed cash ride still counts.
+        $service->issueForRewardableRide($ride('TXN-CASH-ON', PaymentMethod::CASH), now());
+        $this->assertDatabaseCount('vouchers', 1);
+
+        // Turning it back on counts the next GCash ride, not the one paid while off.
+        Setting::where('key', Setting::GCASH_PAYMENT_REWARD_KEY)->update(['value' => 'true']);
+        $service->issueForRewardableRide($ride('TXN-GCASH-ON', PaymentMethod::GCASH), now());
+        $this->assertDatabaseCount('vouchers', 2);
+        $this->assertNull($gcash->fresh()->reward_earned_at);
+    }
+
+    public function test_gcash_promo_toggle_is_admin_only_and_accepts_only_true_or_false(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $commuter = User::factory()->commuter()->create();
+        $save = fn (User $user, mixed $value) => $this->actingAs($user)->putJson(
+            '/api/v1/admin/settings/'.Setting::GCASH_PAYMENT_REWARD_KEY,
+            ['value' => $value, 'category' => 'financial'],
+        );
+
+        $this->assertTrue(Setting::gcashPaymentRewardEnabled(), 'on by default');
+        $save($commuter, 'false')->assertForbidden();
+        foreach (['', 'off', '0', 'TRUE'] as $invalid) {
+            $save($admin, $invalid)->assertStatus(422);
+        }
+        $this->assertTrue(Setting::gcashPaymentRewardEnabled());
+
+        $save($admin, 'false')->assertOk();
+        $this->assertFalse(Setting::gcashPaymentRewardEnabled());
+    }
+
     public function test_reducing_threshold_starts_fresh_progress_without_retroactive_vouchers(): void
     {
         $admin = User::factory()->admin()->create();

@@ -177,7 +177,10 @@ class RewardService
             && $transaction->status === PaymentStatus::PAID
             && $transaction->payment_method !== PaymentMethod::VOUCHER
             && $transaction->reward_eligible
-            && $transaction->payment_reconciliation_status === null;
+            && $transaction->payment_reconciliation_status === null
+            // Admin toggle. A GCash ride paid while it's off is never counted,
+            // even if it's turned back on; rides already counted stay counted.
+            && ($transaction->payment_method !== PaymentMethod::GCASH || Setting::gcashPaymentRewardEnabled());
     }
 
     private function rewardableRides(string $commuterId, int $ruleVersion): Builder

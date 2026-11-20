@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Enums\CapacityStatus;
 use App\Enums\HailStatus;
 use App\Events\HailCreated;
 use App\Events\HailStatusChanged;
+use App\Exceptions\HailCooldownException;
 use App\Exceptions\OutsideRadiusException;
 use App\Helpers\GeoHelper;
 use App\Models\Hail;
@@ -19,6 +21,14 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 class HailService
 {
     private const HAIL_TTL_MINUTES = 3;
+
+    /**
+     * After an accept, the accepting unit keeps the pickup pin this long and
+     * the commuter can't hail again until it passes. Both read the accepted
+     * hail's expires_at, so they always end together. 120s covers the full
+     * 1KM radius at the corridor's 30-50 km/h.
+     */
+    public const ACCEPTED_HOLD_SECONDS = 120;
 
     public function __construct(
         private ShiftDeviceService $shiftDeviceService,
@@ -60,9 +70,13 @@ class HailService
         return DB::transaction(function () use ($commuter, $vehicleId, $vehicleIds, $commuterLat, $commuterLng) {
             // Serializes a commuter's hail creation attempts without a global lock.
             User::query()->whereKey($commuter->id)->lockForUpdate()->firstOrFail();
-            if (Hail::query()->where('commuter_id', $commuter->id)->pending()->exists()) {
+            // A PENDING row past expires_at is dead even if no sweep marked it
+            // EXPIRED (the scheduler doesn't run in production), so it must
+            // not block a new hail.
+            if (Hail::query()->where('commuter_id', $commuter->id)->pending()->where('expires_at', '>', now())->exists()) {
                 abort(409, 'Duplicate pending hail');
             }
+            $this->releaseOrBlockAcceptedHail($commuter->id, $commuterLat, $commuterLng);
 
             $shifts = ShiftLog::query()
                 ->whereIn('vehicle_id', $vehicleIds)
@@ -170,6 +184,57 @@ class HailService
     }
 
     /**
+     * The cooldown after an accept: refuse a new hail while the accepting
+     * unit can still pick the commuter up. The cooldown ends early once that
+     * unit can't (shift ended, on break, offline, full, or more than 1KM from
+     * the commuter, i.e. it drove past); its pin is then hidden at once.
+     */
+    private function releaseOrBlockAcceptedHail(string $commuterId, float $commuterLat, float $commuterLng): void
+    {
+        $accepted = Hail::query()
+            ->where('commuter_id', $commuterId)
+            ->where('status', HailStatus::ACCEPTED->value)
+            ->where('expires_at', '>', now())
+            ->with('vehicle:id,unit_number,capacity_status')
+            ->first();
+        if (! $accepted) {
+            return;
+        }
+
+        if ($this->unitCanStillPickUp($accepted, $commuterLat, $commuterLng)) {
+            throw new HailCooldownException($accepted->vehicle?->unit_number, $accepted->vehicle_id, $accepted->expires_at);
+        }
+
+        $accepted->update(['expires_at' => now()]);
+        DB::afterCommit(fn () => broadcast(new HailStatusChanged($accepted)));
+    }
+
+    private function unitCanStillPickUp(Hail $accepted, float $commuterLat, float $commuterLng): bool
+    {
+        if ($accepted->vehicle?->capacity_status === CapacityStatus::FULL->value) {
+            return false;
+        }
+
+        // Unlocked reads: this only decides whether to wait, and the unit's
+        // state can change a second later anyway. Locking its shift here would
+        // break the sorted lock order createHail takes below.
+        $routes = [];
+        try {
+            $this->hailableDistance(
+                ShiftLog::query()->where('vehicle_id', $accepted->vehicle_id)->active()->first(),
+                VehicleLocation::query()->where('vehicle_id', $accepted->vehicle_id)->first(),
+                $commuterLat,
+                $commuterLng,
+                $routes,
+            );
+        } catch (HttpException|OutsideRadiusException) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
      * Cancels the hail and its copies on the other units in range (a commuter
      * has at most one pending hail, so their pending rows are those copies).
      * Copies go first: the picked unit's copy may already be closed, e.g. its
@@ -218,10 +283,14 @@ class HailService
         return $this->transitionHail($hailId, HailStatus::REJECTED, $conductor, $deviceId, $deviceType);
     }
 
-    public function getPendingHailsForVehicle(string $vehicleId): Collection
+    /**
+     * Hails shown on the unit's map: pending ones, plus the one it accepted
+     * until ACCEPTED_HOLD_SECONDS pass (its expires_at).
+     */
+    public function getVisibleHailsForVehicle(string $vehicleId): Collection
     {
         return Hail::query()
-            ->pending()
+            ->whereIn('status', [HailStatus::PENDING->value, HailStatus::ACCEPTED->value])
             ->forVehicle($vehicleId)
             ->where('expires_at', '>', now())
             ->with('commuter')
@@ -231,8 +300,10 @@ class HailService
 
     /**
      * Pending-only conditional transitions make repeated sweeps and competing
-     * accept/cancel/reject requests idempotent. The related shift is locked
-     * first everywhere, matching shift closeout's lock order.
+     * accept/cancel/reject requests idempotent. The commuter's user row is
+     * locked first (as createHail does), so transitions on one commuter's
+     * copies run one at a time and only one unit can accept. Then the shift,
+     * then the hail, matching shift closeout's lock order.
      */
     private function transitionHail(
         string $hailId,
@@ -243,6 +314,7 @@ class HailService
     ): Hail {
         return DB::transaction(function () use ($hailId, $target, $actor, $deviceId, $deviceType) {
             $candidate = Hail::query()->whereKey($hailId)->firstOrFail();
+            User::query()->whereKey($candidate->commuter_id)->lockForUpdate()->first();
             $shift = ShiftLog::query()
                 ->where('vehicle_id', $candidate->vehicle_id)
                 ->active()
@@ -269,12 +341,31 @@ class HailService
                 abort(409, 'Hail has expired');
             }
 
+            $accepting = $target === HailStatus::ACCEPTED;
             $hail->update([
                 'status' => $target->value,
-                'conductor_id' => $target === HailStatus::ACCEPTED ? $actor->id : $hail->conductor_id,
+                'conductor_id' => $accepting ? $actor->id : $hail->conductor_id,
+                // From here expires_at is when this unit's pin hides and the
+                // commuter's cooldown ends.
+                'expires_at' => $accepting ? now()->addSeconds(self::ACCEPTED_HOLD_SECONDS) : $hail->expires_at,
             ]);
             $hail->refresh();
             DB::afterCommit(fn () => broadcast(new HailStatusChanged($hail)));
+
+            if ($accepting) {
+                // Another unit is no longer needed: take the commuter's
+                // location off every other map in the same commit.
+                Hail::query()
+                    ->where('commuter_id', $hail->commuter_id)
+                    ->pending()
+                    ->whereKeyNot($hail->id)
+                    ->lockForUpdate()
+                    ->get()
+                    ->each(function (Hail $copy): void {
+                        $copy->update(['status' => HailStatus::CANCELLED->value]);
+                        DB::afterCommit(fn () => broadcast(new HailStatusChanged($copy)));
+                    });
+            }
 
             return $hail;
         }, 3);

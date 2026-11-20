@@ -1,12 +1,19 @@
 "use client";
 
-import { useCallback, useRef, useState, type ReactNode } from "react";
-import { X, ChevronDown } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { X, ChevronDown, Printer } from "lucide-react";
 import { AdminDatePicker } from "@/components/admin/ui/admin-date-picker";
 import {
   fetchShiftTransactionsPage,
   type Transaction,
 } from "@/lib/conductor/services/transactions.service";
+import {
+  DEFAULT_RECEIPT_SETTINGS,
+  fetchReceiptSettings,
+  type ReceiptSettings,
+} from "@/lib/conductor/services/receipt-settings.service";
+import TransactionReceipt from "@/components/conductor/receipt/transaction-receipt";
+import { getCommuterTypeLabel, type CommuterType } from "@/lib/shared/fare/fare-calculator";
 import { formatPeso } from "@/lib/utils/display";
 
 interface HistoryLogModalProps {
@@ -117,6 +124,20 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
   // Phones only: the filters fold away so the list gets the screen.
   const [filtersOpen, setFiltersOpen] = useState(false);
   const requestSeqRef = useRef(0);
+  // Reprint: the same admin receipt settings the payment receipt uses.
+  const [receiptSettings, setReceiptSettings] = useState<ReceiptSettings | null>(null);
+  const [printTx, setPrintTx] = useState<Transaction | null>(null);
+
+  // Print once the receipt for printTx has rendered (print styles show only
+  // .thermal-receipt), then drop it. window.print() blocks until the dialog closes.
+  useEffect(() => {
+    if (!printTx) return;
+    const timer = window.setTimeout(() => {
+      window.print();
+      setPrintTx(null);
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [printTx]);
 
   const loadPage = useCallback(
     async (
@@ -180,6 +201,11 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
       setTotalPages(1);
       setFilteredTotal(0);
       void loadPage(1, { method: "ALL", from: todayRange.from, to: todayRange.to });
+      if (!receiptSettings) {
+        void fetchReceiptSettings()
+          .then(setReceiptSettings)
+          .catch(() => setReceiptSettings(DEFAULT_RECEIPT_SETTINGS));
+      }
     }
   }
 
@@ -450,6 +476,15 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
                           <DetailRow label="Recorded">{displayDate}, {displayTime}</DetailRow>
                           <DetailRow label="Txn ID"><span className="font-mono text-[11px]">{tx.transactionId}</span></DetailRow>
                         </dl>
+                        <button
+                          type="button"
+                          onClick={() => setPrintTx(tx)}
+                          disabled={!receiptSettings || printTx !== null}
+                          className={`flex w-full items-center justify-center gap-2 py-2.5 ${neutralButtonClass}`}
+                        >
+                          <Printer size={16} aria-hidden="true" />
+                          {printTx?.transactionId === tx.transactionId ? "Printing…" : "Print receipt"}
+                        </button>
                       </div>
                     )}
                   </li>
@@ -476,6 +511,36 @@ export default function HistoryLogModal({ isOpen, onClose, shiftId }: HistoryLog
           </div>
         </div>
       </div>
+
+      {/* Print-only copy of the payment receipt, built the same way as the
+          one printed when the fare was recorded (fare-calculator-modal). */}
+      {printTx && receiptSettings && (
+        <div className="fixed left-0 top-0 hidden print:block">
+          <TransactionReceipt
+            settings={receiptSettings}
+            transactionId={printTx.transactionId}
+            timestamp={printTx.timestamp}
+            unitNumber={printTx.unitNumber || "—"}
+            conductorName={printTx.conductorName || "—"}
+            passengerType={printTx.passengerRole ? getCommuterTypeLabel(printTx.passengerRole as CommuterType) : "Regular"}
+            passengerName={printTx.paymentMethod === "Cash" ? "Passenger" : printTx.passengerName}
+            payerName={printTx.payerName}
+            groupPosition={printTx.groupPosition}
+            multiplePaymentReference={printTx.multiplePaymentReference}
+            driverName={printTx.driverName}
+            totalPassengers={printTx.totalPassengers ?? 1}
+            grossFare={printTx.grossAmount ?? printTx.baseFare}
+            passengerBreakdown={printTx.passengerBreakdown}
+            from={printTx.from || "—"}
+            to={printTx.to || "—"}
+            baseFare={printTx.baseFare}
+            discountAmount={printTx.discountAmount ?? 0}
+            finalFare={printTx.finalAmount}
+            paymentMethod={printTx.paymentMethod.startsWith("GCash") ? "GCash" : printTx.paymentMethod}
+            receiptQrToken={printTx.receiptQrToken ?? null}
+          />
+        </div>
+      )}
     </div>
   );
 }

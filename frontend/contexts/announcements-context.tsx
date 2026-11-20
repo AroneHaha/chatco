@@ -78,6 +78,11 @@ interface AnnouncementsContextValue {
   claimUpdatesUnreadCount: number;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
+  /** Older feed pages exist beyond the ones loaded. */
+  hasMore: boolean;
+  isLoadingMore: boolean;
+  /** Append the next feed page, so older announcements can be opened. */
+  loadMore: () => void;
   /** Marks every unread claim status-update announcement as read — called when the commuter opens the Claims tab. */
   markClaimUpdatesRead: () => void;
   refresh: () => Promise<void>;
@@ -92,6 +97,10 @@ export function AnnouncementsProvider({ children }: { children: React.ReactNode 
   const [isLoading, setIsLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
   const [claimUpdatesUnreadCount, setClaimUpdatesUnreadCount] = useState(0);
+  // Feed pagination: refresh() reloads page 1; loadMore() appends the next.
+  const [feedPage, setFeedPage] = useState(1);
+  const [feedLastPage, setFeedLastPage] = useState(1);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // Guards the poll against overwriting a just-applied optimistic decrement
   // with an in-flight response that was issued before the mark-read landed.
@@ -123,6 +132,8 @@ export function AnnouncementsProvider({ children }: { children: React.ReactNode 
       // existing rewards provider without another poll or an unbounded cache.
       voucherNoticeIds.current = new Set(voucherIds);
       setAnnouncements(items);
+      setFeedPage(result.page);
+      setFeedLastPage(result.lastPage);
       if (hasNewVoucherNotice) notifyRewardsChanged();
     } catch (err) {
       if (requestSequence !== feedRequestSequence.current) return;
@@ -137,6 +148,29 @@ export function AnnouncementsProvider({ children }: { children: React.ReactNode 
       if (requestSequence === feedRequestSequence.current) setIsLoading(false);
     }
   }, []);
+
+  const loadMore = useCallback(async () => {
+    if (isLoadingMore || feedPage >= feedLastPage) return;
+    // A refresh() started meanwhile replaces the feed; drop this page then.
+    const requestSequence = feedRequestSequence.current;
+    setIsLoadingMore(true);
+    try {
+      const result = await listAnnouncements({ page: feedPage + 1, perPage: FEED_PAGE_SIZE });
+      if (requestSequence !== feedRequestSequence.current) return;
+      const items = result.items.map(toCanonical);
+      // A new announcement shifts the pages by one; skip rows already shown.
+      setAnnouncements((prev) => {
+        const seen = new Set(prev.map((a) => a.id));
+        return [...prev, ...items.filter((a) => !seen.has(a.id))];
+      });
+      setFeedPage(result.page);
+      setFeedLastPage(result.lastPage);
+    } catch {
+      // Silent: the button stays, so the commuter can try again.
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [isLoadingMore, feedPage, feedLastPage]);
 
   const refreshCount = useCallback(async () => {
     try {
@@ -257,47 +291,42 @@ export function AnnouncementsProvider({ children }: { children: React.ReactNode 
     [announcements]
   );
 
-  // Derives its targets from the rendered list rather than from inside a state
-  // updater: updaters must stay pure (React double-invokes them in StrictMode),
-  // and firing the mark-read requests in there would send each one twice.
+  /**
+   * One server request that marks EVERY unread announcement read, including
+   * ones older than the loaded feed pages. Marking only the loaded items left
+   * an unread announcement beyond the first page unclearable, so the badge
+   * never went away.
+   */
   const markAllAsRead = useCallback(() => {
+    const amount = unreadCount;
+    const claimAmount = claimUpdatesUnreadCount;
     const targets = announcements.filter((a) => !a.isRead);
-    if (targets.length === 0) return;
+    if (amount === 0 && targets.length === 0) return;
 
     const targetIds = new Set(targets.map((t) => t.id));
-    const claimTargetCount = targets.filter((t) => t.type === "CLAIM_UPDATE").length;
     setAnnouncements((prev) =>
       prev.map((a) => (targetIds.has(a.id) ? { ...a, isRead: true } : a))
     );
-    setUnreadCount((c) => Math.max(0, c - targets.length));
+    setUnreadCount(0);
+    setClaimUpdatesUnreadCount(0);
     pendingWrites.current += 1;
-    if (claimTargetCount > 0) {
-      setClaimUpdatesUnreadCount((c) => Math.max(0, c - claimTargetCount));
-      pendingClaimWrites.current += 1;
-    }
+    pendingClaimWrites.current += 1;
 
-    Promise.allSettled(targets.map((t) => markAnnouncementRead(t.id)))
-      .then((results) => {
-        const failedIds = new Set(
-          results
-            .map((r, i) => (r.status === "rejected" ? targets[i].id : null))
-            .filter((id): id is string => id !== null)
+    markAllAnnouncementsRead()
+      .catch(() => {
+        setAnnouncements((prev) =>
+          prev.map((a) => (targetIds.has(a.id) ? { ...a, isRead: false } : a))
         );
-        if (failedIds.size > 0) {
-          setAnnouncements((cur) =>
-            cur.map((a) => (failedIds.has(a.id) ? { ...a, isRead: false } : a))
-          );
-        }
+        setUnreadCount(amount);
+        setClaimUpdatesUnreadCount(claimAmount);
       })
       .finally(() => {
         pendingWrites.current -= 1;
-        if (claimTargetCount > 0) pendingClaimWrites.current -= 1;
-        // Reconcile against the server: unread items beyond this page are
-        // untouched by "mark all", so the badge may legitimately stay > 0.
+        pendingClaimWrites.current -= 1;
         void refreshCount();
-        if (claimTargetCount > 0) void refreshClaimUpdatesCount();
+        void refreshClaimUpdatesCount();
       });
-  }, [announcements, refreshCount, refreshClaimUpdatesCount]);
+  }, [announcements, unreadCount, claimUpdatesUnreadCount, refreshCount, refreshClaimUpdatesCount]);
 
   /**
    * Marks every unread claim status-update announcement as read in one
@@ -349,6 +378,9 @@ export function AnnouncementsProvider({ children }: { children: React.ReactNode 
       claimUpdatesUnreadCount,
       markAsRead,
       markAllAsRead,
+      hasMore: feedPage < feedLastPage,
+      isLoadingMore,
+      loadMore: () => void loadMore(),
       markClaimUpdatesRead,
       refresh,
     }),
@@ -359,6 +391,10 @@ export function AnnouncementsProvider({ children }: { children: React.ReactNode 
       claimUpdatesUnreadCount,
       markAsRead,
       markAllAsRead,
+      feedPage,
+      feedLastPage,
+      isLoadingMore,
+      loadMore,
       markClaimUpdatesRead,
       refresh,
     ]

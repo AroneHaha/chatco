@@ -43,12 +43,15 @@ export function playProximitySound(): void {
 /**
  * Play a different sound for hail acceptance.
  * A pleasant three-tone chime.
+ *
+ * Pass an AudioContext already unlocked by a user gesture: the accept arrives
+ * by realtime event, and a context created outside a gesture starts muted.
  */
-export function playHailAcceptedSound(): void {
+export function playHailAcceptedSound(unlockedCtx?: AudioContext | null): void {
   if (typeof window === "undefined") return;
 
   try {
-    const ctx = new AudioContext();
+    const ctx = unlockedCtx ?? new AudioContext();
     const notes = [523.25, 659.25, 783.99]; // C5, E5, G5
     notes.forEach((freq, i) => {
       const osc = ctx.createOscillator();
