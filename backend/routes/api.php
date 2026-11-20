@@ -123,6 +123,10 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER', 'mainten
     Route::post('/student-renewal', [StudentRenewalController::class, 'submit'])->middleware('throttle:conductor-write');
     Route::post('/student-renewal/regular', [StudentRenewalController::class, 'regular'])->middleware('throttle:conductor-write');
     Route::post('/student-renewal/reminder', [StudentRenewalController::class, 'reminder'])->middleware('throttle:conductor-write');
+    Route::get('/pwd-renewal', [StudentRenewalController::class, 'pwdState'])->middleware('throttle:commuter-read');
+    Route::post('/pwd-renewal', [StudentRenewalController::class, 'pwdSubmit'])->middleware('throttle:conductor-write');
+    Route::post('/pwd-renewal/regular', [StudentRenewalController::class, 'pwdRegular'])->middleware('throttle:conductor-write');
+    Route::post('/pwd-renewal/reminder', [StudentRenewalController::class, 'pwdReminder'])->middleware('throttle:conductor-write');
     Route::put('/profile', [CommuterController::class, 'updateProfile'])->middleware('throttle:conductor-write');
         Route::post('/profile/photo', [CommuterController::class, 'uploadProfilePhoto'])->middleware('throttle:conductor-write');
     Route::get('/change-email', [EmailChangeController::class, 'state'])->middleware('throttle:commuter-read');

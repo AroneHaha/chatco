@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
             contactNumber: backend.profile.contact_number ?? null,
             commuterType: backend.profile.commuter_type ?? "REGULAR",
             appliedType: backend.profile.applied_type ?? undefined,
+            pwdValidUntil: backend.profile.pwd_valid_until ?? null,
             username: backend.profile.username ?? backend.profile.generated_username,
             languagePreference: backend.profile.language_preference ?? "English",
             accountStatus: backend.profile.account_status ?? "ACTIVE",

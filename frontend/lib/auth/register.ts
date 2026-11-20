@@ -36,6 +36,8 @@ export interface RegisterInput extends RegistrationAgreement {
   /** A Student's school details (school_name, education_level, grade_level,
    *  school_year, enrollment_term), the same fields renewal asks for. */
   student_details?: Record<string, string>;
+  /** A PWD's card "Valid until" date ('YYYY-MM-DD'). */
+  valid_until?: string;
 }
 
 export interface RegisterResult {
@@ -90,6 +92,7 @@ export async function register(input: RegisterInput): Promise<RegisterResult> {
   if (input.applied_type === "STUDENT") {
     for (const [key, value] of Object.entries(input.student_details ?? {})) formData.append(key, value);
   }
+  if (input.applied_type === "PWD" && input.valid_until) formData.append("valid_until", input.valid_until);
 
   const res = await fetch("/api/auth/register", {
     method: "POST",

@@ -1499,7 +1499,7 @@ class AdminService
         return [
             'adminProfile:id,first_name,middle_name,last_name,profile_picture_url',
             'conductorProfile:id,first_name,middle_name,last_name,generated_username,status,profile_picture_url',
-            'commuterProfile:id,first_name,middle_name,suffix,surname,birthdate,gender,contact_number,commuter_type,applied_type,account_status,verified_at,username,id_image_url,profile_image_url,student_discount_expires_at',
+            'commuterProfile:id,first_name,middle_name,suffix,surname,birthdate,gender,contact_number,commuter_type,applied_type,account_status,verified_at,username,id_image_url,profile_image_url,student_discount_expires_at,pwd_valid_until',
             'activeSuspension',
         ];
     }
@@ -1589,7 +1589,7 @@ class AdminService
             'suffix' => $commuter?->suffix,
             'last_name' => $commuter?->surname,
             'account_status' => $accountStatus,
-            'student_renewal_required' => $commuter && ! $suspension && app(StudentRenewalService::class)->isForRenewal($commuter),
+            'student_renewal_required' => $commuter && ! $suspension && (app(StudentRenewalService::class)->isForRenewal($commuter) || app(PwdRenewalService::class)->isForRenewal($commuter)),
             'commuter_type' => $commuter?->commuter_type,
             'applied_type' => $commuter?->applied_type,
             'username' => $commuter?->username,
@@ -1652,7 +1652,7 @@ class AdminService
                 $this->applySearch($query, trim($search));
             })
             ->with([
-                'commuterProfile:id,first_name,middle_name,suffix,surname,birthdate,gender,email,contact_number,commuter_type,applied_type,account_status,id_image_url,profile_image_url,verified_at,rejection_reason,username,language_preference',
+                'commuterProfile:id,first_name,middle_name,suffix,surname,birthdate,gender,email,contact_number,commuter_type,applied_type,account_status,id_image_url,profile_image_url,verified_at,rejection_reason,username,language_preference,pwd_valid_until',
                 // School details a Student filed at sign-up, reviewed here with the ID.
                 'commuterProfile.discountApplications' => fn ($query) => $query
                     ->where('request_type', 'APPLICATION')
@@ -1688,6 +1688,8 @@ class AdminService
             return [
                 // Null for non-students and for sign-ups made before school details were asked.
                 'student_details' => $school?->only(['school_name', 'education_level', 'grade_level', 'school_year', 'enrollment_term']),
+                // Null for non-PWD and for PWD sign-ups made before the card date was asked.
+                'pwd_valid_until' => $c?->pwd_valid_until?->toDateString(),
                 'id' => $user->id,
                 'email' => $user->email,
                 'first_name' => $c?->first_name,

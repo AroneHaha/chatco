@@ -60,6 +60,8 @@ class AuthRegisterTest extends TestCase
             'education_level' => 'COLLEGE',
             'school_year' => '2026-2027',
             'enrollment_term' => '1st Semester',
+            // PWDs give their card's valid-until date (ignored for other types).
+            'valid_until' => now()->addYears(2)->toDateString(),
             'terms_accepted' => true,
             'privacy_acknowledged' => true,
             'registration_confirmed' => true,

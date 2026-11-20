@@ -12,7 +12,7 @@ import CodeInput from "@/components/auth/code-input";
 import { AdminDatePicker } from "@/components/admin/ui/admin-date-picker";
 import { CONTACT_NUMBER_PATTERN, CONTACT_NUMBER_ERROR, formatContactNumberInput } from "@/lib/utils/format";
 import { PASSWORD_RULES } from "@/lib/utils/password-policy";
-import { useDiscountProof } from "@/components/commuter/discount-proof-fields";
+import { dayAfter, PWD_MAX_YEAR, useDiscountProof } from "@/components/commuter/discount-proof-fields";
 import { EDUCATION_LABELS, ENROLLMENT_TERMS, HIGH_SCHOOL_GRADES, type EducationLevel } from "@/lib/shared/services/student-renewal.service";
 
 // Camera-dependent, so it stays out of the initial bundle and off the server.
@@ -66,7 +66,7 @@ const STEP_COPY: Record<number, { title: string; subtitle: string }> = {
  */
 const FIELD_STEP: Record<string, number> = {
   first_name: 1, middle_name: 1, suffix: 1, surname: 1, birthdate: 1, gender: 1, applied_type: 1,
-  school_name: 1, education_level: 1, grade_level: 1, school_year: 1, enrollment_term: 1,
+  school_name: 1, education_level: 1, grade_level: 1, school_year: 1, enrollment_term: 1, valid_until: 1,
   email: 2, contact_number: 2, id_image: 2,
   username: 4, password: 4, password_confirmation: 4,
 };
@@ -108,6 +108,9 @@ export default function SignupForm({ onBusyChange, initialMaintenanceMessage = n
   // onsite registration use. The proof document is the step 2 ID upload.
   const school = useDiscountProof();
   const isStudent = formData.appliedType === "STUDENT";
+  const isPwd = formData.appliedType === "PWD";
+  // The PWD card's "Valid until" date, 'YYYY-MM-DD'.
+  const [pwdValidUntil, setPwdValidUntil] = useState("");
   const [idImage, setIdImage] = useState<File | null>(null);
   // Admin setting "Force Valid ID Upload" (public via /api/system-status).
   // Defaults to required, so a failed or slow lookup never relaxes the rule.
@@ -267,6 +270,10 @@ export default function SignupForm({ onBusyChange, initialMaintenanceMessage = n
         if (school.educationLevel === "HIGH_SCHOOL" && !school.gradeLevel) errors.grade_level = ["Select your grade level."];
         if (!school.schoolYear.trim()) errors.school_year = ["Enter the school year."];
         if (school.educationLevel === "COLLEGE" && !school.term.trim()) errors.enrollment_term = ["Select your enrollment term."];
+      }
+      if (isPwd) {
+        if (!pwdValidUntil) errors.valid_until = ["Enter the valid-until date printed on your PWD ID."];
+        else if (pwdValidUntil < dayAfter()) errors.valid_until = ["The valid-until date must be in the future."];
       }
     }
 
@@ -503,6 +510,7 @@ export default function SignupForm({ onBusyChange, initialMaintenanceMessage = n
         id_image: idImage,
         // Only text fields here (no document), so every value is a string.
         student_details: isStudent ? Object.fromEntries(school.formData(true, false)) as Record<string, string> : undefined,
+        valid_until: isPwd ? pwdValidUntil : undefined,
       });
 
       // Success — show pending review screen (no auto-login)
@@ -795,6 +803,36 @@ export default function SignupForm({ onBusyChange, initialMaintenanceMessage = n
                 {getFieldError("applied_type") && <p className={errorClasses}>{getFieldError("applied_type")}</p>}
               </div>
             </div>
+
+            {/* PWD only: the date printed on the card. The PWD ID itself is
+                uploaded on step 2. */}
+            {isPwd && (
+              <section aria-labelledby="signup-pwd-heading" className={styles.schoolDetails}>
+                <h3 id="signup-pwd-heading" className={styles.schoolHeading}>PWD card</h3>
+                <p className={styles.schoolNote}>Reviewed with your PWD ID before your discount is approved.</p>
+                <label htmlFor="pwdValidUntil" className={labelClasses}>Valid until *</label>
+                <AdminDatePicker
+                  id="pwdValidUntil"
+                  value={pwdValidUntil}
+                  onChange={(value) => { setPwdValidUntil(value); clearFieldError("valid_until"); }}
+                  ariaLabel="PWD card valid until"
+                  invalid={Boolean(getFieldError("valid_until"))}
+                  errorId="signup-valid-until-error"
+                  clearLabel="Clear valid-until date"
+                  placeholder="Select date"
+                  min={dayAfter()}
+                  max={`${PWD_MAX_YEAR}-12-31`}
+                  maxYear={PWD_MAX_YEAR}
+                  popover
+                  yearNavigation
+                  className={styles.datePicker}
+                  triggerClassName={`${inputClasses} ${styles.dateTrigger} ${errorRing("valid_until")}`}
+                />
+                {getFieldError("valid_until")
+                  ? <p id="signup-valid-until-error" className={errorClasses}>{getFieldError("valid_until")}</p>
+                  : <p className="mt-1.5 text-xs leading-relaxed text-[#8093aa]">The date printed on your PWD ID. Your discount runs until one month after this day.</p>}
+              </section>
+            )}
 
             {/* Student only: the school details renewal asks for. The student
                 ID / school form itself is uploaded on step 2. */}

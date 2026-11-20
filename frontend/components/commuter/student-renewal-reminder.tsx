@@ -7,7 +7,7 @@ import { ArrowRight, Bell } from "lucide-react";
 import { Modal } from "@/components/shared/modal";
 import { APP_DIALOG as D } from "@/components/shared/app-dialog-styles";
 import { useAuth } from "@/contexts/auth-context";
-import { getRenewalState, setRenewalReminder, type RenewalState } from "@/lib/shared/services/student-renewal.service";
+import { getRenewalState, RENEWAL_COPY, RENEWAL_PATH, setRenewalReminder, type RenewalState } from "@/lib/shared/services/student-renewal.service";
 
 const HOUR = 3_600_000;
 
@@ -29,7 +29,7 @@ function timeLeft(ms: number) {
 }
 
 /**
- * Pops up for a student whose renewal still needs action. Whether it is due is
+ * Pops up for a student or PWD whose renewal still needs action. Whether it is due is
  * decided by the backend (`reminder_due`), which also stores "remind me
  * tomorrow" and "never remind me" on the commuter's profile, so the choice
  * follows the account across logouts and devices.
@@ -41,23 +41,27 @@ export default function StudentRenewalReminder() {
   const [loaded, setLoaded] = useState<{ renewal: RenewalState; at: number } | null>(null);
   const [closed, setClosed] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
-  const isStudent = commuterProfile?.commuterType === "STUDENT";
+  // Only current students and PWDs with a card date can be due; the backend
+  // answers 403 for a legacy PWD card, which simply shows nothing.
+  const kind = commuterProfile?.commuterType === "STUDENT" ? "STUDENT" : commuterProfile?.commuterType === "PWD" && commuterProfile.pwdValidUntil ? "PWD" : null;
+  const copy = RENEWAL_COPY[kind ?? "STUDENT"];
+  const pwd = kind === "PWD";
 
-  // One read per app load, and only for students: nobody else can be due.
+  // One read per app load, and only for that audience: nobody else can be due.
   useEffect(() => {
-    if (!isStudent) return;
+    if (!kind) return;
     const controller = new AbortController();
-    getRenewalState(controller.signal)
+    getRenewalState(controller.signal, kind)
       .then(renewal => { if (!controller.signal.aborted) setLoaded({ renewal, at: Date.now() }); })
       .catch(() => {});
     return () => controller.abort();
-  }, [isStudent]);
+  }, [kind]);
 
   // Reaching the renewal page counts as having seen the reminder. Without this
   // the copy fetched at load would pop up again right after proof is submitted.
-  if (pathname === "/student-renewal" && !closed) setClosed(true);
+  if (kind && pathname === RENEWAL_PATH[kind] && !closed) setClosed(true);
 
-  const open = isStudent && !closed && loaded?.renewal.reminder_due === true;
+  const open = kind !== null && !closed && loaded?.renewal.reminder_due === true;
 
   useEffect(() => {
     if (!open) return;
@@ -86,7 +90,7 @@ export default function StudentRenewalReminder() {
   // fails the reminder simply shows again on the next visit.
   const choose = (action: "snooze" | "dismiss") => {
     setClosed(true);
-    setRenewalReminder(action).catch(() => {});
+    setRenewalReminder(action, kind ?? "STUDENT").catch(() => {});
   };
 
   const opensAt = new Date(renewal.opens_at).getTime();
@@ -104,12 +108,12 @@ export default function StudentRenewalReminder() {
     : notOpenYet ? { label: "Renewal opens", value: formatDay(opensAt) }
       : { label: passed ? "Renewal closed" : "Renewal closes", value: lastDay };
   const message = correctionDue
-    ? "Check the reviewer’s note and send your corrected proof before the correction deadline."
+    ? `Check the reviewer’s note and send your corrected ${copy.proofShort} before the correction deadline.`
     : notOpenYet
-      ? "Have your current school ID or enrollment proof ready for when submissions open."
+      ? `Have ${copy.ready} ready for when submissions open.`
       : !renewal.discount_eligible
-        ? "Regular fares apply until your renewal is approved. Submit your current school ID or enrollment proof to restore your student discount."
-        : "Submit your current school ID or enrollment proof to keep your student discount.";
+        ? `Regular fares apply until your renewal is approved. Submit ${copy.ready} to restore your ${copy.discount}.`
+        : `Submit ${copy.ready} to keep your ${copy.discount}.`;
 
   return (
     <div ref={dialogRef} className="relative z-100">
@@ -117,7 +121,7 @@ export default function StudentRenewalReminder() {
         <div className="flex items-start gap-3 pr-8">
           <Bell size={30} aria-hidden="true" className={`shrink-0 ${D.blueIcon}`} />
           <div className="min-w-0">
-            <h2 className="text-lg font-semibold leading-snug text-white light:text-gray-900">{correctionDue ? "Enrollment proof needs a correction" : "Student renewal reminder"}</h2>
+            <h2 className="text-lg font-semibold leading-snug text-white light:text-gray-900">{correctionDue ? (pwd ? "PWD ID needs a correction" : "Enrollment proof needs a correction") : pwd ? "PWD renewal reminder" : "Student renewal reminder"}</h2>
             <p className="mt-1.5 text-sm leading-relaxed text-white/70 light:text-gray-600">{message}</p>
           </div>
         </div>
@@ -134,8 +138,8 @@ export default function StudentRenewalReminder() {
         </dl>
 
         <div className="mt-5 flex flex-col gap-2">
-          <Link href="/student-renewal" onClick={() => setClosed(true)} className={`${D.button} ${D.primary} w-full`}>
-            {renewal.can_submit ? (correctionDue ? "Submit corrected proof" : "Renew student status") : "View renewal status"}
+          <Link href={RENEWAL_PATH[kind ?? "STUDENT"]} onClick={() => setClosed(true)} className={`${D.button} ${D.primary} w-full`}>
+            {renewal.can_submit ? (correctionDue ? copy.correctedAction : copy.renewAction) : "View renewal status"}
             <ArrowRight size={16} aria-hidden="true" />
           </Link>
           {/* Stacked, not side by side: the panel is max-w-sm, so two columns

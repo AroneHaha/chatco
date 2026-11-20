@@ -38,12 +38,13 @@ export function DiscountApplicationEntry({ commuterType, onClassificationChanged
   </div>;
   const application = state?.application;
   const renewal = application?.request_type === 'RENEWAL';
+  const renewalLabel = application?.requested_type === 'PWD' ? 'PWD renewal' : 'Student renewal';
   const category = application ? DISCOUNT_CATEGORIES[application.requested_type] : '';
   // Cancelled or legacy expired requests leave nothing open, so the commuter
   // is offered a fresh application.
   const status = state && application && !['CANCELLED', 'EXPIRED'].includes(state.status) ? state.status : 'NOT_APPLIED';
   const content = !state ? { text: 'Unable to load your discount application status.', link: 'View application status' }
-    : renewal ? { text: `Student renewal: ${APPLICATION_LABELS[status]}`, link: 'View Student renewal' }
+    : renewal ? { text: `${renewalLabel}: ${APPLICATION_LABELS[status]}`, link: `View ${renewalLabel}` }
     : status === 'PENDING' ? { text: 'Your discount application is currently under review. Check here for updates on your application status.', link: 'View application status' }
     : status === 'NEEDS_CORRECTION' ? { text: `An admin asked for a correction to your ${category} discount application. Send corrected documents to continue the review.`, link: 'Update your application' }
     : status === 'REJECTED' ? { text: `Your ${category} discount application was not approved.`, link: 'Apply again' }
@@ -58,7 +59,7 @@ export function DiscountApplicationEntry({ commuterType, onClassificationChanged
     </p>
     {(status === 'REJECTED' || status === 'NEEDS_CORRECTION') && application?.reason && <p className="mt-1 wrap-break-word text-white/70 light:text-gray-600"><span className="text-white/50 light:text-gray-500">Reason: </span>{application.reason}</p>}
     {failed && <p className="mt-1 text-xs text-white/50 light:text-gray-500">Open your application to check its latest status.</p>}
-    <Link href={renewal ? '/student-renewal' : '/discount-application'} onClick={() => window.dispatchEvent(new Event('commuter:close-popovers'))} className={`mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-5 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#99C1F1] sm:w-auto sm:inline-flex ${primary ? 'bg-[#1A5FB4] text-white hover:bg-[#164A8F]' : 'border border-[#2A4A70] bg-[#13283F] text-white hover:bg-[#1A3350] light:border-gray-200 light:bg-white light:text-gray-800 light:hover:bg-gray-50'}`}>
+    <Link href={renewal ? (application?.requested_type === 'PWD' ? '/pwd-renewal' : '/student-renewal') : '/discount-application'} onClick={() => window.dispatchEvent(new Event('commuter:close-popovers'))} className={`mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-5 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#99C1F1] sm:w-auto sm:inline-flex ${primary ? 'bg-[#1A5FB4] text-white hover:bg-[#164A8F]' : 'border border-[#2A4A70] bg-[#13283F] text-white hover:bg-[#1A3350] light:border-gray-200 light:bg-white light:text-gray-800 light:hover:bg-gray-50'}`}>
       {content.link}
       {primary && <ArrowRight size={16} aria-hidden="true" />}
     </Link>

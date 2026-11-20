@@ -52,6 +52,8 @@ class DiscountApplicationTest extends TestCase
             'requested_type' => $type, 'document' => UploadedFile::fake()->image('proof.png'),
             'school_name' => 'Test University', 'education_level' => 'COLLEGE',
             'school_year' => '2027-2028', 'enrollment_term' => '1st Semester',
+            // Only PWD requests keep this; other categories exclude it.
+            'valid_until' => now()->addYears(3)->toDateString(),
         ];
     }
 

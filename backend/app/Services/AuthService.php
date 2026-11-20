@@ -452,6 +452,8 @@ class AuthService
                     'language_preference' => $data['language_preference'] ?? 'English',
                     'account_status' => 'PENDING',
                     'id_image_url' => $idImagePath,
+                    // Reviewed with the PWD ID; the discount lapses a month after it.
+                    'pwd_valid_until' => $data['applied_type'] === 'PWD' ? $data['valid_until'] : null,
                     'verified_at' => null,
                     'rejection_reason' => null,
                     'terms_version' => $data['terms_version'],

@@ -9,7 +9,7 @@ import { ReviewRequestModal } from '@/components/admin/users/review-request-moda
 import { OperationResultModal } from '@/components/admin/ui/operation-result-modal';
 import { CommuterTypeLabel } from './commuter-type-label';
 import type { PendingRequest } from '@/app/(admin)/users/data/users-data';
-import { DISCOUNT_CATEGORIES, APPLICATION_LABELS, discountStatusLabel, renewalRequest, type DiscountApplication } from '@/lib/shared/services/student-renewal.service';
+import { DISCOUNT_CATEGORIES, APPLICATION_LABELS, discountStatusLabel, formatCardDate, renewalRequest, type DiscountApplication } from '@/lib/shared/services/student-renewal.service';
 
 interface ApplicationsPage {
   data: DiscountApplication[]; current_page: number; last_page: number;
@@ -111,7 +111,9 @@ export function DiscountApplicationsPanel({ initialId, onReviewed, registerActio
       ? <span className="inline-flex items-center gap-1.5 text-sm font-medium text-amber-200 admin-light:text-amber-700"><RotateCw size={14} aria-hidden="true" className="shrink-0" />Renewal</span>
       : <span className="text-sm font-medium text-[#99C1F1] admin-light:text-[#1A5FB4]">Application</span> },
     { key: 'requested_type', label: 'Discount category', cellClassName: 'whitespace-nowrap', render: (_: never, item: DiscountApplication) => <CommuterTypeLabel type={DISCOUNT_CATEGORIES[item.requested_type]} /> },
-    { key: 'school_name', label: 'Supporting details', render: (_: never, item: DiscountApplication) => item.requested_type === 'STUDENT' ? <div>{item.school_name}<p className="text-xs text-slate-400 admin-light:text-slate-500">{item.school_year}</p></div> : `${DISCOUNT_CATEGORIES[item.requested_type]} ID/card` },
+    { key: 'school_name', label: 'Supporting details', render: (_: never, item: DiscountApplication) => item.requested_type === 'STUDENT' ? <div>{item.school_name}<p className="text-xs text-slate-400 admin-light:text-slate-500">{item.school_year}</p></div>
+      : item.requested_type === 'PWD' && item.valid_until ? <div>PWD ID/card<p className="text-xs text-slate-400 admin-light:text-slate-500">Valid until {formatCardDate(item.valid_until)}</p></div>
+      : `${DISCOUNT_CATEGORIES[item.requested_type]} ID/card` },
     { key: 'submitted_at', label: 'Submitted', render: (_: never, item: DiscountApplication) => new Date(item.submitted_at).toLocaleDateString('en-PH') },
     { key: 'status', label: 'Status', render: (_: never, item: DiscountApplication) => discountStatusLabel(item) },
     { key: 'actions', label: 'Action', render: (_: never, item: DiscountApplication) => <button onClick={() => void open(item.id, undefined, item)} className="min-h-11 px-3 text-sm text-[#99C1F1] admin-light:text-[#1A5FB4]">{item.status === 'PENDING' ? 'Review' : 'View'}</button> },

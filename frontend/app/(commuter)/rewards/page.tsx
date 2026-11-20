@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import {
   AlertCircle, ArrowRight, Bell, CheckCheck, CheckCircle2, ChevronRight, CircleHelp,
-  Clock3, GraduationCap, Loader2, QrCode, RefreshCw, Ticket,
+  Accessibility, Clock3, GraduationCap, Loader2, QrCode, RefreshCw, Ticket,
 } from "lucide-react";
 import { VoucherWallet } from "@/components/commuter/rewards/voucher-wallet";
 import { PageTabs } from "@/components/admin/ui/page-tabs";
@@ -16,7 +16,7 @@ import { announcementCategory } from "@/lib/shared/announcement-category";
 import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
 import { useRewardsData } from "@/contexts/rewards-context";
-import { RENEWAL_LABELS, type RenewalState } from "@/lib/shared/services/student-renewal.service";
+import { RENEWAL_COPY, RENEWAL_LABELS, RENEWAL_PATH, type RenewalState } from "@/lib/shared/services/student-renewal.service";
 
 const ReceiptScanModal = dynamic(
   () => import("@/components/commuter/modals/receipt-scan-modal"),
@@ -257,7 +257,13 @@ export default function RewardsPage() {
             <p className="mt-2 text-xs text-white/50 light:text-gray-500">{formatDate(selectedAnnouncement.createdAt)}</p>
             <p className="mt-5 whitespace-pre-wrap break-words border-t border-white/10 pt-5 text-sm leading-relaxed text-white/70 light:border-gray-200 light:text-gray-600">{selectedAnnouncement.message}</p>
             {selectedAnnouncement.rawType?.startsWith('DISCOUNT_APPLICATION') && commuterProfile?.commuterType === 'REGULAR' && <Link href="/discount-application" onClick={() => setSelectedAnnouncement(null)} className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#1A5FB4] px-4 text-sm font-semibold text-white hover:bg-[#164A8F]">View discount application<ArrowRight size={16} aria-hidden="true" /></Link>}
-            {selectedAnnouncement.rawType?.startsWith('STUDENT_RENEWAL') && <div className="mt-5 space-y-3"><Link href="/student-renewal" onClick={() => setSelectedAnnouncement(null)} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#1A5FB4] px-4 text-sm font-semibold text-white hover:bg-[#164A8F]">{renewal?.can_submit ? 'Renew student status' : 'View renewal status'}<ArrowRight size={16} aria-hidden="true" /></Link>{renewal?.can_switch_to_regular && renewal.status !== 'PENDING' && renewal.status !== 'APPROVED' && <Link href="/student-renewal#regular" onClick={() => setSelectedAnnouncement(null)} className="inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-white/20 px-4 text-sm light:border-gray-300 light:text-gray-700">No Longer a Student</Link>}</div>}
+            {(() => {
+              // STUDENT_RENEWAL* or PWD_RENEWAL* notices link to that renewal page.
+              const kind = selectedAnnouncement.rawType?.startsWith('STUDENT_RENEWAL') ? 'STUDENT' : selectedAnnouncement.rawType?.startsWith('PWD_RENEWAL') ? 'PWD' : null;
+              if (!kind) return null;
+              const current = renewal?.kind === kind ? renewal : null;
+              return <div className="mt-5 space-y-3"><Link href={RENEWAL_PATH[kind]} onClick={() => setSelectedAnnouncement(null)} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#1A5FB4] px-4 text-sm font-semibold text-white hover:bg-[#164A8F]">{current?.can_submit ? RENEWAL_COPY[kind].renewAction : 'View renewal status'}<ArrowRight size={16} aria-hidden="true" /></Link>{current?.can_switch_to_regular && current.status !== 'PENDING' && current.status !== 'APPROVED' && <Link href={`${RENEWAL_PATH[kind]}#regular`} onClick={() => setSelectedAnnouncement(null)} className="inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-white/20 px-4 text-sm light:border-gray-300 light:text-gray-700">{RENEWAL_COPY[kind].regularAction}</Link>}</div>;
+            })()}
             {selectedAnnouncement.type === "VOUCHER" && <button type="button" onClick={() => { setSelectedAnnouncement(null); setSection("rewards"); setVoucherTab("available"); }} className="mt-5 min-h-11 w-full rounded-lg bg-[#1A5FB4] px-4 text-sm font-semibold text-white hover:bg-[#164A8F]">View vouchers</button>}
           </>}
         </Modal>
@@ -271,13 +277,16 @@ function RenewalNotice({ renewal }: { renewal: RenewalState }) {
   const correction = renewal.status === "NEEDS_CORRECTION";
   const status = renewal.status === "NOT_RENEWED" ? "For renewal" : RENEWAL_LABELS[renewal.status];
   const statusColor = "text-white/85 light:text-gray-700";
-  const title = pending ? "Your proof is being reviewed" : correction ? "Update your enrollment proof" : "Renew your student status";
+  const kind = renewal.kind ?? "STUDENT";
+  const copy = RENEWAL_COPY[kind];
+  const pwd = kind === "PWD";
+  const title = pending ? `Your ${copy.proofShort} is being reviewed` : correction ? copy.correctionTitle : pwd ? "Renew your PWD ID" : "Renew your student status";
   const description = pending
     ? "We’ll notify you when the review is complete. No need to submit again."
     : correction
-      ? "Check the reviewer’s note and send corrected proof before your correction deadline."
-      : "Have your current school ID or enrollment proof ready to continue your student discount.";
-  const action = renewal.can_submit ? (correction ? "Submit corrected proof" : "Renew student status") : "View renewal status";
+      ? `Check the reviewer’s note and send ${pwd ? "a corrected PWD ID" : "corrected proof"} before your correction deadline.`
+      : `Have ${copy.ready} ready to continue your ${copy.discount}.`;
+  const action = renewal.can_submit ? (correction ? copy.correctedAction : copy.renewAction) : "View renewal status";
   const formatDeadline = (value: string) => new Date(value).toLocaleString("en-PH", {
     month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila",
   });
@@ -314,7 +323,7 @@ function RenewalNotice({ renewal }: { renewal: RenewalState }) {
     <section aria-labelledby="renewal-notice-title" className="mb-7 rounded-2xl border border-[#62A0EA]/30 bg-[#071A2E] light:border-[#1A5FB4]/30 light:bg-white p-5 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="inline-flex items-center gap-2 text-xs font-medium text-[#99C1F1] light:text-[#1A5FB4]">
-          <GraduationCap size={18} aria-hidden="true" /> Student renewal
+          {pwd ? <Accessibility size={18} aria-hidden="true" /> : <GraduationCap size={18} aria-hidden="true" />} {pwd ? "PWD renewal" : "Student renewal"}
         </p>
         <span className={`text-xs font-medium ${statusColor}`}>{status}</span>
       </div>
@@ -343,8 +352,10 @@ function RenewalNotice({ renewal }: { renewal: RenewalState }) {
                 <li><span className="font-medium text-white/90 light:text-gray-900">Your discount: </span>{renewal.discount_eligible
                   ? <>You can still use it until {formatDeadline(renewal.discount_expires_at ?? renewal.deadline)} (Philippine time), unless your renewal is approved and extends it.</>
                   : "Regular fares apply until your renewal is approved."}</li>
-                <li><span className="font-medium text-white/90 light:text-gray-900">If you miss the deadline: </span>Without proof submitted before {deadline} (Philippine time), your commuter type automatically changes to Regular. Your account stays active, and you can still submit proof afterward, for example if your school released it late. Regular fares apply until it is approved.</li>
-                <li><span className="font-medium text-white/90 light:text-gray-900">If you submit on time: </span>You keep the Student type while your proof is reviewed. Once your current discount expires, Regular fares apply until approval.{correction && " Send any corrections before the correction deadline shown above."}</li>
+                <li><span className="font-medium text-white/90 light:text-gray-900">If you miss the deadline: </span>{pwd
+                  ? <>Without your renewed PWD ID submitted before {deadline} (Philippine time), your commuter type automatically changes to Regular. Your account stays active, and you can still submit it afterward. Regular fares apply until it is approved.</>
+                  : <>Without proof submitted before {deadline} (Philippine time), your commuter type automatically changes to Regular. Your account stays active, and you can still submit proof afterward, for example if your school released it late. Regular fares apply until it is approved.</>}</li>
+                <li><span className="font-medium text-white/90 light:text-gray-900">If you submit on time: </span>You keep the {pwd ? "PWD" : "Student"} type while your {copy.proofShort} is reviewed. Once your current discount expires, Regular fares apply until approval.{correction && " Send any corrections before the correction deadline shown above."}</li>
               </ul>
             </div>
           </div>
@@ -358,7 +369,7 @@ function RenewalNotice({ renewal }: { renewal: RenewalState }) {
           <dd className="mt-1 text-xs text-white/40 light:text-gray-400">Philippine time</dd>
         </div>
         <div>
-          <dt className="text-xs text-white/50 light:text-gray-500">Student discount</dt>
+          <dt className="text-xs text-white/50 light:text-gray-500">{pwd ? "PWD discount" : "Student discount"}</dt>
           <dd className="mt-1 inline-flex items-center gap-2 text-sm font-medium">
             {renewal.discount_eligible
               ? <CheckCircle2 size={15} aria-hidden="true" className="shrink-0 text-white/60 light:text-gray-500" />
@@ -371,7 +382,7 @@ function RenewalNotice({ renewal }: { renewal: RenewalState }) {
           <dd className="mt-1 text-sm font-medium">{new Date(renewal.application.correction_due_at).toLocaleString("en-PH", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila" })} (Philippine time)</dd>
         </div>}
       </dl>
-      <Link href="/student-renewal" className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#1A5FB4] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#164A8F] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#99C1F1] sm:w-auto">
+      <Link href={RENEWAL_PATH[kind]} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#1A5FB4] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#164A8F] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#99C1F1] sm:w-auto">
         {action}<ArrowRight size={16} aria-hidden="true" />
       </Link>
     </section>

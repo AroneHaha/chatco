@@ -235,7 +235,7 @@ export default function ProfileContent({ variant = "page", onSignOutControl }: {
           {isPage && <div className="hidden self-start lg:block"><AccountMenu signOut={{ request: () => setShowLogoutConfirm(true), locked: false }} trigger="gear" /></div>}
           </div>
           {['ACTIVE', 'APPROVED'].includes(profile.accountStatus) && <DiscountApplicationEntry commuterType={profile.commuterType} onClassificationChanged={retryLoad} />}
-          {['ACTIVE', 'APPROVED'].includes(profile.accountStatus) && profile.commuterType === 'STUDENT' && <StudentRenewalEntry />}
+          {['ACTIVE', 'APPROVED'].includes(profile.accountStatus) && (profile.commuterType === 'STUDENT' || profile.commuterType === 'PWD') && <StudentRenewalEntry />}
         </div>
 
         <p id={photoHelpId} className="text-xs text-white/45 light:text-gray-500">Profile photo: JPG, PNG, or WebP. Maximum 3 MB and 4096 × 4096 pixels. Choosing a photo uploads it to your account.</p>

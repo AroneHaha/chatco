@@ -93,6 +93,8 @@ class CommuterSeeder extends Seeder
         $generated = $this->seedGeneratedCommuters();
 
         $this->call(Commuter022Seeder::class);
+        // commuter051 becomes a PWD whose renewal is already open.
+        $this->call(Commuter051Seeder::class);
         $this->command?->info('Seeded ' . count($commuters) . " commuters (PH celebrities), {$generated} generated commuters and commuter022.");
     }
 

@@ -7,7 +7,7 @@ import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
 import { Upload, Loader2, UserPlus, Check } from 'lucide-react';
 import { formatContactNumberInput } from '@/lib/utils/format';
 import { StepContentWrapper } from '@/components/Stepper';
-import { useDiscountProof } from '@/components/commuter/discount-proof-fields';
+import { dayAfter, PWD_MAX_YEAR, useDiscountProof } from '@/components/commuter/discount-proof-fields';
 import { EDUCATION_LABELS, ENROLLMENT_TERMS, HIGH_SCHOOL_GRADES, type EducationLevel } from '@/lib/shared/services/student-renewal.service';
 
 import { InlineError } from '@/components/admin/ui/inline-error';
@@ -44,6 +44,7 @@ interface AddRegistrationModalProps {
     email: string;
     phoneNumber: string;
     commuterType: string;
+    pwdValidUntil: string;
     idImageFile: File | null;
     idImagePreview: string | null;
     /** Set only when the commuter type is Student. */
@@ -65,6 +66,8 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
     email: '',
     phoneNumber: '',
     commuterType: 'Regular',
+    // PWD only: the card's "Valid until" date, 'YYYY-MM-DD'.
+    pwdValidUntil: '',
     idImageFile: null as File | null,
     idImagePreview: null as string | null,
   });
@@ -77,6 +80,7 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
   // Field state for the school details, shared with student renewal.
   const proof = useDiscountProof();
   const isStudent = formData.commuterType === 'Student';
+  const isPwd = formData.commuterType === 'PWD';
   const currentYear = new Date().getFullYear();
   // School details is a step only for a Student; everyone else has two.
   const steps: StepKey[] = isStudent ? ['details', 'school', 'account'] : ['details', 'account'];
@@ -165,6 +169,11 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
       setSubmitError('Complete the school details for a Student.');
       return;
     }
+    if (isPwd && !formData.pwdValidUntil) {
+      setSubmitError('Enter the valid-until date printed on the PWD ID.');
+      if (stepKey !== 'details') goToStep('details');
+      return;
+    }
 
     submittingRef.current = true;
     setIsSubmitting(true);
@@ -198,6 +207,7 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
         email: '',
         phoneNumber: '',
         commuterType: 'Regular',
+        pwdValidUntil: '',
         idImageFile: null,
         idImagePreview: null,
       });
@@ -374,6 +384,32 @@ export function AddRegistrationModal({ isOpen, onClose, onSave }: AddRegistratio
                 </select>
               </div>
             </div>
+
+            {isPwd && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4"><div>
+                <label htmlFor="onsite-pwd-valid-until" className={labelClasses}>PWD ID valid until</label>
+                <AdminDatePicker
+                  id="onsite-pwd-valid-until"
+                  value={formData.pwdValidUntil}
+                  onChange={(pwdValidUntil) => {
+                    setFormData((previous) => ({ ...previous, pwdValidUntil }));
+                    if (pwdValidUntil) setSubmitError(null);
+                  }}
+                  ariaLabel="PWD ID valid until"
+                  clearLabel="Clear valid-until date"
+                  placeholder="Select date"
+                  min={dayAfter()}
+                  max={`${PWD_MAX_YEAR}-12-31`}
+                  maxYear={PWD_MAX_YEAR}
+                  disabled={isSubmitting}
+                  popover
+                  yearNavigation
+                  className="w-full"
+                  triggerClassName="mt-1.5 h-11 w-full text-sm"
+                />
+                <p className="mt-1.5 text-xs text-slate-400 admin-light:text-slate-500">The date printed on the card.</p>
+              </div></div>
+            )}
           </section>
           )}
 

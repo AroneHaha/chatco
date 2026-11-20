@@ -43,6 +43,8 @@ export interface RawRegistration {
   created_at: string;
   /** School details a Student gave at sign-up; pending list only, null otherwise. */
   student_details?: RegistrationStudentDetails | null;
+  /** A PWD's card "Valid until" date; pending list only, null otherwise. */
+  pwd_valid_until?: string | null;
 }
 
 /** Same field names and values as a discount application's school details. */
@@ -86,6 +88,8 @@ export interface PendingRegistration {
   createdAt: string;
   /** School details from a Student sign-up; null for other types and older sign-ups. */
   studentDetails: RegistrationStudentDetails | null;
+  /** The PWD card's "Valid until" date ('YYYY-MM-DD'); null for other types and older sign-ups. */
+  pwdValidUntil?: string | null;
 }
 
 export interface RegistrationListFilters {
@@ -180,6 +184,7 @@ function mapToViewModel(r: RawRegistration): PendingRegistration {
     username: r.username,
     appliedType: r.applied_type,
     studentDetails: r.student_details ?? null,
+    pwdValidUntil: r.pwd_valid_until ?? null,
     rejectionCount: r.rejection_count ?? 0,
     rejectionHistory: (r.rejection_history ?? []).map(item => ({
       reason: item.reason,
