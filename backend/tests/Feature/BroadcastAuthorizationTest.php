@@ -98,7 +98,14 @@ class BroadcastAuthorizationTest extends TestCase
             ["private-commuter.{$owner->id}.hails", "private-vehicle.{$vehicle->id}.hails"],
             array_map(fn (PrivateChannel $channel) => $channel->name, $statusChannels),
         );
-        $this->assertSame(['hail_id' => $hail->id, 'status' => 'PENDING'], $statusEvent->broadcastWith());
+        // Unit and cooldown end for the commuter's accept UI; never coordinates.
+        $this->assertSame([
+            'hail_id' => $hail->id,
+            'status' => 'PENDING',
+            'vehicle_id' => $vehicle->id,
+            'unit_number' => $vehicle->unit_number,
+            'expires_at' => $hail->expires_at->toIso8601String(),
+        ], $statusEvent->broadcastWith());
     }
 
     public function test_other_commuter_cannot_authorize_owner_hail_channel(): void

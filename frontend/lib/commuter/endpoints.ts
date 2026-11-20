@@ -26,6 +26,7 @@ export const COMMUTER_API = {
     nearby: "/api/commuter/tracking/nearby",
     hail: "/api/commuter/hail",
     cancelHail: (id: string) => `/api/commuter/hail/${id}`,
+    activeHail: "/api/commuter/hails/active",
   },
   payments: {
     history: "/api/commuter/payments",

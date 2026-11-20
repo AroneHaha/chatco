@@ -1,17 +1,19 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useEffectEvent, useRef, type ReactNode } from "react";
 import dynamic from "next/dynamic";
-import { Calculator } from "lucide-react";
+import { Calculator, CheckCircle2, Info } from "lucide-react";
 import FareContent from "@/components/commuter/fare/fare-content";
 import type { NearbyVehicle, GpsStatus } from "@/lib/shared/geo/nearby-detector";
 import { useAuth } from "@/contexts/auth-context";
 import { CommuterGreeting } from "@/components/commuter/commuter-greeting";
 import { HailRangeHint } from "@/components/commuter/hail-range-hint";
 import { NearbyUnitsCard } from "@/components/commuter/nearby-units-card";
-import { createHail, cancelHail, isOutsideRadiusError } from "@/lib/commuter/services/hail.service";
+import { createHail, cancelHail, fetchActiveHail, isOutsideRadiusError, isHailCooldownError, type HailStatusEvent } from "@/lib/commuter/services/hail.service";
 import { useHoldToConfirm } from "@/hooks/use-hold-to-confirm";
 import { ApiError, NetworkError } from "@/lib/api/client";
+import { getEcho } from "@/lib/echo";
+import { playHailAcceptedSound } from "@/lib/shared/geo/proximity-notification";
 
 import PaymentHistoryModal from "@/components/commuter/modals/payment-history-modal";
 import ShareRideModal from "@/components/commuter/modals/share-ride-modal";
@@ -46,6 +48,23 @@ function hailRefusalReason(body: unknown): string | null {
   return typeof message === "string" && message && !errors ? message : null;
 }
 
+/**
+ * Set after a conductor accepts: which unit is coming and when the commuter
+ * may hail again (the server enforces the same window). hailId is null when
+ * the cooldown came from a refused hail rather than the accept event.
+ */
+interface AcceptedHail {
+  hailId: string | null;
+  vehicleId: string;
+  unitNumber: string;
+  endsAt: number;
+}
+
+const formatCountdown = (ms: number) => {
+  const left = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+};
+
 export default function CommuterHome() {
   const { user, commuterProfile } = useAuth();
 
@@ -63,6 +82,9 @@ export default function CommuterHome() {
   };
 
   const [isHailing, setIsHailing] = useState(false);
+  // When the active hail times out (its server expires_at), so a hail restored
+  // after visiting another module keeps its original 3-minute end.
+  const [hailEndsAt, setHailEndsAt] = useState<number | null>(null);
   const [showSheet, setShowSheet] = useState(true);
 
   // ─── HAIL REQUEST STATE ─────────────────────────────────────────────
@@ -71,6 +93,13 @@ export default function CommuterHome() {
   const [activeHailId, setActiveHailId] = useState<string | null>(null);
   const [hailPending, setHailPending] = useState(false);
   const [hailError, setHailError] = useState<string | null>(null);
+  // Accept → cooldown. releasedUnit names the unit when the cooldown ended
+  // early because it can no longer pick the commuter up.
+  const [acceptedHail, setAcceptedHail] = useState<AcceptedHail | null>(null);
+  const [releasedUnit, setReleasedUnit] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const inCooldown = acceptedHail !== null;
+  const cooldownLabel = acceptedHail ? formatCountdown(acceptedHail.endsAt - now) : "";
 
   // ─── CONDUCTOR RADIUS + GPS TRACKING ────────────────────────────────
   const [nearbyVehicles, setNearbyVehicles] = useState<NearbyVehicle[]>([]);
@@ -161,6 +190,7 @@ export default function CommuterHome() {
     if (!canHail || !nearestVehicle || !commuterLocation) return;
     setHailPending(true);
     setHailError(null);
+    setReleasedUnit(null);
     try {
       const hail = await createHail(
         nearestVehicle.id,
@@ -168,6 +198,8 @@ export default function CommuterHome() {
         commuterLocation[1]
       );
       setActiveHailId(hail.id);
+      const serverEnd = Date.parse(hail.expiresAt);
+      setHailEndsAt(Number.isFinite(serverEnd) ? serverEnd : Date.now() + HAIL_DURATION_MS);
       setIsHailing(true);
       // Immediate confirmation buzz + beep (also unlocks the AudioContext).
       vibrate();
@@ -177,6 +209,15 @@ export default function CommuterHome() {
         setHailError(
           `You're too far — about ${Math.round(err.body.distance_m)}m away. Move within 1km to hail.`
         );
+      } else if (err instanceof ApiError && err.status === 409 && isHailCooldownError(err.body)) {
+        // A unit already accepted (this tab missed the event, e.g. after a reload).
+        setNow(Date.now());
+        setAcceptedHail({
+          hailId: null,
+          vehicleId: err.body.vehicle_id,
+          unitNumber: err.body.unit_number ?? "A unit",
+          endsAt: Date.parse(err.body.cooldown_ends_at),
+        });
       } else if (err instanceof ApiError && err.status === 409) {
         setHailError("You already have a pending hail.");
       } else if (err instanceof ApiError && err.status === 422 && hailRefusalReason(err.body)) {
@@ -205,7 +246,7 @@ export default function CommuterHome() {
   // brush against the screen can't send one; releasing early cancels it.
   // Cancelling an active hail stays a single tap. The fill overlays on the
   // hail buttons use duration-600 to match.
-  const hailHold = useHoldToConfirm(() => { void startHail(); }, canHail && !isHailing && !hailPending, HAIL_HOLD_MS);
+  const hailHold = useHoldToConfirm(() => { void startHail(); }, canHail && !isHailing && !hailPending && !inCooldown, HAIL_HOLD_MS);
   const hailButtonProps = isHailing
     ? { onClick: handleHailToggle }
     : {
@@ -232,7 +273,7 @@ export default function CommuterHome() {
 
     const autoOffId = window.setTimeout(() => {
       void stopHail();
-    }, HAIL_DURATION_MS);
+    }, Math.max(0, (hailEndsAt ?? Date.now() + HAIL_DURATION_MS) - Date.now()));
 
     return () => {
       window.clearInterval(reminderId);
@@ -241,7 +282,7 @@ export default function CommuterHome() {
         navigator.vibrate(0); // stop any ongoing vibration
       }
     };
-  }, [isHailing, vibrate, playBeep, stopHail]);
+  }, [isHailing, hailEndsAt, vibrate, playBeep, stopHail]);
 
   // Auto-stop the hail if the commuter leaves EVERY conductor's radius.
   // `nearbyVehicles` is the within-radius set, so an empty list (while GPS is
@@ -256,8 +297,127 @@ export default function CommuterHome() {
     }
   }, [isHailing, gpsStatus, nearbyVehicles.length, stopHail]);
 
+  // ─── Accept → cooldown ──────────────────────────────────────────────
+  // The accepting unit can no longer pick the commuter up: let them hail
+  // another one now (the server applies the same rule on their next hail).
+  const releaseCooldown = useCallback((unitNumber: string) => {
+    setAcceptedHail(null);
+    setReleasedUnit(unitNumber);
+  }, []);
+
+  // restored: read back on page open, not a fresh accept, so no chime.
+  const onHailStatusEvent = useEffectEvent((event: HailStatusEvent, restored = false) => {
+    const endsAt = event.expires_at ? Date.parse(event.expires_at) : NaN;
+    const isTracked = acceptedHail?.hailId === event.hail_id;
+
+    if (event.status === "ACCEPTED" && endsAt > Date.now()) {
+      // Stop locally; no cancel request, the hail is accepted, not abandoned.
+      setIsHailing(false);
+      setActiveHailId(null);
+      setHailError(null);
+      setReleasedUnit(null);
+      setNow(Date.now());
+      setAcceptedHail({ hailId: event.hail_id, vehicleId: event.vehicle_id, unitNumber: event.unit_number ?? "A unit", endsAt });
+      if (!restored) playHailAcceptedSound(audioCtxRef.current);
+    } else if (isTracked && acceptedHail) {
+      // Its shift ended (CANCELLED) or its pin was ended early.
+      releaseCooldown(acceptedHail.unitNumber);
+    }
+  });
+
+  // HailStatusChanged on the commuter's private channel. Best-effort: if the
+  // socket is down, the hail keeps beeping until its 3-minute TTL, and a new
+  // hail attempt is refused with the cooldown details instead (see startHail).
+  const commuterUserId = user?.id;
+  useEffect(() => {
+    if (!commuterUserId) return;
+    const channelName = `commuter.${commuterUserId}.hails`;
+    let echo: ReturnType<typeof getEcho> | null = null;
+    try {
+      echo = getEcho();
+      echo.private(channelName).listen(".HailStatusChanged", (event: HailStatusEvent) => onHailStatusEvent(event));
+    } catch (subscriptionError) {
+      console.warn("Hail status realtime unavailable:", subscriptionError);
+    }
+    return () => {
+      if (echo) echo.leave(channelName);
+    };
+  }, [commuterUserId]);
+
+  // Opening the dashboard (e.g. back from another module) loses the state
+  // above, so read the commuter's current hail once and pick up where it was:
+  // an accepted hail's countdown, or a pending hail still waiting.
+  const restoreHail = useEffectEvent((hail: HailStatusEvent) => {
+    const endsAt = hail.expires_at ? Date.parse(hail.expires_at) : NaN;
+    // Already live from this session (a realtime event beat this read).
+    if (!(endsAt > Date.now()) || isHailing || acceptedHail) return;
+
+    if (hail.status === "ACCEPTED") {
+      onHailStatusEvent(hail, true);
+    } else if (hail.status === "PENDING") {
+      setActiveHailId(hail.hail_id);
+      setHailEndsAt(endsAt);
+      setIsHailing(true);
+    }
+  });
+
+  useEffect(() => {
+    if (!commuterUserId) return;
+    let cancelled = false;
+    fetchActiveHail()
+      .then((hail) => {
+        if (!cancelled && hail) restoreHail(hail);
+      })
+      .catch(() => {
+        /* offline: the dashboard starts idle, and the server still enforces any cooldown */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [commuterUserId]);
+
+  // Countdown tick; the cooldown ends with the server's window.
+  useEffect(() => {
+    if (!acceptedHail) return;
+    const id = window.setInterval(() => {
+      const t = Date.now();
+      setNow(t);
+      if (t >= acceptedHail.endsAt) setAcceptedHail(null);
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [acceptedHail]);
+
+  // Ends early once the accepting unit drops out of the commuter's nearby set
+  // (drove past beyond 1km, went on break or offline, or turned Full).
+  useEffect(() => {
+    if (acceptedHail && gpsStatus === "available" && !nearbyVehicles.some((v) => v.id === acceptedHail.vehicleId)) {
+      releaseCooldown(acceptedHail.unitNumber);
+    }
+  }, [acceptedHail, gpsStatus, nearbyVehicles, releaseCooldown]);
+
+  // Shown where the hail error card goes. Neutral, not red: this is good news.
+  const hailNoticeCard: ReactNode = acceptedHail ? (
+    <div role="status" className="flex items-start gap-3 rounded-xl border border-[#1C3350] bg-[#0B1E33] p-3 mb-3 light:border-gray-200 light:bg-gray-50">
+      <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#62A0EA] light:text-[#1A5FB4]" aria-hidden="true" />
+      <div className="min-w-0">
+        <p className="text-xs font-semibold text-white light:text-gray-900">{acceptedHail.unitNumber} accepted your hail</p>
+        <p className="mt-0.5 text-[11px] leading-relaxed text-white/60 light:text-gray-600">
+          Stay where you are. You can hail again in <span className="font-semibold tabular-nums text-white light:text-gray-900">{cooldownLabel}</span>.
+        </p>
+      </div>
+    </div>
+  ) : releasedUnit ? (
+    <div role="status" className="flex items-start gap-3 rounded-xl border border-[#1C3350] bg-[#0B1E33] p-3 mb-3 light:border-gray-200 light:bg-gray-50">
+      <Info className="mt-0.5 h-5 w-5 shrink-0 text-white/60 light:text-gray-500" aria-hidden="true" />
+      <div className="min-w-0">
+        <p className="text-xs font-semibold text-white light:text-gray-900">{releasedUnit} is no longer nearby</p>
+        <p className="mt-0.5 text-[11px] leading-relaxed text-white/60 light:text-gray-600">You can hail again now.</p>
+      </div>
+    </div>
+  ) : null;
+
   // Explain why hailing is unavailable; an ongoing hail can still be cancelled.
-  const hailHintReason = isHailing ? null
+  const hailHintReason = isHailing || inCooldown ? null
     : gpsStatus === "denied" ? "denied"
     : gpsStatus === "unavailable" ? "unavailable"
     : gpsStatus === "available" && !canHail ? "out-of-range"
@@ -350,12 +510,14 @@ export default function CommuterHome() {
         <div className="absolute -top-23 right-4 z-30">
           <button
             {...hailButtonProps}
-            aria-label={isHailing ? "Cancel hail" : "Press and hold to hail"}
-            disabled={hailPending || (!isHailing && !canHail)}
+            aria-label={isHailing ? "Cancel hail" : inCooldown ? `${acceptedHail.unitNumber} accepted your hail, you can hail again in ${cooldownLabel}` : "Press and hold to hail"}
+            disabled={hailPending || inCooldown || (!isHailing && !canHail)}
             className={`relative overflow-hidden select-none touch-none [-webkit-touch-callout:none] w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 border-4 disabled:cursor-not-allowed ${
               isHailing
                 ? "bg-red-500 border-red-300 shadow-black/40"
-                : canHail
+                : inCooldown
+                  ? "bg-[#142740] border-[#23344A] shadow-black/40 light:bg-gray-100 light:border-gray-300"
+                  : canHail
                   ? "bg-[#FF6D3A] border-[#FF9A76] hover:bg-[#e55a2b] shadow-black/40"
                   : "bg-gray-600 border-gray-500 shadow-gray-600/30 opacity-50 cursor-not-allowed"
             } ${hailPending ? "opacity-70" : ""}`}
@@ -371,6 +533,8 @@ export default function CommuterHome() {
               <svg className="relative w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
               </svg>
+            ) : inCooldown ? (
+              <span className="relative text-sm font-bold tabular-nums text-white light:text-gray-800">{cooldownLabel}</span>
             ) : (
               <svg className="relative w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
@@ -379,7 +543,7 @@ export default function CommuterHome() {
             )}
           </button>
           <span className="block text-center text-[10px] font-extrabold text-white mt-2 drop-shadow-lg uppercase tracking-wider">
-            {hailPending ? (isHailing ? "Cancelling…" : "Sending…") : isHailing ? "Cancel" : canHail ? hailIdleLabel : gpsStatus === "loading" ? "Locating..." : gpsStatus === "denied" || gpsStatus === "unavailable" ? "No GPS" : "Too Far"}
+            {hailPending ? (isHailing ? "Cancelling…" : "Sending…") : isHailing ? "Cancel" : inCooldown ? "Accepted" : canHail ? hailIdleLabel : gpsStatus === "loading" ? "Locating..." : gpsStatus === "denied" || gpsStatus === "unavailable" ? "No GPS" : "Too Far"}
           </span>
           {hailHintReason && <HailRangeHint reason={hailHintReason} placement="above" className="-top-1 -right-1" />}
         </div>
@@ -413,6 +577,7 @@ export default function CommuterHome() {
               <p className="text-xs font-semibold text-red-400 light:text-red-600">{hailError}</p>
             </div>
           )}
+          {hailNoticeCard}
 
           {/* GCash Pay Card — commuter SCANS conductor's QR */}
           <div
@@ -541,14 +706,17 @@ export default function CommuterHome() {
         </div>
         <div className="p-6 border-t border-white/10 light:border-gray-200">
           {desktopHailError}
+          {hailNoticeCard}
           <div className="relative">
           <button
             {...hailButtonProps}
-            disabled={hailPending || (!isHailing && !canHail)}
+            disabled={hailPending || inCooldown || (!isHailing && !canHail)}
             className={`relative overflow-hidden select-none touch-none [-webkit-touch-callout:none] w-full flex items-center justify-center gap-3 py-4 rounded-xl text-base font-bold transition-all duration-300 disabled:cursor-not-allowed ${
               isHailing
                 ? "bg-red-500 hover:bg-red-600 shadow-lg shadow-black/30"
-                : canHail
+                : inCooldown
+                  ? "border border-[#23344A] bg-[#142740] text-slate-200 shadow-none light:border-gray-300 light:bg-gray-100 light:text-gray-700"
+                  : canHail
                   ? "bg-[#FF6D3A] hover:bg-[#e55a2b] shadow-lg shadow-black/30 text-white"
                   : "bg-gray-600 text-gray-300 light:bg-gray-200 light:text-gray-500 cursor-not-allowed shadow-none"
             } ${hailPending ? "opacity-70" : ""}`}
@@ -570,6 +738,11 @@ export default function CommuterHome() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
                   </svg>{" "}
                   Cancel Hail
+                </>
+              ) : inCooldown ? (
+                <>
+                  <CheckCircle2 className="h-6 w-6 text-[#62A0EA] light:text-[#1A5FB4]" aria-hidden="true" />
+                  <span className="tabular-nums">{acceptedHail.unitNumber} accepted · {cooldownLabel}</span>
                 </>
               ) : (
                 <>
@@ -655,11 +828,13 @@ export default function CommuterHome() {
           <div className="relative flex items-center px-4 py-3">
             <button
               {...hailButtonProps}
-              disabled={hailPending || (!isHailing && !canHail)}
+              disabled={hailPending || inCooldown || (!isHailing && !canHail)}
               className={`relative overflow-hidden select-none touch-none [-webkit-touch-callout:none] flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap transition-all duration-300 cursor-pointer disabled:cursor-not-allowed ${
                 isHailing
                   ? "bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-black/30"
-                  : canHail
+                  : inCooldown
+                    ? "border border-[#23344A] bg-[#142740] text-slate-200 shadow-none light:border-gray-300 light:bg-gray-100 light:text-gray-700"
+                    : canHail
                     ? "bg-[#FF6D3A] hover:bg-[#e55a2b] shadow-lg shadow-black/30 text-white"
                     : "bg-gray-600 text-gray-300 light:bg-gray-200 light:text-gray-500 shadow-none"
               } ${hailPending ? "opacity-70" : ""}`}
@@ -682,6 +857,11 @@ export default function CommuterHome() {
                     </svg>
                     Cancel Hail
                   </>
+                ) : inCooldown ? (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 text-[#62A0EA] light:text-[#1A5FB4]" aria-hidden="true" />
+                    <span className="tabular-nums">{acceptedHail.unitNumber} accepted · {cooldownLabel}</span>
+                  </>
                 ) : (
                   <>
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -700,6 +880,7 @@ export default function CommuterHome() {
         <div className="pointer-events-auto empty:hidden w-[26rem] max-w-full space-y-3 p-3 bg-[#071A2E] rounded-2xl border border-[#1C3350] light:bg-white light:border-gray-200 shadow-2xl shadow-black/10 [&>*:last-child]:mb-0">
           {desktopStatus}
           {desktopHailError}
+          {hailNoticeCard}
         </div>
       </div>
 

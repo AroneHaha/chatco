@@ -54,6 +54,28 @@ export interface OutsideRadiusError {
   distance_m: number;
 }
 
+/**
+ * 409 from createHail while a unit that accepted the commuter's last hail can
+ * still pick them up (HailCooldownException). Carries what the cooldown UI
+ * needs, for a client that missed the realtime accept event.
+ */
+export interface HailCooldownError {
+  error: "hail_cooldown";
+  message: string;
+  unit_number: string | null;
+  vehicle_id: string;
+  cooldown_ends_at: string;
+}
+
+/** HailStatusChanged on the private `commuter.{id}.hails` channel (no coordinates). */
+export interface HailStatusEvent {
+  hail_id: string;
+  status: string;
+  vehicle_id: string;
+  unit_number: string | null;
+  expires_at: string | null;
+}
+
 // ─── Raw API shape + mapper ──────────────────────────────────────────
 
 /**
@@ -103,6 +125,16 @@ export function isOutsideRadiusError(body: unknown): body is OutsideRadiusError 
   );
 }
 
+export function isHailCooldownError(body: unknown): body is HailCooldownError {
+  return (
+    typeof body === "object" &&
+    body !== null &&
+    (body as { error?: unknown }).error === "hail_cooldown" &&
+    typeof (body as { vehicle_id?: unknown }).vehicle_id === "string" &&
+    typeof (body as { cooldown_ends_at?: unknown }).cooldown_ends_at === "string"
+  );
+}
+
 // ─── Service Functions ───────────────────────────────────────────────
 
 /**
@@ -121,6 +153,7 @@ export function isOutsideRadiusError(body: unknown): body is OutsideRadiusError 
  * @throws {ApiError} with status=422 and body=OutsideRadiusError if > 1KM
  * @throws {ApiError} with status=422 if validation fails (bad lat/lng, missing vehicle)
  * @throws {ApiError} with status=409 if commuter already has a pending hail
+ * @throws {ApiError} with status=409 and body=HailCooldownError while a unit that accepted the last hail can still pick them up
  * @throws {ApiError} with status=403 if authenticated user is not a commuter
  * @throws {NetworkError} if Laravel is unreachable
  */
@@ -139,6 +172,25 @@ export async function createHail(
   );
 
   return mapCommuterHail(response.data);
+}
+
+/**
+ * The commuter's current hail (pending, or accepted within its 2-minute hold),
+ * in the same shape the realtime HailStatusChanged event carries, or null.
+ * Read when the dashboard opens to restore that state.
+ */
+export async function fetchActiveHail(): Promise<HailStatusEvent | null> {
+  const response = await api.get<ApiResponse<{
+    id: string;
+    status: string;
+    vehicle_id: string;
+    expires_at: string | null;
+    vehicle: { unit_number: string | null } | null;
+  } | null>>(COMMUTER_API.tracking.activeHail);
+  const hail = response.data;
+  return hail
+    ? { hail_id: hail.id, status: hail.status, vehicle_id: hail.vehicle_id, unit_number: hail.vehicle?.unit_number ?? null, expires_at: hail.expires_at }
+    : null;
 }
 
 /**

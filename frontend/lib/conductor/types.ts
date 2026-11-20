@@ -34,4 +34,8 @@ export interface ConductorHailRequest {
   longitude: number;
   label?: string;
   etaMinutes?: number;
+  /** ACCEPTED: this unit took it; the pin stays until expiresAt (2 min). */
+  status?: "PENDING" | "ACCEPTED";
+  /** ISO time the pin leaves the map: end of the 3-min hail, or of the 2-min hold after accepting. */
+  expiresAt?: string;
 }

@@ -33,6 +33,7 @@ use App\Http\Controllers\Conductor\ConductorHailController;
 use App\Http\Controllers\Conductor\MobileTransactionController;
 use App\Http\Controllers\FaqController;
 use App\Http\Controllers\FareMatrixController;
+use App\Http\Controllers\Mobile\MobileHailController;
 use App\Http\Controllers\LostItemController;
 use App\Http\Controllers\Payment\PaymentController;
 use App\Http\Controllers\Payment\QrController;
@@ -147,6 +148,9 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER', 'mainten
     // Hail lifecycle (commuter-side) — 10 req/min per user
     Route::post('/hail', [HailController::class, 'store'])->middleware('throttle:commuter-hail');
     Route::delete('/hail/{id}', [HailController::class, 'destroy'])->middleware('throttle:commuter-hail');
+    // Same as the mobile route: the web dashboard reads it once on open to
+    // restore a pending hail or an accepted hail's cooldown.
+    Route::get('/hails/active', [MobileHailController::class, 'active'])->middleware('throttle:commuter-read');
 
     // Payment lifecycle (commuter-side) — claim GCash + view history
     Route::post('/payments/claim', [PaymentController::class, 'claim'])->middleware('throttle:commuter-hail');

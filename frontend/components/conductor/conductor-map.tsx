@@ -74,6 +74,19 @@ function getDistanceMeters(a: [number, number], b: [number, number]): number {
   return haversineMeters(a[0], a[1], b[0], b[1]);
 }
 
+const expiresAtMs = (hail: ConductorHailRequest) => (hail.expiresAt ? Date.parse(hail.expiresAt) : Infinity);
+
+/** m:ss until `endsAt`; ticks on its own so the whole map doesn't re-render each second. */
+function Countdown({ endsAt }: { endsAt: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  const left = Math.max(0, Math.ceil((endsAt - now) / 1000));
+  return <>{Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}</>;
+}
+
 export default function ConductorMap({
   unitNumber = "—",
   hails = [],
@@ -125,16 +138,27 @@ export default function ConductorMap({
     return () => navigator.geolocation.clearWatch(watchId);
   }, [routeGeometry.center]);
 
+  // Drop each pin the moment its expiresAt passes (an accepted one after its
+  // 2-minute hold) instead of waiting for the next list refresh.
+  const [clock, setClock] = useState(() => Date.now());
+  useEffect(() => {
+    const next = Math.min(...hails.map(expiresAtMs).filter((t) => t > clock));
+    if (!Number.isFinite(next)) return;
+    const id = window.setTimeout(() => setClock(Date.now()), next - Date.now() + 50);
+    return () => window.clearTimeout(id);
+  }, [hails, clock]);
+
   const visibleHails = useMemo(
     () =>
       hails.filter(
         (hail) =>
+          expiresAtMs(hail) > clock &&
           getDistanceMeters(
             [vehiclePosition[0], vehiclePosition[1]],
             [hail.latitude, hail.longitude]
           ) <= RADIUS_M
       ),
-    [hails, vehiclePosition]
+    [hails, vehiclePosition, clock]
   );
 
   const markerPresentation = useMemo(() => {
@@ -162,6 +186,15 @@ export default function ConductorMap({
   const hailingIcon = useMemo(() => new L.DivIcon({
     className: "custom-hailing-icon",
     html: commuterPinHtml("#FF6D3A"),
+    iconSize: [COMMUTER_PIN_SIZE, COMMUTER_PIN_SIZE],
+    iconAnchor: [COMMUTER_PIN_SIZE / 2, COMMUTER_PIN_SIZE / 2],
+    popupAnchor: [0, -(COMMUTER_PIN_SIZE / 2 + 4)],
+  }), []);
+
+  // Accepted by this unit: CHATCO Blue, so it reads as handled, not a new request.
+  const acceptedIcon = useMemo(() => new L.DivIcon({
+    className: "custom-hailing-icon",
+    html: commuterPinHtml("#1A5FB4"),
     iconSize: [COMMUTER_PIN_SIZE, COMMUTER_PIN_SIZE],
     iconAnchor: [COMMUTER_PIN_SIZE / 2, COMMUTER_PIN_SIZE / 2],
     popupAnchor: [0, -(COMMUTER_PIN_SIZE / 2 + 4)],
@@ -208,15 +241,36 @@ export default function ConductorMap({
         </Marker>
 
         {/* Keep waiting commuters above the conductor's vehicle when icons overlap. */}
-        {visibleHails.map((hail) => (
-          <Marker key={hail.id} position={[hail.latitude, hail.longitude]} icon={hailingIcon} zIndexOffset={1000}>
-            <Popup closeButton={false}>
-              <div className="min-w-[180px] py-1.5">
-                <div className="font-bold text-[#FF6D3A]">Commuter</div>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+        {visibleHails.map((hail) => {
+          const accepted = hail.status === "ACCEPTED";
+          return (
+            <Marker key={hail.id} position={[hail.latitude, hail.longitude]} icon={accepted ? acceptedIcon : hailingIcon} zIndexOffset={1000}>
+              <Popup closeButton={false}>
+                <div className="min-w-[180px] py-1.5">
+                  <div className={`font-bold ${accepted ? "text-[#1A5FB4]" : "text-[#FF6D3A]"}`}>Commuter</div>
+                  {accepted ? (
+                    <div className="mt-0.5 text-xs text-gray-600 tabular-nums">
+                      Accepted · pin hides in <Countdown endsAt={expiresAtMs(hail)} />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mt-0.5 text-xs text-gray-600">Waiting for pickup</div>
+                      <button
+                        type="button"
+                        disabled={!canOperate || hailBusyId !== null}
+                        onClick={() => onHailAction?.(hail.id, "accept")}
+                        className="mt-3 flex h-9 w-full cursor-pointer items-center justify-center rounded-lg bg-[#1A5FB4] text-xs font-semibold text-white transition-colors hover:bg-[#164A8F] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {hailBusyId === hail.id ? "Accepting…" : "Accept"}
+                      </button>
+                      {!canOperate ? <p className="mt-2 text-[10px] text-gray-500">Claim this shift on this device to respond.</p> : null}
+                    </>
+                  )}
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })}
       </MapContainer>
 
       <style jsx global>{`

@@ -24,8 +24,11 @@ use Illuminate\Queue\SerializesModels;
  *
  * Triggered by:
  *   - HailService::cancelHail()
- *   - HailService::acceptHail()
+ *   - HailService::acceptHail() (the accepted hail, and each copy on another
+ *     unit it cancels)
  *   - HailService::rejectHail()
+ *   - HailService::createHail() (an accepted hail whose pin it hides early
+ *     because that unit can no longer pick the commuter up)
  *   - HailService::expireStaleHails() (per-hail broadcast in the loop)
  */
 class HailStatusChanged implements ShouldBroadcastNow, ShouldRescue
@@ -55,9 +58,14 @@ class HailStatusChanged implements ShouldBroadcastNow, ShouldRescue
 
     public function broadcastWith(): array
     {
+        // No coordinates: the commuter channel only needs to know which unit
+        // accepted and when the cooldown ends.
         return [
             'hail_id' => $this->hail->id,
             'status' => $this->hail->status->value,
+            'vehicle_id' => $this->hail->vehicle_id,
+            'unit_number' => $this->hail->vehicle?->unit_number,
+            'expires_at' => $this->hail->expires_at?->toIso8601String(),
         ];
     }
 }

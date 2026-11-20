@@ -48,6 +48,8 @@ interface LaravelHail {
   // numbers before Leaflet / distance math can use them.
   commuter_lat: string | number;
   commuter_lng: string | number;
+  status?: string;
+  expires_at?: string | null;
   commuter?: LaravelHailCommuter | null;
 }
 
@@ -276,6 +278,8 @@ export function mapConductorHail(h: unknown): ConductorHailRequest {
     commuterName: hail.commuter?.name ?? "Commuter",
     latitude: Number(hail.commuter_lat),
     longitude: Number(hail.commuter_lng),
+    status: hail.status === "ACCEPTED" ? "ACCEPTED" : "PENDING",
+    expiresAt: hail.expires_at ?? undefined,
   };
 }
 

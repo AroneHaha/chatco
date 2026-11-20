@@ -24,9 +24,9 @@ export function useDashboardState() {
     useConductorShift();
   const { summary: liveTransactions, status: txnStatus, error: txnError } =
     useConductorTransactions(shift?.shiftId ?? null);
-  // Conductor just observes waiting commuters on the map; the commuter drives
-  // the hail lifecycle (create + cancel), so no accept/reject action here.
-  const { hails, refresh: refreshHails } = useConductorHails(shift?.vehicleId);
+  // Waiting commuters show on the map; the conductor can accept one from its
+  // pin's popup (which stops the commuter's hail and starts their cooldown).
+  const { hails, refresh: refreshHails, patchHail } = useConductorHails(shift?.vehicleId);
   const canOperate = isOperatingDevice(shift);
   const [hailBusyId, setHailBusyId] = useState<string | null>(null);
   const [hailActionError, setHailActionError] = useState<string | null>(null);
@@ -36,16 +36,25 @@ export function useDashboardState() {
     setHailBusyId(hailId);
     setHailActionError(null);
     try {
-      if (action === "accept") await acceptHail(hailId);
-      else await rejectHail(hailId);
-      await refreshHails();
+      if (action === "accept") {
+        // Turn the pin blue at once instead of after two round trips (accept,
+        // then list reload); the server's answer brings the exact hide time.
+        // On failure the catch's refresh puts the pin back.
+        patchHail(hailId, { status: "ACCEPTED", expiresAt: new Date(Date.now() + 120_000).toISOString() });
+        const accepted = await acceptHail(hailId);
+        patchHail(hailId, { status: accepted.status, expiresAt: accepted.expiresAt });
+      } else {
+        await rejectHail(hailId);
+      }
+      // Reconcile in the background (other units' cancellations, new hails).
+      void refreshHails();
     } catch (error) {
       setHailActionError(error instanceof Error ? error.message : "Unable to update the pickup request.");
       await refreshHails();
     } finally {
       setHailBusyId(null);
     }
-  }, [canOperate, hailBusyId, refreshHails]);
+  }, [canOperate, hailBusyId, refreshHails, patchHail]);
 
   const [status, setStatusState] = useState<ConductorStatus>("Available");
   // Mirror of `status` for reading the pre-change value inside setStatus

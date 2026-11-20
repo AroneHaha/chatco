@@ -32,8 +32,9 @@ class ConductorHailController extends Controller
     /**
      * GET /api/conductor/hails
      *
-     * Returns the list of pending, non-expired hails for the vehicle on
-     * the conductor's currently active shift. Returns null with 200 if
+     * Returns the pending, non-expired hails for the vehicle on the
+     * conductor's currently active shift, plus the one it accepted until its
+     * pin hides (HailService::ACCEPTED_HOLD_SECONDS). Returns null with 200 if
      * the conductor has no active shift (matches the existing
      * ConductorController::shiftStatus pattern).
      */
@@ -47,9 +48,9 @@ class ConductorHailController extends Controller
             return $this->successResponse(null, 'No active shift');
         }
 
-        $hails = $this->hailService->getPendingHailsForVehicle($activeShift->vehicle_id);
+        $hails = $this->hailService->getVisibleHailsForVehicle($activeShift->vehicle_id);
 
-        return $this->successResponse($hails, 'Pending hails retrieved');
+        return $this->successResponse($hails, 'Hails retrieved');
     }
 
     /**

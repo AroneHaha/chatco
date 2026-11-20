@@ -24,14 +24,12 @@ class MobileHailController extends Controller
 
     public function active(Request $request): JsonResponse
     {
+        // An accepted hail stays active only for its post-accept window
+        // (HailService::ACCEPTED_HOLD_SECONDS), like a pending one for its TTL.
         $hail = Hail::query()->where('commuter_id', $request->user()->id)
-            ->where(function ($query) {
-                $query->where('status', HailStatus::ACCEPTED->value)
-                    ->orWhere(function ($pending) {
-                        $pending->where('status', HailStatus::PENDING->value)
-                            ->where('expires_at', '>', now());
-                    });
-            })->with('vehicle')->latest()->first();
+            ->whereIn('status', [HailStatus::ACCEPTED->value, HailStatus::PENDING->value])
+            ->where('expires_at', '>', now())
+            ->with('vehicle')->latest()->first();
 
         return $this->successResponse($hail ? $this->payload($hail) : null, 'Active hail retrieved');
     }

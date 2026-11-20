@@ -460,6 +460,160 @@ class HailHttpTest extends TestCase
         $response->assertJsonPath('data.status', 'ACCEPTED');
     }
 
+    public function test_accept_cancels_other_units_copies_and_keeps_pin_for_two_minutes(): void
+    {
+        $other = $this->addOnDutyUnit('TEST-002', $this->vehicleLat + 0.0045, $this->vehicleLng);
+        $hail = app(HailService::class)->createHail($this->commuter, $this->vehicle->id, $this->vehicleLat, $this->vehicleLng);
+
+        $this->actingAs($this->conductor, 'sanctum')
+            ->postJson("/api/v1/conductor/hails/{$hail->id}/accept")
+            ->assertOk()->assertJsonPath('data.status', 'ACCEPTED');
+
+        $this->assertDatabaseHas('hails', ['vehicle_id' => $other->id, 'status' => 'CANCELLED']);
+        $this->assertEqualsWithDelta(
+            now()->addSeconds(HailService::ACCEPTED_HOLD_SECONDS)->timestamp,
+            $hail->fresh()->expires_at->timestamp,
+            2,
+        );
+
+        // The accepting unit still sees the pin...
+        $this->getJson('/api/v1/conductor/hails')->assertOk()
+            ->assertJsonCount(1, 'data')->assertJsonPath('data.0.status', 'ACCEPTED');
+
+        // ...until the hold ends.
+        $this->travel(HailService::ACCEPTED_HOLD_SECONDS + 1)->seconds();
+        $this->getJson('/api/v1/conductor/hails')->assertOk()->assertJsonCount(0, 'data');
+    }
+
+    public function test_second_unit_cannot_accept_after_another_accepted(): void
+    {
+        $other = $this->addOnDutyUnit('TEST-002', $this->vehicleLat + 0.0045, $this->vehicleLng);
+        $hail = app(HailService::class)->createHail($this->commuter, $this->vehicle->id, $this->vehicleLat, $this->vehicleLng);
+        $otherCopy = Hail::where('vehicle_id', $other->id)->firstOrFail();
+
+        app(HailService::class)->acceptHail($this->conductor, $hail->id);
+
+        $this->actingAs(User::where('email', 'test-002@test.com')->firstOrFail(), 'sanctum')
+            ->postJson("/api/v1/conductor/hails/{$otherCopy->id}/accept")
+            ->assertStatus(409);
+    }
+
+    public function test_commuter_cannot_hail_again_while_accepting_unit_can_still_pick_up(): void
+    {
+        $hail = app(HailService::class)->createHail($this->commuter, $this->vehicle->id, $this->vehicleLat, $this->vehicleLng);
+        app(HailService::class)->acceptHail($this->conductor, $hail->id);
+
+        $this->actingAs($this->commuter, 'sanctum')
+            ->postJson('/api/v1/commuter/hail', [
+                'vehicle_id' => $this->vehicle->id,
+                'commuter_lat' => $this->vehicleLat,
+                'commuter_lng' => $this->vehicleLng,
+            ])
+            ->assertStatus(409)
+            ->assertJsonPath('error', 'hail_cooldown')
+            ->assertJsonPath('unit_number', 'TEST-001')
+            ->assertJsonPath('vehicle_id', $this->vehicle->id);
+
+        // The cooldown ends with the hold.
+        $this->travel(HailService::ACCEPTED_HOLD_SECONDS + 1)->seconds();
+        VehicleLocation::where('vehicle_id', $this->vehicle->id)->update(['updated_at' => now()]);
+        $this->postJson('/api/v1/commuter/hail', [
+            'vehicle_id' => $this->vehicle->id,
+            'commuter_lat' => $this->vehicleLat,
+            'commuter_lng' => $this->vehicleLng,
+        ])->assertCreated();
+    }
+
+    public function test_cooldown_ends_early_when_accepting_unit_drives_out_of_range(): void
+    {
+        $other = $this->addOnDutyUnit('TEST-002', $this->vehicleLat + 0.0045, $this->vehicleLng);
+        $hail = app(HailService::class)->createHail($this->commuter, $this->vehicle->id, $this->vehicleLat, $this->vehicleLng);
+        app(HailService::class)->acceptHail($this->conductor, $hail->id);
+
+        // The accepting unit drove past: now ~2km from the commuter.
+        VehicleLocation::where('vehicle_id', $this->vehicle->id)->update(['lat' => $this->vehicleLat - 0.018]);
+
+        $this->actingAs($this->commuter, 'sanctum')
+            ->postJson('/api/v1/commuter/hail', [
+                'vehicle_id' => $other->id,
+                'commuter_lat' => $this->vehicleLat,
+                'commuter_lng' => $this->vehicleLng,
+            ])->assertCreated();
+
+        // Its pin is hidden at once instead of staying for the rest of the hold.
+        $this->actingAs($this->conductor, 'sanctum')
+            ->getJson('/api/v1/conductor/hails')->assertOk()->assertJsonCount(0, 'data');
+    }
+
+    public function test_cooldown_ends_early_when_accepting_unit_goes_on_break(): void
+    {
+        $other = $this->addOnDutyUnit('TEST-002', $this->vehicleLat + 0.0045, $this->vehicleLng);
+        $hail = app(HailService::class)->createHail($this->commuter, $this->vehicle->id, $this->vehicleLat, $this->vehicleLng);
+        app(HailService::class)->acceptHail($this->conductor, $hail->id);
+
+        $this->shift->update(['is_on_break' => true, 'break_started_at' => now()]);
+
+        $this->actingAs($this->commuter, 'sanctum')
+            ->postJson('/api/v1/commuter/hail', [
+                'vehicle_id' => $other->id,
+                'commuter_lat' => $this->vehicleLat,
+                'commuter_lng' => $this->vehicleLng,
+            ])->assertCreated();
+    }
+
+    public function test_expired_pending_hail_does_not_block_a_new_one_without_the_sweep(): void
+    {
+        app(HailService::class)->createHail($this->commuter, $this->vehicle->id, $this->vehicleLat, $this->vehicleLng);
+
+        // Past the 3-minute TTL, never marked EXPIRED (no scheduler).
+        $this->travel(4)->minutes();
+        VehicleLocation::where('vehicle_id', $this->vehicle->id)->update(['updated_at' => now()]);
+
+        $this->actingAs($this->commuter, 'sanctum')
+            ->postJson('/api/v1/commuter/hail', [
+                'vehicle_id' => $this->vehicle->id,
+                'commuter_lat' => $this->vehicleLat,
+                'commuter_lng' => $this->vehicleLng,
+            ])->assertCreated();
+    }
+
+    public function test_commuter_active_hail_restores_pending_then_accepted_state(): void
+    {
+        $hail = app(HailService::class)->createHail($this->commuter, $this->vehicle->id, $this->vehicleLat, $this->vehicleLng);
+
+        $this->actingAs($this->commuter, 'sanctum')
+            ->getJson('/api/v1/commuter/hails/active')
+            ->assertOk()->assertJsonPath('data.status', 'PENDING');
+
+        app(HailService::class)->acceptHail($this->conductor, $hail->id);
+
+        $this->getJson('/api/v1/commuter/hails/active')
+            ->assertOk()
+            ->assertJsonPath('data.id', $hail->id)
+            ->assertJsonPath('data.status', 'ACCEPTED')
+            ->assertJsonPath('data.vehicle.unit_number', 'TEST-001')
+            ->assertJsonMissingPath('data.commuter_lat');
+
+        // Gone once the 2-minute hold ends.
+        $this->travel(HailService::ACCEPTED_HOLD_SECONDS + 1)->seconds();
+        $this->getJson('/api/v1/commuter/hails/active')->assertOk()->assertJsonPath('data', null);
+    }
+
+    public function test_accept_broadcasts_unit_and_end_time_to_commuter_without_coordinates(): void
+    {
+        $hail = app(HailService::class)->createHail($this->commuter, $this->vehicle->id, $this->vehicleLat, $this->vehicleLng);
+        $accepted = app(HailService::class)->acceptHail($this->conductor, $hail->id);
+
+        $payload = (new \App\Events\HailStatusChanged($accepted))->broadcastWith();
+
+        $this->assertSame('ACCEPTED', $payload['status']);
+        $this->assertSame('TEST-001', $payload['unit_number']);
+        $this->assertSame($this->vehicle->id, $payload['vehicle_id']);
+        $this->assertSame($accepted->expires_at->toIso8601String(), $payload['expires_at']);
+        $this->assertArrayNotHasKey('commuter_lat', $payload);
+        $this->assertArrayNotHasKey('commuter_lng', $payload);
+    }
+
     public function test_reject_hail_returns_200_with_rejected_status(): void
     {
         $hail = app(HailService::class)->createHail(
