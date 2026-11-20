@@ -42,7 +42,7 @@ export default function RewardsPage() {
   const {
     data, isLoading, error, refetch, progressPercent, ridesRemaining,
   } = useRewards();
-  const { announcements, isLoading: announcementsLoading, markAsRead, markAllAsRead, unreadCount } = useAnnouncements();
+  const { announcements, isLoading: announcementsLoading, markAsRead, markAllAsRead, unreadCount, hasMore, isLoadingMore, loadMore } = useAnnouncements();
   const [section, setSection] = useState<"rewards" | "announcements">("rewards");
   // Opening the page or switching sections re-reads it, as before.
   useEffect(() => { refreshRenewal(); }, [refreshRenewal, section]);
@@ -227,6 +227,12 @@ export default function RewardsPage() {
                     );
                   })}
                 </ul>
+              )}
+              {/* Older updates (also shown under "Unread only", where an old unread one may sit on a later page). */}
+              {!announcementsLoading && hasMore && (
+                <button type="button" onClick={loadMore} disabled={isLoadingMore} className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-white/10 bg-[#071A2E] px-4 text-sm font-semibold text-white/80 transition-colors hover:bg-[#0B223A] disabled:cursor-not-allowed disabled:opacity-60 light:border-gray-200 light:bg-white light:text-gray-700 light:hover:bg-gray-50">
+                  {isLoadingMore ? "Loading…" : "Load older updates"}
+                </button>
               )}
             </section>
           )}
