@@ -107,6 +107,21 @@ class Setting extends Model
         return $value === null || $value === 'true';
     }
 
+    /** Settings > Voucher Generator > "Count GCash payments toward free rides". */
+    public const GCASH_PAYMENT_REWARD_KEY = 'gcash_payment_reward_enabled';
+
+    /**
+     * Whether a commuter's paid GCash ride counts toward the free-ride reward.
+     * Defaults to true (the behaviour before this setting existed) until an
+     * admin saves the toggle.
+     */
+    public static function gcashPaymentRewardEnabled(): bool
+    {
+        $value = static::query()->where('key', self::GCASH_PAYMENT_REWARD_KEY)->value('value');
+
+        return $value === null || $value === 'true';
+    }
+
     /**
      * Return a calculation-safe reward threshold.
      *
