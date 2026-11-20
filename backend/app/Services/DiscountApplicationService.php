@@ -88,7 +88,9 @@ class DiscountApplicationService
     {
         if ($application->exists) {
             $history = $application->submission_history ?? [];
-            $history[] = $application->only(['revision', 'requested_type', 'document_path', 'document_mime', 'school_name', 'education_level', 'grade_level', 'school_year', 'enrollment_term', 'submitted_at', 'reviewed_at', 'reviewed_by', 'status', 'reason']);
+            // valid_until as a plain date: JSON would turn it into a UTC timestamp a day early.
+            $history[] = ['valid_until' => $application->valid_until?->toDateString()]
+                + $application->only(['revision', 'requested_type', 'document_path', 'document_mime', 'school_name', 'education_level', 'grade_level', 'school_year', 'enrollment_term', 'submitted_at', 'reviewed_at', 'reviewed_by', 'status', 'reason']);
             $application->submission_history = $history;
             $this->activity->record(
                 ActivityLogCategory::MEMBER,
@@ -111,6 +113,8 @@ class DiscountApplicationService
             'school_name' => $data['school_name'] ?? null, 'education_level' => $data['education_level'] ?? null,
             'grade_level' => $data['grade_level'] ?? null, 'school_year' => $data['school_year'] ?? null,
             'enrollment_term' => ($data['enrollment_term'] ?? null) ?: null,
+            // PWD requests only: the card date, applied when the admin approves.
+            'valid_until' => $data['valid_until'] ?? null,
             'submitted_at' => now(), 'first_submitted_at' => $retainTimelySubmission ? $application->first_submitted_at : now(),
             'reviewed_by' => null, 'reviewed_at' => null, 'reason' => null, 'correction_due_at' => null,
         ])->save();
@@ -241,7 +245,7 @@ class DiscountApplicationService
         $columns = DiscountApplication::SUMMARY_COLUMNS;
 
         return DiscountApplication::select($withDocument ? [...$columns, 'document_path'] : $columns)
-            ->with(['commuter:id,first_name,middle_name,suffix,surname,birthdate,gender,contact_number,username,commuter_type', 'commuter.user:id,email'])
+            ->with(['commuter:id,first_name,middle_name,suffix,surname,birthdate,gender,contact_number,username,commuter_type,pwd_valid_until', 'commuter.user:id,email'])
             ->whereHas('commuter.user')
             // A sign-up's school details are reviewed with the pending
             // registration, not here, so nothing is reviewed twice.
@@ -276,9 +280,10 @@ class DiscountApplicationService
             abort_if($profile->account_status === 'PENDING', 409, 'Review this student with their pending registration.');
             abort_unless($application->revision === (int) $data['revision'], 409, 'The supporting document has changed. Reopen the application before reviewing it.');
             $isRenewal = $application->request_type === 'RENEWAL';
+            $pwdRenewal = $isRenewal && $application->requested_type === 'PWD';
             $decision = $data['decision'];
             if ($isRenewal) {
-                app(StudentRenewalService::class)->assertEligible($profile);
+                $pwdRenewal ? app(PwdRenewalService::class)->assertEligible($profile) : app(StudentRenewalService::class)->assertEligible($profile);
             } elseif ($decision === 'APPROVED') {
                 // Only approval changes the classification. Rejecting or asking
                 // for a correction stays possible after the account is suspended
@@ -292,16 +297,18 @@ class DiscountApplicationService
                 'correction_due_at' => $decision === 'NEEDS_CORRECTION' && $isRenewal ? now()->addDays(7) : null,
             ])->save();
             if ($decision === 'APPROVED') {
-                $type = $isRenewal ? 'STUDENT' : $application->requested_type;
+                $type = $isRenewal && ! $pwdRenewal ? 'STUDENT' : $application->requested_type;
                 $expiry = $type === 'STUDENT'
                     ? ($isRenewal ? app(StudentRenewalService::class)->cutoff($application->cycle_year + 1) : CommuterProfile::initialStudentExpiry())
                     : null;
-                $profile->update(['commuter_type' => $type, 'applied_type' => $type, 'student_discount_expires_at' => $expiry]);
+                // A PWD request carries its card date; every other category clears it.
+                $profile->update(['commuter_type' => $type, 'applied_type' => $type, 'student_discount_expires_at' => $expiry,
+                    'pwd_valid_until' => $type === 'PWD' ? $application->valid_until : null]);
             } elseif ($decision === 'REJECTED' && $isRenewal) {
-                $profile->update(['commuter_type' => 'REGULAR', 'applied_type' => 'STUDENT']);
+                $profile->update(['commuter_type' => 'REGULAR', 'applied_type' => $pwdRenewal ? 'PWD' : 'STUDENT']);
             }
             // Wording is admin-editable (Settings > Notifications).
-            $templateKey = ($isRenewal ? 'renewal_' : 'discount_').match ($decision) {
+            $templateKey = ($pwdRenewal ? 'pwd_renewal_' : ($isRenewal ? 'renewal_' : 'discount_')).match ($decision) {
                 'APPROVED' => 'approved',
                 'NEEDS_CORRECTION' => 'correction',
                 default => 'rejected',
@@ -314,7 +321,11 @@ class DiscountApplicationService
             // The title carries the outcome so the Updates list reads at a glance;
             // the feed already labels the category (Discount application / Student renewal).
             $category = $this->categoryLabel($application->requested_type);
-            $title = $isRenewal ? match ($decision) {
+            $title = $pwdRenewal ? match ($decision) {
+                'APPROVED' => 'PWD ID renewed',
+                'NEEDS_CORRECTION' => 'PWD renewal needs correction',
+                default => 'PWD renewal rejected',
+            } : ($isRenewal ? match ($decision) {
                 'APPROVED' => 'Student status renewed',
                 'NEEDS_CORRECTION' => 'Renewal needs correction',
                 default => 'Student renewal rejected',
@@ -322,15 +333,15 @@ class DiscountApplicationService
                 'APPROVED' => "{$category} discount approved",
                 'NEEDS_CORRECTION' => "{$category} discount needs correction",
                 default => "{$category} discount rejected",
-            };
-            $this->announcements->notifyUser($profile->id, $isRenewal ? 'STUDENT_RENEWAL_DONE' : 'DISCOUNT_APPLICATION_DONE',
+            });
+            $this->announcements->notifyUser($profile->id, $pwdRenewal ? 'PWD_RENEWAL_DONE' : ($isRenewal ? 'STUDENT_RENEWAL_DONE' : 'DISCOUNT_APPLICATION_DONE'),
                 $title, $message, $application->id);
             $verb = match ($decision) {
                 'APPROVED' => 'Approved',
                 'NEEDS_CORRECTION' => 'Asked for corrections on',
                 default => 'Rejected',
             };
-            $subject = $isRenewal ? 'student renewal' : "{$category} discount application";
+            $subject = $pwdRenewal ? 'PWD renewal' : ($isRenewal ? 'student renewal' : "{$category} discount application");
             $this->activity->record(
                 ActivityLogCategory::MEMBER,
                 "{$verb} the {$subject} of {$profile->first_name} {$profile->surname}",
@@ -351,9 +362,12 @@ class DiscountApplicationService
         foreach (['submitted_at', 'first_submitted_at', 'reviewed_at', 'correction_due_at'] as $field) {
             $result[$field] = $application->$field?->toIso8601String();
         }
+        $result['valid_until'] = $application->valid_until?->toDateString();
         if ($admin) {
             $profile = $application->commuter;
             $result['commuter'] = $profile->only(['id', 'first_name', 'middle_name', 'suffix', 'surname', 'birthdate', 'gender', 'contact_number', 'username', 'commuter_type']);
+            // The card date a PWD renewal replaces, shown beside the new one.
+            $result['commuter']['pwd_valid_until'] = $profile->pwd_valid_until?->toDateString();
             $result['commuter']['email'] = $profile->user->email;
             if ($withDocument && $application->document_path) {
                 $result['document_url'] = Storage::disk($this->documentDisk($application->document_path))->temporaryUrl($application->document_path, now()->addMinutes(10));

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { FileText, ImageIcon, Upload, X } from 'lucide-react';
 import { compressImage, IMAGE_COMPRESSION } from '@/lib/utils/compress-image';
+import { AdminDatePicker } from '@/components/admin/ui/admin-date-picker';
 import { EDUCATION_LABELS, ENROLLMENT_TERMS, HIGH_SCHOOL_GRADES, type EducationLevel, type DiscountApplication } from '@/lib/shared/services/student-renewal.service';
 
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -16,6 +17,8 @@ export function useDiscountProof() {
   const [gradeLevel, setGradeLevel] = useState('');
   const [schoolYear, setSchoolYear] = useState('');
   const [term, setTerm] = useState('');
+  // PWD requests only: the card's "Valid until" date, 'YYYY-MM-DD'.
+  const [validUntil, setValidUntil] = useState('');
   const [document, setDocumentState] = useState<File | null>(null);
   const [fileError, setFileError] = useState('');
   // Bumped on every pick/clear so a compression that finishes after the
@@ -30,6 +33,7 @@ export function useDiscountProof() {
     setGradeLevel(HIGH_SCHOOL_GRADES.some(grade => grade === previous.grade_level) ? String(previous.grade_level) : '');
     setSchoolYear(previous.school_year ?? '');
     setTerm(ENROLLMENT_TERMS.some(item => item === previous.enrollment_term) ? previous.enrollment_term ?? '' : '');
+    setValidUntil(previous.valid_until ?? '');
   }, []);
   const chooseDocument = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]; event.target.value = '';
@@ -43,9 +47,10 @@ export function useDiscountProof() {
     const compressed = await compressImage(file, IMAGE_COMPRESSION.document);
     if (current === pick.current) setDocumentState(compressed);
   };
-  const formData = (student = true, includeDocument = true) => {
+  const formData = (student = true, includeDocument = true, pwd = false) => {
     const body = new FormData();
     if (includeDocument && document) body.set('document', document);
+    if (pwd) body.set('valid_until', validUntil);
     if (student) {
       body.set('school_name', schoolName.trim()); body.set('education_level', educationLevel);
       if (educationLevel === 'HIGH_SCHOOL') body.set('grade_level', gradeLevel);
@@ -55,7 +60,7 @@ export function useDiscountProof() {
     return body;
   };
   return { schoolName, setSchoolName, educationLevel, setEducationLevel, gradeLevel, setGradeLevel,
-    schoolYear, setSchoolYear, term, setTerm, document, setDocument, fileError, chooseDocument, incomplete, prefill, formData };
+    schoolYear, setSchoolYear, term, setTerm, validUntil, setValidUntil, document, setDocument, fileError, chooseDocument, incomplete, prefill, formData };
 }
 
 /**
@@ -81,8 +86,20 @@ function ImagePreview({ file }: { file: File }) {
   return <img src={url} alt={`Preview of ${file.name}`} className="h-full w-full object-contain p-2" />;
 }
 
-export function DiscountProofFields({ proof, busy, proofId, year, student = true, documentLabel = 'Enrollment proof', studentSectionSpacing = false, showDocument = true }: {
+/** PWD card date pickers offer this many years past the current one (2026 → 2031). */
+export const PWD_MAX_YEAR = new Date().getFullYear() + 5;
+
+/** 'YYYY-MM-DD' for the day after `date` (a 'YYYY-MM-DD' string), or tomorrow. */
+export function dayAfter(date?: string | null) {
+  const base = date ? new Date(`${date}T00:00:00Z`) : new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' }) + 'T00:00:00Z');
+  base.setUTCDate(base.getUTCDate() + 1);
+  return base.toISOString().slice(0, 10);
+}
+
+export function DiscountProofFields({ proof, busy, proofId, year, student = true, documentLabel = 'Enrollment proof', studentSectionSpacing = false, showDocument = true, pwdDate }: {
   proof: ReturnType<typeof useDiscountProof>; busy: boolean; proofId: string; year: number; student?: boolean; documentLabel?: string; studentSectionSpacing?: boolean; showDocument?: boolean;
+  /** Shows the PWD card's "Valid until" picker; `min` is the earliest allowed day, `hint` the line under it. */
+  pwdDate?: { min: string; hint: string };
 }) {
   const { schoolName, setSchoolName, educationLevel, setEducationLevel, gradeLevel, setGradeLevel,
     schoolYear, setSchoolYear, term, setTerm, document, setDocument, fileError, chooseDocument } = proof;
@@ -162,5 +179,26 @@ export function DiscountProofFields({ proof, busy, proofId, year, student = true
       {fileError && <p role="alert" className="mt-2 text-xs text-red-300 light:text-red-600">{fileError}</p>}
       <p id={`${proofId}-hint`} className="mt-2 text-xs leading-relaxed text-white/60 light:text-gray-500">JPG, PNG, WebP, or PDF; up to 5 MB. Your document is available only to authorized reviewers.</p>
     </div> : <p role="note" className="mt-6 rounded-xl border border-amber-300/20 bg-amber-300/5 p-4 text-sm leading-relaxed text-amber-100/80 light:border-amber-200 light:bg-amber-50 light:text-amber-800">Local workflow testing: document upload is disabled. No file will be sent or stored.</p>}
+    {pwdDate && <div className="mt-6">
+      <label htmlFor={`${proofId}-valid-until`} className="block text-sm font-medium">Valid until</label>
+      <AdminDatePicker
+        id={`${proofId}-valid-until`}
+        value={proof.validUntil}
+        onChange={proof.setValidUntil}
+        ariaLabel="Valid until"
+        clearLabel="Clear valid-until date"
+        placeholder="Select date"
+        min={pwdDate.min}
+        max={`${PWD_MAX_YEAR}-12-31`}
+        maxYear={PWD_MAX_YEAR}
+        disabled={busy}
+        popover
+        yearNavigation
+        className="mt-2"
+        triggerClassName="h-11 w-full text-sm!"
+        errorId={`${proofId}-valid-until-hint`}
+      />
+      <p id={`${proofId}-valid-until-hint`} className="mt-2 text-xs leading-relaxed text-white/60 light:text-gray-500">{pwdDate.hint}</p>
+    </div>}
   </>;
 }

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Accessibility, AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, CircleDashed, CircleHelp, Clock3, GraduationCap, IdCard, Loader2, ShieldCheck, XCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
-import { DiscountProofFields, useDiscountProof } from '@/components/commuter/discount-proof-fields';
+import { dayAfter, DiscountProofFields, useDiscountProof } from '@/components/commuter/discount-proof-fields';
 import { Modal } from '@/components/shared/modal';
 import { APPLICATION_LABELS, DISCOUNT_CATEGORIES, educationSummary, getApplicationState, renewalRequest,
   schoolYearSummary, type ApplicationState, type DiscountCategory } from '@/lib/shared/services/student-renewal.service';
@@ -93,7 +93,8 @@ export default function DiscountApplicationPage() {
   const application = state?.application;
   const correction = state?.status === 'NEEDS_CORRECTION' && application?.request_type === 'APPLICATION';
   const student = category === 'STUDENT';
-  const incomplete = !category || (state?.document_required !== false && !proof.document) || (student && proof.incomplete);
+  const pwd = category === 'PWD';
+  const incomplete = !category || (state?.document_required !== false && !proof.document) || (student && proof.incomplete) || (pwd && !proof.validUntil);
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (busy || submitting.current || incomplete || !state?.can_submit) return;
@@ -105,7 +106,7 @@ export default function DiscountApplicationPage() {
     setConfirmSubmit(false);
     setBusy(true); setError(''); setMessage(null);
     try {
-      const body = proof.formData(student, state?.document_required !== false); body.set('requested_type', category);
+      const body = proof.formData(student, state?.document_required !== false, pwd); body.set('requested_type', category);
       if (correction && application) {
         body.set('application_id', application.id); body.set('revision', String(application.revision));
       }
@@ -183,7 +184,7 @@ export default function DiscountApplicationPage() {
                 {cancelButton}
               </div>
             </div>}
-            {application?.request_type === 'RENEWAL' ? <p className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4 text-sm leading-relaxed text-white/70 light:border-gray-200 light:bg-white light:text-gray-600">You have an outstanding Student renewal. Complete that request before starting a new discount application. <Link href="/student-renewal" className="mt-2 inline-flex min-h-10 items-center gap-1 font-semibold text-[#99C1F1] hover:text-white light:text-[#1A5FB4] light:hover:text-[#164A8F]">View Student renewal <ArrowRight size={15} aria-hidden="true" /></Link></p>
+            {application?.request_type === 'RENEWAL' ? <p className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4 text-sm leading-relaxed text-white/70 light:border-gray-200 light:bg-white light:text-gray-600">You have an outstanding {application.requested_type === 'PWD' ? 'PWD' : 'Student'} renewal. Complete that request before starting a new discount application. <Link href={application.requested_type === 'PWD' ? '/pwd-renewal' : '/student-renewal'} className="mt-2 inline-flex min-h-10 items-center gap-1 font-semibold text-[#99C1F1] hover:text-white light:text-[#1A5FB4] light:hover:text-[#164A8F]">View {application.requested_type === 'PWD' ? 'PWD' : 'Student'} renewal <ArrowRight size={15} aria-hidden="true" /></Link></p>
             : state.can_submit ? <form id={`${proofId}-form`} onSubmit={submit} className="pt-6">
               <fieldset disabled={busy || correction}>
                 <legend className="text-sm font-semibold">{correction ? 'Application category' : 'Choose your discount category'}</legend>
@@ -197,7 +198,8 @@ export default function DiscountApplicationPage() {
               </fieldset>
               {category && <div className="mt-7 border-t border-white/10 pt-6 light:border-gray-200">
                 <div className="mb-5"><h3 className="text-base font-semibold">Supporting document</h3><p className="mt-1 text-sm leading-relaxed text-white/65 light:text-gray-600">{state.document_required ? (student ? 'Use a school ID showing the current school year or another document proving current enrollment.' : `Upload your ${DISCOUNT_CATEGORIES[category]} ID/card. The name should match your verified commuter account.`) : 'Document upload is disabled for local workflow testing. No file will be sent or stored.'}</p></div>
-                <DiscountProofFields proof={proof} busy={busy} proofId={proofId} year={new Date().getFullYear()} student={student} studentSectionSpacing={student} showDocument={state.document_required} documentLabel={student ? 'Enrollment proof' : `${DISCOUNT_CATEGORIES[category]} ID/card`} />
+                <DiscountProofFields proof={proof} busy={busy} proofId={proofId} year={new Date().getFullYear()} student={student} studentSectionSpacing={student} showDocument={state.document_required} documentLabel={student ? 'Enrollment proof' : `${DISCOUNT_CATEGORIES[category]} ID/card`}
+                  pwdDate={pwd ? { min: dayAfter(), hint: 'The date printed on your PWD ID. Your discount runs until one month after this day.' } : undefined} />
               </div>}
               <div className="mt-6 flex items-start gap-3 rounded-xl border border-[#62A0EA]/20 bg-[#62A0EA]/[0.07] p-4 text-sm leading-relaxed text-white/75 light:border-[#1A5FB4]/20 light:bg-[#F0F7FF] light:text-gray-700 lg:hidden"><ShieldCheck size={19} className="mt-0.5 shrink-0 text-[#99C1F1] light:text-[#1A5FB4]" aria-hidden="true" /><p>Your fare stays Regular while the team checks your document. Once approved, your new classification is used by the existing fare discount process. Student discounts require annual renewal.</p></div>
               <button type="submit" disabled={busy || incomplete} className={`${button} mt-6 w-full sm:w-auto sm:min-w-56 lg:hidden`}>{busy && <Loader2 size={16} className="animate-spin" aria-hidden="true" />}{busy ? 'Submitting...' : correction ? 'Submit corrected documents' : 'Submit application'}{!busy && <ArrowRight size={16} aria-hidden="true" />}</button>

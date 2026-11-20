@@ -30,7 +30,7 @@ import {
 import { useAuth } from "@/contexts/auth-context";
 import type { RewardData } from "@/app/(commuter)/rewards/types";
 import { REWARDS_CHANGED_EVENT } from "@/lib/commuter/rewards-events";
-import { getRenewalState, type RenewalState } from "@/lib/shared/services/student-renewal.service";
+import { getRenewalState, renewalKindFor, type RenewalState } from "@/lib/shared/services/student-renewal.service";
 
 /**
  * Longer than the announcement poll: ride totals only move when a fare is
@@ -47,8 +47,8 @@ interface RewardsContextValue {
   availableVoucherCount: number;
   refetch: () => Promise<void>;
   /**
-   * Student renewal state for current and former students; null for everyone
-   * else or until loaded. `notice_active` is the rewards page's renewal notice,
+   * Renewal state for current and former students and PWDs (`kind` says
+   * which); null for everyone else or until loaded. `notice_active` is the rewards page's renewal notice,
    * and it keeps one count on the tab badge until the renewal is approved.
    */
   renewal: RenewalState | null;
@@ -65,12 +65,12 @@ export function RewardsProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [renewal, setRenewal] = useState<RenewalState | null>(null);
   // Same audience as the rewards page's renewal notice: nobody else can be due.
-  const renewalAudience = commuterProfile?.commuterType === "STUDENT" || commuterProfile?.appliedType === "STUDENT";
+  const renewalAudience = renewalKindFor(commuterProfile);
 
   const refreshRenewal = useCallback(() => {
     if (!renewalAudience) return;
     // A failed read keeps the last state, so the badge never flickers off.
-    void getRenewalState().then(setRenewal).catch(() => {});
+    void getRenewalState(undefined, renewalAudience).then(state => setRenewal({ ...state, kind: renewalAudience })).catch(() => {});
   }, [renewalAudience]);
 
   useEffect(() => {

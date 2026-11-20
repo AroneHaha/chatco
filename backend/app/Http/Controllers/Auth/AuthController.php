@@ -170,6 +170,8 @@ class AuthController extends Controller
                 'username' => $user->commuterProfile->username,
                 'commuter_type' => $user->commuterProfile->commuter_type,
                 'applied_type' => $user->commuterProfile->applied_type,
+                // Null for legacy PWD cards, which have no renewal to show.
+                'pwd_valid_until' => $user->commuterProfile->pwd_valid_until?->toDateString(),
                 'account_status' => $user->commuterProfile->account_status,
                 // Shown by the app shell's avatar (sidebar/dock); null = default.
                 'profile_image_url' => $user->commuterProfile->profile_image_url,

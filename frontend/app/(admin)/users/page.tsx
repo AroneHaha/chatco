@@ -274,6 +274,7 @@ export default function UsersPage() {
     email: string;
     phoneNumber: string;
     commuterType: string;
+    pwdValidUntil: string;
     idImageFile: File | null;
     idImagePreview: string | null;
     studentDetails: OnsiteStudentDetails | null;
@@ -314,6 +315,7 @@ export default function UsersPage() {
       formData.append('school_year', data.studentDetails.schoolYear);
       if (data.studentDetails.enrollmentTerm) formData.append('enrollment_term', data.studentDetails.enrollmentTerm);
     }
+    if (appliedType === 'PWD') formData.append('valid_until', data.pwdValidUntil);
 
     const res = await fetch('/api/admin/registrations', {
       method: 'POST',

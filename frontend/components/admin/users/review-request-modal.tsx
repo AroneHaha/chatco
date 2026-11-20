@@ -7,7 +7,7 @@ import { UserAvatar } from '@/components/admin/ui/user-avatar';
 import sheet from './commuter-details.module.css';
 import { AlertTriangle, LoaderCircle, ZoomIn, X, IdCard, User, FileText, ExternalLink, Check } from 'lucide-react';
 import type { PendingRequest } from '@/app/(admin)/users/data/users-data';
-import { DISCOUNT_CATEGORIES, discountStatusLabel, educationSummary, schoolYearSummary, type DiscountApplication } from '@/lib/shared/services/student-renewal.service';
+import { DISCOUNT_CATEGORIES, discountStatusLabel, educationSummary, formatCardDate, schoolYearSummary, type DiscountApplication } from '@/lib/shared/services/student-renewal.service';
 
 import { InlineError } from '@/components/admin/ui/inline-error';
 function formatDate(value: string): string {
@@ -91,7 +91,11 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
   const isApplication = renewal?.request_type === 'APPLICATION';
   const isStudentProof = renewal?.requested_type === 'STUDENT';
   const requestName = isApplication ? 'application' : 'renewal';
-  const decisions = RENEWAL_DECISIONS.map(option => !isApplication ? option : {
+  const isPwdProof = renewal?.requested_type === 'PWD';
+  const decisions = RENEWAL_DECISIONS.map(option => !isApplication ? (isPwdProof && option.value === 'APPROVED'
+    // A PWD renewal runs to the new card's date (plus the usual month), not a yearly deadline.
+    ? { ...option, outcome: 'The PWD discount continues with the new card’s valid-until date.' }
+    : option) : {
     ...option,
     outcome: option.value === 'APPROVED' ? `The account becomes ${DISCOUNT_CATEGORIES[renewal.requested_type]}. The verified discount becomes available.` : option.value === 'REJECTED' ? 'The commuter is sent your reason. Their account remains Regular.' : 'The commuter is sent your reason and can submit new proof at any time. Their account remains Regular until approved.',
     confirm: option.value === 'APPROVED' ? 'Approve Application' : option.value === 'REJECTED' ? 'Reject Application' : option.confirm,
@@ -203,6 +207,15 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
       </div>
       {/* A Student sign-up's school details, checked against the ID beside
           them; approving the registration approves these too. */}
+      {/* A PWD sign-up's card date, checked against the ID beside it. */}
+      {!isDiscountRequest && request.pwdValidUntil && (
+        <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-[#2A3A55] pt-4 admin-light:border-[#E2E8F0]">
+          <div className="min-w-0">
+            <p className={fieldLabelClasses}>PWD ID valid until</p>
+            <p className={fieldValueClasses}>{formatCardDate(request.pwdValidUntil)}</p>
+          </div>
+        </div>
+      )}
       {!isDiscountRequest && request.studentDetails && (
         <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-[#2A3A55] pt-4 admin-light:border-[#E2E8F0]">
           <div className="col-span-2 min-w-0">
@@ -282,7 +295,7 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
                   <span>
                     {discountStatusLabel(renewal)}
                   </span>
-                  <span>{isApplication ? `Wants ${category}` : 'Student renewal'}</span>
+                  <span>{isApplication ? `Wants ${category}` : `${category} renewal`}</span>
                 </p>
               </div>
             </div>
@@ -335,6 +348,11 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
                     <div className={sheet.field}><dt>School</dt><dd>{renewal.school_name || 'Not provided'}</dd></div>
                     <div className={sheet.field}><dt>Level</dt><dd>{educationSummary(renewal)}</dd></div>
                     <div className={sheet.field}><dt>Year / term</dt><dd>{schoolYearSummary(renewal)}</dd></div>
+                  </>}
+                  {/* Checked against the date printed on the card in the photo. */}
+                  {isPwdProof && <>
+                    <div className={sheet.field}><dt>{isApplication ? 'Valid until' : 'New valid until'}</dt><dd>{renewal.valid_until ? formatCardDate(renewal.valid_until) : 'Not provided'}</dd></div>
+                    {!isApplication && renewal.commuter?.pwd_valid_until && <div className={sheet.field}><dt>Current valid until</dt><dd>{formatCardDate(renewal.commuter.pwd_valid_until)}</dd></div>}
                   </>}
                 </dl>
               </div>
@@ -441,7 +459,7 @@ export function ReviewRequestModal({ isOpen, onClose, request, onApprove, onReje
             >
               <h3 id={confirmTitleId} className="text-lg font-bold leading-snug text-white admin-light:text-slate-900">
                 {decision === 'APPROVED'
-                  ? `Approve ${request.name}'s ${isApplication ? `${category} application` : 'student renewal'}?`
+                  ? `Approve ${request.name}'s ${isApplication ? `${category} application` : isPwdProof ? 'PWD renewal' : 'student renewal'}?`
                   : decision === 'REJECTED' ? `Reject this ${requestName}?` : 'Send this back for correction?'}
               </h3>
               <div id={confirmBodyId} className="mt-3 space-y-3 text-sm leading-relaxed text-slate-300 admin-light:text-slate-600">

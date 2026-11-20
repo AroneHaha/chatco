@@ -29,6 +29,11 @@ interface AdminDatePickerProps {
   max?: string;
   /** Trigger text while no date is picked. */
   placeholder?: string;
+  /**
+   * Latest year in the year menu, for future dates (it otherwise stops at the
+   * current year). The menu then also starts at `min`'s year instead of 1900.
+   */
+  maxYear?: number;
 }
 
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
@@ -62,7 +67,7 @@ const ACCENTS: Record<'blue' | 'red', Accent> = {
 // decide open direction before the panel itself has rendered/measured.
 const PANEL_HEIGHT_ESTIMATE = 336;
 
-export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'left', ariaLabel, className, triggerClassName, id, invalid, errorId, clearLabel = 'Clear date filter', disabled = false, popover = false, yearNavigation = false, min, max, placeholder = 'mm/dd/yyyy' }: AdminDatePickerProps) {
+export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'left', ariaLabel, className, triggerClassName, id, invalid, errorId, clearLabel = 'Clear date filter', disabled = false, popover = false, yearNavigation = false, min, max, placeholder = 'mm/dd/yyyy', maxYear }: AdminDatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [openDirection, setOpenDirection] = useState<'down' | 'up'>('down');
   const [viewMonth, setViewMonth] = useState(() => (value ? parseISODate(value) : new Date()));
@@ -265,7 +270,11 @@ export function AdminDatePicker({ value, onChange, accent = 'blue', align = 'lef
                   onChange={(event) => setViewMonth(new Date(Number(event.target.value), month, 1))}
                   className="min-w-0 rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-[#F1F5F9] px-1 py-1 text-xs text-white admin-light:text-slate-900 light:border-gray-200 light:bg-white light:text-gray-900 outline-none focus:border-[#62A0EA] admin-light:focus:border-[#1A5FB4]"
                 >
-                  {Array.from({ length: Math.max(today.getFullYear(), year) - Math.min(1900, year) + 1 }, (_, index) => Math.max(today.getFullYear(), year) - index).map((option) => <option key={option} value={option}>{option}</option>)}
+                  {(() => {
+                    const top = Math.max(maxYear ?? today.getFullYear(), year);
+                    const bottom = Math.min(maxYear !== undefined && min ? Number(min.slice(0, 4)) : 1900, year);
+                    return Array.from({ length: top - bottom + 1 }, (_, index) => top - index).map((option) => <option key={option} value={option}>{option}</option>);
+                  })()}
                 </select>
               </div>
             ) : <span className="text-sm font-semibold text-white admin-light:text-slate-900 light:text-gray-900">{MONTH_NAMES[month]} {year}</span>}

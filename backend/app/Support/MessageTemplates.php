@@ -27,6 +27,11 @@ final class MessageTemplates
         'renewal_correction_template' => 'Please submit corrected enrollment proof within seven days. {reason}',
         'renewal_rejected_template' => 'Your student renewal was not approved. Your commuter type is now Regular. {reason}',
         'renewal_expired_template' => 'Your student renewal deadline has passed. Your account remains available as a Regular commuter. Submit current enrollment proof to apply again.',
+        'pwd_renewal_reminder_template' => 'Your PWD ID renewal is open {period}. Submit a photo of your renewed PWD ID and the valid-until date printed on it. Your discount continues until {deadline}. Without a submission by then, your commuter type becomes Regular. Open PWD Renewal to submit your ID or switch to Regular.',
+        'pwd_renewal_approved_template' => 'Your PWD ID has been renewed. Your PWD discount is available.',
+        'pwd_renewal_correction_template' => 'Please submit a corrected PWD ID within seven days. {reason}',
+        'pwd_renewal_rejected_template' => 'Your PWD renewal was not approved. Your commuter type is now Regular. {reason}',
+        'pwd_renewal_expired_template' => 'Your PWD renewal deadline has passed. Your account remains available as a Regular commuter. Submit your renewed PWD ID to apply again.',
         'remittance_reminder_template' => 'Shift {shift_id} still has PHP {amount} in expected cash awaiting remittance.',
         'onsite_account_template' => 'Hi {name}, an admin created your commuter account at a CHATCO terminal. Sign in with the default password below.',
     ];

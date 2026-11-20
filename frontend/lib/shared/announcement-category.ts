@@ -75,6 +75,9 @@ export function announcementCategory(item: Pick<Announcement, "type" | "rawType"
   if (item.rawType?.toUpperCase().startsWith("STUDENT_RENEWAL")) {
     return { label: "Student renewal", color: "text-[#99C1F1] light:text-[#1A5FB4]" };
   }
+  if (item.rawType?.toUpperCase().startsWith("PWD_RENEWAL")) {
+    return { label: "PWD renewal", color: "text-[#99C1F1] light:text-[#1A5FB4]" };
+  }
   const config = ANNOUNCEMENT_CATEGORY_CONFIG[item.type] ?? ANNOUNCEMENT_CATEGORY_CONFIG.CUSTOM;
   return { ...config, label: item.type === "CUSTOM" && item.rawType ? item.rawType : config.label };
 }

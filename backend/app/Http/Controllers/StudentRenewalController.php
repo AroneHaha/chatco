@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\DiscountApplication;
+use App\Services\PwdRenewalService;
 use App\Services\StudentRenewalService;
 use App\Services\DiscountApplicationService;
 use App\Traits\ApiResponse;
@@ -13,7 +14,7 @@ class StudentRenewalController extends Controller
 {
     use ApiResponse;
 
-    public function __construct(private StudentRenewalService $renewals, private DiscountApplicationService $applications) {}
+    public function __construct(private StudentRenewalService $renewals, private DiscountApplicationService $applications, private PwdRenewalService $pwdRenewals) {}
 
     public function state(Request $request)
     {
@@ -65,6 +66,7 @@ class StudentRenewalController extends Controller
             'revision' => $application ? ['nullable', 'integer', 'min:1', 'required_with:application_id'] : ['exclude'],
             'document' => [$documentOptional ? 'sometimes' : 'required', 'nullable', 'file', 'mimes:jpeg,jpg,png,webp,pdf', 'max:5120'],
             ...DiscountApplication::studentDetailRules($student),
+            ...DiscountApplication::pwdValidUntilRules($application && $request->input('requested_type') === 'PWD'),
         ]);
 
         return $data;
@@ -82,6 +84,42 @@ class StudentRenewalController extends Controller
         $data = $request->validate(['action' => ['required', Rule::in(['snooze', 'dismiss'])]]);
 
         return $this->successResponse($this->renewals->setReminder($request->user(), $data['action']));
+    }
+
+    public function pwdState(Request $request)
+    {
+        if ($profile = $request->user()->commuterProfile) {
+            $this->pwdRenewals->assertEligible($profile);
+        }
+
+        return $this->successResponse($this->pwdRenewals->state($request->user()));
+    }
+
+    public function pwdSubmit(Request $request)
+    {
+        $profile = $request->user()->commuterProfile;
+        abort_unless($profile, 404, 'Commuter profile not found.');
+        $data = $request->validate([
+            'document' => ['required', 'file', 'mimes:jpeg,jpg,png,webp,pdf', 'max:5120'],
+            // The renewed card must outlast the one it replaces.
+            ...DiscountApplication::pwdValidUntilRules(true, max($profile->pwd_valid_until?->toDateString() ?? '', now()->toDateString())),
+        ], ['valid_until.after' => 'The new valid-until date must be later than your current card date and today.']);
+
+        return $this->successResponse($this->pwdRenewals->submit($request->user(), $data), 'Renewal submitted for verification.', 201);
+    }
+
+    public function pwdRegular(Request $request)
+    {
+        $request->validate(['confirmed' => ['required', 'accepted']]);
+
+        return $this->successResponse($this->pwdRenewals->switchToRegular($request->user()));
+    }
+
+    public function pwdReminder(Request $request)
+    {
+        $data = $request->validate(['action' => ['required', Rule::in(['snooze', 'dismiss'])]]);
+
+        return $this->successResponse($this->pwdRenewals->setReminder($request->user(), $data['action']));
     }
 
     public function index(Request $request)

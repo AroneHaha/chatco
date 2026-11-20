@@ -64,6 +64,8 @@ export interface CommuterProfile {
   createdAt: string;
   updatedAt?: string;
   appliedType?: CommuterType;
+  /** The PWD card's "Valid until" date; null for other types and legacy PWD cards. */
+  pwdValidUntil?: string | null;
 }
 
 // ─── Display Label for CommuterType ──────────────────────────────────

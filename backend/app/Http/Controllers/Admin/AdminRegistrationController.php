@@ -148,6 +148,10 @@ class AdminRegistrationController extends Controller
             'id_image' => ['required', 'file', 'image', 'mimes:jpeg,jpg,png,webp', 'max:3072'],
             // A Student gives the same school details renewal asks for.
             ...DiscountApplication::studentDetailRules($student),
+            ...DiscountApplication::pwdValidUntilRules($request->input('applied_type') === 'PWD'),
+        ], [
+            'valid_until.required' => 'Enter the valid-until date printed on the PWD ID.',
+            'valid_until.after' => 'The valid-until date must be in the future.',
         ]);
 
         // Safety net: enforce the re-registration cooldown here too, so an
@@ -225,6 +229,7 @@ class AdminRegistrationController extends Controller
                     'language_preference' => $validated['language_preference'] ?? 'English',
                     'account_status' => 'APPROVED',
                     'student_discount_expires_at' => $validated['applied_type'] === 'STUDENT' ? CommuterProfile::initialStudentExpiry() : null,
+                    'pwd_valid_until' => $validated['applied_type'] === 'PWD' ? $validated['valid_until'] : null,
                     'id_image_url' => $idImagePath,
                     'verified_at' => now(),
                     'rejection_reason' => null,
