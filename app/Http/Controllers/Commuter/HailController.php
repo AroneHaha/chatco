@@ -37,6 +37,8 @@ class HailController extends Controller
      *   201 — hail created successfully
      *   422 — { error: 'outside_radius', distance_m: N } when distance > 1KM
      *   409 — duplicate pending hail (shaped by global exception handler)
+     *   409 — { error: 'hail_cooldown', ... } while a unit that accepted the
+     *         last hail can still pick the commuter up (HailCooldownException)
      *   422 — validation errors (shaped by global exception handler)
      */
     public function store(CreateHailRequest $request): JsonResponse

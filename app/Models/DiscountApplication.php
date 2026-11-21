@@ -32,10 +32,19 @@ class DiscountApplication extends Model
         ];
     }
 
+    /**
+     * The card date a PWD request asks for. A renewal's new date must be later
+     * than the one it replaces ($after); every date must still be in the future.
+     */
+    public static function pwdValidUntilRules(bool $pwd, ?string $after = null): array
+    {
+        return ['valid_until' => [Rule::excludeIf(! $pwd), 'required', 'date_format:Y-m-d', 'after:'.($after ?? 'today')]];
+    }
+
     // Status screens and queue pages never need document paths or revision history.
     public const SUMMARY_COLUMNS = [
         'id', 'commuter_id', 'request_type', 'requested_type', 'cycle_year', 'revision', 'status',
-        'school_name', 'education_level', 'grade_level', 'school_year', 'enrollment_term',
+        'school_name', 'education_level', 'grade_level', 'school_year', 'enrollment_term', 'valid_until',
         'reason', 'reviewed_by', 'document_mime', 'submitted_at', 'first_submitted_at', 'reviewed_at', 'correction_due_at',
     ];
 
@@ -45,6 +54,7 @@ class DiscountApplication extends Model
             'cycle_year' => 'integer',
             'revision' => 'integer',
             'grade_level' => 'integer',
+            'valid_until' => 'date',
             'submission_history' => 'array',
             'submitted_at' => 'datetime',
             'first_submitted_at' => 'datetime',

@@ -42,6 +42,7 @@ class CommuterService
             'contact_number',
             'commuter_type',
             'student_discount_expires_at',
+            'pwd_valid_until',
             'applied_type',
             'username',
             'language_preference',

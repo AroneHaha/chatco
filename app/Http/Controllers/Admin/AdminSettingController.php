@@ -62,6 +62,7 @@ class AdminSettingController extends Controller
         $valueRules = match ($key) {
             'maintenance_mode' => ['required', 'string', 'in:true,false'],
             Setting::RECEIPT_SCAN_REWARD_KEY => ['required', 'string', 'in:true,false'],
+            Setting::GCASH_PAYMENT_REWARD_KEY => ['required', 'string', 'in:true,false'],
             'maintenance_message' => ['nullable', 'string', 'max:500'],
             'maintenance_roles' => ['required', 'string', function ($attribute, $value, $fail) {
                 $roles = json_decode($value, true);
@@ -281,6 +282,7 @@ class AdminSettingController extends Controller
     private const SETTING_LABELS = [
         Setting::RIDES_FOR_FREE_REWARD_KEY => 'Paid rides for 1 free ride',
         Setting::RECEIPT_SCAN_REWARD_KEY => 'Receipt QR free-ride promo',
+        Setting::GCASH_PAYMENT_REWARD_KEY => 'GCash payment free-ride promo',
         FareRules::MINIMUM_FARE_KEY => 'Minimum fare (₱)',
         FareRules::DISCOUNT_RATE_KEY => 'Discount rate (%)',
         FareRules::SUCCEEDING_FARE_KEY => 'Succeeding fare per barangay (₱)',
@@ -310,6 +312,11 @@ class AdminSettingController extends Controller
         'renewal_correction_template' => 'Student renewal correction notification',
         'renewal_rejected_template' => 'Student renewal rejected notification',
         'renewal_expired_template' => 'Student discount expired notification',
+        'pwd_renewal_reminder_template' => 'PWD renewal reminder',
+        'pwd_renewal_approved_template' => 'PWD renewal approved notification',
+        'pwd_renewal_correction_template' => 'PWD renewal correction notification',
+        'pwd_renewal_rejected_template' => 'PWD renewal rejected notification',
+        'pwd_renewal_expired_template' => 'PWD discount expired notification',
         'remittance_reminder_template' => 'Remittance reminder notification',
         'maintenance_mode' => 'Maintenance mode',
         'maintenance_roles' => 'Maintenance applies to',

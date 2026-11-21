@@ -114,6 +114,8 @@ class RegisterRequest extends FormRequest
             // A Student gives the same school details renewal and the admin's
             // onsite registration ask for; reviewed with the registration.
             ...DiscountApplication::studentDetailRules($this->input('applied_type') === 'STUDENT'),
+            // A PWD gives the "Valid until" date printed on their card.
+            ...DiscountApplication::pwdValidUntilRules($this->input('applied_type') === 'PWD'),
         ];
     }
 
@@ -134,6 +136,8 @@ class RegisterRequest extends FormRequest
             'username.max' => 'Usernames can be at most 16 characters.',
             'username.regex' => 'Usernames can only use letters, numbers, periods (.) and underscores (_), with no spaces.',
             'id_image.required' => 'A valid ID image is required to complete registration.',
+            'valid_until.required' => 'Enter the valid-until date printed on your PWD ID.',
+            'valid_until.after' => 'The valid-until date must be in the future.',
             'password.confirmed' => 'The password confirmation does not match.',
         ];
     }

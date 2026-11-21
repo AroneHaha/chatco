@@ -40,6 +40,7 @@ class CommuterProfile extends Model
         'privacy_acknowledged_at',
         'registration_confirmed_at',
         'student_discount_expires_at',
+        'pwd_valid_until',
         'renewal_reminder_snoozed_until',
         'renewal_reminder_dismissed_cycle',
     ];
@@ -53,6 +54,7 @@ class CommuterProfile extends Model
             'privacy_acknowledged_at' => 'datetime',
             'registration_confirmed_at' => 'datetime',
             'student_discount_expires_at' => 'datetime',
+            'pwd_valid_until' => 'date',
             'renewal_reminder_snoozed_until' => 'datetime',
             'renewal_reminder_dismissed_cycle' => 'integer',
         ];
@@ -97,6 +99,10 @@ class CommuterProfile extends Model
 
     public function effectiveFareType(): string
     {
+        // A PWD card dated before this feature (NULL) never lapses.
+        if (strtoupper($this->commuter_type) === 'PWD') {
+            return $this->pwd_valid_until && now('Asia/Manila')->gte(\App\Services\PwdRenewalService::cutoff($this->pwd_valid_until)) ? 'REGULAR' : 'PWD';
+        }
         if (strtoupper($this->commuter_type) !== 'STUDENT') {
             return $this->commuter_type;
         }

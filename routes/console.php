@@ -1,5 +1,6 @@
 <?php
 
+use App\Services\PwdRenewalService;
 use App\Services\StudentRenewalService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -25,6 +26,23 @@ Artisan::command('students:process-renewals', function (StudentRenewalService $r
 })->purpose('Send student renewal reminders and expire overdue student eligibility');
 
 Schedule::command('students:process-renewals')->dailyAt('00:00')->timezone('Asia/Manila')->withoutOverlapping(60);
+
+Artisan::command('pwd:process-renewals', function (PwdRenewalService $renewals) {
+    $failures = $renewals->process();
+    if ($failures) {
+        foreach ($failures as $failure) {
+            $this->error("Retry required: {$failure['phase']} for commuter {$failure['commuter_id']}.");
+        }
+        $this->error(count($failures).' PWD renewal operation(s) failed. Rerun pwd:process-renewals to retry.');
+
+        return 1;
+    }
+    $this->info('PWD renewal reminders and expirations processed.');
+
+    return 0;
+})->purpose('Send PWD renewal reminders and expire PWD discounts a month after the card date');
+
+Schedule::command('pwd:process-renewals')->dailyAt('00:00')->timezone('Asia/Manila')->withoutOverlapping(60);
 
 Schedule::command('vehicles:reset-daily-assignments')
     ->dailyAt('00:00')

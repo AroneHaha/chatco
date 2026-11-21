@@ -65,7 +65,7 @@ class StudentRenewalService
         }
         $students = fn () => CommuterProfile::where('commuter_type', 'STUDENT')
             ->where(fn ($q) => $q->whereNull('student_discount_expires_at')->orWhere('student_discount_expires_at', '>', now()));
-        $renewed = fn ($q) => $q->where('request_type', 'RENEWAL')->where('cycle_year', $year)->where('status', 'APPROVED');
+        $renewed = fn ($q) => $q->where('request_type', 'RENEWAL')->where('requested_type', 'STUDENT')->where('cycle_year', $year)->where('status', 'APPROVED');
 
         $students()->whereHas('discountApplications', $renewed)->update(['student_discount_expires_at' => self::cutoff($year + 1, $month)]);
         $students()->whereDoesntHave('discountApplications', $renewed)->update(['student_discount_expires_at' => self::cutoff($year, $month)]);
@@ -105,8 +105,8 @@ class StudentRenewalService
         $profile = $user->commuterProfile;
         abort_unless($profile, 404, 'Commuter profile not found.');
         $year = $this->cycleYear();
-        $outstanding = $profile->discountApplications()->select(DiscountApplication::SUMMARY_COLUMNS)->where('request_type', 'RENEWAL')->outstanding()->orderBy('cycle_year')->first();
-        $application = $outstanding ?? $profile->discountApplications()->select(DiscountApplication::SUMMARY_COLUMNS)->where('request_type', 'RENEWAL')->where('cycle_year', $year)->first();
+        $outstanding = $profile->discountApplications()->select(DiscountApplication::SUMMARY_COLUMNS)->where('request_type', 'RENEWAL')->where('requested_type', 'STUDENT')->outstanding()->orderBy('cycle_year')->first();
+        $application = $outstanding ?? $profile->discountApplications()->select(DiscountApplication::SUMMARY_COLUMNS)->where('request_type', 'RENEWAL')->where('requested_type', 'STUDENT')->where('cycle_year', $year)->first();
         // An unresolved request keeps its cycle and correction window after rollover.
         $year = $outstanding?->cycle_year ?? $year;
         $cutoff = $this->cutoff($year);
@@ -193,7 +193,7 @@ class StudentRenewalService
             $profile = CommuterProfile::whereKey($user->id)->lockForUpdate()->firstOrFail();
             $this->assertEligible($profile);
             $profile->update(['commuter_type' => 'REGULAR', 'applied_type' => 'REGULAR', 'student_discount_expires_at' => null]);
-            DiscountApplication::where('commuter_id', $profile->id)->where('request_type', 'RENEWAL')->whereIn('status', ['PENDING', 'NEEDS_CORRECTION'])->update(['status' => 'CANCELLED', 'updated_at' => now()]);
+            DiscountApplication::where('commuter_id', $profile->id)->where('request_type', 'RENEWAL')->where('requested_type', 'STUDENT')->whereIn('status', ['PENDING', 'NEEDS_CORRECTION'])->update(['status' => 'CANCELLED', 'updated_at' => now()]);
             $this->activity->record(
                 ActivityLogCategory::MEMBER,
                 'Switched from Student to Regular fare',
@@ -248,7 +248,7 @@ class StudentRenewalService
                         if ($profile->commuter_type !== 'STUDENT' || $profile->effectiveFareType() === 'STUDENT') {
                             return;
                         }
-                        $applications = $profile->discountApplications()->where('request_type', 'RENEWAL')->whereIn('status', ['PENDING', 'NEEDS_CORRECTION'])
+                        $applications = $profile->discountApplications()->where('request_type', 'RENEWAL')->where('requested_type', 'STUDENT')->whereIn('status', ['PENDING', 'NEEDS_CORRECTION'])
                             ->select(['id', 'cycle_year', 'status', 'first_submitted_at', 'correction_due_at'])->orderBy('cycle_year')->lockForUpdate()->get();
                         $protected = false;
                         foreach ($applications as $application) {
@@ -287,8 +287,8 @@ class StudentRenewalService
         }
         CommuterProfile::where('commuter_type', 'STUDENT')->whereIn('account_status', ['ACTIVE', 'APPROVED'])->whereHas('user')
             ->where(fn ($q) => $q->whereNull('student_discount_expires_at')->orWhere('student_discount_expires_at', '<=', $cutoff))
-            ->whereDoesntHave('discountApplications', fn ($q) => $q->where('request_type', 'RENEWAL')->outstanding())
-            ->whereDoesntHave('discountApplications', fn ($q) => $q->where('request_type', 'RENEWAL')->where('cycle_year', $year)->where('status', 'APPROVED'))
+            ->whereDoesntHave('discountApplications', fn ($q) => $q->where('request_type', 'RENEWAL')->where('requested_type', 'STUDENT')->outstanding())
+            ->whereDoesntHave('discountApplications', fn ($q) => $q->where('request_type', 'RENEWAL')->where('requested_type', 'STUDENT')->where('cycle_year', $year)->where('status', 'APPROVED'))
             ->whereNotExists(function ($q) use ($slot) {
                 // A reminder's user_id and reference_id are both the commuter's id; only user_id is indexed.
                 $q->selectRaw('1')->from('announcements')->whereColumn('announcements.user_id', 'commuter_profiles.id')
@@ -299,8 +299,8 @@ class StudentRenewalService
                     $this->processAccount($candidate->id, 'reminder', function () use ($candidate, $slot, $year, $reminderTemplate) {
                         $profile = CommuterProfile::whereKey($candidate->id)->lockForUpdate()->firstOrFail();
                         if ($profile->commuter_type !== 'STUDENT' || $profile->student_discount_expires_at?->gt($this->cutoff($year))
-                            || $profile->discountApplications()->where('request_type', 'RENEWAL')->outstanding()->exists()
-                            || $profile->discountApplications()->where('request_type', 'RENEWAL')->where('cycle_year', $year)->where('status', 'APPROVED')->exists()) {
+                            || $profile->discountApplications()->where('request_type', 'RENEWAL')->where('requested_type', 'STUDENT')->outstanding()->exists()
+                            || $profile->discountApplications()->where('request_type', 'RENEWAL')->where('requested_type', 'STUDENT')->where('cycle_year', $year)->where('status', 'APPROVED')->exists()) {
                             return;
                         }
                         if (Announcement::withTrashed()->where('user_id', $profile->id)->where('type', 'STUDENT_RENEWAL')->where('created_at', '>=', $slot)->exists()) {

@@ -33,6 +33,7 @@ use App\Http\Controllers\Conductor\ConductorHailController;
 use App\Http\Controllers\Conductor\MobileTransactionController;
 use App\Http\Controllers\FaqController;
 use App\Http\Controllers\FareMatrixController;
+use App\Http\Controllers\Mobile\MobileHailController;
 use App\Http\Controllers\LostItemController;
 use App\Http\Controllers\Payment\PaymentController;
 use App\Http\Controllers\Payment\QrController;
@@ -122,6 +123,10 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER', 'mainten
     Route::post('/student-renewal', [StudentRenewalController::class, 'submit'])->middleware('throttle:conductor-write');
     Route::post('/student-renewal/regular', [StudentRenewalController::class, 'regular'])->middleware('throttle:conductor-write');
     Route::post('/student-renewal/reminder', [StudentRenewalController::class, 'reminder'])->middleware('throttle:conductor-write');
+    Route::get('/pwd-renewal', [StudentRenewalController::class, 'pwdState'])->middleware('throttle:commuter-read');
+    Route::post('/pwd-renewal', [StudentRenewalController::class, 'pwdSubmit'])->middleware('throttle:conductor-write');
+    Route::post('/pwd-renewal/regular', [StudentRenewalController::class, 'pwdRegular'])->middleware('throttle:conductor-write');
+    Route::post('/pwd-renewal/reminder', [StudentRenewalController::class, 'pwdReminder'])->middleware('throttle:conductor-write');
     Route::put('/profile', [CommuterController::class, 'updateProfile'])->middleware('throttle:conductor-write');
         Route::post('/profile/photo', [CommuterController::class, 'uploadProfilePhoto'])->middleware('throttle:conductor-write');
     Route::get('/change-email', [EmailChangeController::class, 'state'])->middleware('throttle:commuter-read');
@@ -147,6 +152,9 @@ Route::prefix('commuter')->middleware(['auth:sanctum', 'role:COMMUTER', 'mainten
     // Hail lifecycle (commuter-side) — 10 req/min per user
     Route::post('/hail', [HailController::class, 'store'])->middleware('throttle:commuter-hail');
     Route::delete('/hail/{id}', [HailController::class, 'destroy'])->middleware('throttle:commuter-hail');
+    // Same as the mobile route: the web dashboard reads it once on open to
+    // restore a pending hail or an accepted hail's cooldown.
+    Route::get('/hails/active', [MobileHailController::class, 'active'])->middleware('throttle:commuter-read');
 
     // Payment lifecycle (commuter-side) — claim GCash + view history
     Route::post('/payments/claim', [PaymentController::class, 'claim'])->middleware('throttle:commuter-hail');
