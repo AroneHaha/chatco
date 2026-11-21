@@ -2,24 +2,17 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import dynamic from 'next/dynamic';
 import { Plus, Pencil, Trash2, X, MapPin, Search, Route, RefreshCw, ArrowUp, ArrowDown } from 'lucide-react';
 import * as farePointService from '@/lib/admin/services/fare-point.service';
 import type { FarePoint as ApiFarePoint } from '@/lib/admin/services/fare-point.service';
 import * as routeService from '@/lib/admin/services/route.service';
 import type { AdminRoute } from '@/lib/admin/services/route.service';
-import type { RouteCoordinate } from '@/lib/admin/services/route.service';
 import { formatPeso } from '@/lib/utils/display';
 import { getSettings } from '@/lib/admin/services/setting.service';
 import { fareForBarangays } from '@/lib/shared/fare/fare-matrix.service';
 import { defaultFinancialRules } from '@/app/(admin)/settings/data/settings-data';
 import { SkeletonFareMatrix } from '@/components/admin/ui/skeleton/skeleton-fare-matrix';
 import { SuccessModal } from '@/components/admin/ui/success-modal';
-
-const FarePointMapPicker = dynamic(() => import('@/components/admin/routes/fare-point-map-picker'), {
-  ssr: false,
-  loading: () => <div className="h-[320px] animate-pulse rounded-2xl border border-white/10 admin-light:border-[#CBD5E1] bg-[#050F1A] admin-light:bg-[#F8FAFC]" />,
-});
 
 // Adapter: convert API fare point to the format the original UI expects
 interface FarePoint {
@@ -214,13 +207,11 @@ export default function FareMatrixPage() {
   const [newName, setNewName] = useState('');
   const [newSubStops, setNewSubStops] = useState('');
   const [newSubStopDraft, setNewSubStopDraft] = useState('');
-  const [newLocation, setNewLocation] = useState<RouteCoordinate | null>(null);
 
   // Edit form state
   const [editName, setEditName] = useState('');
   const [editSubStops, setEditSubStops] = useState('');
   const [editSubStopDraft, setEditSubStopDraft] = useState('');
-  const [editLocation, setEditLocation] = useState<RouteCoordinate | null>(null);
 
   const fetchRoutes = useCallback(async () => {
     try {
@@ -353,11 +344,6 @@ export default function FareMatrixPage() {
       scrollToForm('fare-point-add-form');
       return;
     }
-    if (!newLocation) {
-      setError('Choose the Point Area location on the map before adding it.');
-      scrollToForm('fare-point-add-form');
-      return;
-    }
 
     setIsSaving(true);
     setError(null);
@@ -372,12 +358,9 @@ export default function FareMatrixPage() {
         name: newName.trim(),
         landmarks: null,
         sub_stops: normalizedSubStops || null,
-        latitude: newLocation[0],
-        longitude: newLocation[1],
       });
       showSuccess(`Point "${newName}" added successfully.`);
       setNewName(''); setNewSubStops(''); setNewSubStopDraft('');
-      setNewLocation(null);
       setShowAddForm(false);
       await Promise.all([fetchFarePoints(), fetchRoutes()]);
     } catch (err) {
@@ -395,9 +378,6 @@ export default function FareMatrixPage() {
     setEditName(point.name);
     setEditSubStops(point.subStops ? point.subStops.join(', ') : '');
     setEditSubStopDraft('');
-    setEditLocation(point.latitude !== null && point.longitude !== null
-      ? [point.latitude, point.longitude]
-      : null);
     setEditingPoint(pointNumber);
     scrollToForm('fare-point-edit-form');
   };
@@ -409,18 +389,16 @@ export default function FareMatrixPage() {
     setIsSaving(true);
     setError(null);
     try {
-      if (!editLocation) throw new Error('Choose the Point Area location on the map.');
       const normalizedSubStops = mergeSubDropoffs(editSubStops, editSubStopDraft);
       setEditSubStops(normalizedSubStops);
       setEditSubStopDraft('');
+      // Coordinates are left out on purpose: sending null would erase the saved location.
       await farePointService.update(point.id, {
         name: editName.trim(),
         // Saving an old row migrates its legacy landmark choices into the
         // canonical sub_stops field, so removals and additions stay in sync.
         landmarks: null,
         sub_stops: normalizedSubStops || null,
-        latitude: editLocation[0],
-        longitude: editLocation[1],
       });
       showSuccess(`Point "${editName}" updated successfully.`);
       setEditingPoint(null);
@@ -633,14 +611,6 @@ export default function FareMatrixPage() {
                 </div>
                 <StopFareNote rules={fareRules} pointNumber={farePoints.length + 1} />
               </div>
-              <div>
-                <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-white/30 admin-light:text-slate-500">Point Location</label>
-                <FarePointMapPicker
-                  value={newLocation}
-                  onChange={setNewLocation}
-                  routeGeometry={selectedRoute?.geometry ?? []}
-                />
-              </div>
               <button type="button" onClick={handleAddPoint} disabled={isSaving} className="px-6 py-2.5 bg-[#1A5FB4] text-white text-sm font-bold rounded-xl hover:bg-[#165a9f] transition-colors active:scale-95 disabled:opacity-50">
                 {isSaving ? 'Adding...' : 'Add Point'}
               </button>
@@ -667,14 +637,6 @@ export default function FareMatrixPage() {
                   />
                 </div>
                 <StopFareNote rules={fareRules} pointNumber={editingPoint} />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-white/30 admin-light:text-slate-500">Point Location</label>
-                <FarePointMapPicker
-                  value={editLocation}
-                  onChange={setEditLocation}
-                  routeGeometry={selectedRoute?.geometry ?? []}
-                />
               </div>
               <div className="flex gap-3">
                 <button type="button" onClick={handleSaveEdit} disabled={isSaving} className="px-6 py-2.5 bg-[#1A5FB4] text-white text-sm font-bold rounded-xl hover:bg-[#165a9f] transition-colors active:scale-95 disabled:opacity-50">
