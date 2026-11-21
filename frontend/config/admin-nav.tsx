@@ -71,6 +71,5 @@ export const settingsSubRoutes = [
   "/settings/safety-notifications",
   "/settings/receipt",
   "/settings/app-configuration",
-  "/settings/operations-rules",
   "/settings/faq-management",
 ];

@@ -10,4 +10,3 @@ export { SkeletonDashboardCarousel } from "./skeleton-dashboard-carousel";
 export { SkeletonFareMatrix } from "./skeleton-fare-matrix";
 export { SkeletonFinancialRules } from "./skeleton-financial-rules";
 export { SkeletonVoucherGenerator } from "./skeleton-voucher-generator";
-export { SkeletonOperationsRules } from "./skeleton-operations-rules";

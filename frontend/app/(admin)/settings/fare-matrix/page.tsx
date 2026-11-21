@@ -176,7 +176,7 @@ function StopFareNote({ rules, pointNumber }: { rules: PageFareRules; pointNumbe
     <p className="@[32rem]/fare-matrix:col-span-2 text-xs text-white/50 admin-light:text-slate-500">
       Fare from stop 1: <span className="font-semibold text-white admin-light:text-slate-900">{formatPeso(ruleFare(rules, pointNumber, false))}</span>
       {' '}regular, <span className="font-semibold text-white admin-light:text-slate-900">{formatPeso(ruleFare(rules, pointNumber, true))}</span> discounted.
-      {' '}Set by Financial Rules.
+      {' '}Set by Payment &amp; Operations Rules.
     </p>
   );
 }
@@ -251,7 +251,7 @@ export default function FareMatrixPage() {
         });
       })
       .catch(() => {
-        if (active) setError('Could not load Financial Rules; fare figures below may be out of date.');
+        if (active) setError('Could not load Payment & Operations Rules; fare figures below may be out of date.');
       });
     return () => { active = false; };
   }, []);
@@ -505,7 +505,7 @@ export default function FareMatrixPage() {
             <Route size={24} aria-hidden="true" className="flex-shrink-0 text-[#62A0EA] admin-light:text-[#1A5FB4]" />
             <div>
               <h2 className="text-white admin-light:text-slate-900 font-bold text-sm">Barangay-Based Fare System</h2>
-              <p className="text-white/40 admin-light:text-slate-500 text-xs mt-0.5">Base fare covers first {fareRules.baseBarangayCount} barangays traveled, {formatPeso(fareRules.succeedingFare)} per succeeding barangay. Set in Financial Rules.</p>
+              <p className="text-white/40 admin-light:text-slate-500 text-xs mt-0.5">Base fare covers first {fareRules.baseBarangayCount} barangays traveled, {formatPeso(fareRules.succeedingFare)} per succeeding barangay. Set in Payment &amp; Operations Rules.</p>
             </div>
           </div>
           <div className="grid grid-cols-1 gap-3 @[28rem]/fare-matrix:grid-cols-3">

@@ -34,13 +34,8 @@ export interface FinancialRulesConfig {
   baseBarangayCount: string;
   /** Month (1-12) students renew in; unrenewed discounts end on the 1st of the next month. */
   studentRenewalMonth: string;
-}
-
-export interface OperationsRulesConfig {
+  /** Overspeeding limit in km/h; stored under the `operations` settings category. */
   speedLimitKmh: string;
-  maxShiftHours: string;
-  remittanceGraceMinutes: string;
-  remittanceReminderIntervalMinutes: string;
 }
 
 export interface AppConfiguration {
@@ -247,7 +242,7 @@ export const notificationTemplates: NotificationTemplateDef[] = [
     key: 'remittance_reminder_template',
     audience: 'Conductor notifications',
     title: 'Remittance reminder',
-    sentWhen: 'Sent repeatedly, at the Operations Rules interval, while a closed shift has cash not yet remitted.',
+    sentWhen: 'Sent repeatedly while a closed shift has cash not yet remitted.',
     defaultText: 'Shift {shift_id} still has PHP {amount} in expected cash awaiting remittance.',
     variables: [
       { name: 'conductor_name', sample: 'Juan Dela Cruz' },
@@ -279,15 +274,9 @@ export const defaultFinancialRules: FinancialRulesConfig = {
   baseBarangayCount: '4',
   // Keep in sync with config/registration.php student_renewal_month.
   studentRenewalMonth: '11',
-};
-
-export const defaultOperationsRules: OperationsRulesConfig = {
   // Keep in sync with LocationService::speedLimitKmh()'s fallback — this is
-  // what Operations Rules shows before an admin has saved an explicit limit.
+  // what Financial Rules shows before an admin has saved an explicit limit.
   speedLimitKmh: '50',
-  maxShiftHours: '12',
-  remittanceGraceMinutes: '30',
-  remittanceReminderIntervalMinutes: '60',
 };
 
 export const defaultAppConfiguration: AppConfiguration = {

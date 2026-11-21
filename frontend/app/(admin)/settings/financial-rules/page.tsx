@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Save, AlertCircle, Percent, Gift, Lock, UserRound, Tag, Banknote, CalendarClock } from 'lucide-react';
+import { Save, AlertCircle, Percent, Gift, Lock, UserRound, Tag, Banknote, CalendarClock, Gauge } from 'lucide-react';
 import { defaultFinancialRules, type FinancialRulesConfig } from '@/app/(admin)/settings/data/settings-data';
 import { getSettings, updateSetting } from '@/lib/admin/services/setting.service';
 import { fareForBarangays } from '@/lib/shared/fare/fare-matrix.service';
@@ -25,6 +25,7 @@ const FIELDS: { key: keyof FinancialRulesConfig; label: string; format: (value: 
   { key: 'discountRate', label: 'Student, Senior Citizen, PWD discount', format: (v) => `${Number(v)}%` },
   { key: 'studentRenewalMonth', label: 'Student renewal month', format: (v) => monthName(Number(v)) },
   { key: 'ridesForFreeReward', label: 'Paid rides for 1 free ride', format: (v) => `${v} rides` },
+  { key: 'speedLimitKmh', label: 'Overspeeding limit', format: (v) => `${v} km/h` },
 ];
 const FARE_KEYS: (keyof FinancialRulesConfig)[] = ['minimumFare', 'baseBarangayCount', 'succeedingFare', 'discountRate'];
 
@@ -45,7 +46,7 @@ export default function FinancialRulesPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await getSettings('financial');
+      const [data, operations] = await Promise.all([getSettings('financial'), getSettings('operations')]);
       // Map DB keys → form field names. DB keys use snake_case.
       const loaded = {
         ridesForFreeReward: data.rides_for_free_reward ?? defaultFinancialRules.ridesForFreeReward,
@@ -55,11 +56,12 @@ export default function FinancialRulesPage() {
         succeedingFare: data.succeeding_fare_regular ?? defaultFinancialRules.succeedingFare,
         baseBarangayCount: data.base_barangay_count ?? defaultFinancialRules.baseBarangayCount,
         studentRenewalMonth: data.student_renewal_month ?? defaultFinancialRules.studentRenewalMonth,
+        speedLimitKmh: operations.speed_limit_kmh ?? defaultFinancialRules.speedLimitKmh,
       };
       setRules(loaded);
       setSavedRules(loaded);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load financial rules');
+      setError(err instanceof Error ? err.message : 'Failed to load payment & operations rules');
     } finally {
       setIsLoading(false);
     }
@@ -80,7 +82,8 @@ export default function FinancialRulesPage() {
   // Submit (after the browser's min/max checks) only opens the confirm dialog.
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSaving || showConfirm || !hasChanges) return;
+    // After a failed load the form holds defaults; saving would overwrite real rules.
+    if (isSaving || showConfirm || !hasChanges || error) return;
     setError(null);
     setSaveError(null);
     // The dialog is portalled to <body>, outside this page's theme scope.
@@ -105,13 +108,15 @@ export default function FinancialRulesPage() {
         updateSetting('base_barangay_count', rules.baseBarangayCount, 'financial'),
         // Refused while a renewal period runs or for this/next month; the other rules still save.
         updateSetting('student_renewal_month', rules.studentRenewalMonth, 'financial'),
+        ...(differs(rules.speedLimitKmh, savedRules.speedLimitKmh)
+          ? [updateSetting('speed_limit_kmh', rules.speedLimitKmh, 'operations')] : []),
       ]);
       setSavedRules({ ...rules });
       setShowConfirm(false);
       setIsSaved(true);
       setTimeout(() => setIsSaved(false), 3000);
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Failed to save financial rules');
+      setSaveError(err instanceof Error ? err.message : 'Failed to save payment & operations rules');
     } finally {
       setIsSaving(false);
     }
@@ -153,8 +158,8 @@ export default function FinancialRulesPage() {
       <div className="mx-auto w-full max-w-3xl space-y-6">
 
         <div className="text-center">
-          <h1 className="text-2xl sm:text-3xl font-bold text-white admin-light:text-slate-900">Financial Rules</h1>
-          <p className="mt-1 text-sm text-slate-400 admin-light:text-slate-500">Fares, the commuter discount and the loyalty reward.</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white admin-light:text-slate-900">Payment &amp; Operations Rules</h1>
+          <p className="mt-1 text-sm text-slate-400 admin-light:text-slate-500">Fares, the commuter discount, the loyalty reward and the overspeeding limit.</p>
         </div>
 
         {/* Error Banner */}
@@ -259,10 +264,19 @@ export default function FinancialRulesPage() {
             </div>
           </SettingsSection>
 
+          <SettingsSection icon={Gauge} title="Overspeeding" description="Monitoring flags a unit driving faster than this limit.">
+            {/* min/max mirror AdminSettingController's rules, so an
+                out-of-range value is caught here instead of as a 422. */}
+            <label className="block w-full sm:max-w-56">
+              <span className="mb-1.5 block text-xs font-medium text-slate-300 admin-light:text-slate-700">Overspeeding limit (10–120)</span>
+              <UnitInput name="speedLimitKmh" value={rules.speedLimitKmh} onChange={handleChange} min={10} max={120} step={1} required unit="km/h" />
+            </label>
+          </SettingsSection>
+
           <div className="flex justify-center pt-2 pb-8">
             <button
               type="submit"
-              disabled={isSaving || !hasChanges}
+              disabled={isSaving || !hasChanges || Boolean(error)}
               className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 bg-[#62A0EA] admin-light:bg-[#1A5FB4] text-white font-medium rounded-lg hover:bg-[#4A8BD4] admin-light:hover:bg-[#164A8F] transition-colors active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save size={18} />
@@ -274,7 +288,7 @@ export default function FinancialRulesPage() {
 
       {showConfirm && (
         <ConfirmSaveDialog
-          title="Save financial rules?"
+          title="Save payment & operations rules?"
           description={`${changedFields.length} ${changedFields.length === 1 ? 'change applies' : 'changes apply'} after you confirm.`}
           rows={changedFields.map(({ key, label, format }) => ({
             label,

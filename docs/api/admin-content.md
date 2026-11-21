@@ -86,7 +86,7 @@ This is the actual read/write wiring across the codebase — which admin setting
 | `rides_for_free_reward` | `Setting::ridesForFreeReward()` — the free-ride voucher cycle length ([commuter.md](commuter.md#get-commuterrewards)) |
 | `regular_discount`, `student_discount`, `senior_discount`, `pwd_discount` | *(none — see Known quirks)* |
 
-**`category=operations`** (Operations Rules page)
+**`category=operations`** (`speed_limit_kmh` is edited on the Financial Rules page; the other keys have no admin screen)
 
 | Key | Read by |
 |---|---|

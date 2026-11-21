@@ -77,7 +77,7 @@ class LocationService
      * cached briefly so high-frequency GPS pings don't hammer the settings table.
      *
      * The default is the fallback only — an admin-set `speed_limit_kmh` row in
-     * settings still wins, so the Operations Rules screen keeps full control.
+     * settings still wins, so the Financial Rules screen keeps full control.
      *
      * NOTE: the Cache::remember TTL means a changed limit takes up to 60s to
      * take effect on live pings.
