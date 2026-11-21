@@ -25,8 +25,8 @@ function SectionHeading() {
 
 export function SkeletonFinancialRules() {
   return (
-    <div role="status" aria-label="Loading financial rules" className="min-h-screen pb-12 px-4 sm:px-6">
-      <span className="sr-only">Loading financial rules…</span>
+    <div role="status" aria-label="Loading payment and operations rules" className="min-h-screen pb-12 px-4 sm:px-6">
+      <span className="sr-only">Loading payment and operations rules…</span>
       <div className="mx-auto w-full max-w-3xl space-y-6">
 
         <div className="flex flex-col items-center gap-2">

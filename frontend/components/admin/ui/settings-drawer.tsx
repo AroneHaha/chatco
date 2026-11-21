@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { SkeletonFareMatrix } from './skeleton/skeleton-fare-matrix';
 import { useAdminTheme } from '@/contexts/admin-theme-context';
 import {
-  X, Calculator, PiggyBank, Ticket, Gauge,
+  X, Calculator, PiggyBank, Ticket,
   Mail, MessageCircleQuestion, Settings2, ArrowLeft, Printer, ChevronRight, UserRoundCog, Moon
 } from 'lucide-react';
 
@@ -18,7 +18,6 @@ import {
 const FareMatrixPage = lazy(() => import('@/app/(admin)/settings/fare-matrix/page'));
 const FinancialRulesPage = lazy(() => import('@/app/(admin)/settings/financial-rules/page'));
 const VoucherGeneratorPage = lazy(() => import('@/app/(admin)/settings/voucher-generator/page'));
-const OperationsRulesPage = lazy(() => import('@/app/(admin)/settings/operations-rules/page'));
 const SafetyNotificationsPage = lazy(() => import('@/app/(admin)/settings/safety-notifications/page'));
 const ReceiptPage = lazy(() => import('@/app/(admin)/settings/receipt/page'));
 const FaqManagementPage = lazy(() => import('@/app/(admin)/settings/faq-management/page'));
@@ -30,10 +29,9 @@ const ProfileSecurityPage = lazy(() => import('@/app/(admin)/settings/profile-se
 const settingsOptions = [
   { title: 'Profile & Security', description: 'Your account and password.', icon: UserRoundCog, href: '/settings/profile-security', group: 'account', component: ProfileSecurityPage },
   { title: 'Fare Matrix', description: 'Set base fares and per-kilometer rates.', icon: Calculator, href: '/settings/fare-matrix', group: 'fares', component: FareMatrixPage },
-  { title: 'Financial Rules', description: 'Wallet limits, discounts, loyalty.', icon: PiggyBank, href: '/settings/financial-rules', group: 'fares', component: FinancialRulesPage },
+  { title: 'Payment & Operations Rules', description: 'Fares, discounts, loyalty, overspeeding.', icon: PiggyBank, href: '/settings/financial-rules', group: 'fares', component: FinancialRulesPage },
   { title: 'Voucher Generator', description: 'Generate bulk promo codes.', icon: Ticket, href: '/settings/voucher-generator', group: 'fares', component: VoucherGeneratorPage },
   { title: 'Receipt', description: 'Thermal fare-receipt content and printing.', icon: Printer, href: '/settings/receipt', group: 'fares', component: ReceiptPage },
-  { title: 'Operations Rules', description: 'Speed limits, shifts, expenses.', icon: Gauge, href: '/settings/operations-rules', group: 'operations', component: OperationsRulesPage },
   { title: 'Notifications', description: 'Wording of automatic emails and notifications.', icon: Mail, href: '/settings/safety-notifications', group: 'operations', component: SafetyNotificationsPage },
   { title: 'FAQ Management', description: 'Manage commuter FAQ questions and answers.', icon: MessageCircleQuestion, href: '/settings/faq-management', group: 'app', component: FaqManagementPage },
   { title: 'App Configuration', description: 'Maintenance mode, registration.', icon: Settings2, href: '/settings/app-configuration', group: 'app', component: AppConfigurationPage },
@@ -43,8 +41,8 @@ const settingsOptions = [
 // and labels carry the structure instead of a colour per setting.
 const settingsGroups = [
   { id: 'account', label: 'Account' },
-  { id: 'fares', label: 'Fares & payments' },
-  { id: 'operations', label: 'Operations & safety' },
+  { id: 'fares', label: 'Fares & Operations' },
+  { id: 'operations', label: 'Updates & Notifications' },
   { id: 'app', label: 'App' },
 ] as const;
 

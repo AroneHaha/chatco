@@ -35,7 +35,10 @@ const SUCCESS_MESSAGE_MS = 3000;
 export default function UsersPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<'active' | 'pending' | 'rejected' | 'discounts'>('active');
+  const [activeTab, setActiveTab] = useState<'active' | 'pending' | 'discounts'>('active');
+  // Rejected accounts open from the Pending tab's filter, not their own tab.
+  const [showRejected, setShowRejected] = useState(false);
+  const dataTab = activeTab === 'pending' && showRejected ? 'rejected' : activeTab;
   const { discountApplications } = useAdminNotifications();
   const {
     activeUsers,
@@ -65,7 +68,7 @@ export default function UsersPage() {
     rejectRegistrationApi,
     suspendUserApi,
     unsuspendUserApi,
-  } = useUsersData(activeTab);
+  } = useUsersData(dataTab);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
@@ -415,8 +418,8 @@ export default function UsersPage() {
   // should keep the existing table (and its search bar) mounted and just
   // show a small in-place spinner instead of blanking the whole card.
   const hasDataForActiveTab =
-    activeTab === 'active' ? pagination !== null :
-    activeTab === 'pending' ? pendingPagination !== null :
+    dataTab === 'active' ? pagination !== null :
+    dataTab === 'pending' ? pendingPagination !== null :
     rejectedPagination !== null;
 
   const selectFilterClasses = 'h-11 min-w-0 w-full rounded-md border border-[#1E2D45] admin-light:border-[#E2E8F0] bg-[#0E1628] admin-light:bg-white px-3 text-base text-white admin-light:text-slate-900 focus:outline-none focus:ring-1 focus:ring-[#62A0EA]/30 admin-light:focus:ring-[#1A5FB4]/30 scheme-dark admin-light:scheme-light md:w-auto md:text-sm';
@@ -522,9 +525,13 @@ export default function UsersPage() {
           {activeTab === 'pending' && (
             <>
               <select
-                value={pendingType}
-                onChange={(event) => setPendingType(event.target.value as typeof pendingType)}
-                aria-label="Filter pending registrations by commuter type"
+                value={showRejected ? 'REJECTED' : pendingType}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setShowRejected(value === 'REJECTED');
+                  if (value !== 'REJECTED') setPendingType(value as typeof pendingType);
+                }}
+                aria-label="Filter registrations by commuter type or rejected accounts"
                 className={selectFilterClasses}
               >
                 <option value="">All Types</option>
@@ -532,31 +539,33 @@ export default function UsersPage() {
                 <option value="STUDENT">Student</option>
                 <option value="SENIOR">Senior Citizen</option>
                 <option value="PWD">PWD</option>
+                <option value="REJECTED">Rejected ({rejectedTotal})</option>
               </select>
-              <select
-                value={pendingSort}
-                onChange={(event) => setPendingSort(event.target.value as typeof pendingSort)}
-                aria-label="Sort pending registrations"
-                className={selectFilterClasses}
-              >
-                <option value="oldest" className="bg-gray-800 admin-light:bg-white">Oldest</option>
-                <option value="recent" className="bg-gray-800 admin-light:bg-white">Recent</option>
-              </select>
+              {showRejected ? (
+                <select
+                  value={rejectedType}
+                  onChange={(event) => setRejectedType(event.target.value as typeof rejectedType)}
+                  aria-label="Filter rejected accounts by commuter type"
+                  className={selectFilterClasses}
+                >
+                  <option value="">All Types</option>
+                  <option value="REGULAR">Regular</option>
+                  <option value="STUDENT">Student</option>
+                  <option value="SENIOR">Senior Citizen</option>
+                  <option value="PWD">PWD</option>
+                </select>
+              ) : (
+                <select
+                  value={pendingSort}
+                  onChange={(event) => setPendingSort(event.target.value as typeof pendingSort)}
+                  aria-label="Sort pending registrations"
+                  className={selectFilterClasses}
+                >
+                  <option value="oldest" className="bg-gray-800 admin-light:bg-white">Oldest</option>
+                  <option value="recent" className="bg-gray-800 admin-light:bg-white">Recent</option>
+                </select>
+              )}
             </>
-          )}
-          {activeTab === 'rejected' && (
-            <select
-              value={rejectedType}
-              onChange={(event) => setRejectedType(event.target.value as typeof rejectedType)}
-              aria-label="Filter rejected accounts by commuter type"
-              className={`${selectFilterClasses} col-span-2`}
-            >
-              <option value="">All Types</option>
-              <option value="REGULAR">Regular</option>
-              <option value="STUDENT">Student</option>
-              <option value="SENIOR">Senior Citizen</option>
-              <option value="PWD">PWD</option>
-            </select>
           )}
         </div>
       </div>
@@ -578,11 +587,10 @@ export default function UsersPage() {
           <PageTabs
             className="border-b-0! [&>button]:min-h-11 [&>button]:flex-none"
             activeId={activeTab}
-            onChange={(id) => { setActiveTab(id); if (id === 'active') setSelectedUser(null); }}
+            onChange={(id) => { setActiveTab(id); setShowRejected(false); if (id === 'active') setSelectedUser(null); }}
             tabs={[
               { id: 'active', label: `Active ${activeRoleLabel}`, count: pagination?.total ?? activeUsers.length, icon: UserCheck },
               { id: 'pending', label: 'Pending Verification', count: pendingTotal, icon: Users },
-              { id: 'rejected', label: 'Rejected', count: rejectedTotal, icon: XCircle },
               { id: 'discounts', label: 'Discount Applications', count: discountApplications.count, icon: RefreshCw },
             ]}
           />
@@ -656,7 +664,7 @@ export default function UsersPage() {
                 isRefreshing={isLoading}
               />
             )}
-            {activeTab === 'pending' && (
+            {dataTab === 'pending' && (
               <RegistrationRequestsTable
                 requests={pendingRequests}
                 onSelectRequest={handleOpenReviewModal}
@@ -666,7 +674,7 @@ export default function UsersPage() {
                 isRefreshing={isLoading}
               />
             )}
-            {activeTab === 'rejected' && (
+            {dataTab === 'rejected' && (
               <RejectedAccountsTable
                 requests={rejectedUsers}
                 onSelectRequest={handleOpenRejectedDetails}
